@@ -15,11 +15,12 @@ cases is made up.
 | File | What |
 |---|---|
 | `make_cases.py` | writes `cases.json`: per case, a `.sxcu` or a destination with its `UploadersConfig` settings, the input (file bytes, text or URL) and the canned responses |
-| `mock_server.py` | the server: records each request as it arrived (request line, headers in order and case, body bytes) and answers with the next canned response |
+| `mock_server.py` | the server: records each request as it arrived (request line, headers in order and case, body bytes) and answers with the next canned response; it can also read bodies slowly (`read_chunk`, `read_delay_ms`) and answer late (`delay_ms`), and port 0 picks a free port (ShareXrs's upload task tests start it so) |
 | `dotnet/` | the ShareX side (`UploadersHarness`), a console app referencing `ShareX.UploadersLib.dll`, `ShareX.HelpersLib.dll` and `Newtonsoft.Json.dll` from the reference build; it also writes an `UploadersConfig.json` with ShareX's own `Save` (the `sharex-uploaders` round-trip fixture) |
 | `../../crates/sharex-uploaders/examples/uploaders_harness.rs` | the ShareXrs side |
 | `compare.py` | diffs the two results files |
 | `run.sh` | all of it |
+| `after_upload_cases.json` | `UploadInfoParser.Parse` and `Regex.Replace` cases: `UploadersHarness --after-upload after_upload_cases.json <out>` runs them through ShareX's own `ShareX.dll`; the output is `crates/sharexrs/src/upload/fixtures/after_upload.sharex.json`, which ShareXrs's tests compare against |
 
 ## Running
 

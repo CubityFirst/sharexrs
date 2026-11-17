@@ -177,7 +177,7 @@ fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {
 
 /// `TaskHelpers.HandleExistsFile`. Asking (the default) needs ShareX's
 /// file exists window, not ported yet: a unique name is used instead.
-fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
+pub fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
     if !path.exists() {
         return Some(path.to_path_buf());
     }
@@ -193,6 +193,10 @@ fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
 pub struct TaskOutcome {
     pub file_path: Option<PathBuf>,
     pub copied: bool,
+    /// The encoded image (`WorkerTask.Data`) and its file name, when it was
+    /// prepared for saving or uploading.
+    pub data: Option<Vec<u8>>,
+    pub file_name: Option<String>,
 }
 
 /// An image task ready to run off the event loop, with what
@@ -240,15 +244,19 @@ impl ImageTask {
                 Err(e) => eprintln!("Clipboard copy image failed: {e}"),
             }
         }
-        if job.contains(AfterCaptureTasks::SaveImageToFile) {
+        if job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::UploadImageToHost) {
             let (data, ext) = prepare_image(&self.metadata.image, &self.task)?;
             let name = change_extension(&self.file_name, ext);
-            if let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task) {
+            if job.contains(AfterCaptureTasks::SaveImageToFile)
+                && let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task)
+            {
                 std::fs::create_dir_all(&self.folder).map_err(|e| format!("{}: {e}", self.folder.display()))?;
-                std::fs::write(&path, data).map_err(|e| format!("{}: {e}", path.display()))?;
+                std::fs::write(&path, &data).map_err(|e| format!("{}: {e}", path.display()))?;
                 eprintln!("Image saved to file: {}", path.display());
                 outcome.file_path = Some(path);
             }
+            outcome.data = Some(data);
+            outcome.file_name = Some(name);
         }
         Ok(outcome)
     }

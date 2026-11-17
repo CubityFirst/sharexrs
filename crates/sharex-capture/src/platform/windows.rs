@@ -514,6 +514,12 @@ pub fn set_clipboard_image(owner: isize, png: &[u8], dib: &[u8]) -> Result<(), S
     set_clipboard(owner, &[(ClipboardFormat::Id(8), dib), (ClipboardFormat::Named("PNG"), png)]) // CF_DIB
 }
 
+/// `IsClipboardFormatAvailable`: whether the clipboard holds `format`.
+pub fn clipboard_has_format(format: u32) -> bool {
+    // SAFETY: no pointers.
+    unsafe { windows_sys::Win32::System::DataExchange::IsClipboardFormatAvailable(format) != 0 }
+}
+
 /// A clipboard format: a standard one (`CF_*`) or a registered name.
 pub enum ClipboardFormat<'a> {
     Id(u32),

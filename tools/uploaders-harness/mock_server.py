@@ -14,19 +14,25 @@ Control endpoints (not recorded):
                         "body": "...", "body_base64": "..."}]}
                       clears the log and queues the responses; "{base}" in a
                       header value or body becomes this server's base URL.
+                      Optional: "read_chunk" and "read_delay_ms" read request
+                      bodies that many bytes at a time with a pause between
+                      (a slow upload); a response's "delay_ms" waits before
+                      answering (a slow server).
   GET  /__mock/log    the requests recorded since the last reset.
 
-Usage: python mock_server.py [port]   (default 18765)
+Usage: python mock_server.py [port]   (default 18765; 0 picks a free port,
+printed on the first line)
 """
 
 import base64
 import json
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOCK = threading.Lock()
-STATE = {"responses": [], "log": []}
+STATE = {"responses": [], "log": [], "read_chunk": 0, "read_delay_ms": 0}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -51,6 +57,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.rfile.readline()
             return data, True
         length = int(self.headers.get("Content-Length", "0") or 0)
+        with LOCK:
+            chunk, delay = STATE["read_chunk"], STATE["read_delay_ms"]
+        if chunk > 0 and not self.path.startswith("/__mock/"):
+            data = b""
+            while len(data) < length:
+                part = self.rfile.read(min(chunk, length - len(data)))
+                if not part:
+                    break
+                data += part
+                time.sleep(delay / 1000)
+            return data, False
         return (self.rfile.read(length) if length else b""), False
 
     def _send(self, status, reason, headers, body):
@@ -70,6 +87,8 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     STATE["responses"] = list(spec.get("responses", []))
                     STATE["log"] = []
+                    STATE["read_chunk"] = int(spec.get("read_chunk", 0))
+                    STATE["read_delay_ms"] = int(spec.get("read_delay_ms", 0))
                 self._send(200, "OK", [("Content-Type", "application/json")], b"{}")
             elif self.path == "/__mock/log":
                 with LOCK:
@@ -97,6 +116,8 @@ class Handler(BaseHTTPRequestHandler):
         else:
             out = resp.get("body", "").replace("{base}", base).encode("utf-8")
         headers = [(k, v.replace("{base}", base)) for k, v in resp.get("headers", [])]
+        if resp.get("delay_ms"):
+            time.sleep(resp["delay_ms"] / 1000)
         self._send(resp.get("status", 200), resp.get("reason"), headers, out)
 
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = _handle
@@ -114,7 +135,7 @@ class Server(ThreadingHTTPServer):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 18765
     server = Server(("127.0.0.1", port), Handler)
-    print(f"mock server on http://127.0.0.1:{port}", flush=True)
+    print(f"mock server on http://127.0.0.1:{server.server_address[1]}", flush=True)
     server.serve_forever()
 
 

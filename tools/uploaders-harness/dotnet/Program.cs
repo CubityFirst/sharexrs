@@ -3,6 +3,7 @@
 // what each sent and what ShareX made of the canned responses.
 //
 //   UploadersHarness <cases.json> <results.json> [port] [--fixture <UploadersConfig.json>]
+//   UploadersHarness --after-upload <after_upload_cases.json> <out.json>  (AfterUpload.cs)
 //
 // Every request goes to 127.0.0.1: the shared HttpClients ShareX's
 // HttpClientFactory hands out are swapped (by reflection) for ones whose
@@ -41,6 +42,7 @@ static class Program
 
     static int Run(string[] args)
     {
+        if (args.Length == 3 && args[0] == "--after-upload") return AfterUpload.Run(args[1], args[2]);
         string casesPath = args[0];
         string resultsPath = args[1];
         if (args.Length > 2 && int.TryParse(args[2], out int p)) Port = p;

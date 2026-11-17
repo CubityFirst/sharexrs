@@ -12,6 +12,9 @@ sharex-capture.workspace = true
 sharex-helpers.workspace = true
 sharex-settings.workspace = true
 sharex-image-effects.workspace = true
+sharex-uploaders.workspace = true
+# .NET regex substitutions for the after upload URL replace, as sharex-uploaders uses it.
+fancy-regex = "0.11"
 egui.workspace = true
 egui-wgpu.workspace = true
 egui-winit.workspace = true
@@ -42,6 +45,10 @@ objc2-foundation = "0.3.2"
 # The tray icon: a StatusNotifierItem over D-Bus, as snapr.
 [target."cfg(target_os = \"linux\")".dependencies]
 ksni = { version = "0.3.6", default-features = false, features = ["async-io", "blocking"] }
+
+[dev-dependencies]
+# The mock server's log has bodies in base 64.
+base64 = "0.22"
 
 [build-dependencies]
 embed-resource = "3"

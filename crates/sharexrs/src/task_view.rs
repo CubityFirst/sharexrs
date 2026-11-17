@@ -128,6 +128,8 @@ pub enum TaskCommand {
     TryCopy,
     RemoveSelected,
     DeleteSelectedFiles,
+    /// `StopUpload`: `WorkerTask.Stop` on the selected tasks.
+    StopUpload,
     Clear,
     SwitchView,
     /// An entry whose tool isn't ported yet (named for the log).
@@ -1325,7 +1327,7 @@ impl TaskView {
         let has_response = first_task.is_some_and(|t| !t.info.result.response.is_empty());
         let entries = vec![
             item(s::MainWindow_ShowErrors(), icon::Warning, np("Show errors"), ok && has_errors),
-            item(s::MainWindow_StopUpload(), icon::CircleStop, np("Stop upload"), working),
+            item(s::MainWindow_StopUpload(), icon::CircleStop, TaskCommand::StopUpload, working),
             sub(s::MainWindow_Open(), icon::ExternalLink, self.open_menu(&sel), has),
             sub(s::MainWindow_Copy(), icon::Copy, self.copy_menu(&sel, &statuses), ok),
             item(s::MainWindow_UploadSelectedFile(), icon::FileUpload, np("Upload"), uploads && ok && sel.is_file_exist).gesture("Ctrl+U"),
@@ -1473,7 +1475,8 @@ fn list_status_icon(task: &WorkerTask) -> (&'static str, Color32) {
 }
 
 /// `RefreshListColumns`: file name, status, progress, speed, elapsed,
-/// remaining, URL. Nothing uploads yet, so the transfer columns stay empty.
+/// remaining, URL. An upload's transfer columns come from its progress
+/// reports and keep their last values once it finishes.
 fn list_cells(task: &WorkerTask) -> [String; 7] {
     let info = &task.info;
     let mut c: [String; 7] = Default::default();
@@ -1486,7 +1489,12 @@ fn list_cells(task: &WorkerTask) -> [String; 7] {
         }
         TaskStatus::InQueue => c[1] = s::TaskListView_InQueue().to_string(),
         status => {
-            c[1] = info.status.clone();
+            c[2..6].clone_from_slice(&task.transfer);
+            c[1] = match info.progress {
+                // `string.Format("{0:0.0}%", progress.Percentage)`.
+                Some(p) if status == TaskStatus::Working && p.length > 0 => format!("{:.1}%", p.percentage()),
+                _ => info.status.clone(),
+            };
             if matches!(status, TaskStatus::Completed | TaskStatus::Stopped) {
                 c[6] = info.text();
             }
@@ -1570,6 +1578,33 @@ mod tests {
         assert_eq!(v.selected(), vec![4, 3, 2]);
         v.press(pos2(10.0, 5.0), PointerButton::Primary, Modifiers::CTRL, 1.0, &mut actions);
         assert_eq!(v.selected(), vec![4, 3, 2, 5]);
+    }
+
+    #[test]
+    fn list_cells_of_an_upload() {
+        use crate::tasks::{TaskInfo, UploadProgress};
+        let mut v = TaskView::new();
+        let id = v.manager.add_task(TaskInfo { file_name: "a.png".into(), ..Default::default() }, crate::upload::StopHandle::default());
+        v.manager.prepare(id);
+        v.manager.set_status(id, TaskStatus::Working, s::UploadTask_DoUploadJob_Uploading().into());
+        let p = UploadProgress {
+            position: 1_500_000,
+            length: 6_000_000,
+            speed: 500_000.0,
+            elapsed: std::time::Duration::from_secs(3),
+            remaining: std::time::Duration::from_secs(9),
+        };
+        v.manager.set_progress(id, p, false);
+        let cells = list_cells(v.manager.get(id).unwrap());
+        assert_eq!(cells[1..6], ["25.0%", "1.50 MB / 6.00 MB", "500.00 KB/s", "00:03", "00:09"]);
+        let report = crate::tasks::TaskReport {
+            file_name: "a.png".into(),
+            result: crate::tasks::UploadResult { url: "https://i.example.com/a.png".into(), url_expected: true, ..Default::default() },
+            ..Default::default()
+        };
+        v.manager.finish(id, &report, 10);
+        let cells = list_cells(v.manager.get(id).unwrap());
+        assert_eq!(cells[1..], [s::UploadTask_OnUploadCompleted_Done(), "1.50 MB / 6.00 MB", "500.00 KB/s", "00:03", "00:09", "https://i.example.com/a.png"]);
     }
 
     #[test]
