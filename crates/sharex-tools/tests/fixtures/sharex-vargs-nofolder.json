@@ -1,0 +1,6 @@
+{
+  "optionsArgs": "-i \"a.mp4\" -c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libvorbis -q:a 3 -y \"\"",
+  "optionsOutput": "",
+  "windowArgs": "-i \"a.mp4\" -c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libvorbis -q:a 3 -y \"\"",
+  "windowOutput": ""
+}
