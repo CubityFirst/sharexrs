@@ -581,6 +581,91 @@ impl Path {
         Rect::bounds_of(&self.points).0
     }
 
+    /// `SkPath::computeTightBounds`: the bounds of the curves themselves,
+    /// not of their control points.
+    pub fn tight_bounds(&self) -> Rect {
+        if self.verbs.is_empty() {
+            return Rect::default();
+        }
+        if self.segment_mask == LINE_SEGMENT_MASK {
+            return self.bounds();
+        }
+        let mut min = self.points[0];
+        let mut max = self.points[0];
+        for (verb, pts, w) in self.iter_verbs() {
+            let mut ext: Vec<Point> = Vec::new();
+            match verb {
+                Verb::Move => ext.push(pts[0]),
+                Verb::Line => ext.push(pts[1]),
+                Verb::Quad => {
+                    let q = [pts[0], pts[1], pts[2]];
+                    for axis in 0..2 {
+                        let v = |p: Point| if axis == 0 { p.x } else { p.y };
+                        // SkFindQuadExtrema
+                        let (a, b, c) = (v(q[0]), v(q[1]), v(q[2]));
+                        if let Some(t) = crate::geom::valid_unit_divide(a - b, a - b - b + c) {
+                            // SkEvalQuadAt (SkQuadCoeff)
+                            let cc = q[0];
+                            let bb = (q[1] - cc) + (q[1] - cc);
+                            let aa = q[2] - (q[1] + q[1]) + cc;
+                            ext.push(Point::new(
+                                (aa.x * t + bb.x) * t + cc.x,
+                                (aa.y * t + bb.y) * t + cc.y,
+                            ));
+                        }
+                    }
+                    ext.push(q[2]);
+                }
+                Verb::Conic => {
+                    let conic = crate::geom::Conic::new([pts[0], pts[1], pts[2]], w);
+                    for axis in 0..2 {
+                        let v = |p: Point| if axis == 0 { p.x } else { p.y };
+                        // conic_deriv_coeff, SkFindUnitQuadRoots
+                        let p20 = v(conic.pts[2]) - v(conic.pts[0]);
+                        let p10 = v(conic.pts[1]) - v(conic.pts[0]);
+                        let wp10 = conic.w * p10;
+                        let mut roots = [0.0f32; 2];
+                        let n = crate::geom::find_unit_quad_roots(
+                            conic.w * p20 - p20,
+                            p20 - 2.0 * wp10,
+                            wp10,
+                            &mut roots,
+                        );
+                        if n == 1 {
+                            ext.push(crate::dash::conic_eval_at(&conic, roots[0]));
+                        }
+                    }
+                    ext.push(pts[2]);
+                }
+                Verb::Cubic => {
+                    let c = [pts[0], pts[1], pts[2], pts[3]];
+                    for axis in 0..2 {
+                        let v = |p: Point| if axis == 0 { p.x } else { p.y };
+                        let mut ts = [0.0f32; 2];
+                        let n = crate::geom::find_cubic_extrema(v(c[0]), v(c[1]), v(c[2]), v(c[3]), &mut ts);
+                        for &t in &ts[..n] {
+                            // SkEvalCubicAt (SkCubicCoeff)
+                            let a = c[3] + (c[1] - c[2]) * 3.0 - c[0];
+                            let b = (c[2] - (c[1] + c[1]) + c[0]) * 3.0;
+                            let cc = (c[1] - c[0]) * 3.0;
+                            ext.push(Point::new(
+                                ((a.x * t + b.x) * t + cc.x) * t + c[0].x,
+                                ((a.y * t + b.y) * t + cc.y) * t + c[0].y,
+                            ));
+                        }
+                    }
+                    ext.push(c[3]);
+                }
+                Verb::Close => {}
+            }
+            for p in ext {
+                min = Point::new(min.x.min(p.x), min.y.min(p.y));
+                max = Point::new(max.x.max(p.x), max.y.max(p.y));
+            }
+        }
+        Rect::from_ltrb(min.x, min.y, max.x, max.y)
+    }
+
     pub fn is_finite(&self) -> bool {
         Rect::bounds_of(&self.points).1
     }

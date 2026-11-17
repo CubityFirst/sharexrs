@@ -23,6 +23,18 @@ pub fn open_file(path: &Path) -> bool {
     }
 }
 
+/// `URLHelpers.OpenURL`'s `Process.Start(url)` with `UseShellExecute`:
+/// the default browser (a custom `BrowserPath` isn't supported yet).
+pub fn open_url(url: &str) -> bool {
+    match shell_open(Path::new(url)) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("OpenURL({url}) failed: {e}");
+            false
+        }
+    }
+}
+
 /// `FileHelpers.OpenFolderWithFile`: the folder, with the file selected
 /// (`NativeMethods.OpenFolderAndSelectFile`).
 pub fn open_folder_with_file(path: &Path) -> bool {

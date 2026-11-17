@@ -56,7 +56,10 @@ the pixels come from:
   `StreamGeometry` keeps a separate fill path for unclosed figures (EvenOdd
   by default); the fill is drawn, then the stroke; pen dashes are
   `dashes × thickness`, miter limit 10, round caps for solid lines, flat
-  otherwise.
+  otherwise. A stroke no wider than a device pixel is a hairline
+  (`SkDrawTreatAsHairline` → `SkScan::AntiHairPath`); dashes are
+  `SkDashPathEffect` over `SkContourMeasure` (conics stay conics), with the
+  device clip as the dash's cull rect.
 - **Skia**: `ShouldUseAAA` picks analytic AA (`SkScan_AAAPath`) or the
   supersampler; strokes through `SkStroke` (round caps/joins as conics);
   solid colours through the legacy N32 blitters; edges clipped by
@@ -66,7 +69,13 @@ the pixels come from:
   linear / up nearest, magnify as a Mitchell `drawImageRect`, highlight as a
   per-channel cap) and fills its `Rectangle` with it through an `ImageBrush`
   aligned 1:1; spotlights share one overlay (darkened, optionally blurred
-  image with each spotlight cleared) drawn below the annotations.
+  image with each spotlight cleared) drawn below the annotations. The
+  magnifier's brush isn't aligned: `Stretch.Fill` over the geometry's
+  (deflated) bounds, so `ConfigureTileBrush` resamples the bitmap into an
+  intermediate image (legacy `SkBitmapProcState` bilinear) drawn through a
+  decal shader; an elliptical magnifier is clipped by
+  `Control.Clip = EllipseGeometry` (`clipPath` with anti-aliasing: an
+  `SkAAClip`) and its border's corners are rounded into an ellipse.
 - **Drop shadows** (`ShadowEffectHelper`, `DropShadowEffect`): a layer bounded
   by the visual grown by the blur padding, restored through
   `SkImageFilters::DropShadow` (sigma `0.288675 × r + 0.5`).
@@ -88,14 +97,14 @@ missing properties taking the constructor's defaults.
 | `$type` (tool) | Own properties = default | Rendered by ShareXrs |
 |---|---|---|
 | `Rectangle` | `BorderStyle` = Solid, `CornerRadius` = 0 | ✅ |
-| `Ellipse` | `BorderStyle` = Solid | ✅ (dotted/dash-dot: see below) |
-| `Line` | `BorderStyle` = Solid, `CurvePoint`, `CurvePointActivated` = false | ✅ (1 px: see below) |
+| `Ellipse` | `BorderStyle` = Solid | ✅ |
+| `Line` | `BorderStyle` = Solid, `CurvePoint`, `CurvePointActivated` = false | ✅ |
 | `Arrow` | `Style` = Classic (Modern, Double, Basic, Line), `RoundedCorners` = true, `CurvePoint`, `CurvePointActivated` | ✅ |
 | `Freehand` | `Points`, `BorderStyle`, `ShowArrowHead` = false, `SmoothingTolerance` = 2 | ✅ |
 | `Highlight` | `Amount` = 10, `IsFreehand`, `IsEllipse` (base effect) | ✅ |
 | `Blur` | same | ✅ |
 | `Pixelate` | same | ✅ |
-| `Magnify` | `Amount` = 2, `IsEllipse`, `BorderStyle` | ✅ rectangle; elliptical ❌ |
+| `Magnify` | `Amount` = 2, `IsEllipse`, `BorderStyle` | ✅ |
 | `Spotlight` | `DarkenOpacity` = 180, `BlurAmount` = 0, `IsEllipse` | ✅ |
 | `Text` | `Text`, `TextColor` = `#FF000000`, `FontSize` = 48, `FontFamily` = Segoe UI, `IsBold`, `IsItalic`, `HorizontalAlignment` = Center | ✅ |
 | `Number` (Step) | `Number` = 1, `StepType` = Numeric, `FontSize` = 24, `TextColor` = white, `IsBold` = true, `TailPoint`, `TailEnabled` = true | ⚠️ circle exact, glyphs and tail differ |
@@ -118,11 +127,15 @@ round-trips untouched.
 
 - `sharex-skia`: Skia m119, ported with its arithmetic. `path` (`SkPath`),
   `aaa` (analytic AA), `saa` (supersampler incl. `MaskSuperBlitter`), `scan`
-  (`AntiFillPath`, `AntiFillRect`), `clip` + `cubics` (`SkEdgeClipper`, the
-  double-precision cubic solvers), `stroke` (`SkStroke`), `blitter` (legacy
-  N32 blitters), `blur`, `resample` (`scalePixels`, Mitchell), `raster` (the
-  image effects' pipeline stages, sprite blitter, matrices, shaders,
-  gradients, `Bitmap`, `Canvas`). The image effects crate uses it too.
+  (`AntiFillPath`, `AntiFillRect`), `clip` + `cubics` (`SkEdgeClipper`,
+  `SkLineClipper`, the double-precision cubic solvers), `stroke`
+  (`SkStroke`), `hair` (`SkScan_Hairline`, `SkScan_Antihair`), `dash`
+  (`SkDashPath`, `SkContourMeasure`), `aaclip` (`SkAAClip`,
+  `SkAAClipBlitter`), `blitter` (legacy N32 blitters), `blur`, `resample`
+  (`scalePixels`, Mitchell), `raster` (the image effects' pipeline stages,
+  sprite blitter, legacy image shaders incl. `SkBitmapProcState` bilinear,
+  matrices, shaders, gradients, `Bitmap`, `Canvas` with an anti-aliased
+  clip). The image effects crate uses it too.
 - `sharex-image-editor`: `model` (annotations, JSON), `options`
   (`ImageEditorOptions`), `render` (`render(base, annotations)`: shapes,
   effects, text, shadows).
@@ -139,24 +152,22 @@ case without a `"pending"` note to be identical, and
 prints per case the largest channel difference and the share of differing
 pixels.
 
-**Result: 51 of 60 cases identical, pixel for pixel**: every rectangle
+**Result: 55 of 60 cases identical, pixel for pixel**: every rectangle
 (plain, odd width, radius, dashes, rotated, off-canvas, shadows), ellipse
-(solid, filled, rotated, off-canvas), line (curved, wide, 2 px dashed),
-arrow (all five styles, straight and curved, zero length, thick, shadow),
-freehand (plain, arrow head, dashed, two points), highlight (4 cases incl.
-fractional and off-canvas), blur (3), pixelate (2), rectangular magnify,
-spotlight (rectangle; ellipse with blur), text (3, Segoe UI), a stack of
-overlapping annotations and small shapes.
+(solid, filled, dotted, dash-dot, rotated, off-canvas), line (curved, wide,
+1 px, 2 px dashed), arrow (all five styles, straight and curved, zero
+length, thick, shadow), freehand (plain, arrow head, dashed, two points),
+highlight (4 cases incl. fractional and off-canvas), blur (3), pixelate
+(2), magnify (rectangle; ellipse with a border), spotlight (rectangle;
+ellipse with blur), text (3, Segoe UI), a stack of overlapping annotations
+and small shapes. (51 before hairlines, `SkDashPath` and `SkAAClip`.)
 
 Not identical, and why:
 
 | Case | Max Δ, pixels differing | Why |
 |---|---|---|
-| ellipse-dot, ellipse-dashdot | 60, 0.43% / 0.40% | Dashes along conics: Skia's `SkDashPath` measures the conic itself; ShareXrs still dashes through tiny-skia (quads). |
-| line-thin (1 px) | 53, 0.88% | A stroke ≤ 1 device pixel is a hairline in Skia (`SkScan_Antihair`), not ported. |
-| magnify-ellipse-border | 250, 16.8% | The elliptical magnifier clips with an anti-aliased clip (`SkAAClip`), not ported. |
 | step, step-letter | 215–223, 0.03–0.07% | Glyphs: `DrawText` rasterises DirectWrite (hinted) masks; ShareXrs fills the same font's outlines at the same positions. The circle is exact. |
-| step-tail, balloon | 222–255, 1.7–2.4% | The tail is a union with the body (`CombinedGeometry` → Skia PathOps), not ported; plus the glyphs. |
+| step-tail, balloon | 222–255, 1.7–2.4% | The tail is a union with the body (`CombinedGeometry` → `SKPath.Op(Union)`, Skia's PathOps), not ported; plus the glyphs. |
 | balloon-notail | 165, 0.60% | Glyphs only. |
 
 Fonts: text cases use the same font files as ShareX (Segoe UI from
@@ -165,9 +176,15 @@ by `EditorHarness --fonts`). Shaping is HarfBuzz in both (harfrust here), so
 advances and positions agree; only `DrawText`'s DirectWrite masks can't be
 reproduced by filling outlines.
 
+PathOps (`src/pathops`, 58 files, ~830 KB in m119) is the one Skia
+subsystem left: the union's outline (where the oval's conics are chopped,
+in double precision, and which segment the walk starts from, which the
+stroker's joins depend on) only matches if the whole of `SkOpEdgeBuilder`,
+the intersection code (`SkIntersections`, `SkDConic`, `SkPathOpsTSect`),
+`SkOpSegment`/`SkOpSpan`/`SkOpCoincidence` and `SkPathWriter` are ported.
+
 Not ported yet: Image, Emoji, Cursor and Smart eraser rendering; rotated
-effect annotations; `SkDashPath`, hairlines, `SkAAClip`, PathOps; crop,
-cut-out and flatten.
+effect annotations; PathOps; crop, cut-out and flatten.
 
 ## Plan for the editor UI
 

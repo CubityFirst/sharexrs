@@ -482,7 +482,7 @@ fn chop_cubic_at2(src: &[Point], dst: &mut [Point], t0: f32, t1: f32) {
 }
 
 /// `SkChopCubicAt(src, dst, tValues, tCount)`.
-pub fn chop_cubic_at_ts(src: &[Point; 4], dst: &mut [Point; 10], t_values: &[f32]) {
+pub fn chop_cubic_at_ts(src: &[Point; 4], dst: &mut [Point], t_values: &[f32]) {
     if t_values.is_empty() {
         dst[..4].copy_from_slice(src);
         return;

@@ -906,11 +906,17 @@ fn fill_path(
 }
 
 /// `SkScan::SAAFillPath`.
-pub fn saa_fill_path(path: &Path, blitter: &mut dyn Blitter, ir: IRect, clip_bounds: IRect) {
+pub fn saa_fill_path(
+    path: &Path,
+    blitter: &mut dyn Blitter,
+    ir: IRect,
+    clip_bounds: IRect,
+    force_rle: bool,
+) {
     let contained = clip_bounds.contains(&ir);
     let width = ir.width();
     let rb = ((width + 3) & !3) as i64;
-    let can_mask = width <= 32 && rb * ir.height() as i64 <= 1024;
+    let can_mask = width <= 32 && rb * ir.height() as i64 <= 1024 && !force_rle;
     let mut sect = ir;
     if !sect.intersect(&clip_bounds) {
         sect = IRect::default();

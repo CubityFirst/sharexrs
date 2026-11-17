@@ -267,7 +267,7 @@ impl StartScreen {
             }
         }
         let swatches_w = 34.0 * 8.0 + 2.0 * 7.0;
-        let cb = Rect::from_min_size(pos2(x + swatches_w + 8.0, row.min.y), vec2(64.0, 40.0));
+        let cb = Rect::from_min_size(pos2(x + swatches_w + 8.0, row.min.y), vec2(62.0, 40.0));
         let cb_resp = ColorButton { enabled: can_edit }.show(ui, cb, Id::new("start-accent-picker"), accent);
         let just_opened = cb_resp.clicked() && !self.color_open;
         if cb_resp.clicked() {

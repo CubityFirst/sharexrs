@@ -287,11 +287,17 @@ count.
 ### The app hook
 
 `crates/sharexrs/src/history.rs`: `connect` (migration, then open; nothing
-in sandbox mode), `close`, and `task_completed`, called from
-`task_actions.rs` when a task completes: the `HistorySaveTasks` /
-`HistoryCheckURL` rules, `TaskInfo.GetHistoryItem` (name, path, `Image`, the
-task's end time as local time, the URLs, `WindowTitle`/`ProcessName` tags from
-the capture's metadata, carried on `TaskInfo`), appended on a thread.
+in sandbox mode) and `close`. Every capture and upload task runs through the
+upload worker (`upload/worker.rs`); when it ends, its `report()` makes
+`TaskInfo.GetHistoryItem` (`history::history_item`: file name and path,
+`DataType` by name, `UploaderHost` from the task's destination as ShareX
+resolves it (HelpersLib's localized name, else the enum's `[Description]`;
+null for jobs that don't upload), the upload result's URL, thumbnail,
+deletion and shortened URLs, the capture's `WindowTitle`/`ProcessName` tags,
+dated now) and hands it over in the `TaskReport`. `Task_TaskCompleted`
+(`upload/app.rs`) then applies the `HistorySaveTasks` / `HistoryCheckURL`
+rules and appends it on a thread. The upload tests' mock image upload checks
+the item it makes.
 
 ## Validation
 
@@ -335,8 +341,7 @@ Tokyo), the context menu rules and the copy formats.
 - The three windows (plan below) and their dialogs; the history entries in
   the main window's and tray's menus, the hotkeys' `OpenHistory` /
   `OpenImageHistory` / Stats jobs; Recent items in the tray menu.
-- `HistorySaveOCRText` (OCR isn't ported) and `Host` for uploads (tasks don't
-  upload yet; ShareXrs's items have no host).
+- `HistorySaveOCRText` (OCR isn't ported).
 - Settings export/import (history zipped in the export).
 - Thumbnail loading for the Image history window (Windows shell thumbnails
   for videos); preview downloads; the Stats window's Share image task.

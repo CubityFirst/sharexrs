@@ -11,7 +11,8 @@ use sharex_settings::Described;
 use sharex_ui::controls::{self, Button, CheckBox, ComboBox, ComboItem, DecimalUpDown, NumericUpDown, Slider, TextBox};
 use sharex_ui::theme::{Density, fluent, palette};
 use sharex_ui::widgets::{center_y, font, galley, line_height};
-use sharex_ui::icons;
+use sharex_ui::border::{self, Brush, Part};
+use sharex_ui::{focus, icons};
 
 /// A card's or page's text matches every term of the query
 /// (`SettingsSearch.Matches`, case-insensitive).
@@ -590,4 +591,38 @@ impl<S, W> Form<'_, '_, S, W> {
         clicked
     }
 
+}
+
+/// A `SettingsNavigation` `TreeViewItem`'s background (`CornerRadius="4"`):
+/// selected, Fluent's solid `TreeViewItemBackgroundSelected*` with
+/// `ShareX.BoxShadow.Accent.Outline` (an inset `BoxShadow`, spread 1, in
+/// the accent border colour, clipped to the corners) over it, drawn as one
+/// shape; otherwise the list-low / list-medium pointer fills.
+pub fn nav_item_background(painter: &egui::Painter, r: Rect, resp: &egui::Response, selected: bool) {
+    let ctx = painter.ctx();
+    let (p, f) = (palette(ctx), fluent(ctx));
+    let fill = |color| Part::Border { rect: r, radius: 4.0, thickness: 0.0, background: Some(Brush::Solid(color)), border: None };
+    let pressed = resp.is_pointer_button_down_on();
+    if selected {
+        let color = if pressed {
+            p.accent_fill_dark[0]
+        } else if resp.hovered() {
+            p.accent_fill_light[0]
+        } else {
+            p.accent_start
+        };
+        let outline = Part::InsetShadow { rect: r, radius: 4.0, spread: 1.0, color: p.accent_border };
+        border::paint(painter, &[fill(color), outline], 1.0);
+    } else if pressed {
+        border::paint(painter, &[fill(f.list_medium)], 1.0);
+    } else if resp.hovered() {
+        border::paint(painter, &[fill(f.list_low)], 1.0);
+    }
+}
+
+/// Fluent's focus adorner on a navigation item with keyboard focus.
+pub fn nav_item_focus(painter: &egui::Painter, r: Rect, resp: &egui::Response) {
+    if focus::visible(painter.ctx(), resp.id) {
+        focus::paint_adorner(painter, r);
+    }
 }

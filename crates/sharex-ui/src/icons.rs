@@ -185,6 +185,46 @@ pub fn paint_svg(painter: &Painter, rect: Rect, key: &str, svg: &str, color: Col
     }
 }
 
+/// [`paint_svg`] placed exactly where Avalonia's `Path` puts it: the SVG's
+/// user units are mapped to `cell` by `scale` and `offset` (in points, from
+/// the cell's top-left: the `Path`'s stretch and the `Viewbox` it's in) and
+/// rasterised into the whole cell, so a fractional size or position keeps
+/// its antialiasing instead of being rounded to whole pixels. The SVG's
+/// `viewBox` must start at 0,0.
+pub fn paint_svg_exact(painter: &Painter, cell: Rect, key: &str, svg: &str, scale: f32, offset: Vec2, color: Color32) {
+    let ctx = painter.ctx();
+    let ppp = ctx.pixels_per_point();
+    let min = pos2((cell.min.x * ppp).floor(), (cell.min.y * ppp).floor());
+    let max = pos2((cell.max.x * ppp).ceil(), (cell.max.y * ppp).ceil());
+    let (w, h) = ((max.x - min.x).max(1.0) as u32, (max.y - min.y).max(1.0) as u32);
+    let (s, dx, dy) = (scale * ppp, offset.x * ppp + cell.min.x * ppp - min.x, offset.y * ppp + cell.min.y * ppp - min.y);
+    type SvgCache = Arc<Mutex<HashMap<(String, u32, u32, [u32; 3]), Option<TextureHandle>>>>;
+    let cache: SvgCache = ctx.data_mut(|d| d.get_temp_mut_or_default::<SvgCache>(egui::Id::new("sharex-exact-svgs")).clone());
+    let tex = cache
+        .lock()
+        .unwrap()
+        .entry((key.to_string(), w, h, [s.to_bits(), dx.to_bits(), dy.to_bits()]))
+        .or_insert_with(|| {
+            let image = rasterize_exact(svg, w, h, s, dx, dy)?;
+            Some(ctx.load_texture(format!("svgx:{key}@{w}x{h}"), image, TextureOptions::NEAREST))
+        })
+        .clone();
+    if let Some(tex) = tex {
+        let rect = Rect::from_min_max(pos2(min.x / ppp, min.y / ppp), pos2(max.x / ppp, max.y / ppp));
+        painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+    }
+}
+
+/// A tinted SVG drawn white into a `w` x `h` pixmap through
+/// scale(`s`) then translate(`dx`, `dy`).
+pub(crate) fn rasterize_exact(svg: &str, w: u32, h: u32, s: f32, dx: f32, dy: f32) -> Option<ColorImage> {
+    let svg = svg.replace("currentColor", "#FFFFFF");
+    let tree = resvg::usvg::Tree::from_str(&svg, &resvg::usvg::Options::default()).ok()?;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(s, s).post_translate(dx, dy), &mut pixmap.as_mut());
+    Some(ColorImage::from_rgba_premultiplied([w as usize, h as usize], pixmap.data()))
+}
+
 /// The flag for country `code` (`us`, `de`, ...) as a texture of
 /// `w` x `h` points, stretched to fill (`Stretch="Fill"`).
 pub fn flag(ctx: &egui::Context, code: &str, w: f32, h: f32) -> Option<egui::TextureId> {

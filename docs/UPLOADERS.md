@@ -6,7 +6,8 @@ after-upload tasks) and what `crates/sharex-uploaders` ports of it.
 Validation: [tools/uploaders-harness](../tools/uploaders-harness/README.md)
 runs ShareX's own DLL and ShareXrs against a local mock server and diffs
 requests byte for byte and results; every case listed below as validated
-is identical (97 of 97 cases).
+is identical (97 of 97 cases). Uploads as tasks (`crates/sharexrs/src/upload`)
+are under [Upload tasks](#upload-tasks).
 
 ## Layers
 
@@ -65,8 +66,9 @@ How ShareX's requests are built, all reproduced in `http` and `uploader`
   `Content-Length: 0`; GET/DELETE without a body send no length. Bodies
   always have a `Content-Length` (never chunked). No `Accept`,
   `Accept-Encoding` or `Connection` headers.
-- **User agent**: ShareXrs sends ShareX's (`ShareX/22.4.0`): services and
-  self-hosted upload servers check for it (`http::set_user_agent` changes it).
+- **User agent**: ShareXrs identifies as itself, `ShareXrs/<version>`
+  (`http::default_user_agent`), where ShareX sends `ShareX/<version>`; the
+  harness normalises that one difference. A `.sxcu` can set its own.
 - **URLs**: `System.Uri` rewrites them before sending; ported exactly in
   `http::dotnet_absolute_uri` (probed byte by byte, see the harness README).
 - **Query strings**: `URLHelpers.CreateQueryString` with
@@ -297,7 +299,10 @@ Where it lives: `config::uploaders_config_file_path` (personal folder or
 `UploadersConfig-<machine>.json`, copied from the shared file the first
 time). `UploadersConfig::load` (ShareX's fallbacks to the temp file and the
 backups, then the backward compatibility tasks) and `save` (backup and
-weekly backup) are ready; the app doesn't call them yet (no upload tasks).
+weekly backup). The app loads it in the background at startup and tasks
+wait for it (`upload::UploadersConfigStore`, ShareX's `LoadInitialSettings`
+/ `WaitUploadersConfig`); it's saved through `SettingManager`'s writer with
+the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 
 ## Not ported yet
 
@@ -305,20 +310,69 @@ weekly backup) are ready; the app doesn't call them yet (no upload tasks).
   (Google, OneDrive) next, then the simple-HTTP ones (Plik, Azure, B2,
   Seafile, Pushbullet, Hostr).
 - OAuth sign-in flows and windows; `OAuthManager` (OAuth 1.0a).
-- `UploaderFilter` (per-extension destinations), `UploadersConfigValidator`.
-- `UploadManager` (upload file/folder/clipboard/text/URL, drag and drop,
-  download and upload, index folder), the upload half of `WorkerTask`
-  (`DoUploadJob`, retries `MaxUploadFailRetry`, `CheckUploadFilters`,
-  `UploadData`, `ShortenURL`, `ShareURL`, `GetInvalidConfigResult`), and
-  the after-upload tasks (`DoAfterUploadJobs`: URL regex replace, force
-  HTTPS, shorten, share, copy URL with `ClipboardContentFormat`
-  (`UploadInfoParser`), open URL, QR code, after-upload window).
+- `UploadersConfigValidator`.
+- What upload tasks don't do yet: see [Upload tasks](#upload-tasks).
 - History (`HistoryLib`) of uploads.
 - UI: Destination settings, Custom uploader settings (editor, test,
   import/export), upload progress in the task list, response window, the
   `{inputbox}`/`{outputbox}`/`{select}` dialogs, OAuth windows.
 
+## Upload tasks
+
+`crates/sharexrs/src/upload` runs uploads as ShareX's `WorkerTask` and
+`UploadManager` do, each task on its own thread, reporting to the event
+loop (`TaskEvent`) and the task list (`tasks.rs`). Desktop actions go
+through `upload::TaskUi` (clipboard, open URL, QR code), so tests record
+them.
+
+| ShareX | ShareXrs |
+|---|---|
+| `WorkerTask` constructors (`CreateImageUploaderTask`, `CreateFileUploaderTask`, `CreateTextUploaderTask`, `CreateURLShortenerTask`, `CreateShareURLTask`, `CreateDownloadTask`) | `upload::manager::create_*` → `UploadTask` |
+| `ThreadDoWork`, `DoThreadJob` (after capture tasks, `DoTextJobs`, `DownloadFromURL`, `AutoClearClipboard`), `DoUploadJob` (`WaitUploadersConfig`, status Uploading, `MaxUploadFailRetry` retries 1 s apart), `DoUpload` (`CheckUploadFilters`, `UploadDestination`), `UploadData` (`CheckConfig`, `CreateUploader`, error title, `BufferSizePower`, progress, `EarlyCopyURL`, bidi/reserved characters, `UploadDuration`), `GetInvalidConfigResult`, the `EarlyURLCopied` clean-up, `DeleteFile`, "URL is empty." | `upload::worker` |
+| `DoAfterUploadJobs` (URL regex replace with .NET's substitutions, `ResultForceHTTPS`, shorten (also `AutoShortenURLLength`), share, copy URL with `ClipboardContentFormat`, open URL with `OpenURLFormat`, QR code), `ShortenURL`, `ShareURL`, `UploadInfoParser` | `upload::after_upload` |
+| `UploaderFilter`, `UploaderFactory.AllGenericUploaderServices` | `upload::filters` |
+| `UploadManager` (file, folder (recursive, more than 10 files confirmed), clipboard image/text/files, `ProcessTextUpload`, text with `TextCustom`, download and upload, shorten, share) | `upload::manager`; the pickers and windows are stubs in `upload::manager::dialogs` |
+| `TaskManager.Start`/`StartTasks` (`UploadLimit` queue), `Stop`/`StopAllTasks`, `Remove` (stops), the `Task_*` handlers, `UpdateProgressUI` (tray progress) | `upload::app`, `TaskManager::{add_task, startable, prepare, stop, apply_event, finish}` |
+| `ThumbnailItemViewModel.RefreshListColumns` (status %, `ToSizeString`, speed, `ProperTimeSpan`) | `TaskManager::set_progress`, `task_view::list_cells` |
+| `TaskHelpers.ExecuteJob` upload jobs, `MainMenuBuilder.BuildUploadMenu`, the Debug menu's test uploads | `App::run_upload_job`, `App::upload_menu_command` |
+
+Validated headlessly (`upload::tests`, 18 flows against
+`tools/uploaders-harness/mock_server.py`): capture → upload (multipart, the
+saved PNG byte for byte) → copy with a clipboard format, open URL, QR code;
+text (saved with a BOM, JSON body); file with progress reports and the list
+columns; an uploader filter; URL shortener task; upload + custom shortener
++ custom sharer; built-in is.gd after upload; download and upload (HEAD,
+GET, upload); HTTP 500 after its retry, a timeout, a refused connection,
+missing settings (Destination settings asked for), an unported
+destination, `MaxUploadFailRetry` 0; Stop mid-upload; a retry that
+succeeds; Imgur's refreshed OAuth token written back to the config; the
+config loaded and saved with backups. `UploadInfoParser.Parse` and the URL
+regex replace give what ShareX's own code gives for 33 cases
+(`UploadersHarness --after-upload`, fixture in `upload/fixtures`).
+
+Differences and gaps:
+- Exceptions are reported by their message (ShareX adds the .NET type and
+  stack trace: `e.ToString()`).
+- A destination `sharex-uploaders` doesn't have fails the task with
+  "<service> isn't ported to ShareXrs yet." (ShareX would upload).
+- Not ported (logged when used): the file/folder pickers, the text, URL
+  and shorten URL windows, reading the clipboard, the clipboard content
+  viewer, the drag and drop window, the multi upload confirmation (goes
+  ahead), the large file warning and before upload window (go ahead), the
+  after upload window and task notifications, Destination settings (asked
+  for, logged), `DoFileJobs` (actions, copy file/path, show in Explorer),
+  OCR, `ProcessImagesDuringFileUpload`, index folder, history, the upload
+  entries of the task context menu (Open/Copy URL, Upload, Shorten, Share,
+  Show response/errors), the thumbnail card's progress bar, the main
+  window title's progress, a custom browser (`BrowserPath`).
+- .NET regex patterns run on `fancy-regex` (substitutions and group
+  numbering follow .NET; pattern syntax differences aren't handled).
+
 ## Plan: upload UI and task integration
+
+Steps 1, 2 and 4 are done for what doesn't need new windows, and step 3's
+list columns (see [Upload tasks](#upload-tasks)); the rest of step 3 and
+steps 5–7 remain.
 
 1. **Settings load/save**: `SettingManager` gains `uploaders:
    UploadersConfig` (load at startup in the background as ShareX's

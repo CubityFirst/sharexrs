@@ -139,7 +139,7 @@ pub(crate) struct Pen {
 }
 
 impl Pen {
-    fn stroke(&self) -> Option<Stroke> {
+    pub(crate) fn stroke(&self) -> Option<Stroke> {
         if self.thickness == 0.0 {
             return None;
         }

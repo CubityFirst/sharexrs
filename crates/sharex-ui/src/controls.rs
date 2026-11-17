@@ -10,10 +10,10 @@
 
 use egui::{Color32, CornerRadius, CursorIcon, FontId, Id, Key, Order, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 
-use crate::menu::paint_accent_gradient;
+use crate::border::{Brush, Part};
 use crate::theme::{Thickness, fluent, palette};
 use crate::widgets::{center_y, font, galley, line_height, text_width};
-use crate::{fonts, icons};
+use crate::{border, focus, fonts, icons};
 
 /// The interaction of a control at `rect`: hover, press, click.
 fn interact(ui: &Ui, rect: Rect, id: Id, enabled: bool) -> Response {
@@ -29,11 +29,10 @@ fn states(r: &Response, enabled: bool) -> (bool, bool) {
     (r.hovered() || r.is_pointer_button_down_on(), r.is_pointer_button_down_on())
 }
 
-/// `Border`'s fill and 1px stroke drawn inside `rect`.
+/// A `Border` in `rect`: `fill` and a 1px `stroke`, as Avalonia's centred
+/// border geometry (see [`border`]).
 fn bordered(ui: &Ui, rect: Rect, radius: f32, fill: Color32, stroke: Color32) {
-    let r = CornerRadius::same(radius as u8);
-    ui.painter().rect_filled(rect, r, fill);
-    ui.painter().rect_stroke(rect, r, Stroke::new(1.0, stroke), StrokeKind::Inside);
+    border::border(ui.painter(), rect, radius, 1.0, Some(Brush::Solid(fill)), Some(stroke));
 }
 
 /// Text in `font` centred vertically in `rect`, starting at `x`.
@@ -48,6 +47,9 @@ fn text_at(ui: &Ui, rect: Rect, x: f32, text: &str, font: FontId, color: Color32
 pub fn content_font(size: f32, weight: u16) -> FontId {
     FontId::new(size, fonts::inter(weight))
 }
+
+/// A disabled `Button`'s presenter `Opacity`.
+const DISABLED_OPACITY: f32 = 0.35;
 
 fn inset(rect: Rect, t: Thickness, border: f32) -> Rect {
     Rect::from_min_max(
@@ -97,37 +99,43 @@ impl Button {
 
     pub fn show(&self, ui: &Ui, rect: Rect, id: Id, text: &str, enabled: bool) -> Response {
         let p = palette(ui.ctx());
+        let f = fluent(ui.ctx());
         let r = interact(ui, rect, id, enabled);
         let (over, pressed) = states(&r, enabled);
-        let radius = CornerRadius::same(self.corner_radius as u8);
         let painter = ui.painter();
-        let opacity = if enabled { 1.0 } else { 0.35 };
-        let fg = if self.primary { p.accent_foreground } else { p.text };
-        if !enabled {
-            // `:disabled`: the control background, the presenter at 35%.
-            painter.rect_filled(rect, radius, p.control_background.gamma_multiply(opacity));
-            let border = if self.primary { p.accent_border } else { p.border };
-            painter.rect_stroke(rect, radius, Stroke::new(1.0, border.gamma_multiply(opacity)), StrokeKind::Inside);
+        let color = if !enabled {
+            // `:disabled`: the control background, a transparent border
+            // (`.primary` keeps its border and foreground) and the base 40%
+            // foreground, then the whole presenter at 35% as one layer.
+            let (stroke, fg) = if self.primary { (Some(p.accent_border), p.accent_foreground) } else { (None, f.base_medium_low) };
+            let shell = Part::Border { rect, radius: self.corner_radius, thickness: 1.0, background: Some(Brush::Solid(p.control_background)), border: stroke };
+            border::paint(painter, &[shell], DISABLED_OPACITY);
+            border::group_content(fg, p.control_background, DISABLED_OPACITY, p.background_panel)
         } else if self.primary {
-            if pressed {
-                painter.rect_filled(rect, radius, p.accent_fill_dark[0]);
+            let fill = if pressed {
+                Brush::Solid(p.accent_fill_dark[0])
             } else if over {
-                painter.rect_filled(rect, radius, p.accent_fill_light[0]);
+                Brush::Solid(p.accent_fill_light[0])
             } else {
-                paint_accent_gradient(ui, rect, radius);
-            }
-            painter.rect_stroke(rect, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
+                Brush::accent(ui.ctx())
+            };
+            border::border(painter, rect, self.corner_radius, 1.0, Some(fill), Some(p.accent_border));
+            p.accent_foreground
         } else {
             let fill = if over && !pressed { p.control_background_hover } else { p.control_background };
             bordered(ui, rect, self.corner_radius, fill, p.border);
-        }
+            // `ButtonForegroundPointerOver` / `Pressed`: `SystemBaseHighColor`.
+            if over || pressed { f.base_high } else { p.text }
+        };
         if !text.is_empty() {
             let font = self.font();
             let w = text_width(ui, text, font.clone());
             let inner = inset(rect, self.padding, 1.0);
             let x = inner.min.x + ((inner.width() - w) / 2.0).round_ties_even().max(0.0);
-            let color = if enabled { fg } else { fg.gamma_multiply(opacity) };
             text_at(ui, inner, x, text, font, color);
+        }
+        if focus::visible(ui.ctx(), id) {
+            focus::paint_adorner(painter, rect);
         }
         r
     }
@@ -164,24 +172,15 @@ impl<'a> CheckBox<'a> {
         let (over, pressed) = states(&r, self.enabled);
         let box_top = rect.min.y + ((self.min_height - 20.0) / 2.0).floor();
         let b = Rect::from_min_size(pos2(rect.min.x, box_top), Vec2::splat(20.0));
-        let radius = CornerRadius::same(3);
-        let painter = ui.painter();
         if !self.enabled {
             // `:disabled /template/ Border#NormalRectangle`, checked or not.
             bordered(ui, b, 3.0, p.control_background_disabled, p.border);
         } else if *checked {
-            paint_accent_gradient(ui, b, radius);
-            painter.rect_stroke(b, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
+            border::border(ui.painter(), b, 3.0, 1.0, Some(Brush::accent(ui.ctx())), Some(p.accent_border));
         } else {
-            let fill = if pressed {
-                // Fluent's `CheckBoxCheckBackgroundFillUncheckedPressed`
-                // (`SystemBaseMediumColor`) isn't overridden by ShareX.
-                f.base_medium
-            } else if over {
-                p.control_background_hover
-            } else {
-                p.control_background
-            };
+            // ShareX's `:pointerover` `NormalRectangle` wins over Fluent's
+            // pressed fill as well.
+            let fill = if over || pressed { p.control_background_hover } else { p.control_background };
             bordered(ui, b, 3.0, fill, p.border);
         }
         if *checked {
@@ -191,10 +190,21 @@ impl<'a> CheckBox<'a> {
             paint_check_glyph(ui, b, glyph);
         }
         // Disabled: Fluent's `ContentPresenter` foreground
-        // (`CheckBoxForegroundUncheckedDisabled`) wins over ShareX's.
-        let color = if self.enabled { self.text_color.unwrap_or(p.text) } else { f.base_medium_low };
+        // (`CheckBoxForegroundUncheckedDisabled`) wins over ShareX's. A
+        // string `Content` takes `CheckBoxForeground*` (base high when
+        // checked or under the pointer); a `TextBlock` with its own colour
+        // keeps it.
+        let color = match self.text_color {
+            _ if !self.enabled => f.base_medium_low,
+            Some(c) => c,
+            None if *checked || over => f.base_high,
+            None => p.text,
+        };
         let text_rect = Rect::from_min_max(pos2(b.max.x + 8.0, rect.min.y), pos2(rect.max.x.max(b.max.x + 8.0), rect.min.y + self.min_height));
         text_at(ui, text_rect, text_rect.min.x, self.text, self.text_font.clone(), color);
+        if focus::visible(ui.ctx(), id) {
+            focus::paint_adorner(ui.painter(), rect);
+        }
         if r.clicked() {
             *checked = !*checked;
             r.mark_changed();
@@ -203,14 +213,17 @@ impl<'a> CheckBox<'a> {
     }
 }
 
-/// Fluent's `CheckMarkPathData` at `Width="9"` in a 16x16 panel that a
-/// Viewbox scales to the 20px box: 11.25 wide, centred.
+/// Fluent's `CheckMarkPathData` in the `CheckGlyph` `Path` (`Width="9"`,
+/// `Stretch="Uniform"`) at 3.5,4.6556594 in a 16x16 panel that a `Viewbox`
+/// scales by 1.25 into the 20px box. The path's stretch (its geometry
+/// bounds, 0.0122951,0.0122808 to 17.4877, 12.9998, as Avalonia's arcs
+/// approximate them) maps it by 0.5150089 from -0.0063321,-0.0063247.
 fn paint_check_glyph(ui: &Ui, b: Rect, color: Color32) {
-    const SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17.207 13.0"><path fill="currentColor" d="M5.5 10.586 1.707 6.793A1 1 0 0 0 .293 8.207l4.5 4.5a1 1 0 0 0 1.414 0l11-11A1 1 0 0 0 15.793.293L5.5 10.586Z"/></svg>"#;
-    let w = 9.0 * 1.25;
-    let h = w * 13.0 / 17.207;
-    let r = Rect::from_center_size(b.center(), vec2(w, h));
-    icons::paint_svg(ui.painter(), r, "fluent-check", SVG, color);
+    const SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17.5 13"><path fill="currentColor" d="M5.5 10.586 1.707 6.793A1 1 0 0 0 .293 8.207l4.5 4.5a1 1 0 0 0 1.414 0l11-11A1 1 0 0 0 15.793.293L5.5 10.586Z"/></svg>"#;
+    const VIEWBOX: f32 = 1.25;
+    const STRETCH: f32 = 0.515_008_9;
+    let offset = vec2(VIEWBOX * (3.5 - 0.006_332_077), VIEWBOX * (4.655_659 - 0.006_324_709));
+    icons::paint_svg_exact(ui.painter(), b, "fluent-check", SVG, VIEWBOX * STRETCH, offset, color);
 }
 
 /// `ToggleSwitch` with empty on/off content: a 40x20 track with a 10px
@@ -233,20 +246,15 @@ impl ToggleSwitch {
         let mut r = interact(ui, hit, id, self.enabled);
         let (over, pressed) = states(&r, self.enabled);
         let track = Rect::from_min_size(pos2(area.min.x, area.min.y + 6.0), vec2(40.0, 20.0));
-        let radius = CornerRadius::same(10);
         let painter = ui.painter();
         if *on {
-            if !self.enabled {
-                painter.rect_filled(track, radius, f.base_low);
-            } else if pressed {
-                painter.rect_filled(track, radius, p.accent_fill_dark[0]);
-            } else if over {
-                painter.rect_filled(track, radius, p.accent_fill_light[0]);
-            } else {
-                paint_accent_gradient(ui, track, radius);
-            }
-            let knob = if self.enabled { p.accent_foreground } else { f.base_medium_low };
-            painter.circle_filled(pos2(track.max.x - 10.0, track.center().y), 5.0, knob);
+            // `SwitchKnobBounds`: ShareX's accent gradient whatever the
+            // pointer does (its `:checked` styles win over Fluent's
+            // pointer-over and pressed fills); `ToggleSwitchFillOnDisabled`
+            // and `ToggleSwitchKnobFillOnDisabled` are both base 20%.
+            let (fill, knob) = if self.enabled { (Brush::accent(ui.ctx()), p.accent_foreground) } else { (Brush::Solid(f.base_low), f.base_low) };
+            border::border(painter, track, 10.0, 0.0, Some(fill), None);
+            border::ellipse(painter, Rect::from_center_size(pos2(track.max.x - 10.0, track.center().y), Vec2::splat(10.0)), knob);
         } else {
             let (fill, stroke, knob) = if !self.enabled {
                 (Color32::TRANSPARENT, f.base_medium_low, f.base_medium_low)
@@ -257,9 +265,12 @@ impl ToggleSwitch {
             } else {
                 (Color32::TRANSPARENT, f.base_medium, f.base_high)
             };
-            painter.rect_filled(track, radius, fill);
-            painter.rect_stroke(track, radius, Stroke::new(1.0, stroke), StrokeKind::Inside);
-            painter.circle_filled(pos2(track.min.x + 10.0, track.center().y), 5.0, knob);
+            border::border(painter, track, 10.0, 1.0, Some(Brush::Solid(fill)), Some(stroke));
+            border::ellipse(painter, Rect::from_center_size(pos2(track.min.x + 10.0, track.center().y), Vec2::splat(10.0)), knob);
+        }
+        if focus::visible(ui.ctx(), id) {
+            // Around `SwitchAreaGrid`, 52x22.
+            focus::paint_adorner(painter, hit);
         }
         if r.clicked() {
             *on = !*on;
@@ -325,13 +336,22 @@ impl ComboBox {
             p.control_background
         };
         bordered(ui, rect, 4.0, fill, p.border);
+        if focus::visible(ui.ctx(), id) {
+            // `:focus-visible`: `HighlightBackground`, the accent at
+            // `SystemControlHighlightListAccentLowBrush`'s opacity with a
+            // transparent 1px border, over `Background` (no adorner).
+            let highlight = p.accent_start.gamma_multiply(f.list_accent_low_opacity);
+            border::border(ui.painter(), rect, 4.0, 1.0, Some(Brush::Solid(highlight)), None);
+        }
         // The content's margin is the padding, from the control's edge: the
         // `Background` border is its sibling, not its parent.
         let inner = Rect::from_min_max(
             pos2(rect.min.x + self.padding.left, rect.min.y + self.padding.top),
             pos2(rect.max.x - 32.0, rect.max.y - self.padding.bottom),
         );
-        let fg = if self.enabled { p.text } else { p.text_secondary };
+        // Items are `TextBlock`s, whose ShareX style keeps the text colour
+        // when the combo box is disabled or focused.
+        let fg = p.text;
         if let Some(item) = selected.and_then(|i| items.get(i)) {
             paint_item(ui, inner, item, fg);
         }
@@ -389,12 +409,15 @@ fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
     text_at(ui, rect, x, &item.text, ComboBox::item_font(), color);
 }
 
-/// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`.
+/// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`: its
+/// `Viewbox` scales the 2010x1095 geometry (from 19,486) to the cell's
+/// width and centres it, 2.7313433 down in a 12px cell, kept fractional.
 pub fn paint_chevron_down(ui: &Ui, rect: Rect, color: Color32) {
-    const SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="19 486 2010 1095"><path fill="currentColor" d="M1939 486L2029 576L1024 1581L19 576L109 486L1024 1401L1939 486Z"/></svg>"#;
-    let h = rect.width() * 1095.0 / 2010.0;
-    let r = Rect::from_center_size(rect.center(), vec2(rect.width(), h));
-    icons::paint_svg(ui.painter(), r, "fluent-combo-chevron", SVG, color);
+    const PATH: [(f32, f32); 6] = [(1939.0, 486.0), (2029.0, 576.0), (1024.0, 1581.0), (19.0, 576.0), (109.0, 486.0), (1024.0, 1401.0)];
+    let s = rect.width() / 2010.0;
+    let top = rect.min.y + (rect.height() - 1095.0 * s) / 2.0;
+    let points: Vec<Pos2> = PATH.iter().map(|&(x, y)| pos2(rect.min.x + (x - 19.0) * s, top + (y - 486.0) * s)).collect();
+    border::polygon(ui.painter(), &points, color);
 }
 
 /// The dropdown: Fluent's `PopupBorder` (`SystemControlTransientBackgroundBrush`,
@@ -430,7 +453,7 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     let scroll_id = id.with("scroll");
     let area = egui::Area::new(id.with("dropdown")).order(Order::Foreground).fixed_pos(popup.min).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(popup.size(), Sense::click());
-        bordered(ui, rect, 5.0, popup_bg, f.transient_border);
+        border::border(ui.painter(), rect, 5.0, 1.0, Some(Brush::Solid(popup_bg)), Some(f.transient_border));
         let view = rect.shrink(1.0);
         let max_scroll = (full - height).max(0.0);
         let mut scroll: f32 = ui.ctx().data(|d| d.get_temp(scroll_id)).unwrap_or_else(|| {
@@ -458,16 +481,19 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
             // `ComboBoxItem:selected`: the accent fill (its border brush is
             // set, but a `ComboBoxItem` has no border thickness).
             let fg = if sel {
-                paint_accent_gradient(&child, row, CornerRadius::same(4));
+                border::border(&painter, row, 4.0, 0.0, Some(Brush::accent(ui.ctx())), None);
                 p.accent_foreground
             } else {
                 if resp.hovered() {
-                    painter.rect_filled(row, CornerRadius::same(4), p.control_background_hover);
+                    border::border(&painter, row, 4.0, 0.0, Some(Brush::Solid(p.control_background_hover)), None);
                 }
                 p.text
             };
             let inner = Rect::from_min_max(pos2(row.min.x + 10.0, row.min.y + 8.0), pos2(row.max.x - 10.0, row.max.y - 8.0));
             paint_item(&child, inner, item, fg);
+            if focus::visible(ui.ctx(), resp.id) {
+                focus::paint_adorner(&painter, row);
+            }
             if resp.clicked() {
                 picked = Some(i);
             }
@@ -533,16 +559,21 @@ impl TextBox<'_> {
         } else {
             p.control_background
         };
-        bordered(ui, rect, 4.0, fill, p.border);
+        // `:focus`: a 2px border (`TextControlBorderThemeThicknessFocused`);
+        // the content keeps its place, the border element being its sibling.
+        let thickness = if focused && self.enabled { 2.0 } else { 1.0 };
+        border::border(ui.painter(), rect, 4.0, thickness, Some(Brush::Solid(fill)), Some(p.border));
         let inner = inset(rect, self.padding, 1.0);
         let text_font = Self::font();
         let lh = line_height(ui, &text_font);
-        let fg = if self.enabled { p.text } else { p.text_secondary };
+        // `TextPresenter` keeps the text colour when disabled.
+        let fg = p.text;
         let edit_rect = if self.multiline {
             inner
         } else {
             Rect::from_min_size(pos2(inner.min.x, center_y(inner, lh)), vec2(inner.width(), lh))
         };
+        let empty = text.is_empty();
         let mut edit = if self.multiline { egui::TextEdit::multiline(text) } else { egui::TextEdit::singleline(text) };
         edit = edit
             .id(id)
@@ -553,11 +584,15 @@ impl TextBox<'_> {
             .desired_width(edit_rect.width())
             .password(self.password)
             .interactive(self.enabled);
-        if !self.placeholder.is_empty() {
-            // `PART_Placeholder`: a `TextBlock` (ShareX's SemiBold Segoe UI)
-            // in `TextControlPlaceholderForeground` at 50% opacity.
+        if !self.placeholder.is_empty() && empty {
+            // `PART_Placeholder`: a `TextBlock` of its own (ShareX's SemiBold
+            // Segoe UI), centred in the content like the text, in
+            // `TextControlPlaceholderForeground` at 50% opacity.
             let f = fluent(ui.ctx());
-            edit = edit.hint_text(egui::RichText::new(self.placeholder).font(font(13.0, 600)).color(f.base_medium.gamma_multiply(0.5)));
+            let pf = font(13.0, 600);
+            let y = center_y(inner, line_height(ui, &pf));
+            let g = galley(ui, self.placeholder, pf, f.base_medium.gamma_multiply(0.5), inner.width().max(0.0));
+            ui.painter().with_clip_rect(inner.intersect(ui.clip_rect())).galley(pos2(inner.min.x, y), g, f.base_medium);
         }
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(inner.intersect(ui.clip_rect()));
@@ -637,27 +672,32 @@ impl DecimalUpDown {
             // decrease at the minimum.
             let valid = if step > 0.0 { *value < self.maximum } else { *value > self.minimum };
             let enabled = self.enabled && valid;
-            let r = interact(ui, b, id.with(("spin", i)), enabled);
+            // The repeat buttons aren't tab stops (`IsTabStop="False"`).
+            let sense = if enabled { Sense::CLICK } else { Sense::hover() };
+            let r = ui.interact(b, id.with(("spin", i)), sense);
             let (over, pressed) = states(&r, enabled);
             let cell = Rect::from_min_max(pos2(b.min.x + 1.0, b.min.y), b.max);
-            // `RepeatButtonBackgroundPointerOver` / `Pressed` / `Disabled`.
+            // The presenter's square background: at rest the spinner's own
+            // (opaque, so it squares off the inside of the right-hand
+            // corners), else `RepeatButtonBackgroundPointerOver` /
+            // `Pressed` / `Disabled` over the spinner's border.
             let bg = if !enabled {
-                Some(f.base_low)
+                f.base_low
             } else if pressed {
-                Some(f.base_medium_low)
+                f.base_medium_low
             } else if over {
-                Some(f.base_high.gamma_multiply(0.1))
+                f.base_high.gamma_multiply(0.1)
             } else {
-                None
+                fill
             };
-            if let Some(bg) = bg {
-                let radius = if i == 1 { CornerRadius { ne: 3, se: 3, ..Default::default() } } else { CornerRadius::ZERO };
-                ui.painter().rect_filled(cell, radius, bg);
-            }
+            ui.painter().rect_filled(cell, 0.0, bg);
             ui.painter().rect_filled(Rect::from_min_size(b.min, vec2(1.0, b.height())), 0.0, p.border);
             let glyph = Rect::from_center_size(cell.center(), vec2(16.0, 8.0));
-            let color = if enabled { p.text } else { p.text_secondary };
+            let color = if enabled { f.base_high } else { f.base_medium_low };
             paint_spinner_chevron(ui, glyph, step > 0.0, color);
+            if focus::visible(ui.ctx(), r.id) {
+                focus::paint_adorner(ui.painter(), b);
+            }
             // `RepeatButton`: once on press, then every 33ms after 300ms.
             let key = id.with(("repeat", i));
             let mut fire = false;
@@ -699,14 +739,16 @@ impl DecimalUpDown {
         };
         let font = TextBox::font();
         let lh = line_height(ui, &font);
-        let edit_rect = Rect::from_min_size(pos2(text_rect.min.x + 8.0, center_y(text_rect, lh)), vec2(text_rect.width() - 16.0, lh));
+        // The inner `TextBox` (`Margin="-1"`) spans the spinner's whole
+        // height, borders included, and centres its line in that.
+        let edit_rect = Rect::from_min_size(pos2(text_rect.min.x + 8.0, center_y(rect, lh)), vec2(text_rect.width() - 16.0, lh));
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect));
         let r = child.add_sized(
             edit_rect.size(),
             egui::TextEdit::singleline(&mut text)
                 .id(buf_id)
                 .font(font)
-                .text_color(if self.enabled { p.text } else { p.text_secondary })
+                .text_color(p.text)
                 .frame(egui::Frame::NONE)
                 .margin(egui::Margin::ZERO)
                 .horizontal_align(egui::Align::Center)
@@ -775,19 +817,42 @@ impl Slider {
         }
         let t = ((*value - self.minimum) / range).clamp(0.0, 1.0);
         let cx = (rect.min.x + 10.0 + (rect.width() - 20.0) * t).round();
-        // The track row's centre: 14px down a 32px slider (the thumb's 20px
-        // row, centred in what the 2px margins leave).
+        // The track row's centre: 14px down a 32px slider. The `Track` is
+        // the 21px row the 2px margins leave (rounded), its 2px
+        // `TrackBackground`s 10px down it and the 20px `Thumb` at its top,
+        // so the thumb's centre is 1px above the track's.
         let cy = (rect.min.y + (rect.height() - 4.0) / 2.0).floor();
-        let radius = CornerRadius::same(1);
-        let rest_color = if !self.enabled { f.base_medium_low } else if over { f.base_medium } else { f.base_medium_low };
-        let done_color = if self.enabled { p.accent_border } else { f.base_medium_low };
-        ui.painter().rect_filled(Rect::from_min_max(pos2(cx, cy - 1.0), pos2(rect.max.x, cy + 1.0)), radius, rest_color);
-        ui.painter().rect_filled(Rect::from_min_max(pos2(rect.min.x, cy - 1.0), pos2(cx, cy + 1.0)), radius, done_color);
-        let ring = if over { 3.0 } else { 4.0 };
-        let c = pos2(cx, cy);
-        ui.painter().circle_filled(c, 10.0, p.control_background);
-        let fill = if !self.enabled { f.base_medium_low } else { p.accent_border };
-        ui.painter().circle_filled(c, 10.0 - ring, fill);
+        let thumb = Rect::from_center_size(pos2(cx, cy - 1.0), Vec2::splat(20.0));
+        let pressed = self.enabled && (r.is_pointer_button_down_on() || r.dragged());
+        // Only the pointer over the thumb narrows its ring (the thumb's own
+        // `:pointerover`); the slider's hover and press recolour the track.
+        let over_thumb = self.enabled && ui.rect_contains_pointer(thumb) && (over || pressed);
+        let (done_color, rest_color) = if !self.enabled {
+            (f.chrome_disabled_high, f.chrome_disabled_high)
+        } else if pressed {
+            (p.accent_start, f.base_medium_low)
+        } else if over {
+            (p.accent_start, f.base_medium)
+        } else {
+            (p.accent_border, f.base_medium_low)
+        };
+        // `PART_DecreaseButton` / `PART_IncreaseButton`: the track either
+        // side of the thumb, `CornerRadius="3"` fitted to 2px.
+        let painter = ui.painter();
+        let track = |x0: f32, x1: f32, color: Color32| {
+            if x1 > x0 {
+                border::border(painter, Rect::from_min_max(pos2(x0, cy - 1.0), pos2(x1, cy + 1.0)), 3.0, 0.0, Some(Brush::Solid(color)), None);
+            }
+        };
+        track(rect.min.x, thumb.min.x, done_color);
+        track(thumb.max.x, rect.max.x, rest_color);
+        // The thumb: the accent border colour with a ring of control
+        // background (ShareX's horizontal `Thumb` keeps it when disabled).
+        let ring = if over_thumb { 3.0 } else { 4.0 };
+        border::border(painter, thumb, 10.0, ring, Some(Brush::Solid(p.accent_border)), Some(p.control_background));
+        if focus::visible(ui.ctx(), id) {
+            focus::paint_adorner(painter, rect);
+        }
         changed
     }
 }
@@ -803,33 +868,38 @@ impl ColorButton {
     pub fn show(&self, ui: &Ui, rect: Rect, id: Id, color: Color32) -> Response {
         let p = palette(ui.ctx());
         let b = Button::default();
-        let r = b.show(ui, rect, id, "", self.enabled);
         let inner = inset(rect, b.padding, 1.0);
-        let opacity = if self.enabled { 1.0 } else { 0.35 };
         let swatch = Rect::from_min_size(pos2(inner.min.x, center_y(inner, 24.0)), Vec2::splat(24.0));
-        paint_checkered_small(ui, swatch, opacity);
-        ui.painter().rect_filled(swatch, CornerRadius::same(4), color.gamma_multiply(opacity));
+        let swatch_parts = checkered_swatch(ui, swatch, color);
         let chevron = Rect::from_min_size(pos2(inner.max.x - 10.0, center_y(inner, 10.0)), Vec2::splat(10.0));
-        icons::paint(ui.painter(), chevron, crate::keys::app_icons::ChevronDown, p.text_secondary.gamma_multiply(opacity));
+        let (r, chevron_color) = if self.enabled {
+            let r = b.show(ui, rect, id, "", true);
+            border::paint(ui.painter(), &swatch_parts, 1.0);
+            (r, p.text_secondary)
+        } else {
+            // The disabled button's presenter, swatch and chevron included,
+            // composited at 35% as one layer.
+            let r = interact(ui, rect, id, false);
+            let shell = Part::Border { rect, radius: b.corner_radius, thickness: 1.0, background: Some(Brush::Solid(p.control_background)), border: None };
+            let mut parts = vec![shell];
+            parts.extend(swatch_parts);
+            border::paint(ui.painter(), &parts, DISABLED_OPACITY);
+            (r, border::group_content(p.text_secondary, p.control_background, DISABLED_OPACITY, p.background_panel))
+        };
+        icons::paint(ui.painter(), chevron, crate::keys::app_icons::ChevronDown, chevron_color);
         r
     }
 }
 
-/// `ShareX.Brush.Checkered.Small` under a 4px-corner swatch.
-fn paint_checkered_small(ui: &Ui, rect: Rect, opacity: f32) {
+/// The swatch: `ShareX.Brush.Checkered.Small` in a 4px-corner `Border`
+/// (`ClipToBounds`), the colour in another over it.
+fn checkered_swatch(ui: &Ui, rect: Rect, color: Color32) -> [Part; 2] {
     let p = palette(ui.ctx());
-    ui.painter().rect_filled(rect, CornerRadius::same(4), p.checkered[0].gamma_multiply(opacity));
-    let painter = ui.painter().with_clip_rect(rect.shrink(1.0));
-    let cell = 4.0;
-    let (nx, ny) = ((rect.width() / cell).ceil() as i32, (rect.height() / cell).ceil() as i32);
-    for y in 0..ny {
-        for x in 0..nx {
-            if (x + y) % 2 == 1 {
-                let r = Rect::from_min_size(pos2(rect.min.x + x as f32 * cell, rect.min.y + y as f32 * cell), Vec2::splat(cell));
-                painter.rect_filled(r, 0.0, p.checkered[1].gamma_multiply(opacity));
-            }
-        }
-    }
+    let board = Brush::Checkered { colors: p.checkered, cell: 4.0 };
+    [
+        Part::Border { rect, radius: 4.0, thickness: 0.0, background: Some(board), border: None },
+        Part::Border { rect, radius: 4.0, thickness: 0.0, background: Some(Brush::Solid(color)), border: None },
+    ]
 }
 
 /// The colour popup under `anchor` (ColorPickerDropdown's `Popup`,

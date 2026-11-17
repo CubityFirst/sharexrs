@@ -243,7 +243,6 @@ impl ApplicationSettings {
     /// `SettingsNavigation`: the search box, then the pages as a tree.
     fn navigation(&mut self, ui: &mut Ui, full: Rect, visible: &[bool]) {
         let p = palette(ui.ctx());
-        let f = fluent(ui.ctx());
         let d = density(ui.ctx());
         let nav = Rect::from_min_size(full.min, vec2(NAV_WIDTH, full.height()));
         ui.painter().rect_filled(nav, 0.0, p.background_toolbar);
@@ -268,31 +267,14 @@ impl ApplicationSettings {
             y += item_h + 2.0;
             let resp = ui.interact(r, Id::new(("settings-nav", i)), egui::Sense::click());
             let selected = i == self.page;
-            let radius = CornerRadius::same(4);
-            if selected {
-                // Fluent's `:selected` sets `TreeViewItemBackgroundSelected`
-                // (the accent fill, solid) over ShareX's gradient.
-                let fill = if resp.is_pointer_button_down_on() {
-                    p.accent_fill_dark[0]
-                } else if resp.hovered() {
-                    p.accent_fill_light[0]
-                } else {
-                    p.accent_start
-                };
-                ui.painter().rect_filled(r, radius, fill);
-                // `ShareX.BoxShadow.Accent.Outline`: an inset 1px ring.
-                ui.painter().rect_stroke(r, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
-            } else if resp.is_pointer_button_down_on() {
-                ui.painter().rect_filled(r, radius, f.list_medium);
-            } else if resp.hovered() {
-                ui.painter().rect_filled(r, radius, f.list_low);
-            }
+            settings_form::nav_item_background(ui.painter(), r, &resp, selected);
             let (title, key) = page_title(i);
             let content = Rect::from_min_max(pos2(r.min.x + 36.0 + d.settings_nav_item_margin.left, r.min.y), pos2(r.max.x - d.settings_nav_item_margin.right, r.max.y));
             let fg = if selected { p.accent_foreground } else { p.text };
             let icon_color = if selected { p.accent_foreground } else { p.accent_icon };
             icons::paint(ui.painter(), Rect::from_min_size(pos2(content.min.x + 2.0, center_y(r, 16.0)), Vec2::splat(16.0)), key, icon_color);
             controls::label(ui, Rect::from_min_max(pos2(content.min.x + 26.0, r.min.y), pos2(content.max.x, r.max.y)), title, font(13.0, 400), fg);
+            settings_form::nav_item_focus(ui.painter(), r, &resp);
             if resp.clicked() && !selected {
                 self.page = i;
                 if i == 2 {

@@ -12,6 +12,7 @@ mod app_windows;
 mod appearance;
 mod capture;
 mod capture_job;
+mod controls_gallery;
 mod history;
 mod hotkey_settings;
 mod hotkeys;
@@ -35,6 +36,7 @@ mod thumbnail;
 mod transparent_region;
 mod tray;
 mod tray_menu;
+mod upload;
 mod window;
 
 use std::sync::Arc;
@@ -119,6 +121,7 @@ fn main() {
     let host = hotkeys::platform_host(Arc::new(move |id| {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
+    let uploads = upload::app::Uploads::load(&settings);
     let mut app = App {
         gpu: None,
         main: None,
@@ -126,6 +129,7 @@ fn main() {
         cursor: None,
         swallow_release: false,
         settings,
+        uploads,
         hotkeys: HotkeyManager::new(host),
         dialog: None,
         started: false,
@@ -185,6 +189,8 @@ struct App {
     swallow_release: bool,
     /// `ApplicationState.Settings` and `HotkeysConfig`.
     settings: SettingManager,
+    /// `ApplicationState.UploadersConfig` and the queued upload tasks.
+    uploads: upload::app::Uploads,
     /// `ApplicationState.HotkeyManager`.
     hotkeys: HotkeyManager,
     /// The open message box (the hotkey failure one, at startup).
@@ -379,6 +385,9 @@ impl App {
         if let Some(job) = job {
             let task = task();
             self.capture(job, task, auto_hide);
+            return;
+        }
+        if self.upload_menu_command(&command) {
             return;
         }
         let capture = self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default();
@@ -702,16 +711,18 @@ impl App {
         self.update_progress_ui();
     }
 
-    /// `TaskManager.UpdateProgressUI`, for the tray: while tasks work, the
-    /// tray icon shows their progress (0% for captures, which report none)
-    /// and its tooltip the window's title.
+    /// `TaskManager.UpdateProgressUI`, for the tray: while tasks upload,
+    /// the tray icon shows their average progress and its tooltip the
+    /// window's title with it.
     fn update_progress_ui(&mut self) {
-        // Capture tasks report no progress: 0% while any works.
-        let working = self.state.tasks.manager.tasks.iter().any(|t| t.is_working());
-        let progress = if working { 0 } else { -1 };
+        let tasks = &self.state.tasks.manager.tasks;
+        let working: Vec<_> = tasks.iter().filter(|t| t.status == tasks::TaskStatus::Working).collect();
+        let with_progress: Vec<f64> = working.iter().filter_map(|t| t.info.progress.map(|p| p.percentage())).collect();
+        let average = if with_progress.is_empty() { 0.0 } else { with_progress.iter().sum::<f64>() / with_progress.len() as f64 };
+        let progress = if working.is_empty() { -1 } else { average as i32 };
         let title = self.state.title.clone();
         if let Some(tray) = &mut self.tray {
-            tray.set_tooltip(&if progress >= 0 { format!("{title} - 0.0%") } else { title });
+            tray.set_tooltip(&if progress >= 0 { format!("{title} - {average:.1}%") } else { title });
         }
         self.update_tray_icon(progress);
     }
@@ -927,6 +938,9 @@ impl App {
             self.capture(capture, task, false);
             return;
         }
+        if self.run_upload_job(&job, &task) {
+            return;
+        }
         match job {
             HotkeyType::DisableHotkeys => self.toggle_hotkeys(),
             HotkeyType::OpenMainWindow => self.show_main_window(event_loop),
@@ -1028,6 +1042,7 @@ impl App {
         if let Err(e) = self.settings.save_all() {
             eprintln!("couldn't save the settings: {e}");
         }
+        self.save_uploaders_config(true);
     }
 
     /// `TaskHelpers.ToggleHotkeys()`: turns every hotkey but "Disable
@@ -1159,6 +1174,7 @@ impl ApplicationHandler<UserEvent> for App {
         if let Err(e) = self.settings.save_all() {
             eprintln!("couldn't save the settings: {e}");
         }
+        self.save_uploaders_config(true);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
