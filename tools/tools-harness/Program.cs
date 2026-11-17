@@ -201,7 +201,7 @@ static partial class Program
                 AnimatedGifMakerService.Create(o + ".gif", InList(c, "files"), (int)c["delay"], (bool)c["loop"], (int)c["repeat"]);
                 break;
             default:
-                if (!RunDataCase(c, o)) throw new NotSupportedException(tool);
+                if (!RunDataCase(c, o) && !RunSystemCase(c, o)) throw new NotSupportedException(tool);
                 break;
         }
     }

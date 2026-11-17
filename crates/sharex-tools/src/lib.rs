@@ -39,6 +39,7 @@ pub mod indexer;
 pub mod jpeg;
 pub mod jpeg_decode;
 pub mod metadata;
+pub mod monitor_test;
 pub mod options;
 pub mod qr;
 pub mod resizer;

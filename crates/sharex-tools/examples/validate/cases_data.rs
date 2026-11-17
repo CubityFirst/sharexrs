@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 use sharex_tools::video::{converter, thumbnailer, trimmer};
-use sharex_tools::{hash, imaging, indexer, metadata, qr};
+use sharex_tools::{hash, imaging, indexer, metadata, monitor_test, qr};
 
 use crate::cases::Ctx;
 use crate::compare::{self, Outcome};
@@ -244,6 +244,43 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
                 });
             }
             out
+        }
+        "monitor-test" => {
+            use monitor_test::*;
+            let rgb = |k: &str, d: [u8; 4]| c[k].as_array().map(|a| [a[0].as_u64().unwrap() as u8, a[1].as_u64().unwrap() as u8, a[2].as_u64().unwrap() as u8, 255]).unwrap_or(d);
+            let t = MonitorTest {
+                mode: match c["mode"].as_str().unwrap() {
+                    "Grayscale" => Mode::Grayscale,
+                    "Rgb" => Mode::Rgb,
+                    "Gradient" => Mode::Gradient,
+                    "Pattern" => Mode::Pattern,
+                    _ => Mode::Motion,
+                },
+                gray: c["gray"].as_f64().unwrap_or(255.0),
+                red: c["red"].as_f64().unwrap_or(255.0),
+                green: c["green"].as_f64().unwrap_or(0.0),
+                blue: c["blue"].as_f64().unwrap_or(0.0),
+                gradient_start: rgb("start", imaging::WHITE),
+                gradient_end: rgb("end", imaging::BLACK),
+                gradient_direction: match c["direction"].as_str().unwrap_or("Vertical") {
+                    "Horizontal" => GradientDirection::Horizontal,
+                    "ForwardDiagonal" => GradientDirection::ForwardDiagonal,
+                    "BackwardDiagonal" => GradientDirection::BackwardDiagonal,
+                    _ => GradientDirection::Vertical,
+                },
+                pattern: match c["pattern"].as_str().unwrap_or("HorizontalLines") {
+                    "VerticalLines" => Pattern::VerticalLines,
+                    "Checkerboard" => Pattern::Checkerboard,
+                    _ => Pattern::HorizontalLines,
+                },
+                pattern_size: c["patternSize"].as_f64().unwrap_or(5.0),
+                motion_direction: if c["motion"] == "HorizontalBars" { MotionDirection::HorizontalBars } else { MotionDirection::VerticalBars },
+                motion_speed: 500.0,
+            };
+            let bmp = t.render(c["width"].as_u64().unwrap() as u32, c["height"].as_u64().unwrap() as u32, c["offset"].as_f64().unwrap_or(0.0));
+            let path = ctx.out.join(format!("{name}.png"));
+            std::fs::write(&path, imaging::encode_png(&bmp)).unwrap();
+            compare::image_files("pattern", &path, &ctx.sharex.join(format!("{name}.png")), 0)
         }
         _ => Outcome::skip(format!("no validator for {tool}")),
     }

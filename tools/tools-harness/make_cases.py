@@ -171,5 +171,19 @@ for name, opts in [("default", {}), ("jpeg-4", {"ImageFormat": "JPEG", "Thumbnai
                    ("separate", {"ThumbnailCount": 2, "CombineScreenshots": False})]:
     add(f"vthumbs-{name}", "video-thumbs", file="long.mp4", options=opts)
 
+# ---------------------------------------------------------------- system
+
+for gray in [255, 127.5, 0, 300]:
+    add(f"monitor-gray-{gray}", "monitor-test", mode="Grayscale", width=64, height=40, gray=gray)
+add("monitor-rgb", "monitor-test", mode="Rgb", width=64, height=40, red=12.4, green=200.6, blue=99.5)
+for direction, (start, end) in itertools.product(["Horizontal", "Vertical", "ForwardDiagonal", "BackwardDiagonal"],
+                                                 [([255, 255, 255], [0, 0, 0]), ([255, 0, 0], [0, 64, 255])]):
+    add(f"monitor-gradient-{direction}-{start[0]}{end[2]}", "monitor-test", mode="Gradient", width=257, height=129, direction=direction,
+        start=start, end=end)
+for pattern, size in itertools.product(["HorizontalLines", "VerticalLines", "Checkerboard"], [1, 5, 2.5, 13]):
+    add(f"monitor-pattern-{pattern}-{size}", "monitor-test", mode="Pattern", width=97, height=61, pattern=pattern, patternSize=size)
+for motion, offset in itertools.product(["VerticalBars", "HorizontalBars"], [0, 37.25, 133.7, 1000.5]):
+    add(f"monitor-motion-{motion}-{offset}", "monitor-test", mode="Motion", width=301, height=167, motion=motion, offset=offset)
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

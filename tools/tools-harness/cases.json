@@ -15848,5 +15848,371 @@
    "ThumbnailCount": 2,
    "CombineScreenshots": false
   }
+ },
+ {
+  "name": "monitor-gray-255",
+  "tool": "monitor-test",
+  "mode": "Grayscale",
+  "width": 64,
+  "height": 40,
+  "gray": 255
+ },
+ {
+  "name": "monitor-gray-127.5",
+  "tool": "monitor-test",
+  "mode": "Grayscale",
+  "width": 64,
+  "height": 40,
+  "gray": 127.5
+ },
+ {
+  "name": "monitor-gray-0",
+  "tool": "monitor-test",
+  "mode": "Grayscale",
+  "width": 64,
+  "height": 40,
+  "gray": 0
+ },
+ {
+  "name": "monitor-gray-300",
+  "tool": "monitor-test",
+  "mode": "Grayscale",
+  "width": 64,
+  "height": 40,
+  "gray": 300
+ },
+ {
+  "name": "monitor-rgb",
+  "tool": "monitor-test",
+  "mode": "Rgb",
+  "width": 64,
+  "height": 40,
+  "red": 12.4,
+  "green": 200.6,
+  "blue": 99.5
+ },
+ {
+  "name": "monitor-gradient-Horizontal-2550",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "Horizontal",
+  "start": [
+   255,
+   255,
+   255
+  ],
+  "end": [
+   0,
+   0,
+   0
+  ]
+ },
+ {
+  "name": "monitor-gradient-Horizontal-255255",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "Horizontal",
+  "start": [
+   255,
+   0,
+   0
+  ],
+  "end": [
+   0,
+   64,
+   255
+  ]
+ },
+ {
+  "name": "monitor-gradient-Vertical-2550",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "Vertical",
+  "start": [
+   255,
+   255,
+   255
+  ],
+  "end": [
+   0,
+   0,
+   0
+  ]
+ },
+ {
+  "name": "monitor-gradient-Vertical-255255",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "Vertical",
+  "start": [
+   255,
+   0,
+   0
+  ],
+  "end": [
+   0,
+   64,
+   255
+  ]
+ },
+ {
+  "name": "monitor-gradient-ForwardDiagonal-2550",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "ForwardDiagonal",
+  "start": [
+   255,
+   255,
+   255
+  ],
+  "end": [
+   0,
+   0,
+   0
+  ]
+ },
+ {
+  "name": "monitor-gradient-ForwardDiagonal-255255",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "ForwardDiagonal",
+  "start": [
+   255,
+   0,
+   0
+  ],
+  "end": [
+   0,
+   64,
+   255
+  ]
+ },
+ {
+  "name": "monitor-gradient-BackwardDiagonal-2550",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "BackwardDiagonal",
+  "start": [
+   255,
+   255,
+   255
+  ],
+  "end": [
+   0,
+   0,
+   0
+  ]
+ },
+ {
+  "name": "monitor-gradient-BackwardDiagonal-255255",
+  "tool": "monitor-test",
+  "mode": "Gradient",
+  "width": 257,
+  "height": 129,
+  "direction": "BackwardDiagonal",
+  "start": [
+   255,
+   0,
+   0
+  ],
+  "end": [
+   0,
+   64,
+   255
+  ]
+ },
+ {
+  "name": "monitor-pattern-HorizontalLines-1",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "HorizontalLines",
+  "patternSize": 1
+ },
+ {
+  "name": "monitor-pattern-HorizontalLines-5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "HorizontalLines",
+  "patternSize": 5
+ },
+ {
+  "name": "monitor-pattern-HorizontalLines-2.5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "HorizontalLines",
+  "patternSize": 2.5
+ },
+ {
+  "name": "monitor-pattern-HorizontalLines-13",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "HorizontalLines",
+  "patternSize": 13
+ },
+ {
+  "name": "monitor-pattern-VerticalLines-1",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "VerticalLines",
+  "patternSize": 1
+ },
+ {
+  "name": "monitor-pattern-VerticalLines-5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "VerticalLines",
+  "patternSize": 5
+ },
+ {
+  "name": "monitor-pattern-VerticalLines-2.5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "VerticalLines",
+  "patternSize": 2.5
+ },
+ {
+  "name": "monitor-pattern-VerticalLines-13",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "VerticalLines",
+  "patternSize": 13
+ },
+ {
+  "name": "monitor-pattern-Checkerboard-1",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "Checkerboard",
+  "patternSize": 1
+ },
+ {
+  "name": "monitor-pattern-Checkerboard-5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "Checkerboard",
+  "patternSize": 5
+ },
+ {
+  "name": "monitor-pattern-Checkerboard-2.5",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "Checkerboard",
+  "patternSize": 2.5
+ },
+ {
+  "name": "monitor-pattern-Checkerboard-13",
+  "tool": "monitor-test",
+  "mode": "Pattern",
+  "width": 97,
+  "height": 61,
+  "pattern": "Checkerboard",
+  "patternSize": 13
+ },
+ {
+  "name": "monitor-motion-VerticalBars-0",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "VerticalBars",
+  "offset": 0
+ },
+ {
+  "name": "monitor-motion-VerticalBars-37.25",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "VerticalBars",
+  "offset": 37.25
+ },
+ {
+  "name": "monitor-motion-VerticalBars-133.7",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "VerticalBars",
+  "offset": 133.7
+ },
+ {
+  "name": "monitor-motion-VerticalBars-1000.5",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "VerticalBars",
+  "offset": 1000.5
+ },
+ {
+  "name": "monitor-motion-HorizontalBars-0",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "HorizontalBars",
+  "offset": 0
+ },
+ {
+  "name": "monitor-motion-HorizontalBars-37.25",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "HorizontalBars",
+  "offset": 37.25
+ },
+ {
+  "name": "monitor-motion-HorizontalBars-133.7",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "HorizontalBars",
+  "offset": 133.7
+ },
+ {
+  "name": "monitor-motion-HorizontalBars-1000.5",
+  "tool": "monitor-test",
+  "mode": "Motion",
+  "width": 301,
+  "height": 167,
+  "motion": "HorizontalBars",
+  "offset": 1000.5
  }
 ]

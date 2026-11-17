@@ -29,7 +29,9 @@
     <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
     <Reference Include="zxing"><HintPath>$(ShareXBuild)\zxing.dll</HintPath></Reference>
     <Reference Include="CommunityToolkit.Mvvm"><HintPath>$(ShareXBuild)\CommunityToolkit.Mvvm.dll</HintPath></Reference>
-    <Reference Include="Avalonia.Base"><HintPath>$(ShareXBuild)\Avalonia.Base.dll</HintPath></Reference>
+    <!-- The Monitor test control renders through Avalonia.Headless (Skia, no window). -->
+    <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.6" />
     <!-- Everything else ShareX's libraries load. -->
     <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
