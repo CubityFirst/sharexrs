@@ -9,6 +9,7 @@
 mod app_icon;
 mod main_menu;
 mod main_window;
+mod region_render;
 mod render;
 mod test_pattern;
 mod window;
