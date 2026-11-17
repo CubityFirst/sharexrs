@@ -580,6 +580,9 @@ pub struct TextBox<'a> {
     pub wrap: bool,
     /// `TextBoxLinkHighlighter`: URLs underlined in this colour.
     pub links: Option<Color32>,
+    /// A `FontFamily`/`FontSize` of its own (the monospace response boxes);
+    /// [`TextBox::font`] otherwise.
+    pub font: Option<FontId>,
 }
 
 impl Default for TextBox<'_> {
@@ -594,6 +597,7 @@ impl Default for TextBox<'_> {
             read_only: false,
             wrap: false,
             links: None,
+            font: None,
         }
     }
 }
@@ -656,7 +660,7 @@ impl TextBox<'_> {
         }
         // The content sits in the box's own `BorderThickness` (0 when plain).
         let inner = inset(rect, self.padding, if self.plain { 0.0 } else { 1.0 });
-        let text_font = Self::font();
+        let text_font = self.font.clone().unwrap_or_else(Self::font);
         let lh = line_height(ui, &text_font);
         // `TextPresenter` keeps the text colour when disabled.
         let fg = p.text;

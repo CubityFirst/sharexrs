@@ -589,6 +589,7 @@ impl<'a> Worker<'a> {
                 errors: r.errors.errors.iter().map(|e| e.text.clone()).collect(),
                 error_title: r.errors.errors.first().map(|e| e.title.clone()).unwrap_or_default(),
                 url_expected: r.is_url_expected,
+                response_info: r.response_info.clone().map(Box::new),
             },
             stop_requested: self.stop_requested(),
             is_upload_job: self.is_upload_job(),

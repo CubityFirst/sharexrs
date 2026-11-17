@@ -738,9 +738,18 @@ impl App {
         let with_progress: Vec<f64> = working.iter().filter_map(|t| t.info.progress.map(|p| p.percentage())).collect();
         let average = if with_progress.is_empty() { 0.0 } else { with_progress.iter().sum::<f64>() / with_progress.len() as f64 };
         let progress = if working.is_empty() { -1 } else { average as i32 };
-        let title = self.state.title.clone();
+        // `MainWindowIntegration.SetTitle`: "<title> - 12.3%" while tasks work.
+        let base = self.state.base_title.clone();
+        let title = if progress >= 0 { format!("{base} - {average:.1}%") } else { base };
+        if title != self.state.title {
+            self.state.title = title.clone();
+            if let Some(w) = &self.main {
+                w.window.set_title(&title);
+                w.window.request_redraw();
+            }
+        }
         if let Some(tray) = &mut self.tray {
-            tray.set_tooltip(&if progress >= 0 { format!("{title} - {average:.1}%") } else { title });
+            tray.set_tooltip(&title);
         }
         self.update_tray_icon(progress);
     }

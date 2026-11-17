@@ -86,6 +86,8 @@ pub struct UploadResult {
     /// `IsURLExpected`: false for tasks that don't upload (ShareX sets it so
     /// in `ThreadDoWork`), so their errors fail them whatever their URL.
     pub url_expected: bool,
+    /// `ResponseInfo` of the last request (the response window shows it).
+    pub response_info: Option<Box<sharex_uploaders::http::ResponseInfo>>,
 }
 
 impl UploadResult {

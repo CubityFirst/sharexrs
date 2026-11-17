@@ -18,6 +18,7 @@ pub mod drop_window;
 pub mod layout;
 pub mod qr_code;
 pub mod render;
+pub mod response;
 pub mod text_upload;
 pub mod url_input;
 
@@ -168,6 +169,9 @@ pub trait Dialog {
         let _ = cx;
         Vec::new()
     }
+
+    /// `ResponseWindow.ShowInstance` on the open response window.
+    fn show_response(&mut self, _data: response::ResponseData) {}
 
     /// What a screen scan found (`ScanScreen`).
     fn scanned(&mut self, _results: Option<Vec<String>>) {}

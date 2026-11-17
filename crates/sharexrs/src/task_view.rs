@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 use egui::{Color32, CornerRadius, Event, Key, Modifiers, PointerButton, Pos2, Rect, Stroke, TextureHandle, Ui, Vec2, pos2, vec2};
 use sharex_helpers::file_helpers::{is_image_file, is_text_file, is_video_file};
-use sharex_settings::{ImagePreviewLocation, ImagePreviewVisibility, TaskViewMode, ThumbnailTitleLocation, ThumbnailViewClickAction};
+use sharex_settings::{ImagePreviewLocation, ImagePreviewVisibility, TaskViewMode, ThumbnailTitleLocation, ThumbnailViewClickAction, URLSharingServices, UrlShortenerType};
 use sharex_strings::sharex as s;
 use sharex_ui::icons;
 use sharex_ui::keys::app_icons as icon;
@@ -130,10 +130,69 @@ pub enum TaskCommand {
     DeleteSelectedFiles,
     /// `StopUpload`: `WorkerTask.Stop` on the selected tasks.
     StopUpload,
+    /// `OpenURL`, `OpenShortenedURL`, `OpenThumbnailURL`, `OpenDeletionURL`.
+    OpenUrl(UrlField),
+    /// `CopyURL` and the like: every selected task's.
+    CopyUrl(UrlField),
+    /// `CopyHTMLLink` and the like: an `UploadInfoParser` format of the
+    /// selected tasks that pass the filter.
+    CopyFormat(&'static str, FormatFilter),
+    /// `CopyCustomFormat`: the custom clipboard format at this index.
+    CopyCustomFormat(usize),
+    OpenThumbnailFile,
+    CopyThumbnailFile,
+    CopyThumbnailImage,
+    /// `UploadInfoManager.Upload`: the file again.
+    Upload,
+    /// `UploadInfoManager.Download`.
+    Download,
+    /// `ShortenURL(urlShortener)`.
+    ShortenUrl(UrlShortenerType),
+    /// `ShareURL(urlSharingService)`.
+    ShareUrl(URLSharingServices),
+    /// `SearchImageUsingGoogleLens` / `SearchImageUsingBing`.
+    SearchImage(URLSharingServices),
+    /// `ShowQRCode`.
+    ShowQrCode,
+    /// `ShowResponse`: the response window.
+    ShowResponse,
+    /// `ShowErrors`: the error window.
+    ShowErrors,
     Clear,
     SwitchView,
     /// An entry whose tool isn't ported yet (named for the log).
     NotPorted(&'static str),
+}
+
+/// Which of an upload's URLs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UrlField {
+    Url,
+    Shortened,
+    Thumbnail,
+    Deletion,
+}
+
+/// Which selected tasks a copied format takes (`IsURLExist`,
+/// `IsImageURL`, `IsImageURL && IsThumbnailURLExist`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormatFilter {
+    Url,
+    Image,
+    LinkedImage,
+}
+
+/// `UploadInfoParser`'s formats.
+pub mod link_formats {
+    pub const HTML_LINK: &str = "<a href=\"$url\">$url</a>";
+    pub const HTML_IMAGE: &str = "<img src=\"$url\">";
+    pub const HTML_LINKED_IMAGE: &str = "<a href=\"$url\"><img src=\"$thumbnailurl\"></a>";
+    pub const FORUM_LINK: &str = "[url]$url[/url]";
+    pub const FORUM_IMAGE: &str = "[img]$url[/img]";
+    pub const FORUM_LINKED_IMAGE: &str = "[url=$url][img]$thumbnailurl[/img][/url]";
+    pub const MARKDOWN_LINK: &str = "[$url]($url)";
+    pub const MARKDOWN_IMAGE: &str = "![]($url)";
+    pub const MARKDOWN_LINKED_IMAGE: &str = "[![]($thumbnailurl)]($url)";
 }
 
 /// What the task area asks the app to do.
@@ -737,6 +796,20 @@ impl TaskView {
                     icons::paint(painter, r, key, p.text.gamma_multiply(0.45));
                 }
             }
+            // `ProgressBar` (`Height="5"`, at the bottom) while an upload
+            // reports progress: Fluent's track (base low) and the accent.
+            if task.is_working()
+                && let Some(progress) = task.info.progress
+            {
+                let f = sharex_ui::theme::fluent(ui.ctx());
+                let bar = Rect::from_min_max(pos2(preview.min.x, preview.max.y - 5.0), preview.max);
+                sharex_ui::border::border(painter, bar, 2.5, 0.0, Some(sharex_ui::border::Brush::Solid(f.base_low)), None);
+                let done = (bar.width() * (progress.percentage() as f32 / 100.0).clamp(0.0, 1.0)).round();
+                if done > 0.0 {
+                    let fill = Rect::from_min_size(bar.min, vec2(done, bar.height()));
+                    sharex_ui::border::border(painter, fill, 2.5, 0.0, Some(sharex_ui::border::Brush::Solid(p.accent_start)), None);
+                }
+            }
             if task.status == TaskStatus::Failed {
                 // A red badge with a warning icon, top right (Margin 5, Padding 6,3).
                 let size = vec2(6.0 + FONT_SIZE + 6.0, 3.0 + FONT_SIZE + 3.0);
@@ -1326,12 +1399,12 @@ impl TaskView {
         let has_errors = first_task.is_some_and(|t| t.info.result.is_error());
         let has_response = first_task.is_some_and(|t| !t.info.result.response.is_empty());
         let entries = vec![
-            item(s::MainWindow_ShowErrors(), icon::Warning, np("Show errors"), ok && has_errors),
+            item(s::MainWindow_ShowErrors(), icon::Warning, TaskCommand::ShowErrors, ok && has_errors),
             item(s::MainWindow_StopUpload(), icon::CircleStop, TaskCommand::StopUpload, working),
             sub(s::MainWindow_Open(), icon::ExternalLink, self.open_menu(&sel), has),
             sub(s::MainWindow_Copy(), icon::Copy, self.copy_menu(&sel, &statuses), ok),
-            item(s::MainWindow_UploadSelectedFile(), icon::FileUpload, np("Upload"), uploads && ok && sel.is_file_exist).gesture("Ctrl+U"),
-            item(s::MainWindow_DownloadSelectedUrl(), icon::Download, np("Download"), ok && sel.is_file_url).gesture("Ctrl+D"),
+            item(s::MainWindow_UploadSelectedFile(), icon::FileUpload, TaskCommand::Upload, uploads && ok && sel.is_file_exist).gesture("Ctrl+U"),
+            item(s::MainWindow_DownloadSelectedUrl(), icon::Download, TaskCommand::Download, ok && sel.is_file_url).gesture("Ctrl+D"),
             item(s::MainWindow_EditImage(), icon::ImageEditor, np("Edit image"), ok && sel.is_image_file).gesture("Ctrl+E"),
             item(s::MainWindow_EditImageInPhotoEditor(), icon::Layers, np("Photo editor"), ok && images > 0),
             item(s::MainWindow_EditImageInPixelEditor(), icon::PixelEditor, np("Pixel editor"), ok && images > 0),
@@ -1347,12 +1420,22 @@ impl TaskView {
                 .gesture("Shift+Delete"),
             // Remote deletion needs an Amazon S3 upload.
             item(s::MainWindow_DeleteItemRemotely(), icon::CloudOff, np("Delete remotely"), false),
-            sub(s::MainWindow_ShortenSelectedUrl(), icon::ShortLink, Vec::new(), uploads && ok && sel.is_url_exist),
-            sub(s::MainWindow_ShareSelectedUrl(), icon::Share, Vec::new(), uploads && ok && sel.is_url_exist),
+            sub(s::MainWindow_ShortenSelectedUrl(), icon::ShortLink, shortener_menu(), uploads && ok && sel.is_url_exist),
+            sub(s::MainWindow_ShareSelectedUrl(), icon::Share, sharing_menu(), uploads && ok && sel.is_url_exist),
             item(s::MainWindow_AnalyzeImage(), icon::Robot, np("Analyze image"), ok && sel.is_image_file),
-            item(s::MainWindow_SearchWithGoogleLens(), icon::Search, np("Google Lens"), ok && sel.is_url_exist),
-            item(s::MainWindow_SearchWithBingVisualSearch(), icon::InspectWindow, np("Bing visual search"), ok && sel.is_url_exist),
-            item(s::MainWindow_ShowQRCode(), icon::QrCode, np("QR code"), ok && sel.is_url_exist),
+            item(
+                s::MainWindow_SearchWithGoogleLens(),
+                icon::Search,
+                TaskCommand::SearchImage(URLSharingServices::GoogleImageSearch),
+                ok && sel.is_url_exist,
+            ),
+            item(
+                s::MainWindow_SearchWithBingVisualSearch(),
+                icon::InspectWindow,
+                TaskCommand::SearchImage(URLSharingServices::BingVisualSearch),
+                ok && sel.is_url_exist,
+            ),
+            item(s::MainWindow_ShowQRCode(), icon::QrCode, TaskCommand::ShowQrCode, ok && sel.is_url_exist),
             item(s::MainWindow_OCRImage(), icon::TextRecognition, np("OCR"), ok && sel.is_image_file),
             sub(
                 s::MainWindow_CombineImagesDialog(),
@@ -1363,7 +1446,7 @@ impl TaskView {
                 ],
                 ok && images > 1,
             ),
-            item(s::MainWindow_ShowResponse(), icon::FileText, np("Show response"), ok && has_response),
+            item(s::MainWindow_ShowResponse(), icon::FileText, TaskCommand::ShowResponse, ok && has_response),
             MenuEntry::separator(),
             self.clear_entry(),
             self.switch_entry(),
@@ -1374,51 +1457,54 @@ impl TaskView {
     /// `BuildOpenTaskMenu`.
     fn open_menu(&self, sel: &UploadInfoStatus) -> Vec<MenuEntry<TaskCommand>> {
         // Separators show even with nothing visible around them, as in ShareX.
-        let np = TaskCommand::NotPorted;
+        use TaskCommand::OpenUrl;
         vec![
-            MenuEntry::item(s::MainWindow_Url(), icon::Link, np("Open URL")).visible(sel.is_url_exist).gesture("Return"),
-            MenuEntry::item(s::MainWindow_ShortenedUrl(), icon::ShortLink, np("Open URL")).visible(sel.is_shortened_url_exist),
-            MenuEntry::item(s::MainWindow_ThumbnailUrl(), icon::Image, np("Open URL")).visible(sel.is_thumbnail_url_exist),
-            MenuEntry::item(s::MainWindow_DeletionUrl(), icon::Trash, np("Open URL")).visible(sel.is_deletion_url_exist),
+            MenuEntry::item(s::MainWindow_Url(), icon::Link, OpenUrl(UrlField::Url)).visible(sel.is_url_exist).gesture("Return"),
+            MenuEntry::item(s::MainWindow_ShortenedUrl(), icon::ShortLink, OpenUrl(UrlField::Shortened)).visible(sel.is_shortened_url_exist),
+            MenuEntry::item(s::MainWindow_ThumbnailUrl(), icon::Image, OpenUrl(UrlField::Thumbnail)).visible(sel.is_thumbnail_url_exist),
+            MenuEntry::item(s::MainWindow_DeletionUrl(), icon::Trash, OpenUrl(UrlField::Deletion)).visible(sel.is_deletion_url_exist),
             MenuEntry::separator(),
             MenuEntry::item(s::MainWindow_File(), icon::File, TaskCommand::OpenFile).visible(sel.is_file_exist).gesture("Ctrl+Return"),
             MenuEntry::item(s::MainWindow_Folder(), icon::FolderOpen, TaskCommand::OpenFolder)
                 .visible(sel.is_file_exist)
                 .gesture("Shift+Return"),
-            MenuEntry::item(s::MainWindow_ThumbnailFile(), icon::FileImage, np("Open thumbnail file")).visible(sel.is_thumbnail_file_exist),
+            MenuEntry::item(s::MainWindow_ThumbnailFile(), icon::FileImage, TaskCommand::OpenThumbnailFile).visible(sel.is_thumbnail_file_exist),
         ]
     }
 
     /// `BuildCopyTaskMenu`.
     fn copy_menu(&self, sel: &UploadInfoStatus, all: &[UploadInfoStatus]) -> Vec<MenuEntry<TaskCommand>> {
-        let np = TaskCommand::NotPorted;
+        use TaskCommand::{CopyFormat, CopyUrl};
+        use link_formats as f;
         let any = |f: &dyn Fn(&UploadInfoStatus) -> bool| all.iter().any(f);
         let url = any(&|s| s.is_url_exist);
         let image_url = any(&|s| s.is_image_url);
         let linked = any(&|s| s.is_image_url && s.is_thumbnail_url_exist);
         let path = any(&|s| s.is_file_path_valid);
         let mut entries = vec![
-            MenuEntry::item(s::MainWindow_Url(), icon::Link, np("Copy URL")).visible(url).gesture("Ctrl+C"),
-            MenuEntry::item(s::MainWindow_ShortenedUrl(), icon::ShortLink, np("Copy URL")).visible(any(&|s| s.is_shortened_url_exist)),
-            MenuEntry::item(s::MainWindow_ThumbnailUrl(), icon::Image, np("Copy URL")).visible(any(&|s| s.is_thumbnail_url_exist)),
-            MenuEntry::item(s::MainWindow_DeletionUrl(), icon::Trash, np("Copy URL")).visible(any(&|s| s.is_deletion_url_exist)),
+            MenuEntry::item(s::MainWindow_Url(), icon::Link, CopyUrl(UrlField::Url)).visible(url).gesture("Ctrl+C"),
+            MenuEntry::item(s::MainWindow_ShortenedUrl(), icon::ShortLink, CopyUrl(UrlField::Shortened)).visible(any(&|s| s.is_shortened_url_exist)),
+            MenuEntry::item(s::MainWindow_ThumbnailUrl(), icon::Image, CopyUrl(UrlField::Thumbnail)).visible(any(&|s| s.is_thumbnail_url_exist)),
+            MenuEntry::item(s::MainWindow_DeletionUrl(), icon::Trash, CopyUrl(UrlField::Deletion)).visible(any(&|s| s.is_deletion_url_exist)),
             MenuEntry::separator(),
             MenuEntry::item(s::MainWindow_File(), icon::File, TaskCommand::CopyFile).visible(sel.is_file_exist).gesture("Shift+C"),
             MenuEntry::item(s::MainWindow_Image(), icon::Image, TaskCommand::CopyImage).visible(sel.is_image_file).gesture("Alt+C"),
             MenuEntry::item(s::MainWindow_ImageDimensions(), icon::Ruler, TaskCommand::CopyImageDimensions).visible(sel.is_image_file),
             MenuEntry::item(s::MainWindow_Text(), icon::FileText, TaskCommand::CopyText).visible(sel.is_text_file),
-            MenuEntry::item(s::MainWindow_ThumbnailFile(), icon::FileImage, np("Copy thumbnail")).visible(sel.is_thumbnail_file_exist),
-            MenuEntry::item(s::MainWindow_ThumbnailImage(), icon::Images, np("Copy thumbnail")).visible(sel.is_thumbnail_file_exist),
+            MenuEntry::item(s::MainWindow_ThumbnailFile(), icon::FileImage, TaskCommand::CopyThumbnailFile).visible(sel.is_thumbnail_file_exist),
+            MenuEntry::item(s::MainWindow_ThumbnailImage(), icon::Images, TaskCommand::CopyThumbnailImage).visible(sel.is_thumbnail_file_exist),
             MenuEntry::separator(),
-            MenuEntry::item(s::MainWindow_HtmlLink(), icon::Code, np("Copy HTML")).visible(url),
-            MenuEntry::item(s::MainWindow_HtmlImage(), icon::FileCode, np("Copy HTML")).visible(image_url),
-            MenuEntry::item(s::MainWindow_HtmlLinkedImage(), icon::Braces, np("Copy HTML")).visible(linked),
-            MenuEntry::item(s::MainWindow_ForumLink(), icon::Message, np("Copy BBCode")).visible(url),
-            MenuEntry::item(s::MainWindow_ForumImage(), icon::Messages, np("Copy BBCode")).visible(image_url && url),
-            MenuEntry::item(s::MainWindow_ForumLinkedImage(), icon::MessageShare, np("Copy BBCode")).visible(linked),
-            MenuEntry::item(s::MainWindow_MarkdownLink(), icon::Link, np("Copy Markdown")).visible(url),
-            MenuEntry::item(s::MainWindow_MarkdownImage(), icon::Image, np("Copy Markdown")).visible(image_url),
-            MenuEntry::item(s::MainWindow_MarkdownLinkedImage(), icon::Images, np("Copy Markdown")).visible(linked),
+            MenuEntry::item(s::MainWindow_HtmlLink(), icon::Code, CopyFormat(f::HTML_LINK, FormatFilter::Url)).visible(url),
+            MenuEntry::item(s::MainWindow_HtmlImage(), icon::FileCode, CopyFormat(f::HTML_IMAGE, FormatFilter::Image)).visible(image_url),
+            MenuEntry::item(s::MainWindow_HtmlLinkedImage(), icon::Braces, CopyFormat(f::HTML_LINKED_IMAGE, FormatFilter::LinkedImage)).visible(linked),
+            MenuEntry::item(s::MainWindow_ForumLink(), icon::Message, CopyFormat(f::FORUM_LINK, FormatFilter::Url)).visible(url),
+            MenuEntry::item(s::MainWindow_ForumImage(), icon::Messages, CopyFormat(f::FORUM_IMAGE, FormatFilter::Image)).visible(image_url && url),
+            MenuEntry::item(s::MainWindow_ForumLinkedImage(), icon::MessageShare, CopyFormat(f::FORUM_LINKED_IMAGE, FormatFilter::LinkedImage))
+                .visible(linked),
+            MenuEntry::item(s::MainWindow_MarkdownLink(), icon::Link, CopyFormat(f::MARKDOWN_LINK, FormatFilter::Url)).visible(url),
+            MenuEntry::item(s::MainWindow_MarkdownImage(), icon::Image, CopyFormat(f::MARKDOWN_IMAGE, FormatFilter::Image)).visible(image_url),
+            MenuEntry::item(s::MainWindow_MarkdownLinkedImage(), icon::Images, CopyFormat(f::MARKDOWN_LINKED_IMAGE, FormatFilter::LinkedImage))
+                .visible(linked),
             MenuEntry::separator(),
             MenuEntry::item(s::MainWindow_FilePath(), icon::FilePath, TaskCommand::CopyFilePath).visible(path).gesture("Ctrl+Shift+C"),
             MenuEntry::item(s::MainWindow_FileName(), icon::File, TaskCommand::CopyFileName).visible(path),
@@ -1427,12 +1513,28 @@ impl TaskView {
         ];
         if !self.settings.clipboard_formats.is_empty() {
             entries.push(MenuEntry::separator());
-            for f in &self.settings.clipboard_formats {
-                entries.push(MenuEntry::item(f.clone(), icon::ClipboardCopy, np("Copy custom format")));
+            for (i, f) in self.settings.clipboard_formats.iter().enumerate() {
+                entries.push(MenuEntry::item(f.clone(), icon::ClipboardCopy, TaskCommand::CopyCustomFormat(i)));
             }
         }
         entries
     }
+}
+
+/// `BuildUrlShortenerMenu`: every shortener by its localized name.
+fn shortener_menu() -> Vec<MenuEntry<TaskCommand>> {
+    UrlShortenerType::ALL
+        .iter()
+        .map(|d| MenuEntry::item(sharex_uploaders::factory::service_name("UrlShortenerType", d.name()), icon::ShortLink, TaskCommand::ShortenUrl(d.clone())))
+        .collect()
+}
+
+/// `BuildUrlSharingMenu`.
+fn sharing_menu() -> Vec<MenuEntry<TaskCommand>> {
+    URLSharingServices::ALL
+        .iter()
+        .map(|d| MenuEntry::item(sharex_uploaders::factory::service_name("URLSharingServices", d.name()), icon::Share, TaskCommand::ShareUrl(d.clone())))
+        .collect()
 }
 
 /// `ThumbnailItemViewModel.Title`.

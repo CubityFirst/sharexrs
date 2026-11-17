@@ -10,7 +10,7 @@ use sharex_settings::TaskSettings;
 use sharex_strings::sharex as s;
 
 use crate::message_box::{DialogResult, MessageBox};
-use crate::task_view::{TaskAction, TaskCommand, ViewSettings};
+use crate::task_view::{FormatFilter, TaskAction, TaskCommand, UrlField, ViewSettings};
 use crate::tasks::{RecentTask, TaskEvent, TaskInfo, UploadInfoStatus};
 use crate::{App, DialogPurpose, UserEvent, capture_job, shell, sound};
 
@@ -214,8 +214,10 @@ impl App {
                 shell::open_folder_with_file(&path);
             }
             TaskCommand::TryOpen => {
-                if sel.is_shortened_url_exist || sel.is_url_exist {
-                    eprintln!("Open URL: not ported yet");
+                if sel.is_shortened_url_exist {
+                    crate::upload::open_url(&first.result.shortened_url);
+                } else if sel.is_url_exist {
+                    crate::upload::open_url(&first.result.url);
                 } else if sel.is_file_path_valid {
                     shell::open_file(&path);
                 }
@@ -272,6 +274,122 @@ impl App {
                     self.copy_texts(paths(|s| s.is_file_path_valid).iter().map(|p| p.to_string_lossy().into_owned()).collect());
                 }
             }
+            TaskCommand::OpenUrl(field) => {
+                let url = url_of(first, field);
+                if !url.is_empty() {
+                    crate::upload::open_url(&url);
+                }
+            }
+            TaskCommand::CopyUrl(field) => self.copy_texts(infos.iter().map(|i| url_of(i, field)).filter(|u| !u.is_empty()).collect()),
+            TaskCommand::CopyFormat(format, filter) => {
+                let ok = |s: &UploadInfoStatus| match filter {
+                    FormatFilter::Url => s.is_url_exist,
+                    FormatFilter::Image => s.is_image_url,
+                    FormatFilter::LinkedImage => s.is_image_url && s.is_thumbnail_url_exist,
+                };
+                let texts = infos.iter().zip(&statuses).filter(|(_, s)| ok(s)).map(|(i, _)| parse_info(i, format)).collect();
+                self.copy_texts(texts);
+            }
+            TaskCommand::CopyCustomFormat(index) => {
+                let format = self
+                    .settings
+                    .settings
+                    .ClipboardContentFormats
+                    .get(index)
+                    .and_then(|f| f.get("Format"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                if !format.is_empty() {
+                    let texts = infos.iter().zip(&statuses).filter(|(_, s)| s.is_url_exist).map(|(i, _)| parse_info(i, &format)).collect();
+                    self.copy_texts(texts);
+                }
+            }
+            TaskCommand::OpenThumbnailFile if sel.is_thumbnail_file_exist => {
+                if let Some(p) = &first.thumbnail_file_path {
+                    shell::open_file(p);
+                }
+            }
+            TaskCommand::CopyThumbnailFile if sel.is_thumbnail_file_exist => {
+                if let Some(p) = first.thumbnail_file_path.clone() {
+                    match sharex_capture::clipboard::copy_files(&[p], self.owner()) {
+                        Ok(()) => self.action_completed(),
+                        Err(e) => eprintln!("Clipboard copy file failed: {e}"),
+                    }
+                }
+            }
+            TaskCommand::CopyThumbnailImage if sel.is_thumbnail_file_exist => {
+                let copied = first.thumbnail_file_path.as_deref().and_then(crate::thumbnail::load).map(|img| sharex_capture::clipboard::copy_image(&img, self.owner()));
+                match copied {
+                    Some(Ok(())) => self.action_completed(),
+                    Some(Err(e)) => eprintln!("Clipboard copy image from file failed: {e}"),
+                    None => {}
+                }
+            }
+            // `UploadManager.UploadFile(path)` with the default task settings.
+            TaskCommand::Upload if sel.is_file_exist => {
+                let task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.upload_request(event_loop, crate::dialogs::UploadRequest::Files { files: vec![path], task, confirmed: false });
+            }
+            // `UploadManager.DownloadFile(url)`.
+            TaskCommand::Download if sel.is_file_url => {
+                let task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                let mut ctx = crate::upload::manager::NewTaskContext::new(
+                    &mut self.settings.settings,
+                    self.settings.paths.screenshots_parent_folder(None),
+                    self.settings.paths.image_effects_folder(),
+                );
+                let t = crate::upload::manager::create_download_task(&first.result.url, false, task, &mut ctx);
+                self.start_upload_tasks(t.into_iter().collect());
+            }
+            // `UploadManager.ShortenURL(url, urlShortener)` / `ShareURL`:
+            // the result's text with the default task settings.
+            TaskCommand::ShortenUrl(service) if sel.is_url_exist => {
+                let mut task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                task.URLShortenerDestination = service;
+                let t = crate::upload::manager::shorten_url(&first.text(), &task);
+                self.start_upload_tasks(t.into_iter().collect());
+            }
+            TaskCommand::ShareUrl(service) if sel.is_url_exist => {
+                let mut task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                task.URLSharingServiceDestination = service;
+                let t = crate::upload::manager::share_url(&first.text(), &task);
+                self.start_upload_tasks(t.into_iter().collect());
+            }
+            // `SearchImageUsingGoogleLensAsync` / `SearchImageUsingBingAsync`:
+            // the sharing service's page with the URL.
+            TaskCommand::SearchImage(service) if sel.is_url_exist => {
+                let mut config = sharex_uploaders::UploadersConfig::default();
+                if let Some(mut sharer) = sharex_uploaders::factory::create_url_sharing(&service, &mut config, &Default::default()) {
+                    let _ = sharex_uploaders::uploader::share_url(sharer.as_mut(), &first.result.url);
+                }
+            }
+            TaskCommand::ShowQrCode if sel.is_url_exist => {
+                let w = crate::dialogs::qr_code::QrCodeWindow::new(Some(first.result.url.clone()));
+                self.open_dialog_window(event_loop, Box::new(w));
+            }
+            // `ResponseWindow.ShowInstance(result)`: the open one shows it.
+            TaskCommand::ShowResponse => {
+                let data = response_data(first);
+                if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("response")) {
+                    d.dialog.show_response(data);
+                    d.window.window.set_minimized(false);
+                    d.window.window.focus_window();
+                    d.window.window.request_redraw();
+                } else {
+                    self.open_dialog_window(event_loop, Box::new(crate::dialogs::response::ResponseWindow::new(data)));
+                }
+            }
+            // `WorkerTask.ShowErrorWindow`.
+            TaskCommand::ShowErrors if first.result.is_error() => {
+                let errors = first.result.errors.join("\r\n\r\n");
+                if !errors.is_empty() {
+                    // `AppPaths.LogsFilePath` (shown when it exists).
+                    let log = Some(self.settings.paths.logs_folder().join(format!("ShareX-Log-{}.txt", chrono::Local::now().format("%Y-%m"))));
+                    let w = crate::dialogs::response::ErrorWindow::new(s::UploadInfoManager_ShowErrors_Upload_errors().to_owned(), errors, log);
+                    self.open_dialog_window(event_loop, Box::new(w));
+                }
+            }
             TaskCommand::DeleteSelectedFiles => self.delete_selected_files(event_loop, ids),
             TaskCommand::StopUpload => self.stop_tasks(&ids),
             TaskCommand::NotPorted(name) => eprintln!("{name}: not ported yet"),
@@ -321,5 +439,52 @@ impl App {
         self.state.tasks.remove_tasks(ids);
         self.store_recent_tasks();
         self.redraw_main();
+    }
+}
+
+/// One of an upload's URLs.
+fn url_of(info: &TaskInfo, field: UrlField) -> String {
+    let r = &info.result;
+    match field {
+        UrlField::Url => r.url.clone(),
+        UrlField::Shortened => r.shortened_url.clone(),
+        UrlField::Thumbnail => r.thumbnail_url.clone(),
+        UrlField::Deletion => r.deletion_url.clone(),
+    }
+}
+
+/// `UploadInfoParser.Parse(info, pattern)` of a task.
+fn parse_info(info: &TaskInfo, pattern: &str) -> String {
+    let some = |s: &str| (!s.is_empty()).then(|| s.to_owned());
+    let r = &info.result;
+    let result = sharex_uploaders::UploadResult {
+        url: some(&r.url),
+        thumbnail_url: some(&r.thumbnail_url),
+        deletion_url: some(&r.deletion_url),
+        shortened_url: some(&r.shortened_url),
+        ..Default::default()
+    };
+    let fields = crate::upload::after_upload::InfoFields {
+        result: &result,
+        file_name: &info.file_name,
+        file_path: info.file_path.as_deref(),
+        thumbnail_file_path: info.thumbnail_file_path.as_deref(),
+        upload_duration: None,
+    };
+    crate::upload::after_upload::parse_upload_info(&fields, pattern)
+}
+
+/// What the response window shows of a task.
+fn response_data(info: &TaskInfo) -> crate::dialogs::response::ResponseData {
+    let r = &info.result;
+    crate::dialogs::response::ResponseData {
+        url: r.url.clone(),
+        shortened_url: r.shortened_url.clone(),
+        thumbnail_url: r.thumbnail_url.clone(),
+        deletion_url: r.deletion_url.clone(),
+        is_error: r.is_error(),
+        errors: r.errors.join("\r\n\r\n"),
+        response: r.response.clone(),
+        response_info: r.response_info.as_deref().cloned(),
     }
 }
