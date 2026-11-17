@@ -62,6 +62,10 @@ Known, accepted differences:
 
 ```
 crates/
+  sharex-capture/   ShareX.ScreenCaptureLib: grabbing the screen, windows and
+                    the pointer; the region capture overlay (state, input,
+                    drawing, offscreen-renderable); copying images
+  sharex-helpers/   ShareX.HelpersLib's shared parts: NameParser, file names
   sharex-settings/  ShareX's settings files (ApplicationConfig, HotkeysConfig),
                     read and written as ShareX does; where they live
   sharex-strings/   ShareX's .resx (29 languages) -> Rust, generated at build
@@ -97,9 +101,9 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 ### Phase 1: capture
 | Item | ShareX source | Status |
 |---|---|---|
-| Fullscreen / monitor / window capture | ScreenCaptureLib/Screenshot.cs | ⬜ |
-| Region capture overlay (incl. transparent, last region) | ScreenCaptureLib/Presentation | ⬜ |
-| After capture tasks: save (name pattern), clipboard, annotate | ShareX/Workflow, NameParser (HelpersLib) | ⬜ |
+| Fullscreen / monitor / window capture | ScreenCaptureLib/Screenshot.cs | 🟨 grabbing ported (`sharex_capture::screenshot`: GDI BitBlt with CAPTUREBLT on Windows, xcap stitched with `untangle` elsewhere; the pointer drawn in as `CursorData`); the Capture menu's fullscreen/monitor/window jobs aren't wired yet |
+| Region capture overlay (incl. transparent, last region) | ScreenCaptureLib/Presentation | 🟨 Capture › Region and the Capture region hotkey (`RectangleRegion`), default mode: one overlay window per monitor; `--render region-rest/-drag/-hover` and the live overlay over `--test-pattern` match ShareX's to ≤0.1% (only the labels' text anti-aliasing differs); behaviour checked side by side (drag, window snap, Escape, right click) with identical saved files and clipboard. Not yet: annotation tools (drawn, inert), ellipse/freehand regions, multi region mode, screen crosshair, custom info text, toolbar tooltips; Region (Transparent) and Last region jobs. Checked on one 100% monitor only |
+| After capture tasks: save (name pattern), clipboard, annotate | ShareX/Workflow, NameParser (HelpersLib) | 🟨 copy to clipboard (PNG + 24 bpp CF_DIB, byte-identical to ShareX's), save to file (`%pn_%ra{10}` / `%ra{10}` in `Screenshots/%y-%mo`, RGBA PNG or JPEG over 2048 KB), the capture sound; NameParser ported whole. Not yet: the other tasks, the file exists dialog (a unique name is used), the task notification toast, history |
 | Task list + thumbnail view in main window | MainWindow, ThumbnailItemViewModel | ⬜ |
 | Screen recording (FFmpeg, GIF) + recorder bar | ScreenRecordingLib, Presentation/ScreenRecording | ⬜ |
 | Scrolling capture, auto capture | ScreenCaptureLib, Presentation/AutoCapture | ⬜ |
@@ -125,6 +129,18 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 Application settings, Task settings, Destination settings, Workflows,
 Actions toolbar, Quick task menu, Start screen (welcome), About, Debug log,
 notifications, updates.
+
+### Validating capture overlays safely
+
+The frozen screen shows whatever is on screen, so never open a capture
+overlay over the desktop. `scripts/region-session.ps1` covers every monitor
+with `sharexrs --test-pattern` first, opens Capture › Region in ShareX (UI
+Automation) or ShareXrs (raised above the pattern and clicked), drives the
+overlay (`-At`, `-DragTo`, `-Hold`, `-Window` for a window to snap to),
+grabs the screen (`-Out`) and always ends with Escape. `pattern-check.py`
+deletes any grab that isn't mostly the pattern. `clipboard-dump.ps1` saves
+what a capture copied. Run ShareXrs portable (a `Portable` file beside the
+exe) so its captures land in `target/debug/ShareXrs`.
 
 ## Working on a tool (for agents)
 
