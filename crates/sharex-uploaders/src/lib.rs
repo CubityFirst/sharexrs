@@ -26,6 +26,7 @@ pub mod oauth;
 pub mod result;
 pub mod uploader;
 pub mod url_helpers;
+pub mod validator;
 
 pub use config::UploadersConfig;
 pub use enums::*;
