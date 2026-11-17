@@ -40,7 +40,8 @@ if ($Window) { $patternArgs += @('--window', ($Window -join ',')) }
 $pattern = Start-Process -FilePath $Sharexrs -ArgumentList $patternArgs -PassThru
 $patternId = $pattern.Id
 try {
-    Start-Sleep -Seconds 2
+    # Only once the pattern covers the screen: an overlay freezes what's on it.
+    & "$PSScriptRoot/wait-pattern.ps1"
     if ($Process -eq 'sharexrs') {
         $origin = (& "$PSScriptRoot/raise.ps1" -Process sharexrs -Title '^ShareXrs [0-9]') -split ','
         $ox = [int]$origin[0]; $oy = [int]$origin[1]
