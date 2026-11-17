@@ -18,6 +18,7 @@ mod history;
 mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
+mod menu_settings;
 mod main_window;
 mod message_box;
 mod region_render;
@@ -400,6 +401,11 @@ impl App {
         if self.upload_menu_command(event_loop, &command) {
             return;
         }
+        if menu_settings::apply(&mut self.settings.settings.DefaultTaskSettings, &command) {
+            // `staysOpenOnClick` entries: the menu shows the change at once.
+            self.refresh_menus();
+            return;
+        }
         let capture = self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default();
         match command {
             MenuCommand::ToggleShowCursor => capture.ShowCursor = !capture.ShowCursor,
@@ -429,6 +435,7 @@ impl App {
         m.screenshot_delay = capture.ScreenshotDelay as f32;
         m.screenshot_delay_just_once = s.ScreenshotDelayJustOnce;
         m.hotkeys_disabled = s.DisableHotkeys;
+        menu_settings::fill(m, &s.DefaultTaskSettings);
         m.list_windows = true;
         // `DesktopScreen.AllScreens`.
         m.monitors = sharex_capture::screenshot::screens()
