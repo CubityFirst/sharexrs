@@ -1,7 +1,7 @@
 //! The Data, Video and System tools' cases.
 
 use serde_json::Value;
-use sharex_tools::video::{converter, thumbnailer, trimmer};
+use sharex_tools::video::{converter, gif_trimmer, thumbnailer, trimmer};
 use sharex_tools::{hash, imaging, indexer, metadata, monitor_test, qr};
 
 use crate::cases::Ctx;
@@ -281,6 +281,41 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             let path = ctx.out.join(format!("{name}.png"));
             std::fs::write(&path, imaging::encode_png(&bmp)).unwrap();
             compare::image_files("pattern", &path, &ctx.sharex.join(format!("{name}.png")), 0)
+        }
+        "gif-trim" => {
+            let theirs = read_json(ctx, name);
+            let data = std::fs::read(ctx.inputs.join(c["file"].as_str().unwrap())).unwrap();
+            let t = match gif_trimmer::GifLosslessTrimmer::parse(&data) {
+                Ok(t) => t,
+                Err(_) => return if theirs["error"].is_string() { Outcome::exact() } else { Outcome::fail("parse failed") },
+            };
+            let n = t.frame_count();
+            let starts = t.starts();
+            let times = [0.0, 0.05, 0.29, 0.3, 0.31, 1.0, 1.995, 2.11, 4.6, 99.0];
+            let mut copies = Vec::new();
+            let mut out = Outcome::exact();
+            for first in 0..n {
+                for end in first + 1..=n {
+                    let can = t.can_copy_selection(first, end);
+                    copies.push(serde_json::json!([first, end, can]));
+                    if can {
+                        let ours = t.copy(&data, first, end).unwrap();
+                        out = out.and(compare::bytes(&format!("{first}-{end}"), &ours, &ctx.sharex.join(name).join(format!("{first}-{end}.gif"))));
+                    }
+                }
+            }
+            let ours = serde_json::json!({
+                "frames": n,
+                "loop": t.looping,
+                "repeat": t.repeat_count,
+                "delays": (0..n).map(|i| t.delay(i)).collect::<Vec<_>>(),
+                "needsValidation": (0..n).map(|i| t.needs_visual_validation(i)).collect::<Vec<_>>(),
+                "copies": copies,
+                "frameAt": times.iter().map(|&x| gif_trimmer::frame_at(&starts, x)).collect::<Vec<_>>(),
+                "nearest": times.iter().map(|&x| gif_trimmer::nearest_boundary(&starts, x, false)).collect::<Vec<_>>(),
+                "nearestEnd": times.iter().map(|&x| gif_trimmer::nearest_boundary(&starts, x, true)).collect::<Vec<_>>(),
+            });
+            out.and(json_eq(&ours, &theirs))
         }
         _ => Outcome::skip(format!("no validator for {tool}")),
     }

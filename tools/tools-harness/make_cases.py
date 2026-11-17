@@ -185,5 +185,8 @@ for pattern, size in itertools.product(["HorizontalLines", "VerticalLines", "Che
 for motion, offset in itertools.product(["VerticalBars", "HorizontalBars"], [0, 37.25, 133.7, 1000.5]):
     add(f"monitor-motion-{motion}-{offset}", "monitor-test", mode="Motion", width=301, height=167, motion=motion, offset=offset)
 
+for f in ["trim.gif", "../sharex/gifmaker-alpha-d33-loop-r3.gif", "../sharex/gifmaker-big-d100-once-r0.gif", "meta/full.gif", "palette.gif"]:
+    add(f"giftrim-{f.split('/')[-1].replace('.', '_')}", "gif-trim", file=f)
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

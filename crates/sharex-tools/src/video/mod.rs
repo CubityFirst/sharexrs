@@ -4,5 +4,6 @@
 
 pub mod converter;
 pub mod gif_maker;
+pub mod gif_trimmer;
 pub mod thumbnailer;
 pub mod trimmer;

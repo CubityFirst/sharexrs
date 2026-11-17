@@ -16214,5 +16214,30 @@
   "height": 167,
   "motion": "HorizontalBars",
   "offset": 1000.5
+ },
+ {
+  "name": "giftrim-trim_gif",
+  "tool": "gif-trim",
+  "file": "trim.gif"
+ },
+ {
+  "name": "giftrim-gifmaker-alpha-d33-loop-r3_gif",
+  "tool": "gif-trim",
+  "file": "../sharex/gifmaker-alpha-d33-loop-r3.gif"
+ },
+ {
+  "name": "giftrim-gifmaker-big-d100-once-r0_gif",
+  "tool": "gif-trim",
+  "file": "../sharex/gifmaker-big-d100-once-r0.gif"
+ },
+ {
+  "name": "giftrim-full_gif",
+  "tool": "gif-trim",
+  "file": "meta/full.gif"
+ },
+ {
+  "name": "giftrim-palette_gif",
+  "tool": "gif-trim",
+  "file": "palette.gif"
  }
 ]
