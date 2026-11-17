@@ -17,8 +17,9 @@ use windows_sys::Win32::Graphics::Gdi::{
     GetObjectW, GetWindowDC, HDC, HMONITOR, MONITORINFO, ReleaseDC, SRCCOPY, SelectObject,
 };
 use windows_sys::Win32::System::DataExchange::{
-    CloseClipboard, EmptyClipboard, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
+    CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
 };
+use windows_sys::Win32::System::Memory::GlobalSize;
 use windows_sys::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock};
 use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
 use windows_sys::Win32::System::Threading::{
@@ -518,6 +519,54 @@ pub fn set_clipboard_image(owner: isize, png: &[u8], dib: &[u8]) -> Result<(), S
 pub fn clipboard_has_format(format: u32) -> bool {
     // SAFETY: no pointers.
     unsafe { windows_sys::Win32::System::DataExchange::IsClipboardFormatAvailable(format) != 0 }
+}
+
+/// The id of a registered clipboard format (`RegisterClipboardFormat`).
+pub fn clipboard_format_id(name: &str) -> u32 {
+    let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
+    // SAFETY: a NUL-terminated string.
+    unsafe { RegisterClipboardFormatW(wide.as_ptr()) }
+}
+
+/// `GetClipboardData(format)`'s bytes, or `None` when the clipboard
+/// doesn't hold it (or can't be opened, after retrying as when setting it).
+pub fn get_clipboard_data(format: u32) -> Option<Vec<u8>> {
+    if !clipboard_has_format(format) {
+        return None;
+    }
+    let mut opened = false;
+    for _ in 0..=10 {
+        // SAFETY: no pointers.
+        if unsafe { OpenClipboard(std::ptr::null_mut()) } != 0 {
+            opened = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    if !opened {
+        return None;
+    }
+    // SAFETY: the clipboard is open; the handle's memory is read within
+    // its size while locked.
+    let data = unsafe {
+        let handle = GetClipboardData(format);
+        if handle.is_null() {
+            None
+        } else {
+            let size = GlobalSize(handle);
+            let p = GlobalLock(handle);
+            if p.is_null() {
+                None
+            } else {
+                let bytes = std::slice::from_raw_parts(p as *const u8, size).to_vec();
+                GlobalUnlock(handle);
+                Some(bytes)
+            }
+        }
+    };
+    // SAFETY: opened above.
+    unsafe { CloseClipboard() };
+    data
 }
 
 /// A clipboard format: a standard one (`CF_*`) or a registered name.

@@ -153,8 +153,181 @@ pub fn contains_text() -> bool {
     }
 }
 
+/// `ClipboardHelpers.ContainsImage`: a bitmap format (PNG, a DIB or
+/// `CF_BITMAP`).
+pub fn contains_image() -> bool {
+    #[cfg(windows)]
+    {
+        use crate::platform::{clipboard_format_id, clipboard_has_format};
+        // CF_BITMAP, CF_DIB, CF_DIBV5.
+        [2, 8, 17].into_iter().any(clipboard_has_format) || clipboard_has_format(clipboard_format_id("PNG"))
+    }
+    #[cfg(not(windows))]
+    {
+        arboard::Clipboard::new().and_then(|mut c| c.get_image()).is_ok()
+    }
+}
+
+/// `ClipboardHelpers.ContainsFileDropList`.
+pub fn contains_file_drop_list() -> bool {
+    #[cfg(windows)]
+    {
+        crate::platform::clipboard_has_format(15) // CF_HDROP
+    }
+    #[cfg(not(windows))]
+    {
+        arboard::Clipboard::new().and_then(|mut c| c.get().file_list()).is_ok_and(|f| !f.is_empty())
+    }
+}
+
+/// `ClipboardHelpers.GetText`.
+pub fn get_text() -> Option<String> {
+    #[cfg(windows)]
+    {
+        let bytes = crate::platform::get_clipboard_data(13)?; // CF_UNICODETEXT
+        let wide: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&u| u != 0).collect();
+        Some(String::from_utf16_lossy(&wide))
+    }
+    #[cfg(not(windows))]
+    {
+        arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok()
+    }
+}
+
+/// `ClipboardHelpers.GetFileDropList`.
+pub fn get_file_drop_list() -> Option<Vec<std::path::PathBuf>> {
+    #[cfg(windows)]
+    {
+        let bytes = crate::platform::get_clipboard_data(15)?; // CF_HDROP
+        parse_drop_files(&bytes)
+    }
+    #[cfg(not(windows))]
+    {
+        arboard::Clipboard::new().and_then(|mut c| c.get().file_list()).ok()
+    }
+}
+
+/// A `DROPFILES` block's paths (wide or ANSI).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn parse_drop_files(bytes: &[u8]) -> Option<Vec<std::path::PathBuf>> {
+    let offset = u32::from_le_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
+    let wide = u32::from_le_bytes(bytes.get(16..20)?.try_into().ok()?) != 0;
+    let list = bytes.get(offset..)?;
+    let names: Vec<String> = if wide {
+        let units: Vec<u16> = list.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        units.split(|&u| u == 0).take_while(|s| !s.is_empty()).map(String::from_utf16_lossy).collect()
+    } else {
+        list.split(|&b| b == 0).take_while(|s| !s.is_empty()).map(|s| String::from_utf8_lossy(s).into_owned()).collect()
+    };
+    Some(names.into_iter().map(std::path::PathBuf::from).collect())
+}
+
+/// `ClipboardHelpers.GetImage`: "PNG" first, then the DIBs
+/// (`ImageFromClipboardDib`).
+pub fn get_image() -> Option<RgbaImage> {
+    #[cfg(windows)]
+    {
+        use crate::platform::{clipboard_format_id, get_clipboard_data};
+        if let Some(png) = get_clipboard_data(clipboard_format_id("PNG"))
+            && let Ok(image) = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+        {
+            return Some(image.to_rgba8());
+        }
+        for format in [17, 8] {
+            if let Some(image) = get_clipboard_data(format).and_then(|d| image_from_dib(&d)) {
+                return Some(image);
+            }
+        }
+        None
+    }
+    #[cfg(not(windows))]
+    {
+        let data = arboard::Clipboard::new().and_then(|mut c| c.get_image()).ok()?;
+        RgbaImage::from_raw(data.width as u32, data.height as u32, data.bytes.into_owned())
+    }
+}
+
+/// `ClipboardHelpersEx.ImageFromClipboardDib`: 32 bpp DIBs with the
+/// standard masks are read as BGRA (premultiplied when they have alpha),
+/// anything else is decoded as a BMP file.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn image_from_dib(data: &[u8]) -> Option<RgbaImage> {
+    let i32_at = |o: usize| data.get(o..o + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+    let u32_at = |o: usize| data.get(o..o + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+    if data.len() < 40 {
+        return None;
+    }
+    let header = i32_at(0)? as usize;
+    if header < 40 || header > data.len() {
+        return None;
+    }
+    let width = i32_at(4)?;
+    let signed_height = i32_at(8)?;
+    let height = signed_height.unsigned_abs() as usize;
+    let bits = u16::from_le_bytes([data[14], data[15]]) as usize;
+    let compression = i32_at(16)?;
+    let colors = u32_at(32)?;
+    let palette = if bits <= 8 { (if colors == 0 { 1u32 << bits } else { colors }) as usize * 4 } else { 0 };
+    let masks = match (header, compression) {
+        (40, 3) => 12,
+        (40, 6) => 16,
+        _ => 0,
+    };
+    let offset = header + palette + masks;
+    if width <= 0 || height == 0 {
+        return None;
+    }
+    let width = width as usize;
+    let row = (width * bits).div_ceil(32) * 4;
+    if offset > data.len() || row * height > data.len() - offset {
+        return None;
+    }
+    if bits == 32 && matches!(compression, 0 | 3 | 6) {
+        let standard = compression == 0 || (u32_at(40)? == 0x00FF_0000 && u32_at(44)? == 0x0000_FF00 && u32_at(48)? == 0x0000_00FF);
+        if standard {
+            let mut alpha = header >= 56 && u32_at(52)? == 0xFF00_0000;
+            if !alpha && compression != 0 {
+                alpha = (offset + 3..offset + row * height).step_by(4).any(|i| data[i] != 0);
+            }
+            let mut image = RgbaImage::new(width as u32, height as u32);
+            for y in 0..height {
+                let src = offset + if signed_height > 0 { height - y - 1 } else { y } * row;
+                for x in 0..width {
+                    let p = &data[src + x * 4..src + x * 4 + 4];
+                    let (b, g, r, a) = (p[0], p[1], p[2], if alpha { p[3] } else { 255 });
+                    // Skia's premultiplied BGRA read back as straight RGBA.
+                    let un = |c: u8| if a == 0 || a == 255 { c } else { ((c as u32 * 255 + a as u32 / 2) / a as u32).min(255) as u8 };
+                    image.put_pixel(x as u32, y as u32, image::Rgba([un(r), un(g), un(b), a]));
+                }
+            }
+            return Some(image);
+        }
+    }
+    let mut file = Vec::with_capacity(14 + data.len());
+    file.extend_from_slice(&0x4D42u16.to_le_bytes());
+    file.extend_from_slice(&((14 + data.len()) as u32).to_le_bytes());
+    file.extend_from_slice(&0u32.to_le_bytes());
+    file.extend_from_slice(&((14 + offset) as u32).to_le_bytes());
+    file.extend_from_slice(data);
+    image::load_from_memory_with_format(&file, image::ImageFormat::Bmp).ok().map(|i| i.to_rgba8())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dibs_read_back_as_written() {
+        let mut image = RgbaImage::from_pixel(3, 2, image::Rgba([10, 20, 30, 255]));
+        image.put_pixel(2, 1, image::Rgba([200, 100, 50, 255]));
+        let read = image_from_dib(&dib_bytes(&image)).unwrap();
+        assert_eq!(read, image);
+    }
+
+    #[test]
+    fn drop_lists_parse_back() {
+        let paths = [std::path::PathBuf::from("C:\\a.png"), std::path::PathBuf::from("b c.txt")];
+        assert_eq!(parse_drop_files(&drop_files(&paths)).unwrap(), paths);
+    }
+
     #[test]
     fn drop_lists_are_wide_and_double_terminated() {
         let d = super::drop_files(&[std::path::PathBuf::from("a"), std::path::PathBuf::from("bc")]);
