@@ -1,0 +1,87 @@
+{
+  "_comment": "What the release packages bundle beside sharexrs, pinned by URL and SHA256 (docs/RELEASING.md). scripts/fetch-bundled.py downloads, checks and lays these out. Bump a piece by changing its url, sha256 and member together.",
+  "ffmpeg": {
+    "_comment": "ShareX's CI downloads BtbN's FFmpeg-Builds 'ffmpeg-n9.0-latest-<win64|winarm64>-gpl-9.0' (FFMPEG_VERSION 9.0) from the rolling 'latest' release. These are the same builds from a month-end autobuild, which BtbN keeps, so the hash can be pinned. BtbN has no macOS build: macOS uses Martin Riedl's static FFmpeg 9.0.2 release build.",
+    "windows-x64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-9.0.zip",
+      "sha256": "693f3e224bc184b40524a62ca47526cfebaf2504414021b92fe75f677ad868b9",
+      "member": "ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-9.0/bin/ffmpeg.exe",
+      "build": "BtbN FFmpeg-Builds autobuild-2026-10-31-12-59, ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-9.0 (static, GPL v3)",
+      "source": [
+        "FFmpeg n9.0.2-39-g7adfbe40dc (the release/9.0 branch at commit 7adfbe40dc): https://github.com/FFmpeg/FFmpeg/tree/7adfbe40dc",
+        "The build scripts, which pin the source revision of every library linked in: https://github.com/BtbN/FFmpeg-Builds/tree/5031c6f1082414e53688d39e521849905071070d"
+      ]
+    },
+    "windows-arm64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-winarm64-gpl-9.0.zip",
+      "sha256": "8b3c394762f26716ccef03ac1b7ac76430759080e1255aa9bc01d74db590bcb5",
+      "member": "ffmpeg-n9.0.2-39-g7adfbe40dc-winarm64-gpl-9.0/bin/ffmpeg.exe",
+      "build": "BtbN FFmpeg-Builds autobuild-2026-10-31-12-59, ffmpeg-n9.0.2-39-g7adfbe40dc-winarm64-gpl-9.0 (static, GPL v3)",
+      "source": [
+        "FFmpeg n9.0.2-39-g7adfbe40dc (the release/9.0 branch at commit 7adfbe40dc): https://github.com/FFmpeg/FFmpeg/tree/7adfbe40dc",
+        "The build scripts, which pin the source revision of every library linked in: https://github.com/BtbN/FFmpeg-Builds/tree/5031c6f1082414e53688d39e521849905071070d"
+      ]
+    },
+    "linux-x64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0.tar.xz",
+      "sha256": "73e29a56974ae5a651133a04584c7483b21afe941e17dc91d79814a758b608d3",
+      "member": "ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0/bin/ffmpeg",
+      "build": "BtbN FFmpeg-Builds autobuild-2026-10-31-12-59, ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0 (static, GPL v3)",
+      "source": [
+        "FFmpeg n9.0.2-39-g7adfbe40dc (the release/9.0 branch at commit 7adfbe40dc): https://github.com/FFmpeg/FFmpeg/tree/7adfbe40dc",
+        "The build scripts, which pin the source revision of every library linked in: https://github.com/BtbN/FFmpeg-Builds/tree/5031c6f1082414e53688d39e521849905071070d"
+      ]
+    },
+    "macos-arm64": {
+      "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip",
+      "sha256": "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
+      "member": "ffmpeg",
+      "build": "Martin Riedl's FFmpeg build server, release 9.0.2 for macOS arm64 (static, GPL v3)",
+      "source": [
+        "FFmpeg 9.0.2: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+        "The build script, and the library versions it used: https://git.martin-riedl.de/ffmpeg/build-script and https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/versions.txt"
+      ]
+    }
+  },
+  "onnxruntime": {
+    "_comment": "Microsoft's CPU build of ONNX Runtime 1.24.4, the version ShareX ships (docs/OCR.md), from its NuGet package (ShareX takes the DirectML variant from NuGet; the GitHub releases page is gone). The nupkg's SHA512 matches nuget.org's catalog entry.",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/1.24.4/microsoft.ml.onnxruntime.1.24.4.nupkg",
+    "sha256": "4b978d5065b85e7004b6c6f60ca494bd978fbe6836cbf0a0b52d82b61ab99638",
+    "version": "1.24.4",
+    "members": {
+      "windows-x64": "runtimes/win-x64/native/onnxruntime.dll",
+      "windows-arm64": "runtimes/win-arm64/native/onnxruntime.dll",
+      "macos-arm64": "runtimes/osx-arm64/native/libonnxruntime.dylib",
+      "linux-x64": "runtimes/linux-x64/native/libonnxruntime.so"
+    },
+    "licenses": {
+      "LICENSE": "OnnxRuntime_license.txt",
+      "ThirdPartyNotices.txt": "OnnxRuntime_ThirdPartyNotices.txt"
+    }
+  },
+  "models": {
+    "_comment": "ShareX's PP-OCRv6 small models, committed to its repository (ShareX.OCR/Models), at REFERENCE_COMMIT. Apache-2.0 (packaging/Licenses/PaddleOCR_license.txt).",
+    "files": [
+      {
+        "path": "PP-OCRv6_small_det/inference.onnx",
+        "url": "https://raw.githubusercontent.com/ShareX/ShareX/c4f1e6f7780f5e1a2f04aadd6703557806e9f868/ShareX.OCR/Models/PP-OCRv6_small_det/inference.onnx",
+        "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+      },
+      {
+        "path": "PP-OCRv6_small_det/inference.yml",
+        "url": "https://raw.githubusercontent.com/ShareX/ShareX/c4f1e6f7780f5e1a2f04aadd6703557806e9f868/ShareX.OCR/Models/PP-OCRv6_small_det/inference.yml",
+        "sha256": "193f435274bf9f0b5f71a929bbfbcf148282df7e633b34e7c373e8f44741b516"
+      },
+      {
+        "path": "PP-OCRv6_small_rec/inference.onnx",
+        "url": "https://raw.githubusercontent.com/ShareX/ShareX/c4f1e6f7780f5e1a2f04aadd6703557806e9f868/ShareX.OCR/Models/PP-OCRv6_small_rec/inference.onnx",
+        "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+      },
+      {
+        "path": "PP-OCRv6_small_rec/inference.yml",
+        "url": "https://raw.githubusercontent.com/ShareX/ShareX/c4f1e6f7780f5e1a2f04aadd6703557806e9f868/ShareX.OCR/Models/PP-OCRv6_small_rec/inference.yml",
+        "sha256": "ab078671bb49f06228eadccd34f1bb501e157f7a047095ffb943ba81512c77d1"
+      }
+    ]
+  }
+}
