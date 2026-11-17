@@ -30,11 +30,13 @@
 
 pub mod aaa;
 pub mod blitter;
+pub mod clip;
 pub mod draw;
 pub mod fixed;
 pub mod geom;
 pub mod path;
 pub mod pixmap;
+pub mod saa;
 pub mod scan;
 pub mod stroke;
 

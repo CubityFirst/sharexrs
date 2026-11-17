@@ -383,6 +383,26 @@ pub fn chop_quad_at_y_extrema(src: &[Point; 3], dst: &mut [Point; 5]) -> usize {
     0
 }
 
+/// `SkChopQuadAtXExtrema`.
+pub fn chop_quad_at_x_extrema(src: &[Point; 3], dst: &mut [Point; 5]) -> usize {
+    let a = src[0].x;
+    let mut b = src[1].x;
+    let c = src[2].x;
+    if is_not_monotonic(a, b, c) {
+        if let Some(t) = valid_unit_divide(a - b, a - b - b + c) {
+            *dst = chop_quad_at(src, t);
+            dst[1].x = dst[2].x;
+            dst[3].x = dst[2].x;
+            return 1;
+        }
+        b = if (a - b).abs() < (b - c).abs() { a } else { c };
+    }
+    dst[0] = Point::new(a, src[0].y);
+    dst[1] = Point::new(b, src[1].y);
+    dst[2] = Point::new(c, src[2].y);
+    0
+}
+
 /// `SkFindCubicExtrema`.
 pub fn find_cubic_extrema(a: f32, b: f32, c: f32, d: f32, t: &mut [f32; 2]) -> usize {
     let aa = d - a + 3.0 * (b - c);

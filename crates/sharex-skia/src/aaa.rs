@@ -16,7 +16,7 @@ const DEFAULT_ACCURACY: i32 = 2;
 const MAX_COEFF_SHIFT: i32 = 6;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-enum EdgeType {
+pub(crate) enum EdgeType {
     #[default]
     Line,
     Quad,
@@ -24,55 +24,59 @@ enum EdgeType {
 }
 
 #[derive(Clone, Default, Debug)]
-struct AEdge {
-    next: usize,
-    prev: usize,
-    rite_e: usize,
+pub(crate) struct AEdge {
+    // SkEdge (the supersampling scan converter's edges)
+    pub(crate) first_y: i32,
+    pub(crate) last_y: i32,
 
-    x: Fixed,
-    dx: Fixed,
-    upper_x: Fixed,
-    y: Fixed,
-    upper_y: Fixed,
-    lower_y: Fixed,
-    dy: Fixed,
+    pub(crate) next: usize,
+    pub(crate) prev: usize,
+    pub(crate) rite_e: usize,
 
-    saved_x: Fixed,
-    saved_y: Fixed,
-    saved_dy: Fixed,
+    pub(crate) x: Fixed,
+    pub(crate) dx: Fixed,
+    pub(crate) upper_x: Fixed,
+    pub(crate) y: Fixed,
+    pub(crate) upper_y: Fixed,
+    pub(crate) lower_y: Fixed,
+    pub(crate) dy: Fixed,
 
-    edge_type: EdgeType,
-    curve_count: i8,
-    curve_shift: u8,
-    cubic_dshift: u8,
-    winding: i8,
+    pub(crate) saved_x: Fixed,
+    pub(crate) saved_y: Fixed,
+    pub(crate) saved_dy: Fixed,
+
+    pub(crate) edge_type: EdgeType,
+    pub(crate) curve_count: i8,
+    pub(crate) curve_shift: u8,
+    pub(crate) cubic_dshift: u8,
+    pub(crate) winding: i8,
 
     // SkQuadraticEdge
-    qx: Fixed,
-    qy: Fixed,
-    qdx: Fixed,
-    qdy: Fixed,
-    qddx: Fixed,
-    qddy: Fixed,
-    qlast_x: Fixed,
-    qlast_y: Fixed,
-    q_curve_shift: u8,
-    snapped_x: Fixed,
-    snapped_y: Fixed,
+    pub(crate) qx: Fixed,
+    pub(crate) qy: Fixed,
+    pub(crate) qdx: Fixed,
+    pub(crate) qdy: Fixed,
+    pub(crate) qddx: Fixed,
+    pub(crate) qddy: Fixed,
+    pub(crate) qlast_x: Fixed,
+    pub(crate) qlast_y: Fixed,
+    pub(crate) q_curve_shift: u8,
+    pub(crate) snapped_x: Fixed,
+    pub(crate) snapped_y: Fixed,
 
     // SkCubicEdge
-    cx: Fixed,
-    cy: Fixed,
-    cdx: Fixed,
-    cdy: Fixed,
-    cddx: Fixed,
-    cddy: Fixed,
-    cdddx: Fixed,
-    cdddy: Fixed,
-    clast_x: Fixed,
-    clast_y: Fixed,
-    c_curve_shift: u8,
-    c_cubic_dshift: u8,
+    pub(crate) cx: Fixed,
+    pub(crate) cy: Fixed,
+    pub(crate) cdx: Fixed,
+    pub(crate) cdy: Fixed,
+    pub(crate) cddx: Fixed,
+    pub(crate) cddy: Fixed,
+    pub(crate) cdddx: Fixed,
+    pub(crate) cdddy: Fixed,
+    pub(crate) clast_x: Fixed,
+    pub(crate) clast_y: Fixed,
+    pub(crate) c_curve_shift: u8,
+    pub(crate) c_cubic_dshift: u8,
 }
 
 // --- SkAnalyticEdge.cpp ----------------------------------------------------
@@ -322,7 +326,7 @@ impl AEdge {
     }
 
     // SkQuadraticEdge::setQuadraticWithoutUpdate
-    fn set_quadratic_without_update(&mut self, pts: &[Point; 3], shift_up: i32) -> bool {
+    pub(crate) fn set_quadratic_without_update(&mut self, pts: &[Point; 3], shift_up: i32) -> bool {
         let scale = (1 << (shift_up + 6)) as f32;
         let mut x0 = (pts[0].x * scale) as i32;
         let mut y0 = (pts[0].y * scale) as i32;
@@ -487,7 +491,12 @@ impl AEdge {
     }
 
     // SkCubicEdge::setCubicWithoutUpdate
-    fn set_cubic_without_update(&mut self, pts: &[Point; 4], shift_up: i32, sort_y: bool) -> bool {
+    pub(crate) fn set_cubic_without_update(
+        &mut self,
+        pts: &[Point; 4],
+        shift_up: i32,
+        sort_y: bool,
+    ) -> bool {
         let scale = (1 << (shift_up + 6)) as f32;
         let mut x0 = (pts[0].x * scale) as i32;
         let mut y0 = (pts[0].y * scale) as i32;
@@ -800,10 +809,51 @@ impl EdgeBuilder {
         }
     }
 
-    /// `SkEdgeBuilder::buildEdges` without a clip (the path is inside it).
-    fn build(path: &Path) -> Vec<AEdge> {
+    /// `SkEdgeBuilder::buildEdges`, clipping to `clip` when the path isn't
+    /// inside it.
+    fn build(path: &Path, clip: Option<crate::geom::Rect>) -> Vec<AEdge> {
         let mut b = EdgeBuilder { edges: Vec::new() };
+        let can_cull_to_the_right = !path.is_convex();
         let line_only = path.segment_mask() == LINE_SEGMENT_MASK;
+        if let Some(clip) = clip {
+            if line_only {
+                // buildPoly with SkLineClipper::ClipLine
+                for e in path.edges() {
+                    if let PathEdge::Line(p) = e {
+                        let lines = crate::clip::clip_line(&p, &clip, can_cull_to_the_right);
+                        for w in lines.windows(2) {
+                            b.add_line(&[w[0], w[1]]);
+                        }
+                    }
+                }
+            } else {
+                let mut clipper = crate::clip::EdgeClipper {
+                    can_cull_to_the_right,
+                    out: Vec::new(),
+                };
+                for e in path.edges() {
+                    match e {
+                        PathEdge::Line(p) => clipper.clip_line(p[0], p[1], &clip),
+                        PathEdge::Quad(p) => clipper.clip_quad(&p, &clip),
+                        PathEdge::Conic(p, w) => {
+                            let q = geom::Conic::new(p, w).to_quads(0.25);
+                            for i in 0..(q.len() - 1) / 2 {
+                                clipper.clip_quad(&[q[2 * i], q[2 * i + 1], q[2 * i + 2]], &clip);
+                            }
+                        }
+                        PathEdge::Cubic(p) => clipper.clip_cubic(&p, &clip),
+                    }
+                }
+                for seg in clipper.out {
+                    match seg {
+                        crate::clip::Seg::Line(p) => b.add_line(&p),
+                        crate::clip::Seg::Quad(p) => b.add_quad(&p),
+                        crate::clip::Seg::Cubic(p) => b.add_cubic(&p),
+                    }
+                }
+            }
+            return b.edges;
+        }
         let handle_quad = |b: &mut EdgeBuilder, pts: &[Point; 3]| {
             let mut mono = [Point::default(); 5];
             let n = geom::chop_quad_at_y_extrema(pts, &mut mono);
@@ -1644,20 +1694,21 @@ fn edge_less(a: &AEdge, b: &AEdge) -> bool {
     va < vb
 }
 
-/// `SkTQSort` (introsort, insertion sort under 33 items) over edge indices.
-fn sk_tq_sort(list: &mut [usize], edges: &[AEdge]) {
+/// `SkTQSort` (introsort, insertion sort under 33 items) over indices,
+/// with `less` as the C++ `operator<`.
+pub(crate) fn sk_tq_sort(list: &mut [usize], less: &dyn Fn(usize, usize) -> bool) {
     let n = list.len();
     if n <= 1 {
         return;
     }
     let depth = 2 * (32 - clz((n - 1) as u32 - 1));
-    intro_sort(depth, list, edges);
+    intro_sort(depth, list, less);
 }
 
-fn insertion_sort(list: &mut [usize], edges: &[AEdge]) {
+fn insertion_sort(list: &mut [usize], less: &dyn Fn(usize, usize) -> bool) {
     let count = list.len();
     for next in 1..count {
-        if !edge_less(&edges[list[next]], &edges[list[next - 1]]) {
+        if !less(list[next], list[next - 1]) {
             continue;
         }
         let insert = list[next];
@@ -1665,7 +1716,7 @@ fn insertion_sort(list: &mut [usize], edges: &[AEdge]) {
         loop {
             list[hole] = list[hole - 1];
             hole -= 1;
-            if !(0 < hole && edge_less(&edges[insert], &edges[list[hole - 1]])) {
+            if !(0 < hole && less(insert, list[hole - 1])) {
                 break;
             }
         }
@@ -1673,14 +1724,19 @@ fn insertion_sort(list: &mut [usize], edges: &[AEdge]) {
     }
 }
 
-fn heap_sift_down(array: &mut [usize], mut root: usize, bottom: usize, edges: &[AEdge]) {
+fn heap_sift_down(
+    array: &mut [usize],
+    mut root: usize,
+    bottom: usize,
+    less: &dyn Fn(usize, usize) -> bool,
+) {
     let x = array[root - 1];
     let mut child = root << 1;
     while child <= bottom {
-        if child < bottom && edge_less(&edges[array[child - 1]], &edges[array[child]]) {
+        if child < bottom && less(array[child - 1], array[child]) {
             child += 1;
         }
-        if edge_less(&edges[x], &edges[array[child - 1]]) {
+        if less(x, array[child - 1]) {
             array[root - 1] = array[child - 1];
             root = child;
             child = root << 1;
@@ -1691,12 +1747,17 @@ fn heap_sift_down(array: &mut [usize], mut root: usize, bottom: usize, edges: &[
     array[root - 1] = x;
 }
 
-fn heap_sift_up(array: &mut [usize], mut root: usize, bottom: usize, edges: &[AEdge]) {
+fn heap_sift_up(
+    array: &mut [usize],
+    mut root: usize,
+    bottom: usize,
+    less: &dyn Fn(usize, usize) -> bool,
+) {
     let x = array[root - 1];
     let start = root;
     let mut j = root << 1;
     while j <= bottom {
-        if j < bottom && edge_less(&edges[array[j - 1]], &edges[array[j]]) {
+        if j < bottom && less(array[j - 1], array[j]) {
             j += 1;
         }
         array[root - 1] = array[j - 1];
@@ -1705,7 +1766,7 @@ fn heap_sift_up(array: &mut [usize], mut root: usize, bottom: usize, edges: &[AE
     }
     j = root >> 1;
     while j >= start {
-        if edge_less(&edges[array[j - 1]], &edges[x]) {
+        if less(array[j - 1], x) {
             array[root - 1] = array[j - 1];
             root = j;
             j = root >> 1;
@@ -1716,41 +1777,40 @@ fn heap_sift_up(array: &mut [usize], mut root: usize, bottom: usize, edges: &[AE
     array[root - 1] = x;
 }
 
-fn heap_sort(array: &mut [usize], edges: &[AEdge]) {
+fn heap_sort(array: &mut [usize], less: &dyn Fn(usize, usize) -> bool) {
     let count = array.len();
     let mut i = count >> 1;
     while i > 0 {
-        heap_sift_down(array, i, count, edges);
+        heap_sift_down(array, i, count, less);
         i -= 1;
     }
     let mut i = count - 1;
     while i > 0 {
         array.swap(0, i);
-        heap_sift_up(array, 1, i, edges);
+        heap_sift_up(array, 1, i, less);
         i -= 1;
     }
 }
 
-fn intro_sort(mut depth: i32, mut list: &mut [usize], edges: &[AEdge]) {
+fn intro_sort(mut depth: i32, mut list: &mut [usize], less: &dyn Fn(usize, usize) -> bool) {
     loop {
         let count = list.len();
         if count <= 32 {
-            insertion_sort(list, edges);
+            insertion_sort(list, less);
             return;
         }
         if depth == 0 {
-            heap_sort(list, edges);
+            heap_sort(list, less);
             return;
         }
         depth -= 1;
         let middle = (count - 1) >> 1;
-        // SkTQSort_Partition
         let right = count - 1;
         let pivot_value = list[middle];
         list.swap(middle, right);
         let mut new_pivot = 0;
         for left in 0..right {
-            if edge_less(&edges[list[left]], &edges[pivot_value]) {
+            if less(list[left], pivot_value) {
                 list.swap(left, new_pivot);
                 new_pivot += 1;
             }
@@ -1758,7 +1818,7 @@ fn intro_sort(mut depth: i32, mut list: &mut [usize], edges: &[AEdge]) {
         list.swap(new_pivot, right);
         let pivot_count = new_pivot;
         let (l, r) = list.split_at_mut(pivot_count);
-        intro_sort(depth, l, edges);
+        intro_sort(depth, l, less);
         list = &mut r[1..];
     }
 }
@@ -2566,10 +2626,14 @@ fn aaa_fill_path(
     is_using_mask: bool,
     force_rle: bool,
 ) {
-    // Edges outside the clip aren't clipped (SkEdgeClipper isn't ported):
-    // the blitter clips what's drawn instead.
-    let _ = path_contained_in_clip;
-    let mut edges = EdgeBuilder::build(path);
+    let mut edges = EdgeBuilder::build(
+        path,
+        if path_contained_in_clip {
+            None
+        } else {
+            Some(clip_rect.to_rect())
+        },
+    );
     let count = edges.len();
     if count == 0 {
         return;
@@ -2577,7 +2641,7 @@ fn aaa_fill_path(
     let rect = clip_rect;
 
     let mut list: Vec<usize> = (0..count).collect();
-    sk_tq_sort(&mut list, &edges);
+    sk_tq_sort(&mut list, &|a, b| edge_less(&edges[a], &edges[b]));
 
     // head and tail sentinels
     let head = edges.len();

@@ -1,33 +1,1673 @@
 {
-  "base": "base.png",
-  "cases": [
-    { "name": "rect-default", "annotations": [
-      { "$type": "Rectangle", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
-    { "name": "rect-odd", "annotations": [
-      { "$type": "Rectangle", "StrokeWidth": 5, "StrokeColor": "#FF2080F0", "FillColor": "#6000FF00", "StartPoint": { "X": 40.5, "Y": 50.25 }, "EndPoint": { "X": 221.3, "Y": 171.7 } } ] },
-    { "name": "rect-radius", "annotations": [
-      { "$type": "Rectangle", "CornerRadius": 12, "StrokeWidth": 6, "StartPoint": { "X": 60, "Y": 60 }, "EndPoint": { "X": 300, "Y": 220 } } ] },
-    { "name": "rect-dash", "annotations": [
-      { "$type": "Rectangle", "BorderStyle": "Dash", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
-    { "name": "rect-shadow", "pending": "drop shadows (Skia blur image filter) not ported", "annotations": [
-      { "$type": "Rectangle", "ShadowEnabled": true, "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
-    { "name": "ellipse-default", "annotations": [
-      { "$type": "Ellipse", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 260, "Y": 200 } } ] },
-    { "name": "ellipse-fill", "annotations": [
-      { "$type": "Ellipse", "StrokeWidth": 3, "FillColor": "#80FFFF00", "StartPoint": { "X": 100.5, "Y": 80.5 }, "EndPoint": { "X": 180.5, "Y": 160.5 } } ] },
-    { "name": "line-default", "annotations": [
-      { "$type": "Line", "StartPoint": { "X": 30, "Y": 40 }, "EndPoint": { "X": 350, "Y": 250 } } ] },
-    { "name": "line-curve", "annotations": [
-      { "$type": "Line", "StrokeWidth": 7, "CurvePointActivated": true, "CurvePoint": { "X": 250, "Y": 60 }, "StartPoint": { "X": 30, "Y": 240 }, "EndPoint": { "X": 360, "Y": 230 } } ] },
-    { "name": "arrow-classic", "annotations": [
-      { "$type": "Arrow", "StartPoint": { "X": 40, "Y": 250 }, "EndPoint": { "X": 330, "Y": 70 } } ] },
-    { "name": "arrow-modern", "annotations": [
-      { "$type": "Arrow", "Style": "Modern", "StartPoint": { "X": 40, "Y": 250 }, "EndPoint": { "X": 330, "Y": 70 } } ] },
-    { "name": "arrow-double-square", "annotations": [
-      { "$type": "Arrow", "Style": "Double", "RoundedCorners": false, "StrokeWidth": 6, "StartPoint": { "X": 40, "Y": 150 }, "EndPoint": { "X": 360, "Y": 160 } } ] },
-    { "name": "arrow-basic", "annotations": [
-      { "$type": "Arrow", "Style": "Basic", "StartPoint": { "X": 60, "Y": 60 }, "EndPoint": { "X": 300, "Y": 240 } } ] },
-    { "name": "arrow-line", "annotations": [
-      { "$type": "Arrow", "Style": "Line", "StartPoint": { "X": 60, "Y": 240 }, "EndPoint": { "X": 300, "Y": 60 } } ] }
-  ]
+ "base": "base.png",
+ "cases": [
+  {
+   "name": "rect-default",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 170
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-odd",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StrokeWidth": 5,
+     "StrokeColor": "#FF2080F0",
+     "FillColor": "#6000FF00",
+     "StartPoint": {
+      "X": 40.5,
+      "Y": 50.25
+     },
+     "EndPoint": {
+      "X": 221.3,
+      "Y": 171.7
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-radius",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "CornerRadius": 12,
+     "StrokeWidth": 6,
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 220
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-dash",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "BorderStyle": "Dash",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 170
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-shadow",
+   "pending": "drop shadows (Skia blur image filter) not ported",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "ShadowEnabled": true,
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 170
+     }
+    }
+   ]
+  },
+  {
+   "name": "ellipse-default",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "ellipse-fill",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StrokeWidth": 3,
+     "FillColor": "#80FFFF00",
+     "StartPoint": {
+      "X": 100.5,
+      "Y": 80.5
+     },
+     "EndPoint": {
+      "X": 180.5,
+      "Y": 160.5
+     }
+    }
+   ]
+  },
+  {
+   "name": "line-default",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StartPoint": {
+      "X": 30,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 350,
+      "Y": 250
+     }
+    }
+   ]
+  },
+  {
+   "name": "line-curve",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StrokeWidth": 7,
+     "CurvePointActivated": true,
+     "CurvePoint": {
+      "X": 250,
+      "Y": 60
+     },
+     "StartPoint": {
+      "X": 30,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 230
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-classic",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 40,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 70
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-modern",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Modern",
+     "StartPoint": {
+      "X": 40,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 70
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-double-square",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Double",
+     "RoundedCorners": false,
+     "StrokeWidth": 6,
+     "StartPoint": {
+      "X": 40,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 160
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-basic",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Basic",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 240
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-line",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Line",
+     "StartPoint": {
+      "X": 60,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 60
+     }
+    }
+   ]
+  },
+  {
+   "name": "ellipse-dot",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "BorderStyle": "Dot",
+     "StrokeWidth": 6,
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 340,
+      "Y": 260
+     }
+    }
+   ],
+   "pending": "dashing conics (SkDashPath) not ported; tiny-skia dashes the quads"
+  },
+  {
+   "name": "ellipse-dashdot",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "BorderStyle": "DashDot",
+     "StrokeWidth": 5,
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 340,
+      "Y": 260
+     }
+    }
+   ],
+   "pending": "dashing conics (SkDashPath) not ported"
+  },
+  {
+   "name": "rect-dashdotdot-thick",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "BorderStyle": "DashDotDot",
+     "StrokeWidth": 9,
+     "StartPoint": {
+      "X": 30,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 270
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-rotated",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "RotationAngle": 30,
+     "StartPoint": {
+      "X": 100,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "ellipse-rotated",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "RotationAngle": -20,
+     "StrokeWidth": 6,
+     "FillColor": "#4000FFFF",
+     "StartPoint": {
+      "X": 80,
+      "Y": 90
+     },
+     "EndPoint": {
+      "X": 320,
+      "Y": 210
+     }
+    }
+   ]
+  },
+  {
+   "name": "rect-offcanvas",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StrokeWidth": 10,
+     "StartPoint": {
+      "X": -40,
+      "Y": -30
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 150
+     }
+    }
+   ]
+  },
+  {
+   "name": "ellipse-offcanvas",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StrokeWidth": 8,
+     "StartPoint": {
+      "X": 250,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 480,
+      "Y": 380
+     }
+    }
+   ]
+  },
+  {
+   "name": "line-thin",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StrokeWidth": 1,
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     }
+    }
+   ],
+   "pending": "1px strokes are hairlines in Skia (SkScan_Antihair) not ported"
+  },
+  {
+   "name": "line-2px-dash",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StrokeWidth": 2,
+     "BorderStyle": "Dash",
+     "StartPoint": {
+      "X": 20,
+      "Y": 280
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 20
+     }
+    }
+   ]
+  },
+  {
+   "name": "line-wide",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StrokeWidth": 20,
+     "StrokeColor": "#C00000FF",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 340,
+      "Y": 240
+     }
+    }
+   ]
+  },
+  {
+   "name": "small-shapes",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StrokeWidth": 2,
+     "StartPoint": {
+      "X": 10,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 26,
+      "Y": 24
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StrokeWidth": 3,
+     "StartPoint": {
+      "X": 40,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 52,
+      "Y": 22
+     }
+    },
+    {
+     "$type": "Line",
+     "StrokeWidth": 3,
+     "StartPoint": {
+      "X": 60,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 80,
+      "Y": 24
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-curved-classic",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "CurvePointActivated": true,
+     "CurvePoint": {
+      "X": 120,
+      "Y": 40
+     },
+     "StartPoint": {
+      "X": 40,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 350,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-curved-double",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Double",
+     "StrokeWidth": 5,
+     "CurvePointActivated": true,
+     "CurvePoint": {
+      "X": 200,
+      "Y": 270
+     },
+     "StartPoint": {
+      "X": 40,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 80
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-curved-basic",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Basic",
+     "CurvePointActivated": true,
+     "CurvePoint": {
+      "X": 300,
+      "Y": 250
+     },
+     "StartPoint": {
+      "X": 40,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 80
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-curved-line",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Line",
+     "RoundedCorners": false,
+     "CurvePointActivated": true,
+     "CurvePoint": {
+      "X": 100,
+      "Y": 280
+     },
+     "StartPoint": {
+      "X": 40,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 180
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-zero",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 200,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 150
+     }
+    }
+   ]
+  },
+  {
+   "name": "arrow-thick-modern",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "Style": "Modern",
+     "StrokeWidth": 10,
+     "StrokeColor": "#FF22AA22",
+     "StartPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "EndPoint": {
+      "X": 60,
+      "Y": 40
+     }
+    }
+   ]
+  },
+  {
+   "name": "freehand",
+   "annotations": [
+    {
+     "$type": "Freehand",
+     "Points": [
+      {
+       "X": 40,
+       "Y": 150.0
+      },
+      {
+       "X": 46,
+       "Y": 159.89615837018093
+      },
+      {
+       "X": 52,
+       "Y": 169.17702154416813
+      },
+      {
+       "X": 58,
+       "Y": 177.26555040093336
+      },
+      {
+       "X": 64,
+       "Y": 183.65883939231585
+      },
+      {
+       "X": 70,
+       "Y": 187.95938477422345
+      },
+      {
+       "X": 76,
+       "Y": 189.8997994641622
+      },
+      {
+       "X": 82,
+       "Y": 189.35943787495748
+      },
+      {
+       "X": 88,
+       "Y": 186.37189707302727
+      },
+      {
+       "X": 94,
+       "Y": 181.12292787551684
+      },
+      {
+       "X": 100,
+       "Y": 173.93888576415827
+      },
+      {
+       "X": 106,
+       "Y": 165.26643968209328
+      },
+      {
+       "X": 112,
+       "Y": 155.6448003223947
+      },
+      {
+       "X": 118,
+       "Y": 145.67219461879566
+      },
+      {
+       "X": 124,
+       "Y": 135.96867089241522
+      },
+      {
+       "X": 130,
+       "Y": 127.13754725030626
+      },
+      {
+       "X": 136,
+       "Y": 119.72790018768288
+      },
+      {
+       "X": 142,
+       "Y": 114.20042567085666
+      },
+      {
+       "X": 148,
+       "Y": 110.89879529339612
+      },
+      {
+       "X": 154,
+       "Y": 110.02828844098488
+      },
+      {
+       "X": 160,
+       "Y": 111.64302901347446
+      },
+      {
+       "X": 166,
+       "Y": 115.64262026293632
+      },
+      {
+       "X": 172,
+       "Y": 121.77838697718433
+      },
+      {
+       "X": 178,
+       "Y": 129.66883690002967
+      },
+      {
+       "X": 184,
+       "Y": 138.82338007204297
+      },
+      {
+       "X": 190,
+       "Y": 148.67283133809772
+      },
+      {
+       "X": 196,
+       "Y": 158.6047995235126
+      },
+      {
+       "X": 202,
+       "Y": 168.0017629512247
+      },
+      {
+       "X": 208,
+       "Y": 176.27946394875156
+      },
+      {
+       "X": 214,
+       "Y": 182.92323516046022
+      },
+      {
+       "X": 220,
+       "Y": 187.51999907098957
+      },
+      {
+       "X": 226,
+       "Y": 189.78395116444705
+      },
+      {
+       "X": 232,
+       "Y": 189.57432986493527
+      },
+      {
+       "X": 238,
+       "Y": 186.9041684095736
+      },
+      {
+       "X": 244,
+       "Y": 181.9394845049396
+      },
+      {
+       "X": 250,
+       "Y": 174.9889581501677
+      },
+      {
+       "X": 256,
+       "Y": 166.48473940967025
+      },
+      {
+       "X": 262,
+       "Y": 156.95557941521733
+      },
+      {
+       "X": 268,
+       "Y": 146.99395518152764
+      },
+      {
+       "X": 274,
+       "Y": 137.21923225510906
+      },
+      {
+       "X": 280,
+       "Y": 128.2391555644252
+      },
+      {
+       "X": 286,
+       "Y": 120.61206278380818
+      },
+      {
+       "X": 292,
+       "Y": 114.8121696011332
+      },
+      {
+       "X": 298,
+       "Y": 111.20008528317285
+      },
+      {
+       "X": 304,
+       "Y": 110.00039173797185
+      },
+      {
+       "X": 310,
+       "Y": 111.28768009954953
+      },
+      {
+       "X": 316,
+       "Y": 114.98191301246285
+      },
+      {
+       "X": 322,
+       "Y": 120.8534009669132
+      },
+      {
+       "X": 328,
+       "Y": 128.5370832799826
+      },
+      {
+       "X": 334,
+       "Y": 137.5552258007549
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "freehand-arrow",
+   "annotations": [
+    {
+     "$type": "Freehand",
+     "ShowArrowHead": true,
+     "StrokeWidth": 6,
+     "StrokeColor": "#FF2244FF",
+     "Points": [
+      {
+       "X": 40,
+       "Y": 150.0
+      },
+      {
+       "X": 46,
+       "Y": 159.89615837018093
+      },
+      {
+       "X": 52,
+       "Y": 169.17702154416813
+      },
+      {
+       "X": 58,
+       "Y": 177.26555040093336
+      },
+      {
+       "X": 64,
+       "Y": 183.65883939231585
+      },
+      {
+       "X": 70,
+       "Y": 187.95938477422345
+      },
+      {
+       "X": 76,
+       "Y": 189.8997994641622
+      },
+      {
+       "X": 82,
+       "Y": 189.35943787495748
+      },
+      {
+       "X": 88,
+       "Y": 186.37189707302727
+      },
+      {
+       "X": 94,
+       "Y": 181.12292787551684
+      },
+      {
+       "X": 100,
+       "Y": 173.93888576415827
+      },
+      {
+       "X": 106,
+       "Y": 165.26643968209328
+      },
+      {
+       "X": 112,
+       "Y": 155.6448003223947
+      },
+      {
+       "X": 118,
+       "Y": 145.67219461879566
+      },
+      {
+       "X": 124,
+       "Y": 135.96867089241522
+      },
+      {
+       "X": 130,
+       "Y": 127.13754725030626
+      },
+      {
+       "X": 136,
+       "Y": 119.72790018768288
+      },
+      {
+       "X": 142,
+       "Y": 114.20042567085666
+      },
+      {
+       "X": 148,
+       "Y": 110.89879529339612
+      },
+      {
+       "X": 154,
+       "Y": 110.02828844098488
+      },
+      {
+       "X": 160,
+       "Y": 111.64302901347446
+      },
+      {
+       "X": 166,
+       "Y": 115.64262026293632
+      },
+      {
+       "X": 172,
+       "Y": 121.77838697718433
+      },
+      {
+       "X": 178,
+       "Y": 129.66883690002967
+      },
+      {
+       "X": 184,
+       "Y": 138.82338007204297
+      },
+      {
+       "X": 190,
+       "Y": 148.67283133809772
+      },
+      {
+       "X": 196,
+       "Y": 158.6047995235126
+      },
+      {
+       "X": 202,
+       "Y": 168.0017629512247
+      },
+      {
+       "X": 208,
+       "Y": 176.27946394875156
+      },
+      {
+       "X": 214,
+       "Y": 182.92323516046022
+      },
+      {
+       "X": 220,
+       "Y": 187.51999907098957
+      },
+      {
+       "X": 226,
+       "Y": 189.78395116444705
+      },
+      {
+       "X": 232,
+       "Y": 189.57432986493527
+      },
+      {
+       "X": 238,
+       "Y": 186.9041684095736
+      },
+      {
+       "X": 244,
+       "Y": 181.9394845049396
+      },
+      {
+       "X": 250,
+       "Y": 174.9889581501677
+      },
+      {
+       "X": 256,
+       "Y": 166.48473940967025
+      },
+      {
+       "X": 262,
+       "Y": 156.95557941521733
+      },
+      {
+       "X": 268,
+       "Y": 146.99395518152764
+      },
+      {
+       "X": 274,
+       "Y": 137.21923225510906
+      },
+      {
+       "X": 280,
+       "Y": 128.2391555644252
+      },
+      {
+       "X": 286,
+       "Y": 120.61206278380818
+      },
+      {
+       "X": 292,
+       "Y": 114.8121696011332
+      },
+      {
+       "X": 298,
+       "Y": 111.20008528317285
+      },
+      {
+       "X": 304,
+       "Y": 110.00039173797185
+      },
+      {
+       "X": 310,
+       "Y": 111.28768009954953
+      },
+      {
+       "X": 316,
+       "Y": 114.98191301246285
+      },
+      {
+       "X": 322,
+       "Y": 120.8534009669132
+      },
+      {
+       "X": 328,
+       "Y": 128.5370832799826
+      },
+      {
+       "X": 334,
+       "Y": 137.5552258007549
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "freehand-dash",
+   "annotations": [
+    {
+     "$type": "Freehand",
+     "BorderStyle": "Dash",
+     "Points": [
+      {
+       "X": 40,
+       "Y": 150.0
+      },
+      {
+       "X": 46,
+       "Y": 159.89615837018093
+      },
+      {
+       "X": 52,
+       "Y": 169.17702154416813
+      },
+      {
+       "X": 58,
+       "Y": 177.26555040093336
+      },
+      {
+       "X": 64,
+       "Y": 183.65883939231585
+      },
+      {
+       "X": 70,
+       "Y": 187.95938477422345
+      },
+      {
+       "X": 76,
+       "Y": 189.8997994641622
+      },
+      {
+       "X": 82,
+       "Y": 189.35943787495748
+      },
+      {
+       "X": 88,
+       "Y": 186.37189707302727
+      },
+      {
+       "X": 94,
+       "Y": 181.12292787551684
+      },
+      {
+       "X": 100,
+       "Y": 173.93888576415827
+      },
+      {
+       "X": 106,
+       "Y": 165.26643968209328
+      },
+      {
+       "X": 112,
+       "Y": 155.6448003223947
+      },
+      {
+       "X": 118,
+       "Y": 145.67219461879566
+      },
+      {
+       "X": 124,
+       "Y": 135.96867089241522
+      },
+      {
+       "X": 130,
+       "Y": 127.13754725030626
+      },
+      {
+       "X": 136,
+       "Y": 119.72790018768288
+      },
+      {
+       "X": 142,
+       "Y": 114.20042567085666
+      },
+      {
+       "X": 148,
+       "Y": 110.89879529339612
+      },
+      {
+       "X": 154,
+       "Y": 110.02828844098488
+      },
+      {
+       "X": 160,
+       "Y": 111.64302901347446
+      },
+      {
+       "X": 166,
+       "Y": 115.64262026293632
+      },
+      {
+       "X": 172,
+       "Y": 121.77838697718433
+      },
+      {
+       "X": 178,
+       "Y": 129.66883690002967
+      },
+      {
+       "X": 184,
+       "Y": 138.82338007204297
+      },
+      {
+       "X": 190,
+       "Y": 148.67283133809772
+      },
+      {
+       "X": 196,
+       "Y": 158.6047995235126
+      },
+      {
+       "X": 202,
+       "Y": 168.0017629512247
+      },
+      {
+       "X": 208,
+       "Y": 176.27946394875156
+      },
+      {
+       "X": 214,
+       "Y": 182.92323516046022
+      },
+      {
+       "X": 220,
+       "Y": 187.51999907098957
+      },
+      {
+       "X": 226,
+       "Y": 189.78395116444705
+      },
+      {
+       "X": 232,
+       "Y": 189.57432986493527
+      },
+      {
+       "X": 238,
+       "Y": 186.9041684095736
+      },
+      {
+       "X": 244,
+       "Y": 181.9394845049396
+      },
+      {
+       "X": 250,
+       "Y": 174.9889581501677
+      },
+      {
+       "X": 256,
+       "Y": 166.48473940967025
+      },
+      {
+       "X": 262,
+       "Y": 156.95557941521733
+      },
+      {
+       "X": 268,
+       "Y": 146.99395518152764
+      },
+      {
+       "X": 274,
+       "Y": 137.21923225510906
+      },
+      {
+       "X": 280,
+       "Y": 128.2391555644252
+      },
+      {
+       "X": 286,
+       "Y": 120.61206278380818
+      },
+      {
+       "X": 292,
+       "Y": 114.8121696011332
+      },
+      {
+       "X": 298,
+       "Y": 111.20008528317285
+      },
+      {
+       "X": 304,
+       "Y": 110.00039173797185
+      },
+      {
+       "X": 310,
+       "Y": 111.28768009954953
+      },
+      {
+       "X": 316,
+       "Y": 114.98191301246285
+      },
+      {
+       "X": 322,
+       "Y": 120.8534009669132
+      },
+      {
+       "X": 328,
+       "Y": 128.5370832799826
+      },
+      {
+       "X": 334,
+       "Y": 137.5552258007549
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "freehand-two",
+   "annotations": [
+    {
+     "$type": "Freehand",
+     "Points": [
+      {
+       "X": 50,
+       "Y": 50
+      },
+      {
+       "X": 300,
+       "Y": 90
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "highlight",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 20,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "highlight-alpha",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "FillColor": "#8000FFFF",
+     "StartPoint": {
+      "X": 150,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 390,
+      "Y": 170
+     }
+    }
+   ]
+  },
+  {
+   "name": "highlight-offcanvas",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "FillColor": "#FFFF8000",
+     "StartPoint": {
+      "X": 300,
+      "Y": -20
+     },
+     "EndPoint": {
+      "X": 450,
+      "Y": 120
+     }
+    }
+   ]
+  },
+  {
+   "name": "highlight-fractional",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 20.5,
+      "Y": 100.25
+     },
+     "EndPoint": {
+      "X": 260.75,
+      "Y": 200.5
+     }
+    }
+   ]
+  },
+  {
+   "name": "blur",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 200
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "blur-strong",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "Amount": 30,
+     "StartPoint": {
+      "X": 150,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 390,
+      "Y": 290
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "blur-small",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "Amount": 2,
+     "StartPoint": {
+      "X": 180,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 120
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "pixelate",
+   "annotations": [
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 200
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "pixelate-20",
+   "annotations": [
+    {
+     "$type": "Pixelate",
+     "Amount": 20,
+     "StartPoint": {
+      "X": 150,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 397,
+      "Y": 293
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "magnify",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "StartPoint": {
+      "X": 170,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 290,
+      "Y": 130
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "magnify-ellipse-border",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "IsEllipse": true,
+     "Amount": 3,
+     "StrokeWidth": 4,
+     "StrokeColor": "#FFFF0000",
+     "StartPoint": {
+      "X": 20,
+      "Y": 90
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 250
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "spotlight",
+   "annotations": [
+    {
+     "$type": "Spotlight",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 200
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "spotlight-ellipse-blur",
+   "annotations": [
+    {
+     "$type": "Spotlight",
+     "IsEllipse": true,
+     "BlurAmount": 5,
+     "StartPoint": {
+      "X": 120,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 320,
+      "Y": 240
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "step",
+   "annotations": [
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 100
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "step-tail",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 12,
+     "FontSize": 30,
+     "FillColor": "#FFF23C3C",
+     "StrokeWidth": 0,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 200,
+      "Y": 200
+     },
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 100
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "text",
+   "annotations": [
+    {
+     "$type": "Text",
+     "Text": "Hello ShareX",
+     "FontSize": 36,
+     "TextColor": "#FFFFFFFF",
+     "StrokeColor": "#FFF23C3C",
+     "StrokeWidth": 8,
+     "IsBold": true,
+     "StartPoint": {
+      "X": 30,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 180
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "text-plain",
+   "annotations": [
+    {
+     "$type": "Text",
+     "Text": "Plain text",
+     "FontSize": 28,
+     "StrokeWidth": 0,
+     "StartPoint": {
+      "X": 30,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 160
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "balloon",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "Hi!",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 120,
+      "Y": 240
+     }
+    }
+   ],
+   "pending": "not ported yet"
+  },
+  {
+   "name": "rect-shadow-thick",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "ShadowEnabled": true,
+     "StrokeWidth": 8,
+     "FillColor": "#FF2080F0",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 200
+     }
+    }
+   ],
+   "pending": "drop shadows not ported"
+  },
+  {
+   "name": "arrow-shadow",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "ShadowEnabled": true,
+     "StartPoint": {
+      "X": 40,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 70
+     }
+    }
+   ],
+   "pending": "drop shadows not ported"
+  },
+  {
+   "name": "stack",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 250
+     }
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 350,
+      "Y": 280
+     },
+     "EndPoint": {
+      "X": 120,
+      "Y": 100
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "FillColor": "#80FF00FF",
+     "StartPoint": {
+      "X": 150,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 250,
+      "Y": 250
+     }
+    }
+   ]
+  }
+ ]
 }
