@@ -243,6 +243,21 @@ pub fn read_personal_path_config() -> String {
         .unwrap_or_default()
 }
 
+/// `PersonalPathManager.WriteConfig()`: stores `path` (trimmed) unless it's
+/// what's there already, or empty with no file. Returns whether it wrote.
+pub fn write_personal_path_config(path: &str) -> Result<bool, String> {
+    let path = path.trim();
+    let file = personal_path_config_file();
+    if (path.is_empty() && !file.exists()) || path.eq_ignore_ascii_case(&read_personal_path_config()) {
+        return Ok(false);
+    }
+    if let Some(dir) = file.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    fs::write(&file, path).map_err(|e| format!("{}: {e}", file.display()))?;
+    Ok(true)
+}
+
 /// `PersonalPathManager.MigrateConfig()`: moves a `PersonalPath.cfg` from
 /// ShareX's old place (`%LOCALAPPDATA%/ShareX`) to `Documents/ShareX`.
 fn migrate_personal_path_config() {
