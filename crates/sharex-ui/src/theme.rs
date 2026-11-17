@@ -166,6 +166,9 @@ pub struct Fluent {
     pub focus_outer: Color32,
     /// `FocusStrokeColorInner`: the focus adorner's inner 1px border.
     pub focus_inner: Color32,
+    /// The `Opacity` of `SystemControlHighlightListAccentLowBrush` (the
+    /// accent): a keyboard-focused `ComboBox`'s `HighlightBackground`.
+    pub list_accent_low_opacity: f32,
 }
 
 pub const FLUENT_DARK: Fluent = Fluent {
@@ -180,6 +183,7 @@ pub const FLUENT_DARK: Fluent = Fluent {
     chrome_disabled_high: hexa(0xFF333333),
     focus_outer: hexa(0xFFFFFFFF),
     focus_inner: hexa(0x99000000),
+    list_accent_low_opacity: 0.6,
 };
 
 pub const FLUENT_LIGHT: Fluent = Fluent {
@@ -194,6 +198,7 @@ pub const FLUENT_LIGHT: Fluent = Fluent {
     chrome_disabled_high: hexa(0xFFCCCCCC),
     focus_outer: hexa(0xFF000000),
     focus_inner: hexa(0x99FFFFFF),
+    list_accent_low_opacity: 0.4,
 };
 
 /// The Fluent colours of the theme `ctx` is showing.

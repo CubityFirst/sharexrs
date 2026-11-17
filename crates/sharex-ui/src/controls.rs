@@ -337,9 +337,11 @@ impl ComboBox {
         };
         bordered(ui, rect, 4.0, fill, p.border);
         if focus::visible(ui.ctx(), id) {
-            // `:focus-visible`: `HighlightBackground`, the accent with a
+            // `:focus-visible`: `HighlightBackground`, the accent at
+            // `SystemControlHighlightListAccentLowBrush`'s opacity with a
             // transparent 1px border, over `Background` (no adorner).
-            border::border(ui.painter(), rect, 4.0, 1.0, Some(Brush::Solid(p.accent_start)), None);
+            let highlight = p.accent_start.gamma_multiply(f.list_accent_low_opacity);
+            border::border(ui.painter(), rect, 4.0, 1.0, Some(Brush::Solid(highlight)), None);
         }
         // The content's margin is the padding, from the control's edge: the
         // `Background` border is its sibling, not its parent.
@@ -409,12 +411,13 @@ fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
 
 /// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`: its
 /// `Viewbox` scales the 2010x1095 geometry (from 19,486) to the cell's
-/// width and centres it, 2.7313433 down in a 12px cell.
+/// width and centres it, 2.7313433 down in a 12px cell, kept fractional.
 pub fn paint_chevron_down(ui: &Ui, rect: Rect, color: Color32) {
-    const SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2029 1581"><path fill="currentColor" d="M1939 486L2029 576L1024 1581L19 576L109 486L1024 1401L1939 486Z"/></svg>"#;
+    const PATH: [(f32, f32); 6] = [(1939.0, 486.0), (2029.0, 576.0), (1024.0, 1581.0), (19.0, 576.0), (109.0, 486.0), (1024.0, 1401.0)];
     let s = rect.width() / 2010.0;
-    let offset = vec2(-19.0 * s, (rect.height() - 1095.0 * s) / 2.0 - 486.0 * s);
-    icons::paint_svg_exact(ui.painter(), rect, "fluent-combo-chevron", SVG, s, offset, color);
+    let top = rect.min.y + (rect.height() - 1095.0 * s) / 2.0;
+    let points: Vec<Pos2> = PATH.iter().map(|&(x, y)| pos2(rect.min.x + (x - 19.0) * s, top + (y - 486.0) * s)).collect();
+    border::polygon(ui.painter(), &points, color);
 }
 
 /// The dropdown: Fluent's `PopupBorder` (`SystemControlTransientBackgroundBrush`,

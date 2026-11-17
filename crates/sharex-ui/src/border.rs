@@ -90,6 +90,57 @@ pub fn ellipse(painter: &Painter, rect: Rect, color: Color32) {
     border(painter, rect, radius, 0.0, Some(Brush::Solid(color)), None);
 }
 
+/// A filled polygon (a `Path` of straight segments, such as a `PathIcon`'s
+/// chevron) at `points`, antialiased as Skia's GPU backend does: each
+/// pixel covered by half a pixel minus the signed distance from its centre
+/// to the outline (even-odd inside).
+pub fn polygon(painter: &Painter, points: &[egui::Pos2], color: Color32) {
+    if points.len() < 3 {
+        return;
+    }
+    let ctx = painter.ctx();
+    let ppp = ctx.pixels_per_point();
+    let bounds = Rect::from_points(points);
+    let min = pos2((bounds.min.x * ppp).floor() - 1.0, (bounds.min.y * ppp).floor() - 1.0);
+    let max = pos2((bounds.max.x * ppp).ceil() + 1.0, (bounds.max.y * ppp).ceil() + 1.0);
+    let (w, h) = ((max.x - min.x) as usize, (max.y - min.y) as usize);
+    let local: Vec<egui::Pos2> = points.iter().map(|p| pos2(p.x * ppp - min.x, p.y * ppp - min.y)).collect();
+    let mut hasher = DefaultHasher::new();
+    ("polygon", w, h).hash(&mut hasher);
+    for p in &local {
+        (p.x.to_bits(), p.y.to_bits()).hash(&mut hasher);
+    }
+    let tex = cached(ctx, hasher.finish(), || {
+        let pixels = (0..w * h)
+            .map(|i| {
+                let p = pos2((i % w) as f32 + 0.5, (i / w) as f32 + 0.5);
+                let c = (0.5 - signed_distance(&local, p)).clamp(0.0, 1.0);
+                let v = (c * 255.0).round() as u8;
+                Color32::from_rgba_premultiplied(v, v, v, v)
+            })
+            .collect();
+        ColorImage { size: [w, h], pixels, source_size: vec2(w as f32, h as f32) }
+    });
+    let rect = Rect::from_min_max(pos2(min.x / ppp, min.y / ppp), pos2(max.x / ppp, max.y / ppp));
+    painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+}
+
+/// The distance from `p` to the polygon's outline, negative inside.
+fn signed_distance(poly: &[egui::Pos2], p: egui::Pos2) -> f32 {
+    let mut d = f32::INFINITY;
+    let mut inside = false;
+    for (i, &a) in poly.iter().enumerate() {
+        let b = poly[(i + 1) % poly.len()];
+        let ab = b - a;
+        let t = ((p - a).dot(ab) / ab.length_sq().max(f32::EPSILON)).clamp(0.0, 1.0);
+        d = d.min((p - (a + ab * t)).length());
+        if (a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) / (b.y - a.y) * ab.x {
+            inside = !inside;
+        }
+    }
+    if inside { -d } else { d }
+}
+
 /// Draws `parts`, composited in order, as one layer at `opacity`.
 pub fn paint(painter: &Painter, parts: &[Part], opacity: f32) {
     if parts.is_empty() || opacity <= 0.0 {
