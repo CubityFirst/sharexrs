@@ -1,0 +1,33 @@
+{
+  "base": "base.png",
+  "cases": [
+    { "name": "rect-default", "annotations": [
+      { "$type": "Rectangle", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
+    { "name": "rect-odd", "annotations": [
+      { "$type": "Rectangle", "StrokeWidth": 5, "StrokeColor": "#FF2080F0", "FillColor": "#6000FF00", "StartPoint": { "X": 40.5, "Y": 50.25 }, "EndPoint": { "X": 221.3, "Y": 171.7 } } ] },
+    { "name": "rect-radius", "annotations": [
+      { "$type": "Rectangle", "CornerRadius": 12, "StrokeWidth": 6, "StartPoint": { "X": 60, "Y": 60 }, "EndPoint": { "X": 300, "Y": 220 } } ] },
+    { "name": "rect-dash", "annotations": [
+      { "$type": "Rectangle", "BorderStyle": "Dash", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
+    { "name": "rect-shadow", "pending": "drop shadows (Skia blur image filter) not ported", "annotations": [
+      { "$type": "Rectangle", "ShadowEnabled": true, "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 220, "Y": 170 } } ] },
+    { "name": "ellipse-default", "annotations": [
+      { "$type": "Ellipse", "StartPoint": { "X": 40, "Y": 50 }, "EndPoint": { "X": 260, "Y": 200 } } ] },
+    { "name": "ellipse-fill", "annotations": [
+      { "$type": "Ellipse", "StrokeWidth": 3, "FillColor": "#80FFFF00", "StartPoint": { "X": 100.5, "Y": 80.5 }, "EndPoint": { "X": 180.5, "Y": 160.5 } } ] },
+    { "name": "line-default", "annotations": [
+      { "$type": "Line", "StartPoint": { "X": 30, "Y": 40 }, "EndPoint": { "X": 350, "Y": 250 } } ] },
+    { "name": "line-curve", "annotations": [
+      { "$type": "Line", "StrokeWidth": 7, "CurvePointActivated": true, "CurvePoint": { "X": 250, "Y": 60 }, "StartPoint": { "X": 30, "Y": 240 }, "EndPoint": { "X": 360, "Y": 230 } } ] },
+    { "name": "arrow-classic", "annotations": [
+      { "$type": "Arrow", "StartPoint": { "X": 40, "Y": 250 }, "EndPoint": { "X": 330, "Y": 70 } } ] },
+    { "name": "arrow-modern", "annotations": [
+      { "$type": "Arrow", "Style": "Modern", "StartPoint": { "X": 40, "Y": 250 }, "EndPoint": { "X": 330, "Y": 70 } } ] },
+    { "name": "arrow-double-square", "annotations": [
+      { "$type": "Arrow", "Style": "Double", "RoundedCorners": false, "StrokeWidth": 6, "StartPoint": { "X": 40, "Y": 150 }, "EndPoint": { "X": 360, "Y": 160 } } ] },
+    { "name": "arrow-basic", "annotations": [
+      { "$type": "Arrow", "Style": "Basic", "StartPoint": { "X": 60, "Y": 60 }, "EndPoint": { "X": 300, "Y": 240 } } ] },
+    { "name": "arrow-line", "annotations": [
+      { "$type": "Arrow", "Style": "Line", "StartPoint": { "X": 60, "Y": 240 }, "EndPoint": { "X": 300, "Y": 60 } } ] }
+  ]
+}
