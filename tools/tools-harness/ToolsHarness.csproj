@@ -19,7 +19,6 @@
     <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="3.0.0-rc.6" />
     <Reference Include="ShareX"><HintPath>$(ShareXBuild)\ShareX.dll</HintPath></Reference>
     <Reference Include="ShareX.Tools"><HintPath>$(ShareXBuild)\ShareX.Tools.dll</HintPath></Reference>
     <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>

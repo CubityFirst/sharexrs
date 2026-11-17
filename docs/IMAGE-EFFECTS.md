@@ -227,7 +227,7 @@ Per effect:
 | Background, Background image, Checkerboard, Image, Particles | 13 | identical |
 | Border | 4 | identical |
 | Text (`DrawTextEx`) | 3 | default and outline + shadow identical; with a gradient fill: edge pixels ±1 (0.9%) |
-| Text watermark (`DrawText`) | 3 (incl. the default preset) | box, border (a hairline), position and colours identical; glyph pixels differ (max ~190, 3–5%) |
+| Text watermark (`DrawText`) | 3 (incl. the default preset) | box, border (a hairline), position and colours identical; glyph pixels differ (max ~190, 3–5%). Since `sharex-skia`'s `AntiFillRect` rounds its edges to 8.8 fixed point as Skia m119 does (2026-11-17), the box and border's alpha matches too |
 | A chain (Resize, Saturation, Shadow, Border, a disabled Blur) | 1 | identical |
 
 **Presets: every case's preset written back by ShareXrs equals ShareX's
