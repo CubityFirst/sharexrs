@@ -34,6 +34,12 @@ pub fn bold() -> FontFamily {
     FontFamily::Name("bold".into())
 }
 
+/// `ShareX.FontFamily.Monospace` at SemiBold, as ShareX's global
+/// `TextBlock` style draws a monospace `TextBlock`.
+pub fn mono_semibold() -> FontFamily {
+    FontFamily::Name("mono-semibold".into())
+}
+
 /// Avalonia's default family in ShareX (Inter) at a XAML weight.
 pub fn inter(w: u16) -> FontFamily {
     FontFamily::Name(
@@ -113,7 +119,7 @@ fn first_of(families: &[&str], files: &[&str], weight: u16) -> Option<FontData> 
 
 /// The fonts ShareX would pick on this system: `(regular, semibold, bold,
 /// monospace)`.
-fn faces() -> (FontData, FontData, FontData, Option<FontData>) {
+fn faces() -> (FontData, FontData, FontData, Option<FontData>, Option<FontData>) {
     let segoe = |w, file| first_of(&["Segoe UI"], &[file], w);
     let (regular, semibold, bold) = match (segoe(400, "segoeui.ttf"), segoe(600, "seguisb.ttf"), segoe(700, "segoeuib.ttf")) {
         (Some(r), Some(s), Some(b)) if cfg!(windows) => (r, s, b),
@@ -128,7 +134,12 @@ fn faces() -> (FontData, FontData, FontData, Option<FontData>) {
         &["CascadiaMono.ttf", "consola.ttf", "Courier New.ttf", "cour.ttf"],
         400,
     );
-    (regular, semibold, bold, mono)
+    let mono_semibold = first_of(
+        &["Cascadia Mono", "Consolas", "Courier New"],
+        &["CascadiaMono.ttf", "consola.ttf", "Courier New.ttf", "cour.ttf"],
+        600,
+    );
+    (regular, semibold, bold, mono, mono_semibold)
 }
 
 /// Installs ShareX's fonts on `ctx`.
@@ -138,7 +149,7 @@ pub fn install(ctx: &egui::Context) {
 
 pub fn definitions() -> FontDefinitions {
     let mut defs = FontDefinitions::default();
-    let (regular, semibold_face, bold_face, mono) = faces();
+    let (regular, semibold_face, bold_face, mono, mono_semibold_face) = faces();
     let fallbacks = defs.families[&FontFamily::Proportional].clone();
     defs.font_data.insert("sharex-regular".into(), Arc::new(regular));
     defs.font_data.insert("sharex-semibold".into(), Arc::new(semibold_face));
@@ -162,9 +173,15 @@ pub fn definitions() -> FontDefinitions {
         list.extend(fallbacks.iter().cloned());
         defs.families.insert(FontFamily::Name(family.into()), list);
     }
+    let mut mono_list = defs.families[&FontFamily::Monospace].clone();
     if let Some(mono) = mono {
         defs.font_data.insert("sharex-mono".into(), Arc::new(mono));
         defs.families.get_mut(&FontFamily::Monospace).unwrap().insert(0, "sharex-mono".into());
     }
+    if let Some(face) = mono_semibold_face {
+        defs.font_data.insert("sharex-mono-semibold".into(), Arc::new(face));
+        mono_list.insert(0, "sharex-mono-semibold".into());
+    }
+    defs.families.insert(mono_semibold(), mono_list);
     defs
 }

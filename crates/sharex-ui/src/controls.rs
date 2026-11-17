@@ -213,6 +213,45 @@ impl<'a> CheckBox<'a> {
     }
 }
 
+/// `RadioButton` (Fluent template, ShareX's pointer-over styles): a 20px
+/// `OuterEllipse` (1px base medium ring; accent ring under the pointer),
+/// checked a solid accent `CheckOuterEllipse` with an 8px `CheckGlyph` in
+/// the accent's foreground; the content `padding_left` after the circle.
+pub struct RadioButton<'a> {
+    pub text: &'a str,
+    pub text_font: FontId,
+    pub text_color: Option<Color32>,
+    pub padding_left: f32,
+    pub enabled: bool,
+}
+
+impl RadioButton<'_> {
+    /// Draws the radio button with its circle centred vertically in `rect`;
+    /// returns its response (clicked when it should become checked).
+    pub fn show(&self, ui: &Ui, rect: Rect, id: Id, checked: bool) -> Response {
+        let p = palette(ui.ctx());
+        let f = fluent(ui.ctx());
+        let r = interact(ui, rect, id, self.enabled);
+        let (over, _) = states(&r, self.enabled);
+        let circle = Rect::from_min_size(pos2(rect.min.x, center_y(rect, 20.0)), Vec2::splat(20.0));
+        let painter = ui.painter();
+        if checked {
+            border::ellipse(painter, circle, p.accent_start);
+            border::ellipse(painter, Rect::from_center_size(circle.center(), Vec2::splat(8.0)), p.accent_foreground);
+        } else {
+            let stroke = if over { p.accent_border } else { f.base_medium };
+            border::border(painter, circle, 10.0, 1.0, None, Some(stroke));
+        }
+        let color = self.text_color.unwrap_or(p.text_secondary);
+        let x = circle.max.x + self.padding_left;
+        text_at(ui, rect, x, self.text, self.text_font.clone(), color);
+        if focus::visible(ui.ctx(), id) {
+            focus::paint_adorner(painter, rect);
+        }
+        r
+    }
+}
+
 /// Fluent's `CheckMarkPathData` in the `CheckGlyph` `Path` (`Width="9"`,
 /// `Stretch="Uniform"`) at 3.5,4.6556594 in a 16x16 panel that a `Viewbox`
 /// scales by 1.25 into the 20px box. The path's stretch (its geometry
@@ -531,12 +570,60 @@ pub struct TextBox<'a> {
     pub placeholder: &'a str,
     pub password: bool,
     pub multiline: bool,
+    /// `Background="Transparent" BorderThickness="0"` on the text box
+    /// itself (a text box filling a card): nothing behind the text until it
+    /// has focus or the pointer.
+    pub plain: bool,
+    /// `IsReadOnly`: the text can be selected and copied, not changed.
+    pub read_only: bool,
+    /// `TextWrapping="Wrap"` (multiline boxes; otherwise lines run on).
+    pub wrap: bool,
+    /// `TextBoxLinkHighlighter`: URLs underlined in this colour.
+    pub links: Option<Color32>,
 }
 
 impl Default for TextBox<'_> {
     fn default() -> Self {
-        Self { padding: Thickness::hv(8.0, 6.0), enabled: true, placeholder: "", password: false, multiline: false }
+        Self {
+            padding: Thickness::hv(8.0, 6.0),
+            enabled: true,
+            placeholder: "",
+            password: false,
+            multiline: false,
+            plain: false,
+            read_only: false,
+            wrap: false,
+            links: None,
+        }
     }
+}
+
+/// `TextBoxLinkHighlighter.LinkRegex`: `(?:(?:https?|ftp)://|www\.)[^\s<>"]+`
+/// (case-insensitive), as char ranges.
+pub fn find_links(text: &str) -> Vec<std::ops::Range<usize>> {
+    let chars: Vec<char> = text.chars().collect();
+    let lower: Vec<char> = chars.iter().map(|c| c.to_ascii_lowercase()).collect();
+    let starts_with = |i: usize, p: &str| p.chars().enumerate().all(|(k, c)| lower.get(i + k) == Some(&c));
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let boundary = i == 0 || !word(chars[i - 1]);
+        let prefix = ["https://", "http://", "ftp://", "www."].into_iter().find(|p| starts_with(i, p));
+        if let (true, Some(p)) = (boundary, prefix) {
+            let mut end = i + p.chars().count();
+            while end < chars.len() && !chars[end].is_whitespace() && !matches!(chars[end], '<' | '>' | '"') {
+                end += 1;
+            }
+            if end > i + p.chars().count() {
+                out.push(i..end);
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 impl TextBox<'_> {
@@ -562,8 +649,13 @@ impl TextBox<'_> {
         // `:focus`: a 2px border (`TextControlBorderThemeThicknessFocused`);
         // the content keeps its place, the border element being its sibling.
         let thickness = if focused && self.enabled { 2.0 } else { 1.0 };
-        border::border(ui.painter(), rect, 4.0, thickness, Some(Brush::Solid(fill)), Some(p.border));
-        let inner = inset(rect, self.padding, 1.0);
+        if !self.plain || focused {
+            border::border(ui.painter(), rect, 4.0, thickness, Some(Brush::Solid(fill)), Some(p.border));
+        } else if hover {
+            border::border(ui.painter(), rect, 4.0, 0.0, Some(Brush::Solid(fill)), None);
+        }
+        // The content sits in the box's own `BorderThickness` (0 when plain).
+        let inner = inset(rect, self.padding, if self.plain { 0.0 } else { 1.0 });
         let text_font = Self::font();
         let lh = line_height(ui, &text_font);
         // `TextPresenter` keeps the text colour when disabled.
@@ -574,14 +666,20 @@ impl TextBox<'_> {
             Rect::from_min_size(pos2(inner.min.x, center_y(inner, lh)), vec2(inner.width(), lh))
         };
         let empty = text.is_empty();
+        // A read-only box edits a copy that's thrown away.
+        let mut copy = self.read_only.then(|| text.clone());
+        let text = copy.as_mut().unwrap_or(text);
+        let links = self.links.map(|c| (c, find_links(text)));
         let mut edit = if self.multiline { egui::TextEdit::multiline(text) } else { egui::TextEdit::singleline(text) };
+        let width = if self.multiline && !self.wrap { f32::INFINITY } else { edit_rect.width() };
         edit = edit
             .id(id)
             .font(text_font)
             .text_color(fg)
             .frame(egui::Frame::NONE)
             .margin(egui::Margin::ZERO)
-            .desired_width(edit_rect.width())
+            .desired_width(width)
+            .min_size(edit_rect.size())
             .password(self.password)
             .interactive(self.enabled);
         if !self.placeholder.is_empty() && empty {
@@ -590,13 +688,44 @@ impl TextBox<'_> {
             // `TextControlPlaceholderForeground` at 50% opacity.
             let f = fluent(ui.ctx());
             let pf = font(13.0, 600);
-            let y = center_y(inner, line_height(ui, &pf));
+            let y = if self.multiline { inner.min.y } else { center_y(inner, line_height(ui, &pf)) };
             let g = galley(ui, self.placeholder, pf, f.base_medium.gamma_multiply(0.5), inner.width().max(0.0));
             ui.painter().with_clip_rect(inner.intersect(ui.clip_rect())).galley(pos2(inner.min.x, y), g, f.base_medium);
         }
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(inner.intersect(ui.clip_rect()));
-        let r = child.add_sized(edit_rect.size(), edit);
+        // ShareX's `SelectionBrush` (the accent start) and
+        // `SelectionForegroundBrush`; the caret in the text colour.
+        let v = child.visuals_mut();
+        v.selection.bg_fill = p.accent_start;
+        v.selection.stroke.color = p.accent_foreground;
+        // Avalonia hides the caret while there's a selection.
+        let selecting = egui::text_edit::TextEditState::load(ui.ctx(), id)
+            .and_then(|s| s.cursor.char_range())
+            .is_some_and(|r| r.primary != r.secondary);
+        v.text_cursor.stroke = Stroke::new(1.0, if selecting { Color32::TRANSPARENT } else { p.text });
+        let out = edit.show(&mut child);
+        let r = out.response.response;
+        if let Some((color, ranges)) = links {
+            // A 1px line under each link, at the bottom of its line box.
+            let painter = ui.painter().with_clip_rect(inner.intersect(ui.clip_rect()));
+            let galley = &out.galley;
+            let mut first = 0usize;
+            for row in &galley.rows {
+                let count = row.char_count_excluding_newline().0;
+                for range in &ranges {
+                    let (a, b) = (range.start.max(first), range.end.min(first + count));
+                    if a >= b {
+                        continue;
+                    }
+                    let x0 = out.galley_pos.x + row.pos.x + row.x_offset(egui::text::CharIndex(a - first));
+                    let x1 = out.galley_pos.x + row.pos.x + row.x_offset(egui::text::CharIndex(b - first));
+                    let y = (out.galley_pos.y + row.pos.y + row.height()).round() - 0.5;
+                    painter.line_segment([pos2(x0, y), pos2(x1, y)], Stroke::new(1.0, color));
+                }
+                first += count + usize::from(row.ends_with_newline);
+            }
+        }
         // The whole box focuses the text, as Avalonia's does.
         let outer = ui.interact(rect, id.with("box"), Sense::click());
         if self.enabled && outer.clicked() {
