@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "MeanRemoval",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

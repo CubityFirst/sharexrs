@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "BlackWhite",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

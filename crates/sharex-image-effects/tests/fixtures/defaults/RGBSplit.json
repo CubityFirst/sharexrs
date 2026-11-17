@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.RGBSplit, ShareX.ImageEffectsLib",
+      "OffsetRed": "-5, 0",
+      "OffsetGreen": "0, 0",
+      "OffsetBlue": "5, 0",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

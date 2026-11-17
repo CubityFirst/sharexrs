@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Flip",
+      "Horizontally": false,
+      "Vertically": false,
+      "Enabled": true
+    }
+  ]
+}

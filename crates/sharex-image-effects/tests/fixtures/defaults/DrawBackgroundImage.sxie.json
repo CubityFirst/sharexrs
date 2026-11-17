@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "DrawBackgroundImage",
+      "ImageFilePath": "",
+      "Center": true,
+      "Tile": false,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+DrawBackground	Drawings	Background	Background: 0, 0, 0
+DrawBackgroundImage	Drawings	Background image	Background image
+DrawBorder	Drawings	Border	Border: 1px
+DrawCheckerboard	Drawings	Checkerboard	Checkerboard: 10x10
+DrawImage	Drawings	Image	Image
+DrawParticles	Drawings	Particles	Particles
+DrawTextEx	Drawings	Text	Text: Text
+DrawText	Drawings	Text watermark	Text watermark: Text watermark
+AutoCrop	Manipulations	Auto crop	Auto crop
+Canvas	Manipulations	Canvas	Canvas: 0
+Crop	Manipulations	Crop	Crop: 0
+Flip	Manipulations	Flip	Flip: False, False
+ForceProportions	Manipulations	Force proportions	Force proportions: 1, 1
+Resize	Manipulations	Resize	Resize: 250px, 0
+Rotate	Manipulations	Rotate	Rotate: 0°
+RoundedCorners	Manipulations	Rounded corners	Rounded corners: 20
+Scale	Manipulations	Scale	Scale: 100%, 0
+Skew	Manipulations	Skew	Skew: 0px, 0px
+Alpha	Adjustments	Alpha	Alpha: 1, 0
+BlackWhite	Adjustments	Black & white	Black & white
+Brightness	Adjustments	Brightness	Brightness: 0
+MatrixColor	Adjustments	Color matrix	Color matrix
+Colorize	Adjustments	Colorize	Colorize: 255, 0, 0
+Contrast	Adjustments	Contrast	Contrast: 1
+Gamma	Adjustments	Gamma	Gamma: 1
+Grayscale	Adjustments	Grayscale	Grayscale: 1
+Hue	Adjustments	Hue	Hue: 0°
+Inverse	Adjustments	Inverse	Inverse
+Polaroid	Adjustments	Polaroid	Polaroid
+ReplaceColor	Adjustments	Replace color	Replace color
+Saturation	Adjustments	Saturation	Saturation: 1
+SelectiveColor	Adjustments	Selective color	Selective color
+Sepia	Adjustments	Sepia	Sepia: 1
+Blur	Filters	Blur	Blur: 15
+ColorDepth	Filters	Color depth	Color depth: 4 bits
+MatrixConvolution	Filters	Convolution matrix	Convolution matrix
+EdgeDetect	Filters	Edge detect	Edge detect
+Emboss	Filters	Emboss	Emboss
+GaussianBlur	Filters	Gaussian blur	Gaussian blur: 15
+Glow	Filters	Glow	Glow: 20
+MeanRemoval	Filters	Mean removal	Mean removal
+Outline	Filters	Outline	Outline: 1
+Pixelate	Filters	Pixelate	Pixelate: 10
+Reflection	Filters	Reflection	Reflection: 20
+RGBSplit	Filters	RGB split	RGB split
+Shadow	Filters	Shadow	Shadow: 10
+Sharpen	Filters	Sharpen	Sharpen
+Slice	Filters	Slice	Slice: 10, 100
+Smooth	Filters	Smooth	Smooth
+TornEdge	Filters	Torn edge	Torn edge: 15, 20
+WaveEdge	Filters	Wave edge	Wave edge: 15, 20

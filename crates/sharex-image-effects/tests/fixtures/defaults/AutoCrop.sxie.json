@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "AutoCrop",
+      "Sides": "Top, Bottom, Left, Right",
+      "Padding": 0,
+      "Enabled": true
+    }
+  ]
+}

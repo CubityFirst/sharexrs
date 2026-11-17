@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.ReplaceColor, ShareX.ImageEffectsLib",
+      "SourceColor": "White",
+      "AutoSourceColor": false,
+      "TargetColor": "Transparent",
+      "Threshold": 0,
+      "Enabled": true
+    }
+  ]
+}

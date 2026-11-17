@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "EdgeDetect",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

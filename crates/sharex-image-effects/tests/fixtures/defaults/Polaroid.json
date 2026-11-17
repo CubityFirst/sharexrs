@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Polaroid, ShareX.ImageEffectsLib",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

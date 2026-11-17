@@ -1,0 +1,20 @@
+[package]
+name = "sharex-image-effects"
+description = "ShareX.ImageEffectsLib: the image effects (adjustments, filters, drawings, manipulations), their presets in ShareX's JSON, .sxie packages, and applying a preset to an image, pixel for pixel as ShareX does."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-helpers.workspace = true
+sharex-strings.workspace = true
+serde_json.workspace = true
+image.workspace = true
+tiny-skia = "0.11.4"
+ttf-parser = "0.25"
+fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "fontconfig"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+getrandom = "0.3"
+
+[dev-dependencies]
+serde_json.workspace = true

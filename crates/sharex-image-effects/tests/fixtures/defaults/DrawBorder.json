@@ -1,0 +1,35 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawBorder, ShareX.ImageEffectsLib",
+      "Type": "Outside",
+      "Size": 1,
+      "DashStyle": "Solid",
+      "Color": "Black",
+      "UseGradient": false,
+      "Gradient": {
+        "Type": "Vertical",
+        "Colors": [
+          {
+            "Color": "68, 120, 194",
+            "Location": 0.0
+          },
+          {
+            "Color": "13, 58, 122",
+            "Location": 50.0
+          },
+          {
+            "Color": "6, 36, 78",
+            "Location": 50.0
+          },
+          {
+            "Color": "23, 89, 174",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Enabled": true
+    }
+  ]
+}

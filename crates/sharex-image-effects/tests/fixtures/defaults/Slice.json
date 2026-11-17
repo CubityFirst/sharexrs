@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Slice, ShareX.ImageEffectsLib",
+      "MinSliceHeight": 10,
+      "MaxSliceHeight": 100,
+      "MinSliceShift": 0,
+      "MaxSliceShift": 10,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.BlackWhite, ShareX.ImageEffectsLib",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

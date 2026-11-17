@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ReplaceColor",
+      "SourceColor": "White",
+      "AutoSourceColor": false,
+      "TargetColor": "Transparent",
+      "Threshold": 0,
+      "Enabled": true
+    }
+  ]
+}

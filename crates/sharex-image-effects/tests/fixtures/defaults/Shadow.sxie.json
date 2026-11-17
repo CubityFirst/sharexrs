@@ -1,0 +1,15 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Shadow",
+      "Opacity": 0.6,
+      "Size": 10,
+      "Darkness": 0.0,
+      "Color": "Black",
+      "Offset": "0, 0",
+      "AutoResize": true,
+      "Enabled": true
+    }
+  ]
+}

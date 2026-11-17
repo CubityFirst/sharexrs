@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Grayscale, ShareX.ImageEffectsLib",
+      "Value": 1.0,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Rotate, ShareX.ImageEffectsLib",
+      "Angle": 0.0,
+      "Upsize": true,
+      "Clip": false,
+      "Enabled": true
+    }
+  ]
+}

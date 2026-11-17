@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Sepia, ShareX.ImageEffectsLib",
+      "Value": 1.0,
+      "Enabled": true
+    }
+  ]
+}

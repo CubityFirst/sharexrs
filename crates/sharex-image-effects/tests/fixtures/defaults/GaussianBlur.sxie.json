@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "GaussianBlur",
+      "Radius": 15,
+      "Enabled": true
+    }
+  ]
+}
