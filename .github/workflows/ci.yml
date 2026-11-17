@@ -1,0 +1,52 @@
+# Builds and tests on all three platforms on every push and pull request:
+# snapr's macOS build once broke silently for weeks because only release
+# tags built it (docs/MACOS-LEARNINGS.md 3.12). The macOS job also packs
+# ShareXrs.app (ad hoc signed) so bundling breaks show up here, not at
+# release time.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libwayland-dev libxkbcommon-dev libxcb1-dev libegl-dev libgbm-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --workspace --locked --target ${{ matrix.target }}
+      - name: Test
+        run: cargo test --workspace --locked --target ${{ matrix.target }}
+      - name: Clippy
+        run: cargo clippy --workspace --locked --target ${{ matrix.target }} -- -D warnings
+      - name: Pack ShareXrs.app (ad hoc)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          bash scripts/macos-bundle.sh "target/${{ matrix.target }}/release/sharexrs" "$version" aarch64 dist

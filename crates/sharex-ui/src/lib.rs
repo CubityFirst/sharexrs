@@ -1,0 +1,34 @@
+//! ShareX's look, in egui.
+//!
+//! Every value here comes from ShareX's Avalonia theme
+//! (`ShareX.Avalonia/Theming/*.axaml`) or a window's `.axaml`, named after
+//! the resource key it ports, so a mismatch with ShareX can be traced to
+//! the line it came from:
+//!
+//! - [`theme`]: the `ShareX.Color.*` palettes (`ShareXTheme.axaml`) and the
+//!   `ShareX.Density.*` spacing (`ControlStyles.axaml`, `CompactMode.axaml`).
+//! - [`fonts`]: `ShareX.FontFamily.Default` / `.Monospace`, with weights.
+//! - [`icons`]: the Modern and Legacy icon packs (`ShareX.Icons`), as the
+//!   same SVG files.
+//! - [`menu`]: menus and flyouts (compact context menus, the tool grid).
+//! - [`widgets`]: ShareX's shared controls (caption buttons, nav buttons,
+//!   cards, toggles, accent buttons).
+//! - [`gpu`] and [`offscreen`]: one wgpu device for every window, and
+//!   rendering any UI to a PNG for comparing against ShareX.
+
+pub mod fonts;
+pub mod gpu;
+pub mod keys;
+pub mod menu;
+pub mod icons;
+pub mod offscreen;
+pub mod theme;
+pub mod widgets;
+
+pub use theme::{Density, Palette, palette};
+
+/// Applies ShareX's fonts, palettes and spacing to a window's context.
+pub fn install(ctx: &egui::Context, density: f32) {
+    fonts::install(ctx);
+    theme::apply(ctx, density);
+}

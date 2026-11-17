@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+default-members = ["crates/sharexrs"]
+
+[workspace.package]
+version = "22.4.0"
+edition = "2024"
+# A port of ShareX (GPL-3.0-or-later, see LICENSE), so the same licence.
+license = "GPL-3.0-or-later"
+repository = "https://github.com/CubityFirst/sharexrs"
+
+[workspace.dependencies]
+sharex-ui = { path = "crates/sharex-ui" }
+sharex-strings = { path = "crates/sharex-strings" }
+
+egui = "0.36"
+egui-wgpu = { version = "0.36", features = ["winit"] }
+egui-winit = "0.36"
+winit = "0.30"
+pollster = "1.0.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+resvg = { version = "0.45", default-features = false }
+include_dir = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+[profile.dev]
+# Line numbers for panics without full debug info: full debug info made
+# ~300 MB .pdb files per build in snapr and outgrew the linker's PDB limit.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+# Dependencies optimised even in debug builds: SVG rasterising and wgpu are
+# painfully slow unoptimised.
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+strip = true

@@ -1,0 +1,9 @@
+[package]
+name = "sharex-strings"
+description = "ShareX's localized UI strings, generated from its .resx files."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+roxmltree = "0.20"

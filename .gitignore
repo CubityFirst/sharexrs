@@ -1,0 +1,4 @@
+/target
+# Screenshots from scripts/winshot.ps1 and `sharexrs --render`, for comparing
+# against ShareX; regenerate rather than commit.
+/shots

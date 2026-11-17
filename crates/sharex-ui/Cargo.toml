@@ -1,0 +1,17 @@
+[package]
+name = "sharex-ui"
+description = "ShareX's look in egui: theme colours and spacing, fonts, the icon packs, and its shared controls."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+egui.workspace = true
+egui-wgpu.workspace = true
+image.workspace = true
+include_dir.workspace = true
+pollster.workspace = true
+resvg.workspace = true
+
+[target."cfg(windows)".dependencies]
+dwrote = "0.11.5"
