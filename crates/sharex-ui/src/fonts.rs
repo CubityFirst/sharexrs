@@ -18,7 +18,9 @@
 use egui::{FontData, FontDefinitions, FontFamily};
 use std::sync::Arc;
 
-const INTER_REGULAR: &[u8] = include_bytes!("../assets/fonts/Inter-Regular.ttf");
+/// Inter Regular, for drawing text outside egui (the progress tray icon's
+/// fallback when Arial is missing).
+pub const INTER_REGULAR: &[u8] = include_bytes!("../assets/fonts/Inter-Regular.ttf");
 const INTER_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");
 const INTER_BOLD: &[u8] = include_bytes!("../assets/fonts/Inter-Bold.ttf");
 

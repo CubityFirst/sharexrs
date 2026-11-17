@@ -6,15 +6,17 @@
 
 use sharex_strings::{helpers_lib as hs, sharex as s};
 use sharex_ui::keys::app_icons as icon;
-use sharex_ui::menu::{MenuCategory, MenuEntry, Toggle};
+use std::sync::Arc;
+
+use sharex_ui::menu::{MenuCategory, MenuEntry, MenuIcon, Toggle};
 
 /// What a menu entry does (`MainMenuBuilder`'s lambdas, by name).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuCommand {
     // Capture
     CaptureFullscreen,
-    /// Capture › Window › a window (by its title until windows are listed).
-    CaptureWindow(String),
+    /// Capture › Window › a window (its handle).
+    CaptureWindow(isize),
     /// Capture › Monitor › one monitor's bounds (x, y, width, height).
     CaptureMonitor(i32, i32, u32, u32),
     CaptureRegion,
@@ -61,6 +63,22 @@ pub enum MenuCommand {
     TestFileUpload,
     TestUrlShortener,
     TestUrlSharing,
+    // The tray menu (`BuildTrayMenu`, `MainFormCommand`)
+    ApplicationSettings,
+    TaskSettings,
+    /// `TaskHelpers.ToggleHotkeys`.
+    ToggleHotkeys,
+    DestinationSettings,
+    CustomUploaderSettings,
+    ScreenshotsFolder,
+    History,
+    ImageHistory,
+    RestartAsAdministrator,
+    ActionsToolbar,
+    /// `MainWindowIntegration.Activate`.
+    ShowMainWindow,
+    /// `ApplicationLifecycle.ForceClose`.
+    Exit,
 }
 
 use MenuCommand as C;
@@ -121,10 +139,60 @@ pub struct MenuState {
     pub workflows_only_show_edited: bool,
     /// `DesktopScreen.AllScreens`' bounds, in physical pixels.
     pub monitors: Vec<(i32, i32, u32, u32)>,
-    /// Visible windows' titles for Capture › Window. Listing windows isn't
-    /// ported yet (`WindowsList.GetVisibleWindowsList`), so this stays empty
-    /// and the menu shows "No windows found".
-    pub windows: Vec<String>,
+    /// Capture › Window's windows, when not listed live.
+    pub windows: Vec<WindowItem>,
+    /// Capture › Window lists the windows on screen when the menu is built
+    /// (`WindowsList.GetVisibleWindowsList`); off for `--render`, which
+    /// shows [`windows`](Self::windows) instead.
+    pub list_windows: bool,
+    /// `ApplicationConfig.DisableHotkeys`, for the tray's toggle.
+    pub hotkeys_disabled: bool,
+    /// The tray's Recent items entry: `RecentTasksSave`,
+    /// `RecentTasksShowInTrayMenu` and recent tasks to show (none are kept
+    /// until history is ported).
+    pub recent_items: bool,
+}
+
+/// A window in Capture › Window.
+#[derive(Clone, Debug)]
+pub struct WindowItem {
+    pub handle: isize,
+    pub title: String,
+    /// `GetWindowIcon`: the window's icon at its own size.
+    pub icon: Option<Arc<egui::ColorImage>>,
+}
+
+impl WindowItem {
+    /// The windows on screen, with their icons. An icon that hasn't
+    /// changed since the last listing is the same `Arc`, so menus draw it
+    /// from the texture they made for it then.
+    pub fn list() -> Vec<Self> {
+        use std::collections::HashMap;
+        use std::sync::Mutex;
+        static ICONS: Mutex<Option<HashMap<isize, Arc<egui::ColorImage>>>> = Mutex::new(None);
+        let mut cache = ICONS.lock().unwrap_or_else(|e| e.into_inner());
+        let previous = cache.take().unwrap_or_default();
+        let mut icons = HashMap::new();
+        let items = sharex_capture::platform::visible_windows()
+            .into_iter()
+            .map(|w| {
+                let icon = sharex_capture::platform::window_icon(w.handle).map(|i| {
+                    let size = [i.width() as usize, i.height() as usize];
+                    let image = egui::ColorImage::from_rgba_unmultiplied(size, i.as_raw());
+                    match previous.get(&w.handle) {
+                        Some(same) if **same == image => same.clone(),
+                        _ => Arc::new(image),
+                    }
+                });
+                if let Some(icon) = &icon {
+                    icons.insert(w.handle, icon.clone());
+                }
+                WindowItem { handle: w.handle, icon, title: w.title }
+            })
+            .collect();
+        *cache = Some(icons);
+        items
+    }
 }
 
 impl Default for MenuState {
@@ -151,6 +219,9 @@ impl Default for MenuState {
             workflows_only_show_edited: false,
             monitors: Vec::new(),
             windows: Vec::new(),
+            list_windows: false,
+            hotkeys_disabled: false,
+            recent_items: false,
         }
     }
 }
@@ -196,17 +267,24 @@ pub fn capture_menu(state: &MenuState) -> Vec<Entry> {
 
 /// `BuildWindowMenu`.
 fn window_menu(state: &MenuState) -> Vec<Entry> {
-    let mut items: Vec<Entry> = state
-        .windows
+    let listed;
+    let windows = if state.list_windows {
+        listed = WindowItem::list();
+        &listed
+    } else {
+        &state.windows
+    };
+    let mut items: Vec<Entry> = windows
         .iter()
-        .map(|title| {
+        .map(|w| {
             // `Truncate(50, "...")`.
-            let shown = if title.chars().count() > 50 {
-                format!("{}...", title.chars().take(50).collect::<String>())
+            let shown = if w.title.chars().count() > 50 {
+                format!("{}...", w.title.chars().take(50).collect::<String>())
             } else {
-                title.clone()
+                w.title.clone()
             };
-            Entry::item(shown, "", C::CaptureWindow(title.clone()))
+            let icon = w.icon.clone().map_or(MenuIcon::None, MenuIcon::Bitmap);
+            Entry::item(shown, "", C::CaptureWindow(w.handle)).icon(icon)
         })
         .collect();
     if items.is_empty() {
@@ -240,6 +318,45 @@ fn screenshot_delay_menu(state: &MenuState) -> Vec<Entry> {
             .toggle(Toggle::CheckBox, state.screenshot_delay_just_once),
     );
     items
+}
+
+/// `BuildTrayMenu`.
+pub fn tray_menu(state: &MenuState) -> Vec<Entry> {
+    let up = state.uploads_enabled;
+    let (hotkeys_text, hotkeys_icon) = if state.hotkeys_disabled {
+        (s::MainMenuBuilder_EnableHotkeys(), icon::Keyboard)
+    } else {
+        (s::MainMenuBuilder_DisableHotkeys(), icon::KeyboardOff)
+    };
+    let tools = tool_categories();
+    vec![
+        parent(s::MainMenuBuilder_Capture(), icon::Camera, capture_menu(state)),
+        parent(s::MainMenuBuilder_Upload(), icon::Upload, upload_menu()).visible(up),
+        parent(s::MainMenuBuilder_Workflows(), icon::Workflows, workflows_menu(state)),
+        Entry::label(s::MainMenuBuilder_Tools(), icon::Wrench).categories(tools),
+        Entry::separator(),
+        parent(s::MainMenuBuilder_AfterCaptureTasks(), icon::AfterCaptureTasks, after_capture_menu(state)),
+        parent(s::MainMenuBuilder_AfterUploadTasks(), icon::AfterUploadTasks, after_upload_menu(state)).visible(up),
+        parent(s::MainMenuBuilder_Destinations(), icon::Destinations, destinations_menu(state)).visible(up),
+        Entry::separator(),
+        item(s::MainMenuBuilder_ApplicationSettings(), icon::Settings, C::ApplicationSettings),
+        item(s::MainMenuBuilder_TaskSettings(), icon::Sliders, C::TaskSettings),
+        item(s::MainMenuBuilder_HotkeySettings(), icon::Keyboard, C::HotkeySettings),
+        item(hotkeys_text, hotkeys_icon, C::ToggleHotkeys),
+        item(s::MainMenuBuilder_DestinationSettings(), icon::DestinationSettings, C::DestinationSettings).visible(up),
+        item(s::MainMenuBuilder_CustomUploaderSettings(), icon::CustomUploaderSettings, C::CustomUploaderSettings)
+            .visible(up),
+        Entry::separator(),
+        item(s::MainMenuBuilder_ScreenshotsFolder(), icon::ScreenshotsFolder, C::ScreenshotsFolder),
+        item(s::MainMenuBuilder_History(), icon::History, C::History),
+        item(s::MainMenuBuilder_ImageHistory(), icon::ImageHistory, C::ImageHistory),
+        Entry::separator(),
+        item(s::MainMenuBuilder_RestartAsAdministrator(), icon::RestartAsAdmin, C::RestartAsAdministrator),
+        parent(s::MainMenuBuilder_RecentItems(), icon::RecentItems, Vec::new()).visible(state.recent_items),
+        item(s::MainMenuBuilder_ActionsToolbar(), icon::Toolbar, C::ActionsToolbar),
+        item(s::MainMenuBuilder_ShowShareX(), icon::Window, C::ShowMainWindow),
+        item(s::MainMenuBuilder_Exit(), icon::Exit, C::Exit),
+    ]
 }
 
 /// `BuildUploadMenu`.

@@ -24,7 +24,10 @@ param(
     # The whole visible frame instead of just the client area (the default,
     # which is the window's own pixels without the 1px border DWM draws
     # around borderless windows).
-    [switch] $Frame
+    [switch] $Frame,
+    # Which of the matching windows, in z-order from the top (popups such as
+    # a menu and its submenu share an empty title).
+    [int] $Index = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,7 +75,7 @@ Get-Process -Name $Process -ErrorAction SilentlyContinue | ForEach-Object { [voi
 if ($pids.Count -eq 0) { throw "no process named $Process" }
 $wins = [WinShot]::Windows($pids)
 if ($List) { $wins | ForEach-Object { '{0}  {1}' -f $_.Item1, $_.Item2 }; return }
-$win = $wins | Where-Object { $_.Item2 -match $Title } | Select-Object -First 1
+$win = $wins | Where-Object { $_.Item2 -match $Title } | Select-Object -Skip $Index -First 1
 if (-not $win) { throw "no visible window of $Process matching '$Title'" }
 $h = $win.Item1
 

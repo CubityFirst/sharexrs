@@ -55,6 +55,9 @@ pub enum MenuIcon {
     Key(&'static str),
     /// A full-colour bitmap, 16x16 (a window's icon in Capture › Window).
     Texture(egui::TextureId),
+    /// A full-colour picture at its own size, drawn in 16x16
+    /// (`CreateBitmapMenuIcon`: `Stretch.Uniform`).
+    Bitmap(std::sync::Arc<egui::ColorImage>),
 }
 
 /// One `MainMenuEntry`: an item, a submenu or a separator.
@@ -67,6 +70,9 @@ pub struct MenuEntry<C> {
     pub icon: MenuIcon,
     pub command: Option<C>,
     pub children: Option<Vec<MenuEntry<C>>>,
+    /// A submenu that's the tool grid (`MainMenuBuilder.CategoryParent`,
+    /// `AddLazyGridSubmenu`).
+    pub categories: Option<Vec<MenuCategory<C>>>,
     pub separator: bool,
     pub enabled: bool,
     pub visible: bool,
@@ -109,6 +115,7 @@ impl<C> MenuEntry<C> {
             icon: if icon.is_empty() { MenuIcon::None } else { MenuIcon::Key(icon) },
             command: None,
             children: None,
+            categories: None,
             separator: false,
             enabled: true,
             visible: true,
@@ -128,6 +135,10 @@ impl<C> MenuEntry<C> {
     }
     pub fn children(mut self, children: Vec<MenuEntry<C>>) -> Self {
         self.children = Some(children);
+        self
+    }
+    pub fn categories(mut self, categories: Vec<MenuCategory<C>>) -> Self {
+        self.categories = Some(categories);
         self
     }
     pub fn toggle(mut self, toggle: Toggle, checked: bool) -> Self {
@@ -173,7 +184,7 @@ impl<C> MenuEntry<C> {
     }
 
     fn has_children(&self) -> bool {
-        self.children.is_some()
+        self.children.is_some() || self.categories.is_some()
     }
 
     /// Hit-testable: Avalonia gives disabled items no `:pointerover`.
@@ -214,6 +225,13 @@ enum Content<C> {
     Grid(Vec<MenuCategory<C>>),
 }
 
+/// What one open level of a menu shows.
+enum Level<'a, C> {
+    Menu(&'a [MenuEntry<C>]),
+    /// A tool grid submenu.
+    Grid(&'a [MenuCategory<C>]),
+}
+
 /// What a frame of a flyout did.
 #[derive(Debug)]
 pub struct FlyoutOutput<C> {
@@ -240,6 +258,9 @@ pub struct Flyout<C> {
     selected: Vec<Option<usize>>,
     /// A submenu to open or close once the pointer has rested on an item.
     pending: Option<(usize, usize, f64)>,
+    /// The item the pointer was on last frame: the delay starts when the
+    /// pointer enters an item (`PointerEnter`), not while it rests there.
+    last_hovered: Option<(usize, usize)>,
     /// Ids of tools hidden from the grid (`ApplicationConfig.HiddenTools`).
     pub hidden_tools: Vec<String>,
     /// The tool grid's edit button text (`MainMenuBuilder_EditTools`).
@@ -278,6 +299,7 @@ impl<C: Clone> Flyout<C> {
             open: Vec::new(),
             selected: vec![None],
             pending: None,
+            last_hovered: None,
             hidden_tools: Vec::new(),
             edit_label: String::new(),
             rects: Vec::new(),
@@ -291,6 +313,11 @@ impl<C: Clone> Flyout<C> {
         self.rects.iter().any(|r| r.contains(pos))
     }
 
+    /// Where each open level (the root first) was drawn last frame.
+    pub fn rects(&self) -> &[Rect] {
+        &self.rects
+    }
+
     /// Opens the submenus along `path` (entry indices from the root),
     /// highlighting each parent as if the pointer had passed over it, for
     /// rendering a state without scripted hovers.
@@ -299,14 +326,27 @@ impl<C: Clone> Flyout<C> {
         self.selected = path.iter().map(|i| Some(*i)).chain([None]).collect();
     }
 
-    /// The entries of level `depth` (0 is the root menu).
+    /// The entries of level `depth` (0 is the root menu), when it's a menu.
     fn entries(&self, depth: usize) -> Option<&[MenuEntry<C>]> {
+        match self.level(depth)? {
+            Level::Menu(entries) => Some(entries),
+            Level::Grid(_) => None,
+        }
+    }
+
+    /// What level `depth` shows.
+    fn level(&self, depth: usize) -> Option<Level<'_, C>> {
         let Content::Menu(root) = &self.content else { return None };
         let mut entries: &[MenuEntry<C>] = root;
-        for &i in &self.open[..depth] {
-            entries = entries.get(i)?.children.as_deref()?;
+        for (n, &i) in self.open[..depth].iter().enumerate() {
+            let entry = entries.get(i)?;
+            if let Some(categories) = &entry.categories {
+                // A grid is a leaf.
+                return (n + 1 == depth).then_some(Level::Grid(categories));
+            }
+            entries = entry.children.as_deref()?;
         }
-        Some(entries)
+        Some(Level::Menu(entries))
     }
 
     fn entries_mut(&mut self, depth: usize) -> Option<&mut Vec<MenuEntry<C>>> {
@@ -342,7 +382,7 @@ impl<C: Clone> Flyout<C> {
         let now = ctx.input(|i| i.time);
         let mut out = FlyoutOutput { command: None, closed: false };
         // Drop open submenus whose entry went away.
-        while !self.open.is_empty() && self.entries(self.open.len()).is_none() {
+        while !self.open.is_empty() && self.level(self.open.len()).is_none() {
             self.open.pop();
         }
         self.selected.resize(self.open.len() + 1, None);
@@ -350,10 +390,25 @@ impl<C: Clone> Flyout<C> {
         // Place every level: the root at its anchor, each submenu beside the
         // item that opened it.
         let mut placed: Vec<(Rect, MenuMetrics, Vec<Rect>)> = Vec::new();
+        let mut grid: Option<GridLayout> = None;
         for depth in 0..=self.open.len() {
-            let entries = self.entries(depth).expect("checked above");
             let root = depth == 0;
-            let m = menu_metrics(ui, entries, root);
+            let (m, entries) = match self.level(depth).expect("checked above") {
+                Level::Menu(entries) => (menu_metrics(ui, entries, root), Some(entries)),
+                Level::Grid(categories) => {
+                    let g = GridLayout::new(ui, categories, &self.hidden_tools, &self.edit_label);
+                    let m = MenuMetrics {
+                        size: g.size,
+                        toggle_col: 0.0,
+                        icon_col: 0.0,
+                        header_col: 0.0,
+                        gesture_col: 0.0,
+                        chevron_col: 0.0,
+                    };
+                    grid = Some(g);
+                    (m, None)
+                }
+            };
             let rect = if root {
                 place(self.anchor_rect(), self.placement, m.size, 0.0, bounds)
             } else {
@@ -362,7 +417,7 @@ impl<C: Clone> Flyout<C> {
                 let item = items[self.open[depth - 1]];
                 place(item, Placement::RightEdgeAlignedTop, m.size, -4.0, bounds)
             };
-            let items = item_rects(entries, rect, root, &d);
+            let items = entries.map_or_else(Vec::new, |e| item_rects(e, rect, root, &d));
             placed.push((rect, m, items));
         }
         self.rects = placed.iter().map(|(r, ..)| *r).collect();
@@ -374,7 +429,7 @@ impl<C: Clone> Flyout<C> {
             for depth in (0..placed.len()).rev() {
                 let (rect, _, items) = &placed[depth];
                 if rect.contains(p) {
-                    let entries = self.entries(depth).unwrap();
+                    let Some(entries) = self.entries(depth) else { break };
                     hovered = items
                         .iter()
                         .enumerate()
@@ -388,9 +443,23 @@ impl<C: Clone> Flyout<C> {
         // Draw, and collect the clicks.
         let mut clicked = None;
         let mut pressed_parent = None;
+        let mut chosen_tool = None;
         for (depth, (rect, m, items)) in placed.iter().enumerate() {
-            let entries = self.entries(depth).unwrap();
             let layer = Id::new((self.id, "level", depth));
+            if let (Some(Level::Grid(categories)), Some(g)) = (self.level(depth), &grid) {
+                let response = egui::Area::new(layer)
+                    .order(Order::Foreground)
+                    .fixed_pos(rect.min)
+                    .constrain(false)
+                    .show(&ctx, |ui| {
+                        ui.set_clip_rect(*rect);
+                        let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
+                        chosen_tool = g.paint(ui, frame, categories, &self.hidden_tools, &self.edit_label, layer, true);
+                    });
+                ctx.move_to_top(response.response.layer_id);
+                continue;
+            }
+            let entries = self.entries(depth).unwrap();
             let selected = self.selected[depth];
             let open = self.open.get(depth).copied();
             let response = egui::Area::new(layer)
@@ -464,7 +533,7 @@ impl<C: Clone> Flyout<C> {
                             ctx.request_repaint_after(std::time::Duration::from_secs_f64(at - now));
                         }
                     }
-                    _ if needs => {
+                    _ if needs && self.last_hovered != hovered => {
                         self.pending = Some((depth, i, now + MENU_SHOW_DELAY));
                         ctx.request_repaint_after(std::time::Duration::from_secs_f64(MENU_SHOW_DELAY));
                     }
@@ -473,6 +542,7 @@ impl<C: Clone> Flyout<C> {
             }
             None => self.pending = None,
         }
+        self.last_hovered = hovered;
 
         // Pressing a parent opens its submenu at once.
         if let Some((depth, i)) = pressed_parent {
@@ -484,6 +554,11 @@ impl<C: Clone> Flyout<C> {
         if let Some((depth, i)) = clicked {
             self.activate(depth, i, &mut out);
             changed = true;
+        }
+        // `ExecuteGridMenuEntry`: a tool closes the whole menu.
+        if let Some(command) = chosen_tool {
+            out.command = Some(command);
+            out.closed = true;
         }
 
         // Keyboard (`DefaultMenuInteractionHandler.KeyDown`), on the deepest level.
@@ -579,7 +654,14 @@ impl<C: Clone> Flyout<C> {
             self.selected.truncate(self.open.len() + 1);
             return;
         }
-        let Some(entries) = self.entries(depth) else { return };
+        let Some(entries) = self.entries(depth) else {
+            // A tool grid: Left goes back to its menu.
+            if key == Key::ArrowLeft && depth > 0 {
+                self.open.pop();
+                self.selected.truncate(depth);
+            }
+            return;
+        };
         let usable: Vec<usize> = (0..entries.len()).filter(|&i| entries[i].interactive()).collect();
         let current = self.selected[depth];
         let step = |forward: bool| -> Option<usize> {
@@ -635,7 +717,7 @@ impl<C: Clone> Flyout<C> {
             .show(&ctx, |ui| {
                 ui.set_clip_rect(rect);
                 let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
-                chosen = g.paint(ui, frame, categories, &self.hidden_tools, &self.edit_label, layer);
+                chosen = g.paint(ui, frame, categories, &self.hidden_tools, &self.edit_label, layer, false);
             });
         ctx.move_to_top(response.response.layer_id);
         if let Some(command) = chosen {
@@ -661,7 +743,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
     let fits_y = |y: f32| y >= bounds.min.y && y + size.y <= bounds.max.y;
     if !fits_x(x) {
         let flipped = match placement {
-            Placement::RightEdgeAlignedTop => anchor.min.x - offset_x - size.x,
+            // Avalonia flips the anchor and gravity but keeps the offset:
+            // a submenu flipped to the left sits 4px clear of its item.
+            Placement::RightEdgeAlignedTop => anchor.min.x + offset_x - size.x,
             Placement::BottomEdgeAlignedLeft => anchor.max.x - size.x,
             Placement::Pointer(p) => p.x - size.x,
         };
@@ -854,6 +938,19 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
             MenuIcon::Texture(tex) => {
                 painter.image(tex, b, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
             }
+            MenuIcon::Bitmap(ref image) => {
+                let key = Id::new(("menu-bitmap", std::sync::Arc::as_ptr(image) as usize));
+                let tex = ctx.data_mut(|d| d.get_temp::<egui::TextureHandle>(key)).unwrap_or_else(|| {
+                    let t = ctx.load_texture("menu-bitmap", (**image).clone(), egui::TextureOptions::LINEAR);
+                    ctx.data_mut(|d| d.insert_temp(key, t.clone()));
+                    t
+                });
+                // `Stretch.Uniform` in 16x16.
+                let [w, h] = image.size.map(|v| v.max(1) as f32);
+                let k = (16.0 / w).min(16.0 / h);
+                let r = Rect::from_center_size(b.center(), vec2(w * k, h * k));
+                painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            }
             MenuIcon::None => {}
         }
         x += m.icon_col;
@@ -986,14 +1083,21 @@ impl GridLayout {
         hidden: &[String],
         edit_label: &str,
         layer: Id,
+        submenu: bool,
     ) -> Option<C> {
         let ctx = ui.ctx();
         let p = palette(ctx);
         let d = density(ctx);
         let painter = ui.painter();
-        // `FlyoutPresenter.tool-grid-flyout`: menu background, ShareX border, radius 8.
-        painter.rect_filled(rect.shrink(1.0), CornerRadius::same(7), p.background_menu);
-        painter.rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.0, p.border), StrokeKind::Inside);
+        if submenu {
+            // A menu item's submenu (`tool-grid-submenu-host`): Fluent's
+            // popup frame, `ToolGrid.Padding` inside it.
+            paint_menu_frame(ui, rect, false);
+        } else {
+            // `FlyoutPresenter.tool-grid-flyout`: menu background, ShareX border, radius 8.
+            painter.rect_filled(rect.shrink(1.0), CornerRadius::same(7), p.background_menu);
+            painter.rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.0, p.border), StrokeKind::Inside);
+        }
         let pad = d.tool_grid_padding;
         let content = Rect::from_min_max(
             pos2(rect.min.x + 1.0 + pad.left, rect.min.y + 1.0 + pad.top),
@@ -1147,6 +1251,16 @@ mod tests {
         let anchor = Rect::from_min_max(pos2(7.0, 600.0), pos2(206.0, 630.0));
         let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(200.0, 300.0), 0.0, bounds);
         assert_eq!(r.min, pos2(206.0, 330.0));
+    }
+
+    #[test]
+    fn a_flipped_submenu_keeps_its_offset() {
+        // ShareX's tray menu at 682,126 on a 1024px wide work area: Capture's
+        // submenu (278 wide) opens to the left of its item (x 689), at 407.
+        let bounds = Rect::from_min_max(pos2(0.0, 0.0), pos2(1024.0, 720.0));
+        let item = Rect::from_min_max(pos2(689.0, 133.0), pos2(944.0, 161.0));
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), -4.0, bounds);
+        assert_eq!(r.min, pos2(407.0, 133.0));
     }
 
     #[test]

@@ -7,6 +7,9 @@
   scripts/input.ps1 -MoveTo 1000,760          # park the cursor out of the way
   scripts/input.ps1 -MoveTo 300,120           # hover a menu entry
   scripts/input.ps1 -Click 300,120
+  scripts/input.ps1 -RightClick 1000,750      # a tray icon's menu
+  scripts/input.ps1 -MiddleClick 1000,750
+  scripts/input.ps1 -DoubleClick 1000,750
   scripts/input.ps1 -Key Escape
   scripts/input.ps1 -Down 200,150 -DragTo 600,450 -Hold   # press, drag, keep pressed
   scripts/input.ps1 -Up                                   # release the left button
@@ -14,6 +17,10 @@
 param(
     [int[]] $MoveTo,
     [int[]] $Click,
+    [int[]] $RightClick,
+    [int[]] $MiddleClick,
+    # Two left clicks, 60 ms apart (within the double-click time).
+    [int[]] $DoubleClick,
     # Presses the left button there (after moving to it).
     [int[]] $Down,
     # Moves there in small steps (dragging, when the button is down).
@@ -53,6 +60,24 @@ if ($MoveTo) {
 }
 if ($Click) {
     Move-To $Click[0] $Click[1]
+    [Input]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero)
+    [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($RightClick) {
+    Move-To $RightClick[0] $RightClick[1]
+    [Input]::mouse_event(0x8, 0, 0, 0, [IntPtr]::Zero)
+    [Input]::mouse_event(0x10, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($MiddleClick) {
+    Move-To $MiddleClick[0] $MiddleClick[1]
+    [Input]::mouse_event(0x20, 0, 0, 0, [IntPtr]::Zero)
+    [Input]::mouse_event(0x40, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($DoubleClick) {
+    Move-To $DoubleClick[0] $DoubleClick[1]
+    [Input]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero)
+    [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
     [Input]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero)
     [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
 }

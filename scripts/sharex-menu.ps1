@@ -6,11 +6,13 @@
 
 .EXAMPLE
   scripts/sharex-menu.ps1 -Process ShareX -Menu Capture -Entry "Region..."
+  # A submenu's entry: each name in turn.
+  scripts/sharex-menu.ps1 -Process ShareX -Menu Capture -Entry "Monitor","1. 1024x768"
 #>
 param(
     [Parameter(Mandatory)] [string] $Process,
     [Parameter(Mandatory)] [string] $Menu,
-    [Parameter(Mandatory)] [string] $Entry
+    [Parameter(Mandatory)] [string[]] $Entry
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
@@ -38,9 +40,13 @@ function Invoke-Element([System.Windows.Automation.AutomationElement] $Element) 
 $menuElement = Find-Named $Menu
 if (-not $menuElement) { throw "no '$Menu' in $Process" }
 Invoke-Element $menuElement
-for ($i = 0; $i -lt 20; $i++) {
-    Start-Sleep -Milliseconds 100
-    $entryElement = Find-Named $Entry
-    if ($entryElement) { Invoke-Element $entryElement; "invoked $Menu > $Entry"; return }
+foreach ($name in $Entry) {
+    $entryElement = $null
+    for ($i = 0; $i -lt 20 -and -not $entryElement; $i++) {
+        Start-Sleep -Milliseconds 100
+        $entryElement = Find-Named $name
+    }
+    if (-not $entryElement) { throw "no '$name' after opening '$Menu'" }
+    Invoke-Element $entryElement
 }
-throw "no '$Entry' after opening '$Menu'"
+"invoked $Menu > $($Entry -join ' > ')"

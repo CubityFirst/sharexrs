@@ -15,9 +15,13 @@ cd "$(dirname "$0")/.."
 R=${1:-../sharexrs-ref/shots}
 WA="-62,-5,962,715"
 cargo build -q
+# `.exe` where there is one: a portable profile (`target/debug/ShareXrs/`)
+# shadows the bare name on case-insensitive file systems.
+BIN=target/debug/sharexrs
+[ -f "$BIN.exe" ] && BIN="$BIN.exe"
 run() { # name screen [args...]
   local name=$1 screen=$2; shift 2
-  target/debug/sharexrs --render "$screen" --out "$R/sharexrs/$name.png" --unregistered 0,3 --work-area "$WA" "$@" >/dev/null
+  "$BIN" --render "$screen" --out "$R/sharexrs/$name.png" --unregistered 0,3 --work-area "$WA" "$@" >/dev/null
   printf '%-44s %s\n' "$name" "$(python scripts/compare.py "$R/sharex/$name.png" "$R/sharexrs/$name.png" "$R/compare/$name" | sed -n 3p)"
 }
 for m in capture upload workflows tools after-capture-tasks after-upload-tasks destinations debug; do
