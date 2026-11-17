@@ -30,9 +30,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            pkg-config libwayland-dev libxkbcommon-dev libxcb1-dev libegl-dev libgbm-dev
-      - uses: dtolnay/rust-toolchain@stable
+            pkg-config clang libclang-dev libpipewire-0.3-dev libspa-0.2-dev \
+            libgbm-dev libdrm-dev libegl-dev libwayland-dev libxkbcommon-dev \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
+            libdbus-1-dev
+      # The version in rust-toolchain.toml, so CI's clippy is the one
+      # developers run (a newer stable added lints the code hadn't seen).
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.96.0"
           targets: ${{ matrix.target }}
           components: clippy
       - uses: Swatinem/rust-cache@v2

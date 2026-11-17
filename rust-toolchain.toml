@@ -1,0 +1,5 @@
+# One Rust for everyone and CI, so clippy's lints don't drift between them.
+# Bump deliberately (and fix new lints in the same commit).
+[toolchain]
+channel = "1.96.0"
+components = ["clippy", "rustfmt"]

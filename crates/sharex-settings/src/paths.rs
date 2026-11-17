@@ -373,7 +373,7 @@ mod registry {
             REG_DWORD if buf.len() >= 4 => Some(RegValue::Number(u32::from_le_bytes(buf[..4].try_into().ok()?) as u64)),
             REG_QWORD if buf.len() >= 8 => Some(RegValue::Number(u64::from_le_bytes(buf[..8].try_into().ok()?))),
             REG_SZ => {
-                let units: Vec<u16> = buf.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                let units: Vec<u16> = buf.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
                 let text = String::from_utf16_lossy(&units);
                 Some(RegValue::Text(text.trim_end_matches('\0').to_owned()))
             }
@@ -424,7 +424,12 @@ mod tests {
     fn folder_variables() {
         // SAFETY: tests in this module don't read this variable concurrently.
         unsafe { std::env::set_var("SHAREXRS_TEST_DIR", "C:/x") };
-        assert_eq!(expand_folder_variables("%sharexrs_test_dir%/a"), "C:/x/a");
+        assert_eq!(expand_folder_variables("%SHAREXRS_TEST_DIR%/a"), "C:/x/a");
+        // .NET matches environment variable names ignoring case only on
+        // Windows, where the variables themselves do.
+        if cfg!(windows) {
+            assert_eq!(expand_folder_variables("%sharexrs_test_dir%/a"), "C:/x/a");
+        }
         assert_eq!(expand_folder_variables("%NO_SUCH_VAR_X%/a"), "%NO_SUCH_VAR_X%/a");
         assert_eq!(expand_folder_variables("100% done"), "100% done");
         let docs = dirs::document_dir().unwrap();
