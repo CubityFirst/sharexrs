@@ -2,3 +2,5 @@
 # each line breaks, so they keep LF endings on Windows checkouts too.
 *.sh text eol=lf
 .githooks/* text eol=lf
+# Settings files exactly as ShareX wrote them (CRLF, no final newline).
+crates/sharex-settings/tests/fixtures/** -text
