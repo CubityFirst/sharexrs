@@ -142,7 +142,7 @@ impl MessageBox {
         let row_h = self.row_height(ui);
         let top = full.min.y + MARGIN.1;
         let mut x = full.min.x + MARGIN.0;
-        if let Some((key, color)) = self.icon_key(p) {
+        if let Some((key, color)) = self.icon_key(&p) {
             let bx = Rect::from_min_size(pos2(x, top), Vec2::splat(ICON_BOX));
             ui.painter().rect_filled(bx, CornerRadius::same(8), p.background_panel);
             let off = ((ICON_BOX - ICON) / 2.0).round_ties_even();

@@ -27,7 +27,7 @@ impl Offscreen {
     pub fn new(size: [u32; 2], ppp: f32, dark: bool) -> Result<Self, String> {
         let gpu = Gpu::new()?;
         let ctx = egui::Context::default();
-        crate::install(&ctx, 100.0);
+        crate::install(&ctx);
         ctx.set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
         ctx.set_pixels_per_point(ppp);
         let renderer = egui_wgpu::Renderer::new(&gpu.device, FORMAT, Default::default());

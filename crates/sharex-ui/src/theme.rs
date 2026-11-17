@@ -22,7 +22,7 @@ const fn pm(c: u32, a: u32) -> u8 {
 }
 
 /// One theme's `ShareX.Color.*` resources.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
     pub accent_start: Color32,
     pub accent_end: Color32,
@@ -55,6 +55,11 @@ pub struct Palette {
     pub overlay_modal: Color32,
     /// `ShareX.Brush.Checkered`: the base colour and the alternate squares.
     pub checkered: [Color32; 2],
+    /// `SystemAccentColorLight1..3`, which `ThemeManager` points at the
+    /// accent palette's lighter fills (`Button.primary`'s hover).
+    pub accent_fill_light: [Color32; 3],
+    /// `SystemAccentColorDark1..3` (`Button.primary`'s pressed fill).
+    pub accent_fill_dark: [Color32; 3],
 }
 
 /// "ShareX Dark".
@@ -89,6 +94,9 @@ pub const DARK: Palette = Palette {
     overlay_soft: hexa(0x30000000),
     overlay_modal: hexa(0x80000000),
     checkered: [hex(0x272727), hex(0x2E2E2E)],
+    // Derived from the accent at startup ([`set_accent`]).
+    accent_fill_light: [hex(0x09AAFF); 3],
+    accent_fill_dark: [hex(0x09AAFF); 3],
 };
 
 /// "ShareX Light".
@@ -123,6 +131,8 @@ pub const LIGHT: Palette = Palette {
     overlay_soft: hexa(0x30000000),
     overlay_modal: hexa(0x80000000),
     checkered: [hex(0xFFFFFF), hex(0xEBEBEB)],
+    accent_fill_light: [hex(0x09AAFF); 3],
+    accent_fill_dark: [hex(0x09AAFF); 3],
 };
 
 /// The Avalonia Fluent theme's own colours, which show wherever ShareX
@@ -140,6 +150,8 @@ pub struct Fluent {
     pub base_medium: Color32,
     /// `SystemBaseMediumLowColor`: `SystemControlDisabledBaseMediumLowBrush`.
     pub base_medium_low: Color32,
+    /// `SystemBaseLowColor`: `SystemControlDisabledBaseLowBrush`.
+    pub base_low: Color32,
     /// `SystemListLowColor`: `MenuFlyoutItemBackgroundPointerOver`.
     pub list_low: Color32,
     /// `SystemListMediumColor`: `MenuFlyoutItemBackgroundPressed`.
@@ -154,6 +166,7 @@ pub const FLUENT_DARK: Fluent = Fluent {
     base_medium_high: hexa(0xCCFFFFFF),
     base_medium: hexa(0x99FFFFFF),
     base_medium_low: hexa(0x66FFFFFF),
+    base_low: hexa(0x33FFFFFF),
     list_low: hexa(0x19FFFFFF),
     list_medium: hexa(0x33FFFFFF),
     transient_border: hexa(0x5C000000),
@@ -164,6 +177,7 @@ pub const FLUENT_LIGHT: Fluent = Fluent {
     base_medium_high: hexa(0xCC000000),
     base_medium: hexa(0x99000000),
     base_medium_low: hexa(0x66000000),
+    base_low: hexa(0x33000000),
     list_low: hexa(0x19000000),
     list_medium: hexa(0x33000000),
     transient_border: hexa(0x24000000),
@@ -181,12 +195,106 @@ pub fn fluent(ctx: &egui::Context) -> &'static Fluent {
 /// inline in `MainWindow.axaml` rather than as a resource).
 pub const FAILED: Color32 = hex(0xC65F5F);
 
-/// The palette of the theme `ctx` is showing.
-pub fn palette(ctx: &egui::Context) -> &'static Palette {
-    match ctx.theme() {
-        Theme::Dark => &DARK,
-        Theme::Light => &LIGHT,
+/// The palette of the theme `ctx` is showing, with the current accent.
+pub fn palette(ctx: &egui::Context) -> Palette {
+    palette_of(ctx.theme())
+}
+
+/// The palette of `theme`, with the current accent.
+pub fn palette_of(theme: Theme) -> Palette {
+    let state = state().read().unwrap();
+    match theme {
+        Theme::Dark => state.dark,
+        Theme::Light => state.light,
     }
+}
+
+/// `ThemeManager.AccentSurfaceKeys`: the theme backgrounds accent coloured
+/// text and indicators are drawn on.
+pub fn accent_surfaces(p: &Palette) -> [Color32; 7] {
+    [
+        p.background_main,
+        p.background_panel,
+        p.background_popup,
+        p.background_menu,
+        p.background_toolbar,
+        p.control_background,
+        p.control_background_hover,
+    ]
+}
+
+/// What `ThemeManager` applies to the whole app: the accent palettes and
+/// the spacing. Every window reads it, so a change shows everywhere on the
+/// next frame.
+struct State {
+    accent: Color32,
+    dark: Palette,
+    light: Palette,
+    spacing: Spacing,
+    density: Density,
+}
+
+fn state() -> &'static std::sync::RwLock<State> {
+    static STATE: std::sync::OnceLock<std::sync::RwLock<State>> = std::sync::OnceLock::new();
+    STATE.get_or_init(|| {
+        let accent = DARK.accent_start;
+        std::sync::RwLock::new(State {
+            accent,
+            dark: with_accent(&DARK, accent),
+            light: with_accent(&LIGHT, accent),
+            spacing: Spacing::default(),
+            density: Density::default(),
+        })
+    })
+}
+
+fn with_accent(base: &Palette, accent: Color32) -> Palette {
+    let a = crate::accent::AccentPalette::create(accent, &accent_surfaces(base));
+    Palette {
+        accent_start: a.fill_start,
+        accent_end: a.fill_end,
+        accent_foreground: a.on_fill,
+        accent_text: a.text,
+        accent_border: a.border,
+        accent_icon: a.icon(),
+        link: a.text,
+        accent_fill_light: a.fill_light,
+        accent_fill_dark: a.fill_dark,
+        ..*base
+    }
+}
+
+/// `ThemeManager.ApplyAccentColor`: derives both themes' accent colours
+/// from `accent`. Returns whether anything changed.
+pub fn set_accent(accent: Color32) -> bool {
+    let mut state = state().write().unwrap();
+    if state.accent == accent {
+        return false;
+    }
+    state.accent = accent;
+    state.dark = with_accent(&DARK, accent);
+    state.light = with_accent(&LIGHT, accent);
+    true
+}
+
+/// The accent colour in use.
+pub fn accent() -> Color32 {
+    state().read().unwrap().accent
+}
+
+/// `ThemeManager.ApplySpacing`. Returns whether anything changed.
+pub fn set_spacing(spacing: Spacing) -> bool {
+    let mut state = state().write().unwrap();
+    if state.spacing == spacing {
+        return false;
+    }
+    state.spacing = spacing;
+    state.density = Density::new(spacing);
+    true
+}
+
+pub fn spacing() -> Spacing {
+    state().read().unwrap().spacing
 }
 
 /// `ShareX.FontSize.Default`.
@@ -442,20 +550,16 @@ impl Density {
     }
 }
 
-/// The current [`Density`], kept in the context's memory so every widget
-/// can read it.
-pub fn density(ctx: &egui::Context) -> Density {
-    ctx.data(|d| d.get_temp::<Density>(egui::Id::NULL)).unwrap_or_default()
+/// The current [`Density`] ([`set_spacing`]).
+pub fn density(_ctx: &egui::Context) -> Density {
+    state().read().unwrap().density.clone()
 }
 
-pub fn set_density(ctx: &egui::Context, density: Density) {
-    ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, density));
-}
-
-/// Puts ShareX's palettes, base font size and spacing on `ctx`.
-pub fn apply(ctx: &egui::Context, spacing_percent: f32) {
-    ctx.set_visuals_of(Theme::Dark, visuals(Visuals::dark(), &DARK));
-    ctx.set_visuals_of(Theme::Light, visuals(Visuals::light(), &LIGHT));
+/// Puts ShareX's palettes (with the current accent) and base font size on
+/// `ctx`. Called again when the accent changes.
+pub fn apply(ctx: &egui::Context) {
+    ctx.set_visuals_of(Theme::Dark, visuals(Visuals::dark(), &palette_of(Theme::Dark)));
+    ctx.set_visuals_of(Theme::Light, visuals(Visuals::light(), &palette_of(Theme::Light)));
     ctx.all_styles_mut(|style| {
         use egui::{FontFamily, FontId, TextStyle};
         style.text_styles = [
@@ -475,8 +579,6 @@ pub fn apply(ctx: &egui::Context, spacing_percent: f32) {
             style.visuals.text_options.subpixel_binning = false;
         }
     });
-    let pct = spacing_percent;
-    set_density(ctx, Density::new(Spacing { sidebar: pct, menus: pct, tool_menus: pct, settings: pct }));
 }
 
 fn visuals(mut v: Visuals, p: &Palette) -> Visuals {
@@ -489,6 +591,7 @@ fn visuals(mut v: Visuals, p: &Palette) -> Visuals {
     v.hyperlink_color = p.link;
     v.selection.bg_fill = p.accent_start;
     v.selection.stroke = Stroke::new(1.0, p.accent_foreground);
+    v.text_cursor.stroke = Stroke::new(1.0, p.text);
     v.window_corner_radius = CornerRadius::same(8);
     v.menu_corner_radius = CornerRadius::same(8);
     let w = &mut v.widgets;

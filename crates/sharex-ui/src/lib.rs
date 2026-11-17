@@ -16,6 +16,8 @@
 //! - [`gpu`] and [`offscreen`]: one wgpu device for every window, and
 //!   rendering any UI to a PNG for comparing against ShareX.
 
+pub mod accent;
+pub mod controls;
 pub mod fonts;
 pub mod gpu;
 pub mod keys;
@@ -27,8 +29,8 @@ pub mod widgets;
 
 pub use theme::{Density, Palette, palette};
 
-/// Applies ShareX's fonts, palettes and spacing to a window's context.
-pub fn install(ctx: &egui::Context, density: f32) {
+/// Applies ShareX's fonts and palettes to a window's context.
+pub fn install(ctx: &egui::Context) {
     fonts::install(ctx);
-    theme::apply(ctx, density);
+    theme::apply(ctx);
 }
