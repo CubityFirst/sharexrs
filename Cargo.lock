@@ -3371,6 +3371,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharex-image-editor"
+version = "22.4.0"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+ "sharex-settings",
+ "sharex-skia",
+]
+
+[[package]]
 name = "sharex-settings"
 version = "22.4.0"
 dependencies = [
@@ -3380,6 +3391,13 @@ dependencies = [
  "serde_json",
  "sharex-strings",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "sharex-skia"
+version = "22.4.0"
+dependencies = [
+ "tiny-skia",
 ]
 
 [[package]]
