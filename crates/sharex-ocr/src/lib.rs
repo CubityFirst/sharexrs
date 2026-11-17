@@ -26,7 +26,7 @@ pub use detector::{DbParams, DetectionTrace, boxes_from_map, input_size};
 pub use engine::{
     BUILT_IN_DETECTION_MODEL_NAME, BUILT_IN_RECOGNITION_MODEL_NAME, DEFAULT_MIN_SCORE,
     DETECTION_MODEL_NAMES, DOWNLOAD_FOLDER_SUFFIX, PaddleOcrEngine, RECOGNITION_MODEL_NAMES, Trace,
-    default_models_folder, find_model_folder,
+    default_models_folder, find_model_folder, models_folder_for,
 };
 pub use geometry::{Point, Rect};
 pub use recognizer::{CropBatch, LineTrace, line_crops};
