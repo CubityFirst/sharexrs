@@ -43,7 +43,10 @@ taught us about shipping on macOS.
    popups (menus, the tool grid), which are Segoe UI Regular.
 5. **Settings stay compatible.** ShareXrs reads and writes ShareX's JSON
    (`ApplicationConfig.json`, `HotkeysConfig.json`, `UploadersConfig.json`)
-   with the same property names, so a user can move between the two.
+   with the same property names, so a user can move between the two. But
+   ShareXrs keeps them in its own folder (`Documents/ShareXrs`, portable
+   `ShareXrs/`, registry policy `SOFTWARE\ShareXrs`): it never reads,
+   writes or migrates a real ShareX profile on the same machine.
 
 Known, accepted differences:
 - Text anti-aliasing: Avalonia uses ClearType (subpixel) on Windows, egui

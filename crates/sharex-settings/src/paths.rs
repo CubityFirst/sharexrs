@@ -2,24 +2,28 @@
 //! `PersonalPathManager.cs`, `SystemOptions.cs` and the paths in
 //! `SettingManager.cs`.
 //!
-//! ShareXrs uses ShareX's own folders (`Documents/ShareX`, or `ShareX` next
-//! to the executable when a `Portable` file is there), so it reads and
-//! writes the same profile as ShareX.
+//! ShareXrs keeps ShareX's layout and file formats but in its own folder,
+//! `Documents/ShareXrs` (or `ShareXrs` next to the executable when a
+//! `Portable` file is there), and its own registry policy key, so it never
+//! writes to, migrates or locks a real ShareX profile on the same machine.
+//! The files are ShareX's format, so a ShareX profile can be copied in.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ApplicationConfig;
 
-/// `ApplicationInfo.Name`: the folder name, kept as ShareX's.
-pub const APPLICATION_NAME: &str = "ShareX";
+/// The personal folder's name: ShareX's `ApplicationInfo.Name` is
+/// "ShareX"; ShareXrs uses its own so the two apps' profiles stay apart.
+pub const APPLICATION_NAME: &str = "ShareXrs";
 pub const APPLICATION_CONFIG_FILE_NAME: &str = "ApplicationConfig.json";
 pub const HOTKEYS_CONFIG_FILE_NAME: &str = "HotkeysConfig.json";
 pub const UPLOADERS_CONFIG_FILE_NAME: &str = "UploadersConfig.json";
 const PERSONAL_PATH_CONFIG_FILE_NAME: &str = "PersonalPath.cfg";
 
-/// `SystemOptions`: policy values from `HKLM\SOFTWARE\ShareX`, then
-/// `HKCU\SOFTWARE\ShareX` (Windows only; elsewhere all off).
+/// `SystemOptions`: policy values from `HKLM\SOFTWARE\ShareXrs`, then
+/// `HKCU\SOFTWARE\ShareXrs` (ShareX's `SOFTWARE\ShareX`, under ShareXrs's
+/// own name; Windows only, elsewhere all off).
 #[derive(Debug, Clone, Default)]
 pub struct SystemOptions {
     pub disable_update_check: bool,
@@ -68,7 +72,7 @@ pub fn absolute_path(path: &str) -> PathBuf {
     if path.is_absolute() { path } else { base_directory().join(path) }
 }
 
-/// `AppPaths.DefaultPersonalFolder`: `Documents/ShareX`.
+/// `AppPaths.DefaultPersonalFolder`: `Documents/ShareXrs`.
 pub fn default_personal_folder() -> PathBuf {
     dirs::document_dir().or_else(dirs::home_dir).unwrap_or_default().join(APPLICATION_NAME)
 }
@@ -85,7 +89,7 @@ pub fn is_command_present(args: &[String], names: &[&str]) -> bool {
 impl AppPaths {
     /// `PersonalPathManager.Initialize()`: `-sandbox`; `-portable`/`-p` or a
     /// `Portable` file next to the executable; the `PersonalPath` policy; a
-    /// `PersonalPath.cfg`; else `Documents/ShareX`. Creates the folder.
+    /// `PersonalPath.cfg`; else `Documents/ShareXrs`. Creates the folder.
     pub fn initialize(args: &[String], system: &SystemOptions) -> AppPaths {
         let mut paths = AppPaths {
             personal_folder: default_personal_folder(),
@@ -339,7 +343,7 @@ mod registry {
         HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_DWORD, REG_QWORD, REG_SZ, RRF_RT_ANY, RegGetValueW,
     };
 
-    const PATH: &str = "SOFTWARE\\ShareX";
+    const PATH: &str = "SOFTWARE\\ShareXrs";
 
     enum RegValue {
         Number(u64),
