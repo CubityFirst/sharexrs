@@ -78,12 +78,20 @@ def norm_request(req):
             body = body.replace(b.encode(), b"BOUNDARY")
     # Immich sends a new GUID and the time with each upload.
     body = re.sub(rb"ShareX-[0-9a-f]{32}", b"ShareX-GUID", body)
+    # Services that take the user agent as a form field (puush's "z").
+    body = re.sub(rb"ShareX(rs)?/[0-9.]+", b"ShareX/VERSION", body)
     body = re.sub(rb"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{7}\+00:00", b"TIMESTAMP", body)
     norm = []
     for k, v in headers:
         v = re.sub(r'boundary="?[^";]+"?', 'boundary="BOUNDARY"', v) if k.lower() == "content-type" else v
         if k.lower() == "user-agent":
-            v = re.sub(r"^ShareX/[0-9.]+", "ShareX/VERSION", v)
+            # ShareXrs identifies as itself (ShareXrs/<version>) where ShareX
+            # sends ShareX/<version>: the one intended difference.
+            v = re.sub(r"^ShareX(rs)?/[0-9.]+", "ShareX/VERSION", v)
+        if k.lower() == "content-length":
+            # From the normalised body: the user agent in a body is longer
+            # in ShareXrs ("ShareXrs/"), and nothing else may differ.
+            v = str(len(body))
         norm.append((k.lower(), v))
     return {"method": req["method"], "target": req["target"], "version": req["version"], "chunked": req["chunked"],
             "headers": norm, "body": body}

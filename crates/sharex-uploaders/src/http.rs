@@ -61,11 +61,11 @@ static SETTINGS: LazyLock<RwLock<HttpSettings>> = LazyLock::new(|| {
     RwLock::new(HttpSettings { user_agent: default_user_agent(), proxy: ProxySettings::default(), rewriter: None })
 });
 
-/// `ShareXResources.UserAgent`: `ShareX/<version>`. ShareXrs sends ShareX's
-/// own user agent: services and self-hosted upload servers (and many .sxcu
-/// targets) check for it.
+/// `ShareXResources.UserAgent` is `ShareX/<version>`; ShareXrs identifies
+/// itself as `ShareXrs/<version>` rather than present as ShareX to third
+/// parties. A `.sxcu` that needs another can set its own `User-Agent`.
 pub fn default_user_agent() -> String {
-    format!("ShareX/{}", env!("CARGO_PKG_VERSION"))
+    format!("ShareXrs/{}", env!("CARGO_PKG_VERSION"))
 }
 
 /// The user agent requests send (`ShareXResources.UserAgent`).
