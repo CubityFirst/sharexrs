@@ -1016,7 +1016,7 @@ impl Effect for DrawBackgroundImage {
         let Some(path) = paths::safe_local_path(&self.ImageFilePath, false, ctx) else {
             return Some(bmp);
         };
-        match Bitmap::load(&path) {
+        match crate::bitmap::load(&path) {
             Some(bg) if !bg.is_empty() => Some(ops::draw_background_image(
                 &bmp,
                 &bg,
@@ -1117,7 +1117,7 @@ impl Effect for DrawImage {
         else {
             return Some(bmp);
         };
-        let Some(mut wm) = Bitmap::load(&path) else {
+        let Some(mut wm) = crate::bitmap::load(&path) else {
             return Some(bmp);
         };
         if self.RotateFlip != RotateFlipType::None {
@@ -1242,7 +1242,7 @@ impl DrawParticles {
             let file = ctx.random.pick(&files).clone();
             let img = cache
                 .entry(file.clone())
-                .or_insert_with(|| Bitmap::load(&file))
+                .or_insert_with(|| crate::bitmap::load(&file))
                 .clone();
             if let Some(img) = img {
                 self.draw_one(bmp, &img, &mut rects, &mut ctx.random);
@@ -1452,14 +1452,14 @@ impl Effect for DrawText {
                     size.height,
                 ));
                 p.anti_alias = true;
-                g.fill_path(path, &p);
+                g.fill_sk_path(path, &p);
             }
             if self.DrawBorder {
                 let stroke = ops::stroke_paint(
                     Shader::Color(self.BorderColor.rgba()),
                     self.BorderSize.max(1) as f32,
                 );
-                ops::stroke_path(&mut g, path, &stroke);
+                ops::stroke_sk_path(&mut g, path, &stroke);
             }
         }
         let tx = (pos.x + self.Padding.left) as f32;

@@ -8,11 +8,13 @@
 //! `src/opts/SkBlitRow_opts.h`, `src/opts/SkSwizzler_opts.h`, `src/core/SkConvertPixels.cpp`,
 //! `src/shaders/SkImageShader.cpp`, `src/core/SkMatrix.cpp`, `src/core/SkM44.cpp`.
 
+pub mod bitmap;
 pub mod canvas;
 mod coverage;
 pub mod gradient;
 pub mod matrix;
 
+pub use bitmap::Bitmap;
 pub use canvas::{Blend, Canvas, Paint, Sampling, Shader, TileMode};
 pub use matrix::{Matrix, Rect};
 

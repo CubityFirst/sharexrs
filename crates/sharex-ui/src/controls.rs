@@ -173,7 +173,7 @@ impl<'a> CheckBox<'a> {
         let box_top = rect.min.y + ((self.min_height - 20.0) / 2.0).floor();
         let b = Rect::from_min_size(pos2(rect.min.x, box_top), Vec2::splat(20.0));
         if !self.enabled {
-            // ShareX's `:disabled` `NormalRectangle`, checked or not.
+            // `:disabled /template/ Border#NormalRectangle`, checked or not.
             bordered(ui, b, 3.0, p.control_background_disabled, p.border);
         } else if *checked {
             border::border(ui.painter(), b, 3.0, 1.0, Some(Brush::accent(ui.ctx())), Some(p.accent_border));
@@ -184,18 +184,19 @@ impl<'a> CheckBox<'a> {
             bordered(ui, b, 3.0, fill, p.border);
         }
         if *checked {
-            // `CheckBoxCheckGlyphForegroundCheckedDisabled` is white in both
-            // themes.
+            // Disabled: white on the disabled fill, as ShareX draws it in
+            // both themes.
             let glyph = if self.enabled { p.accent_foreground } else { Color32::WHITE };
             paint_check_glyph(ui, b, glyph);
         }
-        // A string `Content` takes `CheckBoxForeground*` (base high when
-        // checked or under the pointer, base 40% disabled); a `TextBlock`
-        // with its own colour keeps it.
+        // Disabled: Fluent's `ContentPresenter` foreground
+        // (`CheckBoxForegroundUncheckedDisabled`) wins over ShareX's. A
+        // string `Content` takes `CheckBoxForeground*` (base high when
+        // checked or under the pointer); a `TextBlock` with its own colour
+        // keeps it.
         let color = match self.text_color {
-            Some(c) if self.enabled => c,
-            Some(_) => p.text_secondary,
-            None if !self.enabled => f.base_medium_low,
+            _ if !self.enabled => f.base_medium_low,
+            Some(c) => c,
             None if *checked || over => f.base_high,
             None => p.text,
         };
@@ -536,9 +537,11 @@ impl Default for TextBox<'_> {
 }
 
 impl TextBox<'_> {
-    /// A `TextPresenter` takes the control's font: Inter, Normal.
+    /// A `TextPresenter` takes the control's font: Inter, Normal, at
+    /// Fluent's `ControlContentThemeFontSize` (14; ShareX's `TextBox` style
+    /// doesn't set one).
     pub fn font() -> FontId {
-        content_font(13.0, 400)
+        content_font(14.0, 400)
     }
 
     /// Draws the text box in `rect`, editing `text`.
@@ -612,6 +615,39 @@ pub struct NumericUpDown {
 
 impl NumericUpDown {
     pub fn show(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut i64) -> bool {
+        let spinner = DecimalUpDown {
+            minimum: self.minimum as f64,
+            maximum: self.maximum as f64,
+            increment: 1.0,
+            decimals: 0,
+            enabled: self.enabled,
+        };
+        let mut v = *value as f64;
+        if spinner.show(ui, rect, id, &mut v) {
+            *value = v.round() as i64;
+            return true;
+        }
+        false
+    }
+}
+
+/// A `NumericUpDown` over a `decimal` (`Increment` 0.1 and the like): the
+/// value shown with `decimals` places, as .NET prints a decimal of that
+/// scale.
+pub struct DecimalUpDown {
+    pub minimum: f64,
+    pub maximum: f64,
+    pub increment: f64,
+    pub decimals: usize,
+    pub enabled: bool,
+}
+
+impl DecimalUpDown {
+    fn format(&self, v: f64) -> String {
+        format!("{v:.prec$}", prec = self.decimals)
+    }
+
+    pub fn show(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut f64) -> bool {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let mut changed = false;
@@ -627,10 +663,12 @@ impl NumericUpDown {
         let up = Rect::from_min_max(pos2(rect.max.x - 69.0, rect.min.y + 1.0), pos2(rect.max.x - 35.0, rect.max.y - 1.0));
         let down = Rect::from_min_max(pos2(rect.max.x - 35.0, rect.min.y + 1.0), pos2(rect.max.x - 1.0, rect.max.y - 1.0));
         let now = ui.input(|i| i.time);
-        for (i, (b, step)) in [(up, 1i64), (down, -1)].into_iter().enumerate() {
-            // Each button is disabled at its end of the range, as
-            // `NumericUpDown` sets `ValidSpinDirections`.
-            let enabled = self.enabled && if step > 0 { *value < self.maximum } else { *value > self.minimum };
+        let scale = 10f64.powi(self.decimals as i32);
+        for (i, (b, step)) in [(up, 1.0f64), (down, -1.0)].into_iter().enumerate() {
+            // `ValidSpinDirections`: no increase at the maximum, no
+            // decrease at the minimum.
+            let valid = if step > 0.0 { *value < self.maximum } else { *value > self.minimum };
+            let enabled = self.enabled && valid;
             // The repeat buttons aren't tab stops (`IsTabStop="False"`).
             let sense = if enabled { Sense::CLICK } else { Sense::hover() };
             let r = ui.interact(b, id.with(("spin", i)), sense);
@@ -653,7 +691,7 @@ impl NumericUpDown {
             ui.painter().rect_filled(Rect::from_min_size(b.min, vec2(1.0, b.height())), 0.0, p.border);
             let glyph = Rect::from_center_size(cell.center(), vec2(16.0, 8.0));
             let color = if enabled { f.base_high } else { f.base_medium_low };
-            paint_spinner_chevron(ui, glyph, step > 0, color);
+            paint_spinner_chevron(ui, glyph, step > 0.0, color);
             if focus::visible(ui.ctx(), r.id) {
                 focus::paint_adorner(ui.painter(), b);
             }
@@ -678,7 +716,9 @@ impl NumericUpDown {
                 ui.ctx().data_mut(|d| d.remove::<f64>(key));
             }
             if fire {
-                let v = (*value + step).clamp(self.minimum, self.maximum);
+                // Decimal arithmetic: round to the shown places.
+                let v = ((*value + step * self.increment) * scale).round() / scale;
+                let v = v.clamp(self.minimum, self.maximum);
                 if v != *value {
                     *value = v;
                     changed = true;
@@ -690,9 +730,9 @@ impl NumericUpDown {
         let buf_id = id.with("text");
         let focused = ui.ctx().memory(|m| m.has_focus(buf_id));
         let mut text = if focused {
-            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| value.to_string())
+            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| self.format(*value))
         } else {
-            value.to_string()
+            self.format(*value)
         };
         let font = TextBox::font();
         let lh = line_height(ui, &font);
@@ -715,8 +755,8 @@ impl NumericUpDown {
             ui.ctx().data_mut(|d| d.insert_temp(buf_id, text.clone()));
         }
         if r.lost_focus() {
-            if let Ok(v) = text.trim().parse::<i64>() {
-                let v = v.clamp(self.minimum, self.maximum);
+            if let Ok(v) = text.trim().parse::<f64>() {
+                let v = ((v * scale).round() / scale).clamp(self.minimum, self.maximum);
                 if v != *value {
                     *value = v;
                     changed = true;

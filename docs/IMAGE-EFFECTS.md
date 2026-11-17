@@ -61,12 +61,20 @@ What the port learned about that Skia (all confirmed against the harness):
 - Mitchell sampling changes pixels even at 1:1 (a whole-pixel `DrawImage` with a
   non-identity canvas matrix goes through it), and Skia never treats it as a sprite.
 
-The port, `crates/sharex-image-effects/src/skia/`, reproduces those paths with
-Skia's arithmetic (matrices with `SkMatrix`/`SkM44` float order, inverse in double,
-`bicubic_clamp_8888`, `gradient`/`evenly_spaced_2_stop_gradient` with their stop
-setup, `ix_and_ptr`'s clamping, the legacy blit formulas). Coverage of
-anti-aliased paths comes from tiny-skia (a port of Skia's supersampling scan
-converter); see "Not exact" below.
+The port lives in the shared `crates/sharex-skia` (the image editor draws
+through it too): `sharex_skia::raster` (re-exported here as `skia`) reproduces
+those paths with Skia's arithmetic (matrices with `SkMatrix`/`SkM44` float order,
+inverse in double, `bicubic_clamp_8888`, `gradient`/`evenly_spaced_2_stop_gradient`
+with their stop setup, `ix_and_ptr`'s clamping, the legacy blit formulas).
+Coverage comes from the same crate's scan converters, as Skia picks them:
+`SkScan::AntiFillPath` (analytic AA, `SkScan_AAAPath.cpp`, or the supersampler,
+by `ShouldUseAAA`), `SkScan::AntiFillRect`, edge clipping (`SkEdgeClipper`,
+cubics included), and strokes through `SkStroke` (round joins as conics). Each
+covered pixel keeps the blitter call that covered it (`blitAntiH`, `blitV`,
+`blitAntiH2`, `blitMask`), since the legacy blitters blend each differently.
+Paths are `SkPath`s (`AddRoundRect` keeps its conics, so the point count that
+picks the scan converter is Skia's). Only aliased path fills and dashing still
+go through tiny-skia (whose aliased scan converter and dasher are Skia's).
 
 ## Every effect
 
@@ -201,22 +209,23 @@ compares per channel (premultiplied B, G, R, A, as ShareX holds them).
 defaults, labels and six small pixel cases as fixtures, so `cargo test` checks
 them without .NET.
 
-**Result: 107 of 121 cases identical, byte for byte**; 1 more within ±1 on a few
-edge pixels. Per effect:
+**Result: 116 of 121 cases identical, byte for byte**; 1 more within ±1 on a few
+edge pixels. (107 before the shared analytic AA, cubic clipping and `SkStroke`.)
+Per effect:
 
 | Effect | Cases | Result |
 |---|---|---|
 | Alpha, Black & white, Brightness, Color matrix, Colorize, Contrast, Gamma, Grayscale, Hue, Inverse, Polaroid, Replace color, Saturation, Selective color, Sepia | 33 | identical |
 | Blur, Color depth, Convolution matrix, Edge detect, Emboss, Gaussian blur, Glow, Mean removal, Outline, Reflection, RGB split, Shadow, Sharpen, Slice, Smooth, Wave edge | 33 | identical |
-| Pixelate | 3 | 2 identical; with a border grid: the grid's round-join corner pixels differ (max 13, 2.8% of pixels) |
-| Torn edge | 2 | edge pixels of the torn outline differ (max 63, 1.3–3%); shape and interior identical |
+| Pixelate | 3 | identical |
+| Torn edge | 2 | identical |
 | Auto crop, Canvas, Crop, Flip, Force proportions, Resize, Rotate, Scale, Skew | 25 | identical |
-| Rounded corners | 2 | radius 5 identical; radius 20: anti-aliased corner pixels differ (max 66, 0.8%) |
+| Rounded corners | 2 | identical |
 | Background, Background image, Checkerboard, Image, Particles | 13 | identical |
-| Border | 4 | sides identical; the stroke's corner pixels differ (max 50, ≤ 0.1%) |
-| Text (`DrawTextEx`) | 3 | default identical; with a gradient fill: edge pixels ±1 (0.9%); outline + shadow: stroke edge pixels differ (max 27, 0.45%) |
+| Border | 4 | 3 identical; 1 px wide: the four corner pixels' alpha (Skia draws it as a hairline) |
+| Text (`DrawTextEx`) | 3 | default and outline + shadow identical; with a gradient fill: edge pixels ±1 (0.9%) |
 | Text watermark (`DrawText`) | 3 (incl. the default preset) | same box, position and colours; glyph pixels differ (max ~190, 4–5%) |
-| A chain (Resize, Saturation, Shadow, Border, a disabled Blur) | 1 | only the border's corner pixels (alpha 21, 0.05%) |
+| A chain (Resize, Saturation, Shadow, Border, a disabled Blur) | 1 | identical |
 
 **Presets: every case's preset written back by ShareXrs equals ShareX's
 (export form), every effect's default equals ShareX's in both forms, and ShareX's
@@ -226,16 +235,11 @@ the default preset and a named, disabled effect). Effect labels
 
 ### Not exact, and why
 
-- **Anti-aliased edges of simple paths** (Rounded corners, Torn edge, Border and
-  Pixelate grid corners, the Text watermark's box, Text outlines): Skia m119 fills
-  paths with few points relative to their size with *analytic* AA
-  (`SkScan_AAAPath.cpp`, `ShouldUseAAA`), and tiny-skia only has Skia's
-  supersampler. Complex paths (glyph outlines) use the supersampler in Skia too,
-  which is why the default Text effect is identical. Fixing it means porting
-  `SkScan_AAAPath.cpp` + `SkAnalyticEdge.cpp` (~2,500 lines) together with the
-  per-call blitter variants (`blitAntiH2`/`blitAntiV2`/`blitV` blend differently
-  in the legacy blitter). The image editor's annotations need the same, so it
-  belongs in a shared Skia-port crate later (see the report).
+- **1 px strokes**: an anti-aliased stroke no wider than a device pixel is drawn
+  as a hairline (`SkDrawTreatAsHairline`, then `SkScan::AntiHairPath`), whose line
+  ends overlap at a rectangle's corners. ShareXrs strokes it as a 1 px wide fill:
+  the sides match, the four corner pixels don't. Porting `SkScan_Antihair.cpp`
+  into `sharex-skia` would fix it here and for the editor's 1 px lines.
 - **Text watermark glyphs**: ShareX's `canvas.DrawText` rasterises glyphs through
   DirectWrite (hinted, grayscale) at whole-pixel origins; ShareXrs fills the same
   font's outlines (same file, same advances and metrics: hhea ascent/descent/gap,

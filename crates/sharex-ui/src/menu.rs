@@ -225,6 +225,37 @@ enum Content<C> {
     Grid(Vec<MenuCategory<C>>),
 }
 
+/// Which `MenuItem` style a menu's items take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum MenuStyle {
+    /// `MenuItem.compact-menu-item`: ShareX.Density.Menu's fixed height and
+    /// padding, the hover background on pointer over.
+    #[default]
+    Compact,
+    /// A plain `ContextMenu MenuItem` (ControlStyles.axaml): `Padding="12,8"`,
+    /// as tall as its content, the accent fill and accent foreground on
+    /// pointer over (the hotkey and task pickers).
+    Standard,
+}
+
+impl MenuStyle {
+    fn item_padding(self, d: &crate::theme::Density) -> crate::theme::Thickness {
+        match self {
+            MenuStyle::Compact => d.menu_item_padding,
+            MenuStyle::Standard => crate::theme::Thickness::hv(12.0, 8.0),
+        }
+    }
+
+    fn item_height(self, d: &crate::theme::Density) -> f32 {
+        match self {
+            MenuStyle::Compact => d.menu_item_height,
+            // The padding around an 18px content row (measured on ShareX's
+            // task picker: 34px items).
+            MenuStyle::Standard => 8.0 + 18.0 + 8.0,
+        }
+    }
+}
+
 /// What one open level of a menu shows.
 enum Level<'a, C> {
     Menu(&'a [MenuEntry<C>]),
@@ -267,6 +298,8 @@ pub struct Flyout<C> {
     pub edit_label: String,
     /// Where each level was drawn last frame, for light dismiss.
     rects: Vec<Rect>,
+    /// The items' style.
+    pub style: MenuStyle,
 }
 
 /// A level's geometry, before it's placed.
@@ -303,6 +336,7 @@ impl<C: Clone> Flyout<C> {
             hidden_tools: Vec::new(),
             edit_label: String::new(),
             rects: Vec::new(),
+            style: MenuStyle::Compact,
         }
     }
 
@@ -394,7 +428,7 @@ impl<C: Clone> Flyout<C> {
         for depth in 0..=self.open.len() {
             let root = depth == 0;
             let (m, entries) = match self.level(depth).expect("checked above") {
-                Level::Menu(entries) => (menu_metrics(ui, entries, root), Some(entries)),
+                Level::Menu(entries) => (menu_metrics(ui, entries, root, self.style), Some(entries)),
                 Level::Grid(categories) => {
                     let g = GridLayout::new(ui, categories, &self.hidden_tools, &self.edit_label);
                     let m = MenuMetrics {
@@ -417,7 +451,7 @@ impl<C: Clone> Flyout<C> {
                 let item = items[self.open[depth - 1]];
                 place(item, Placement::RightEdgeAlignedTop, m.size, -4.0, bounds)
             };
-            let items = entries.map_or_else(Vec::new, |e| item_rects(e, rect, root, &d));
+            let items = entries.map_or_else(Vec::new, |e| item_rects(e, rect, root, &d, self.style));
             placed.push((rect, m, items));
         }
         self.rects = placed.iter().map(|(r, ..)| *r).collect();
@@ -451,6 +485,7 @@ impl<C: Clone> Flyout<C> {
                     .order(Order::Foreground)
                     .fixed_pos(rect.min)
                     .constrain(false)
+                    .fade_in(false)
                     .show(&ctx, |ui| {
                         ui.set_clip_rect(*rect);
                         let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
@@ -466,6 +501,7 @@ impl<C: Clone> Flyout<C> {
                 .order(Order::Foreground)
                 .fixed_pos(rect.min)
                 .constrain(false)
+                .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.set_clip_rect(*rect);
                     let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
@@ -486,7 +522,7 @@ impl<C: Clone> Flyout<C> {
                             selected: selected == Some(i),
                             open: open == Some(i),
                         };
-                        paint_item(ui, *item, entry, m, state);
+                        paint_item(ui, *item, entry, m, state, self.style);
                         if entry.interactive() {
                             if r.clicked() {
                                 clicked = Some((depth, i));
@@ -714,6 +750,7 @@ impl<C: Clone> Flyout<C> {
             .order(Order::Foreground)
             .fixed_pos(rect.min)
             .constrain(false)
+            .fade_in(false)
             .show(&ctx, |ui| {
                 ui.set_clip_rect(rect);
                 let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
@@ -796,7 +833,7 @@ fn gesture_font() -> FontId {
     font(FONT_SIZE, 600)
 }
 
-fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool) -> MenuMetrics {
+fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuStyle) -> MenuMetrics {
     let d = density(ui.ctx());
     let shown = || entries.iter().filter(|e| e.visible && !e.separator);
     let icon_margin = d.menu_icon_presenter_margin.right;
@@ -810,11 +847,11 @@ fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool) -> MenuMetrics
             .map(|g| widgets::text_width(ui, g, gesture_font()))
             .fold(0.0, f32::max);
     let chevron_col = if shown().any(|e| e.has_children()) { 12.0 + 8.0 } else { 0.0 };
-    let pad = d.menu_item_padding;
+    let pad = style.item_padding(&d);
     let item_w = pad.left + toggle_col + icon_col + header_col + gesture_col + chevron_col + pad.right;
     let mut h = 0.0;
     for e in entries.iter().filter(|e| e.visible) {
-        h += if e.separator { 1.0 + d.menu_separator_margin.top + d.menu_separator_margin.bottom } else { d.menu_item_height };
+        h += if e.separator { 1.0 + d.menu_separator_margin.top + d.menu_separator_margin.bottom } else { style.item_height(&d) };
     }
     let frame = frame_padding(&d, root);
     let size = vec2(
@@ -830,7 +867,7 @@ fn frame_padding(d: &crate::theme::Density, root: bool) -> crate::theme::Thickne
     if root { d.menu_padding } else { d.menu_flyout_presenter_padding }
 }
 
-fn item_rects<C>(entries: &[MenuEntry<C>], rect: Rect, root: bool, d: &crate::theme::Density) -> Vec<Rect> {
+fn item_rects<C>(entries: &[MenuEntry<C>], rect: Rect, root: bool, d: &crate::theme::Density, style: MenuStyle) -> Vec<Rect> {
     let frame = frame_padding(d, root);
     let left = rect.min.x + 1.0 + frame.left;
     let right = rect.max.x - 1.0 - frame.right;
@@ -843,7 +880,7 @@ fn item_rects<C>(entries: &[MenuEntry<C>], rect: Rect, root: bool, d: &crate::th
             } else if e.separator {
                 1.0 + d.menu_separator_margin.top + d.menu_separator_margin.bottom
             } else {
-                d.menu_item_height
+                style.item_height(d)
             };
             let r = Rect::from_min_size(pos2(left, y), vec2(right - left, h));
             y += h;
@@ -887,8 +924,8 @@ struct ItemState {
 /// `MenuFlyoutSubItemChevron`'s path, `MenuItemChevronPathData`.
 const CHEVRON_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 20" width="10" height="20"><path fill="currentColor" d="M 1,0 10,10 l -9,10 -1,-1 L 8,10 -0,1 Z"/></svg>"#;
 
-/// One `MenuItem.compact-menu-item`.
-fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, state: ItemState) {
+/// One `MenuItem.compact-menu-item` (or a plain one, `style`).
+fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, state: ItemState, style: MenuStyle) {
     let ctx = ui.ctx();
     let p = palette(ctx);
     let f = fluent(ctx);
@@ -897,13 +934,18 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     let disabled = !entry.enabled;
     // ShareX's `:pointerover` fill wins over Fluent's `:selected` one; an
     // item highlighted without the pointer shows Fluent's.
-    if state.hovered && !disabled {
+    let accent_hover = style == MenuStyle::Standard && state.hovered && !disabled;
+    if accent_hover {
+        paint_accent_gradient(ui, rect, CornerRadius::same(4));
+    } else if state.hovered && !disabled {
         painter.rect_filled(rect, CornerRadius::same(4), p.control_background_hover);
     } else if state.selected && !disabled {
         painter.rect_filled(rect, CornerRadius::same(4), f.list_low);
     }
     let header_color = if disabled {
         f.base_medium_low
+    } else if accent_hover {
+        p.accent_foreground
     } else if state.hovered {
         p.text
     } else if state.selected {
@@ -912,7 +954,7 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
         p.text
     };
 
-    let pad = d.menu_item_padding;
+    let pad = style.item_padding(&d);
     let content = Rect::from_min_max(pos2(rect.min.x + pad.left, rect.min.y + pad.top), pos2(rect.max.x - pad.right, rect.max.y - pad.bottom));
     let mut x = content.min.x;
     let box_at = |x: f32| Rect::from_min_size(pos2(x, widgets::center_y(content, 16.0)), Vec2::splat(16.0));
@@ -924,7 +966,7 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
                 Toggle::CheckBox => icons::paint(painter, b, crate::keys::app_icons::Check, p.accent_icon),
                 // An 8x8 `Ellipse` with Margin 4, in the item's foreground.
                 Toggle::Radio => {
-                    painter.circle_filled(b.center(), 4.0, p.text);
+                    painter.circle_filled(b.center(), 4.0, header_color);
                 }
                 Toggle::None => {}
             }
@@ -934,7 +976,8 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     if m.icon_col > 0.0 {
         let b = box_at(x);
         match entry.icon {
-            MenuIcon::Key(key) => icons::paint(painter, b, key, p.accent_icon),
+            // A plain item's accent icon takes the fill's text colour on hover.
+            MenuIcon::Key(key) => icons::paint(painter, b, key, if accent_hover { p.accent_foreground } else { p.accent_icon }),
             MenuIcon::Texture(tex) => {
                 painter.image(tex, b, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
             }
@@ -989,6 +1032,8 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     if entry.has_children() && m.chevron_col > 0.0 {
         let color = if disabled {
             f.base_medium_low
+        } else if accent_hover {
+            p.accent_foreground
         } else if state.hovered || state.selected || state.open {
             f.base_high
         } else {

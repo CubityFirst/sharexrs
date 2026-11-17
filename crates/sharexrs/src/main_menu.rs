@@ -463,7 +463,7 @@ pub fn tool_categories() -> Vec<MenuCategory<MenuCommand>> {
 
 /// `AfterCaptureTasks`, in declaration order, with
 /// `GetAfterCaptureTaskIcon`'s icons.
-const AFTER_CAPTURE_TASKS: [(&str, &str); 23] = [
+pub const AFTER_CAPTURE_TASKS: [(&str, &str); 23] = [
     ("ShowQuickTaskMenu", icon::Menu),
     ("ShowAfterCaptureWindow", icon::Window),
     ("BeautifyImage", icon::ImageBeautifier),
@@ -490,7 +490,7 @@ const AFTER_CAPTURE_TASKS: [(&str, &str); 23] = [
 ];
 
 /// `AfterUploadTasks`, with `GetAfterUploadTaskIcon`'s icons.
-const AFTER_UPLOAD_TASKS: [(&str, &str); 6] = [
+pub const AFTER_UPLOAD_TASKS: [(&str, &str); 6] = [
     ("ShowAfterUploadWindow", icon::Window),
     ("UseURLShortener", icon::ShortLink),
     ("ShareURL", icon::Share),
@@ -777,6 +777,128 @@ pub fn debug_menu(state: &MenuState) -> Vec<Entry> {
         item(s::MainMenuBuilder_TestUrlShortener(), icon::ShortLink, C::TestUrlShortener).visible(up),
         item(s::MainMenuBuilder_TestUrlSharing(), icon::Share, C::TestUrlSharing).visible(up),
     ]
+}
+
+/// `TaskHelpers.FindMenuIcon(hotkeyType)`.
+pub fn find_menu_icon(job: &sharex_settings::HotkeyType) -> &'static str {
+    use sharex_settings::HotkeyType as H;
+    match job {
+        H::None => icon::CircleDashed,
+        // Upload
+        H::FileUpload => icon::FileUpload,
+        H::FolderUpload => icon::FolderUpload,
+        H::ClipboardUpload => icon::UploadClipboard,
+        H::ClipboardUploadWithContentViewer => icon::ClipboardViewer,
+        H::UploadText => icon::FileText,
+        H::UploadURL => icon::Link,
+        H::DragDropUpload => icon::DragDropUpload,
+        H::ShortenURL => icon::ShortLink,
+        H::StopUploads => icon::CircleStop,
+        // Screen capture
+        H::PrintScreen => icon::Fullscreen,
+        H::ActiveWindow | H::CustomWindow => icon::Window,
+        H::ActiveMonitor => icon::Monitor,
+        H::RectangleRegion => icon::Region,
+        H::RectangleTransparent => icon::RegionTransparent,
+        H::CustomRegion => icon::Crop,
+        H::LastRegion => icon::LastRegion,
+        H::ScrollingCapture => icon::ScrollingCapture,
+        H::AutoCapture => icon::AutoCapture,
+        H::StartAutoCapture => icon::CirclePlay,
+        H::StopAutoCapture => icon::TimerOff,
+        // Screen record
+        H::ScreenRecorder => icon::ScreenRecording,
+        H::ScreenRecorderActiveWindow => icon::Window,
+        H::ScreenRecorderCustomRegion => icon::Crop,
+        H::StartScreenRecorder => icon::CirclePlay,
+        H::ScreenRecorderGIF | H::ScreenRecorderGIFActiveWindow => icon::Film,
+        H::ScreenRecorderGIFCustomRegion => icon::Crop,
+        H::StartScreenRecorderGIF => icon::CirclePlay,
+        H::StopScreenRecording => icon::CircleStop,
+        H::PauseScreenRecording => icon::CirclePause,
+        H::AbortScreenRecording => icon::CircleX,
+        // Tools
+        H::ColorPicker => icon::Palette,
+        H::ScreenColorPicker => icon::ScreenColorPicker,
+        H::Ruler => icon::Measure,
+        H::ClassicRuler => icon::Ruler,
+        H::MouseHighlighter => icon::MouseHighlighter,
+        H::PinToScreen => icon::Pin,
+        H::PinToScreenFromScreen => icon::PictureInPicture,
+        H::PinToScreenFromClipboard => icon::Clipboard,
+        H::PinToScreenFromFile => icon::FileImage,
+        H::PinToScreenCloseAll => icon::Unpin,
+        H::ImageEditor => icon::ImageEditor,
+        H::PhotoEditor => icon::Layers,
+        H::PixelEditor => icon::PixelEditor,
+        H::ImageBeautifier => icon::ImageBeautifier,
+        H::ImageEffects => icon::MagicWand,
+        H::ImageViewer => icon::Eye,
+        H::BackgroundRemover => icon::BackgroundRemover,
+        H::ImageComparer => icon::ImageComparer,
+        H::IconConverter => icon::IconConverter,
+        H::ImageCombiner => icon::Combine,
+        H::ImageSplitter => icon::Split,
+        H::ImageResizer => icon::Resize,
+        H::ImageConverter => icon::ImageConverter,
+        H::ImageWatermark => icon::Stamp,
+        H::ImageThumbnailer => icon::ImageThumbnailer,
+        H::VideoConverter => icon::VideoConverter,
+        H::VideoTrimmer => icon::Scissors,
+        H::AnimatedGifTrimmer => icon::ScissorsFrame,
+        H::VideoThumbnailer => icon::Clapperboard,
+        H::AnalyzeImage => icon::Robot,
+        H::OCR => icon::TextRecognition,
+        H::QRCode => icon::QrCode,
+        H::QRCodeDecodeFromScreen => icon::ScanEye,
+        H::QRCodeScanRegion => icon::QrScan,
+        H::HashCheck => icon::Hash,
+        H::Metadata => icon::Tag,
+        H::StripMetadata => icon::FileDelete,
+        H::IndexFolder => icon::FolderTree,
+        H::ClipboardViewer => icon::ClipboardViewer,
+        H::BorderlessWindow | H::ActiveWindowBorderless => icon::BorderlessWindow,
+        H::ActiveWindowTopMost => icon::Pin,
+        H::InspectWindow => icon::InspectWindow,
+        H::NetworkMonitor => icon::Activity,
+        H::MonitorTest => icon::MonitorTest,
+        // Other
+        H::DisableHotkeys => icon::KeyboardOff,
+        H::OpenMainWindow => icon::Window,
+        H::OpenScreenshotsFolder => icon::ScreenshotsFolder,
+        H::OpenHistory => icon::History,
+        H::OpenImageHistory => icon::ImageHistory,
+        H::ToggleActionsToolbar => icon::Toolbar,
+        H::ToggleTrayMenu => icon::Menu,
+        H::ExitShareX => icon::Exit,
+        _ => icon::Circle,
+    }
+}
+
+/// The task picker (`HotkeySettingsWindow.OnTaskClick`,
+/// `TaskSettingsPageBuilder.TaskMenu`): `None`, then a submenu per
+/// category (`GroupBy(Category)`, in enum order), each task a radio item.
+pub fn task_menu(selected: &sharex_settings::HotkeyType) -> Vec<MenuEntry<sharex_settings::HotkeyType>> {
+    use sharex_settings::HotkeyType as H;
+    let item = |h: &H| {
+        MenuEntry::item(h.localized_description(), find_menu_icon(h), h.clone()).toggle(Toggle::Radio, h == selected)
+    };
+    let mut values: Vec<&H> = H::ALL.iter().collect();
+    // `Helpers.GetEnums` is `Enum.GetValues`: sorted by value.
+    values.sort_by_key(|h| h.value().unwrap_or(i64::MAX));
+    let mut root = Vec::new();
+    let mut groups: Vec<(String, Vec<MenuEntry<H>>)> = Vec::new();
+    for h in values {
+        match h.localized_category() {
+            None => root.push(item(h)),
+            Some(c) => match groups.iter_mut().find(|(k, _)| *k == c) {
+                Some((_, items)) => items.push(item(h)),
+                None => groups.push((c, vec![item(h)])),
+            },
+        }
+    }
+    root.extend(groups.into_iter().map(|(c, items)| MenuEntry::parent(c, "", items)));
+    root
 }
 
 #[cfg(test)]

@@ -13,6 +13,7 @@ mod appearance;
 mod capture;
 mod capture_job;
 mod controls_gallery;
+mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
 mod main_window;
@@ -20,11 +21,13 @@ mod message_box;
 mod region_render;
 mod region_session;
 mod render;
+mod settings_form;
 mod shell;
 mod sound;
 mod start_screen;
 mod startup;
 mod task_actions;
+mod task_settings_window;
 mod task_view;
 mod tasks;
 mod test_pattern;
@@ -141,6 +144,8 @@ fn main() {
         modifiers: Default::default(),
         start_window: None,
         settings_window: None,
+        hotkey_window: None,
+        task_window: None,
         current_theme: egui::Theme::Dark,
         system_theme: None,
         // `StartupOptions.SilentRun` (`-silent`, `-s`): start in the tray.
@@ -215,6 +220,10 @@ struct App {
     start_window: Option<app_windows::StartWindow>,
     /// Application settings, while it's open.
     settings_window: Option<app_windows::SettingsWindow>,
+    /// Hotkey settings, while it's open.
+    hotkey_window: Option<app_windows::HotkeyWindow>,
+    /// Task settings (the defaults' or a hotkey's), while it's open.
+    task_window: Option<app_windows::TaskWindow>,
     /// `ThemeManager.GetCurrentTheme()`.
     current_theme: egui::Theme,
     /// The OS's light or dark mode, for `UseSystemTheme`.
@@ -328,6 +337,15 @@ impl App {
                 self.show_application_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_TaskSettings`, `MainMenuBuilder_HotkeySettings`.
+            Action::Nav(8, _) => {
+                self.show_task_settings(event_loop, app_windows::TaskTarget::Default);
+                return;
+            }
+            Action::Nav(9, _) => {
+                self.show_hotkey_settings(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -373,6 +391,8 @@ impl App {
             MenuCommand::ToggleHotkeys => self.toggle_hotkeys(),
             MenuCommand::ShowMainWindow => self.show_main_window(event_loop),
             MenuCommand::ApplicationSettings => self.show_application_settings(event_loop),
+            MenuCommand::TaskSettings => self.show_task_settings(event_loop, app_windows::TaskTarget::Default),
+            MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -770,6 +790,10 @@ impl App {
     /// `MainWindow.RefreshHotkeyTips`.
     fn refresh_hotkey_tips(&mut self) {
         self.state.hotkey_tips = main_window::hotkey_tips(&self.settings.hotkeys.Hotkeys);
+        // The Hotkey settings window shows the statuses too.
+        if let Some(h) = &self.hotkey_window {
+            h.window.window.request_redraw();
+        }
         if let Some(w) = &self.main {
             w.window.request_redraw();
         }
@@ -1123,6 +1147,8 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(mut s) = self.settings_window.take() {
             s.state.flush_personal_path();
         }
+        self.hotkey_window = None;
+        self.task_window = None;
         self.tray = None;
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);

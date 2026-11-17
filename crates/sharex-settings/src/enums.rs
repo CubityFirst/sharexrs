@@ -39,6 +39,41 @@ impl HotkeyType {
             .map(str::to_owned)
             .unwrap_or_else(|| self.name().to_owned())
     }
+
+    /// The `[Category]` of the value (`EnumExtensions.HotkeyType_Category_*`),
+    /// none for `None`.
+    pub fn category(&self) -> Option<&'static str> {
+        use HotkeyType::{
+            DisableHotkeys, ExitShareX, OpenHistory, OpenImageHistory, OpenMainWindow, OpenScreenshotsFolder, ToggleActionsToolbar,
+            ToggleTrayMenu,
+        };
+        let v = self.value()?;
+        Some(match v {
+            0 => return Option::None,
+            1..=9 => "Upload",
+            10..=21 => "ScreenCapture",
+            22..=32 => "ScreenRecord",
+            _ if *self == DisableHotkeys
+                || *self == OpenMainWindow
+                || *self == OpenScreenshotsFolder
+                || *self == OpenHistory
+                || *self == OpenImageHistory
+                || *self == ToggleActionsToolbar
+                || *self == ToggleTrayMenu
+                || *self == ExitShareX =>
+            {
+                "Other"
+            }
+            _ => "Tools",
+        })
+    }
+
+    /// `EnumInfo.Category` (`GetLocalizedCategory`): the
+    /// `HotkeyType_Category_<category>` string.
+    pub fn localized_category(&self) -> Option<String> {
+        let c = self.category()?;
+        Some(localized_description("HotkeyType_Category", c).unwrap_or_else(|| c.to_owned()))
+    }
 }
 
 dotnet_flags! {
@@ -211,7 +246,25 @@ macro_rules! described {
         }
     )*};
 }
-described!(UpdateChannel, TaskViewMode, ImagePreviewVisibility, ImagePreviewLocation, ThumbnailTitleLocation, ThumbnailViewClickAction, ProxyMethod);
+described!(
+    UpdateChannel,
+    TaskViewMode,
+    ImagePreviewVisibility,
+    ImagePreviewLocation,
+    ThumbnailTitleLocation,
+    ThumbnailViewClickAction,
+    ProxyMethod,
+    ToastClickAction,
+    ToastWindowMonitor,
+    FileExistAction,
+    ImageContentAlignment,
+    EImageFormat,
+    PNGBitDepth,
+    BMPBitDepth,
+    GIFQuality,
+    RegionCaptureAction,
+    RegionCaptureMagnifierScrollAction
+);
 
 dotnet_enum! {
     /// `ShareX.HelpersLib.ProxyMethod`.
@@ -414,6 +467,18 @@ mod tests {
         assert_eq!(serde_json::from_str::<AfterCaptureTasks>(r#""SaveImageToFile,copyimagetoclipboard""#).unwrap(), t);
         assert!(serde_json::from_str::<AfterCaptureTasks>(r#""NoSuchTask""#).is_err());
         assert_eq!(serde_json::to_string(&AfterCaptureTasks(1 << 30)).unwrap(), "1073741824");
+    }
+
+    #[test]
+    fn hotkey_categories() {
+        assert_eq!(HotkeyType::None.category(), None);
+        assert_eq!(HotkeyType::StopUploads.category(), Some("Upload"));
+        assert_eq!(HotkeyType::PrintScreen.category(), Some("ScreenCapture"));
+        assert_eq!(HotkeyType::AbortScreenRecording.category(), Some("ScreenRecord"));
+        assert_eq!(HotkeyType::MonitorTest.category(), Some("Tools"));
+        assert_eq!(HotkeyType::ExitShareX.category(), Some("Other"));
+        assert_eq!(HotkeyType::AnimatedGifTrimmer.category(), Some("Tools"));
+        assert_eq!(HotkeyType::ScreenRecorder.localized_category().as_deref(), Some("Screen record"));
     }
 
     #[test]

@@ -6,12 +6,15 @@
 //! - [`preset`]: presets in ShareX's JSON (settings and export forms) and
 //!   [`preset::apply_image_effects`], what the after-capture "Add image effects" task runs.
 //! - [`package`]: `.sxie` packages.
-//! - [`skia`]: the Skia raster operations ShareX's effects go through, ported with
-//!   Skia's own arithmetic; [`ops`]: ShareX's `SkiaImageHelpers` on top of them.
+//! - [`skia`] (`sharex_skia::raster`): the Skia raster operations ShareX's effects go
+//!   through, ported with Skia's own arithmetic; [`ops`]: ShareX's `SkiaImageHelpers` on top of them.
 //!
 //! See `docs/IMAGE-EFFECTS.md` for the map and the validation against ShareX.
 
 pub mod bitmap;
+/// The Skia raster operations, shared with the image editor in `sharex-skia`.
+pub use sharex_skia::raster as skia;
+
 pub mod dotnet;
 pub mod effects;
 pub mod ops;
@@ -20,7 +23,6 @@ pub mod paths;
 pub mod pixels;
 pub mod preset;
 pub mod random;
-pub mod skia;
 pub mod text;
 
 pub use bitmap::Bitmap;

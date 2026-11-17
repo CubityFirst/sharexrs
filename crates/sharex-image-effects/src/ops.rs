@@ -626,26 +626,23 @@ pub fn dash_intervals(style: DashStyle, width: f32) -> Option<Vec<f32>> {
     }
 }
 
-/// Strokes `path` (Skia's stroker, via tiny-skia) and fills the outline.
+/// Strokes `path` and fills the outline.
 pub fn stroke_path(canvas: &mut Canvas, path: &tiny_skia::Path, stroke: &Stroke) {
-    let mut path = path.clone();
-    if let Some(dash) = stroke
-        .dash
-        .as_ref()
-        .and_then(|i| tiny_skia::StrokeDash::new(i.clone(), 0.0))
-    {
-        match path.dash(&dash, 1.0) {
-            Some(p) => path = p,
-            None => return,
-        }
-    }
-    let s = tiny_skia::Stroke {
+    stroke_sk_path(canvas, &sharex_skia::draw::from_tiny_skia(path), stroke);
+}
+
+/// Strokes an `SkPath` (`SkStroke`, round joins, butt caps; dashes through tiny-skia's
+/// dasher) and fills the outline.
+pub fn stroke_sk_path(canvas: &mut Canvas, path: &sharex_skia::Path, stroke: &Stroke) {
+    let s = sharex_skia::Stroke {
         width: stroke.width,
-        line_join: tiny_skia::LineJoin::Round,
-        ..Default::default()
+        cap: sharex_skia::Cap::Butt,
+        join: sharex_skia::Join::Round,
+        miter_limit: 4.0,
+        dash: stroke.dash.clone().map(|d| (d, 0.0)),
     };
-    if let Some(outline) = path.stroke(&s, 1.0) {
-        canvas.fill_path(&outline, &stroke.paint);
+    if let Some(outline) = sharex_skia::draw::stroke_to_path(path, &s) {
+        canvas.fill_sk_path(&outline, &stroke.paint);
     }
 }
 
@@ -674,91 +671,25 @@ pub fn rect_path(r: Rect) -> Option<tiny_skia::Path> {
     pb.finish()
 }
 
-/// `SKPath.AddRoundRect(rect, r, r)`: `SkRRect` (radii scaled down to fit) with conic
-/// corners, clockwise starting after the top-left corner.
-pub fn round_rect_path(r: Rect, radius: f32) -> Option<tiny_skia::Path> {
-    let radius = radius.max(0.0);
+/// `SKPath.AddRoundRect(rect, r, r)` (`SkPath::addRoundRect`: `SkRRect` radii scaled
+/// down to fit, conic corners, Skia's start point and direction).
+pub fn round_rect_path(r: Rect, radius: f32) -> Option<sharex_skia::Path> {
     if r.is_empty() {
         return None;
     }
-    if radius <= 0.0 {
-        return rect_path(r);
-    }
-    let (w, h) = (r.width(), r.height());
-    let mut rad = radius;
-    // SkRRect::scaleRadii: the smallest scale that makes opposite radii fit.
-    let scale = (w / (2.0 * rad)).min(h / (2.0 * rad)).min(1.0);
-    if scale < 1.0 {
-        rad *= scale;
-    }
-    let wgt = std::f32::consts::FRAC_1_SQRT_2;
-    let (l, t, rr, b) = (r.left, r.top, r.right, r.bottom);
-    let mut pb = tiny_skia::PathBuilder::new();
-    pb.move_to(l + rad, t);
-    pb.line_to(rr - rad, t);
-    conic_to(&mut pb, (rr - rad, t), (rr, t), (rr, t + rad), wgt);
-    pb.line_to(rr, b - rad);
-    conic_to(&mut pb, (rr, b - rad), (rr, b), (rr - rad, b), wgt);
-    pb.line_to(l + rad, b);
-    conic_to(&mut pb, (l + rad, b), (l, b), (l, b - rad), wgt);
-    pb.line_to(l, t + rad);
-    conic_to(&mut pb, (l, t + rad), (l, t), (l + rad, t), wgt);
-    pb.close();
-    pb.finish()
-}
-
-/// A conic as Skia flattens it for filling (`SkAutoConicToQuads`, tolerance 0.25):
-/// `computeQuadPOW2`, then `chopIntoQuadsPOW2`.
-fn conic_to(
-    pb: &mut tiny_skia::PathBuilder,
-    p0: (f32, f32),
-    p1: (f32, f32),
-    p2: (f32, f32),
-    w: f32,
-) {
-    let a = w - 1.0;
-    let k = a / (4.0 * (2.0 + a));
-    let x = k * (p0.0 - 2.0 * p1.0 + p2.0);
-    let y = k * (p0.1 - 2.0 * p1.1 + p2.1);
-    let mut error = (x * x + y * y).sqrt();
-    let mut pow2 = 0;
-    while pow2 < 4 {
-        if error <= 0.25 {
-            break;
-        }
-        error *= 0.25;
-        pow2 += 1;
-    }
-    fn chop(pb: &mut tiny_skia::PathBuilder, p: [(f32, f32); 3], w: f32, level: u32) {
-        if level == 0 {
-            pb.quad_to(p[1].0, p[1].1, p[2].0, p[2].1);
-            return;
-        }
-        let scale = 1.0 / (1.0 + w);
-        let new_w = (0.5 + w * 0.5).sqrt();
-        let (p0, p1, p2) = (p[0], (p[1].0 * w, p[1].1 * w), p[2]);
-        let m = (
-            (p0.0 + (p1.0 + p1.0) + p2.0) * scale * 0.5,
-            (p0.1 + (p1.1 + p1.1) + p2.1) * scale * 0.5,
-        );
-        chop(
-            pb,
-            [p0, ((p0.0 + p1.0) * scale, (p0.1 + p1.1) * scale), m],
-            new_w,
-            level - 1,
-        );
-        chop(
-            pb,
-            [m, ((p1.0 + p2.0) * scale, (p1.1 + p2.1) * scale), p2],
-            new_w,
-            level - 1,
-        );
-    }
-    chop(pb, [p0, p1, p2], w, pow2);
+    let radius = radius.max(0.0);
+    let mut path = sharex_skia::Path::new();
+    path.add_round_rect(
+        sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        radius,
+        radius,
+        sharex_skia::Direction::Cw,
+    );
+    Some(path)
 }
 
 /// `SkiaDrawing.AddRoundedRectangleProper(rect, radius, penWidth)`.
-pub fn round_rect_proper(r: Rect, radius: f32, pen: f32) -> Option<tiny_skia::Path> {
+pub fn round_rect_proper(r: Rect, radius: f32, pen: f32) -> Option<sharex_skia::Path> {
     let i = pen / 2.0;
     round_rect_path(
         Rect::ltrb(r.left + i, r.top + i, r.right - i, r.bottom - i),
@@ -1018,7 +949,7 @@ pub fn rounded_corners(bmp: &Bitmap, radius: i32) -> Bitmap {
         radius as f32,
         0.0,
     ) {
-        Canvas::new(&mut result).fill_path(&path, &Paint::texture(bmp, TileMode::Repeat));
+        Canvas::new(&mut result).fill_sk_path(&path, &Paint::texture(bmp, TileMode::Repeat));
     }
     result
 }

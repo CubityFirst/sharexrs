@@ -10,18 +10,21 @@
 
 use std::path::PathBuf;
 
-use egui::{CornerRadius, Id, Rect, Shape, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
-use sharex_settings::{ApplicationConfig, Described, HotkeyType, ImageContentAlignment, ProxyMethod, SupportedLanguage, ThumbnailTitleLocation};
+use egui::{CornerRadius, Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
+use sharex_settings::{ApplicationConfig, HotkeyType, ImageContentAlignment, ProxyMethod, SupportedLanguage, ThumbnailTitleLocation};
 use sharex_strings::sharex as s;
-use sharex_ui::controls::{self, Button, CheckBox, ColorButton, ComboBox, ComboItem, NumericUpDown, Slider, TextBox};
+use sharex_ui::controls::{self, Button, ColorButton, ComboItem, NumericUpDown, TextBox};
 use sharex_ui::keys::app_icons as icon;
-use sharex_ui::theme::{Density, density, fluent, palette};
+use sharex_ui::theme::{density, fluent, palette};
 use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
-use sharex_ui::border::{self, Brush, Part};
-use sharex_ui::{focus, icons, menu::paint_accent_gradient};
+use sharex_ui::{icons, menu::paint_accent_gradient};
 
 use crate::appearance;
+use crate::settings_form::{self, ComboSize, Mode, any_combo_open, matches, scroll_indicator};
 use crate::startup;
+
+/// A page of this window.
+type Form<'u, 'a> = settings_form::Form<'u, 'a, ApplicationConfig, ApplicationSettings>;
 
 /// `Height="720"`; the width is `ShareX.Density.Settings.WindowWidth`.
 pub const HEIGHT: f32 = 720.0;
@@ -101,13 +104,6 @@ pub struct ApplicationSettings {
     /// check boxes only.
     integrations: [bool; 6],
     effects: Vec<Effect>,
-}
-
-/// A card's or page's text matches every term of the query
-/// (`SettingsSearch.Matches`, case-insensitive).
-fn matches(text: &str, terms: &[String]) -> bool {
-    let text = text.to_lowercase();
-    terms.iter().all(|t| text.contains(t.as_str()))
 }
 
 impl ApplicationSettings {
@@ -247,7 +243,6 @@ impl ApplicationSettings {
     /// `SettingsNavigation`: the search box, then the pages as a tree.
     fn navigation(&mut self, ui: &mut Ui, full: Rect, visible: &[bool]) {
         let p = palette(ui.ctx());
-        let f = fluent(ui.ctx());
         let d = density(ui.ctx());
         let nav = Rect::from_min_size(full.min, vec2(NAV_WIDTH, full.height()));
         ui.painter().rect_filled(nav, 0.0, p.background_toolbar);
@@ -272,35 +267,14 @@ impl ApplicationSettings {
             y += item_h + 2.0;
             let resp = ui.interact(r, Id::new(("settings-nav", i)), egui::Sense::click());
             let selected = i == self.page;
-            let fill = |color| Part::Border { rect: r, radius: 4.0, thickness: 0.0, background: Some(Brush::Solid(color)), border: None };
-            if selected {
-                // Fluent's `:selected` sets `TreeViewItemBackgroundSelected`
-                // (the accent fill, solid) over ShareX's gradient.
-                let color = if resp.is_pointer_button_down_on() {
-                    p.accent_fill_dark[0]
-                } else if resp.hovered() {
-                    p.accent_fill_light[0]
-                } else {
-                    p.accent_start
-                };
-                // `ShareX.BoxShadow.Accent.Outline`: an inset `BoxShadow`
-                // (spread 1) over the background, clipped to its corners.
-                let outline = Part::InsetShadow { rect: r, radius: 4.0, spread: 1.0, color: p.accent_border };
-                border::paint(ui.painter(), &[fill(color), outline], 1.0);
-            } else if resp.is_pointer_button_down_on() {
-                border::paint(ui.painter(), &[fill(f.list_medium)], 1.0);
-            } else if resp.hovered() {
-                border::paint(ui.painter(), &[fill(f.list_low)], 1.0);
-            }
+            settings_form::nav_item_background(ui.painter(), r, &resp, selected);
             let (title, key) = page_title(i);
             let content = Rect::from_min_max(pos2(r.min.x + 36.0 + d.settings_nav_item_margin.left, r.min.y), pos2(r.max.x - d.settings_nav_item_margin.right, r.max.y));
             let fg = if selected { p.accent_foreground } else { p.text };
             let icon_color = if selected { p.accent_foreground } else { p.accent_icon };
             icons::paint(ui.painter(), Rect::from_min_size(pos2(content.min.x + 2.0, center_y(r, 16.0)), Vec2::splat(16.0)), key, icon_color);
             controls::label(ui, Rect::from_min_max(pos2(content.min.x + 26.0, r.min.y), pos2(content.max.x, r.max.y)), title, font(13.0, 400), fg);
-            if focus::visible(ui.ctx(), resp.id) {
-                focus::paint_adorner(ui.painter(), r);
-            }
+            settings_form::nav_item_focus(ui.painter(), r, &resp);
             if resp.clicked() && !selected {
                 self.page = i;
                 if i == 2 {
@@ -339,6 +313,8 @@ impl ApplicationSettings {
             spacing: 0.0,
             d: d.clone(),
             page: i,
+            enabled: true,
+            style: settings_form::FormStyle::APPLICATION,
         };
         f.page_title(key, title);
         match i {
@@ -447,429 +423,7 @@ impl ApplicationSettings {
     }
 }
 
-fn any_combo_open(ctx: &egui::Context) -> bool {
-    ctx.data(|d| d.get_temp::<bool>(Id::new("settings-any-combo"))).unwrap_or(false)
-}
-
-/// Fluent's collapsed scroll bar: a thin line at the right edge.
-fn scroll_indicator(ui: &Ui, view: Rect, scroll: f32, content: f32) {
-    let f = fluent(ui.ctx());
-    let max = (content - view.height()).max(1.0);
-    let track = Rect::from_min_max(pos2(view.max.x - 4.0, view.min.y + 2.0), pos2(view.max.x - 2.0, view.max.y - 2.0));
-    let h = (track.height() * view.height() / content).max(30.0);
-    let y = track.min.y + (track.height() - h) * (scroll / max);
-    ui.painter().rect_filled(Rect::from_min_size(pos2(track.min.x, y), vec2(2.0, h)), CornerRadius::same(1), f.base_medium_low);
-}
-
-enum Mode<'a> {
-    Paint,
-    Collect(&'a mut Vec<String>),
-}
-
-/// Lays out (and paints) one page's controls as ShareX's StackPanels and
-/// Grids would, binding each to the settings.
-struct Form<'u, 'a> {
-    ui: &'u mut Ui,
-    s: &'a mut ApplicationConfig,
-    w: &'a mut ApplicationSettings,
-    paint: bool,
-    /// Collect mode: the page's text.
-    collected: Option<Vec<String>>,
-    /// While a card collects its own text for the search.
-    card_texts: Option<Vec<String>>,
-    terms: Vec<String>,
-    page_title: String,
-    x: f32,
-    y: f32,
-    width: f32,
-    first: bool,
-    spacing: f32,
-    d: Density,
-    page: usize,
-}
-
-/// A `ComboBox.form-control`'s sizes.
-#[derive(Clone, Copy, Default)]
-struct ComboSize {
-    /// A fixed `Width`.
-    width: Option<f32>,
-    /// `MinWidth` (250 unless set).
-    min_width: Option<f32>,
-}
-
 impl Form<'_, '_> {
-    /// Whether this pass only collects text.
-    fn collecting(&self) -> bool {
-        !self.paint || self.card_texts.is_some()
-    }
-
-    fn text(&mut self, t: &str) {
-        if let Some(c) = self.card_texts.as_mut() {
-            c.push(t.to_string());
-        } else if let Some(c) = self.collected.as_mut() {
-            c.push(t.to_string());
-        }
-    }
-
-    /// The next item's rect in the current stack, `h` tall.
-    fn slot(&mut self, h: f32) -> Rect {
-        if !self.first {
-            self.y += self.spacing;
-        }
-        self.first = false;
-        let r = Rect::from_min_size(pos2(self.x, self.y), vec2(self.width, h));
-        self.y += h;
-        r
-    }
-
-    fn label_font() -> egui::FontId {
-        font(13.0, 400)
-    }
-
-    fn id(&self, name: &str) -> Id {
-        Id::new(("settings", self.page, name.to_string()))
-    }
-
-    /// `Grid.page-title`: the accent icon, 9px, the title in accent text.
-    fn page_title(&mut self, key: &str, title: &str) {
-        if self.collecting() {
-            return;
-        }
-        let d = &self.d;
-        let tf = font(d.settings_page_title_font_size, 600);
-        let lh = line_height(self.ui, &tf);
-        let icon_size = d.settings_page_title_icon_size;
-        let h = lh.max(icon_size);
-        let r = Rect::from_min_size(pos2(self.x, self.y), vec2(self.width, h));
-        let p = palette(self.ui.ctx());
-        icons::paint(self.ui.painter(), Rect::from_min_size(pos2(r.min.x, center_y(r, icon_size)), Vec2::splat(icon_size)), key, p.accent_icon);
-        controls::label(self.ui, Rect::from_min_max(pos2(r.min.x + icon_size + 9.0, r.min.y), r.max), title, tf, p.accent_text);
-        self.y += h + d.settings_page_title_margin.bottom;
-    }
-
-    /// `Border.section-card` around what `build` adds, its children stacked
-    /// `spacing` apart. Hidden when the search leaves it out.
-    fn card(&mut self, spacing: f32, build: &mut dyn FnMut(&mut Form)) {
-        self.card_if(true, spacing, build);
-    }
-
-    /// A card inside an availability container that's shown only when
-    /// `available` (`SettingsSearch.IsAvailabilityContainer`).
-    fn card_if(&mut self, available: bool, spacing: f32, build: &mut dyn FnMut(&mut Form)) {
-        if !available {
-            return;
-        }
-        // The card's own text, for the search and the page's text.
-        let saved = (self.y, self.first, self.spacing);
-        self.card_texts = Some(Vec::new());
-        build(self);
-        let texts = self.card_texts.take().unwrap_or_default();
-        (self.y, self.first, self.spacing) = saved;
-        if !self.paint {
-            if let Some(c) = self.collected.as_mut() {
-                c.extend(texts);
-            }
-            return;
-        }
-        if !self.terms.is_empty() && !matches(&format!("{} {}", self.page_title, texts.join(" ")), &self.terms) {
-            return;
-        }
-        let d = self.d.clone();
-        let pad = d.settings_card_padding;
-        let bg = self.ui.painter().add(Shape::Noop);
-        let top = self.y;
-        let (x, width) = (self.x, self.width);
-        self.x = x + 1.0 + pad.left;
-        self.width = width - 2.0 - pad.left - pad.right;
-        self.y = top + 1.0 + pad.top;
-        self.first = true;
-        self.spacing = spacing;
-        build(self);
-        let bottom = self.y + pad.bottom + 1.0;
-        let p = palette(self.ui.ctx());
-        let rect = Rect::from_min_max(pos2(x, top), pos2(x + width, bottom));
-        self.ui.painter().set(
-            bg,
-            Shape::Vec(vec![
-                egui::epaint::RectShape::filled(rect, CornerRadius::same(6), p.background_panel).into(),
-                egui::epaint::RectShape::stroke(rect, CornerRadius::same(6), Stroke::new(1.0, p.border), StrokeKind::Inside).into(),
-            ]),
-        );
-        (self.x, self.width) = (x, width);
-        self.y = bottom + d.settings_card_margin.bottom;
-        self.first = saved.1;
-        self.spacing = saved.2;
-    }
-
-    /// A nested `StackPanel` (`Spacing`), one item of the outer stack.
-    fn stack(&mut self, spacing: f32, build: &mut dyn FnMut(&mut Form)) {
-        if !self.first {
-            self.y += self.spacing;
-        }
-        self.first = false;
-        let saved = self.spacing;
-        self.first = true;
-        self.spacing = spacing;
-        build(self);
-        self.first = false;
-        self.spacing = saved;
-    }
-
-    /// `TextBlock.section-title`: 15 SemiBold (SectionTitleFontSize),
-    /// `Margin="0,4,0,3"`.
-    fn title(&mut self, t: &str) {
-        self.text(t);
-        if self.collecting() {
-            return;
-        }
-        let tf = font(self.d.settings_section_title_font_size, 600);
-        let lh = line_height(self.ui, &tf);
-        let r = self.slot(4.0 + lh + 3.0);
-        let p = palette(self.ui.ctx());
-        self.ui.painter().galley(pos2(r.min.x, r.min.y + 4.0), galley(self.ui, t, tf, p.text, f32::INFINITY), p.text);
-    }
-
-    /// `TextBlock.hint`: 12px Normal, secondary text, wrapped.
-    fn hint(&mut self, t: &str) {
-        self.text(t);
-        if self.collecting() {
-            return;
-        }
-        let hf = font(12.0, 400);
-        let p = palette(self.ui.ctx());
-        let h = controls::wrapped(self.ui, pos2(0.0, 0.0), self.width, t, hf.clone(), p.text_secondary, false);
-        let r = self.slot(h);
-        controls::wrapped(self.ui, r.min, self.width, t, hf, p.text_secondary, true);
-    }
-
-    /// `CheckBox.setting`: `MinHeight` CheckBoxMinHeight, `Margin="0,1"`,
-    /// Normal. Returns whether it was toggled.
-    fn check(&mut self, t: &str, value: &mut bool, enabled: bool) -> bool {
-        self.text(t);
-        if self.collecting() {
-            return false;
-        }
-        let h = self.d.settings_check_box_min_height;
-        let r = self.slot(h + 2.0);
-        self.check_at(r.min.x, r.min.y + 1.0, t, value, enabled)
-    }
-
-    fn check_at(&mut self, x: f32, y: f32, t: &str, value: &mut bool, enabled: bool) -> bool {
-        let h = self.d.settings_check_box_min_height;
-        let cb = CheckBox { min_height: h, enabled, ..CheckBox::new(t) };
-        let cb = CheckBox { text_font: controls::content_font(13.0, 400), ..cb };
-        let w = cb.width(self.ui);
-        let id = self.id(t);
-        cb.show(self.ui, Rect::from_min_size(pos2(x, y), vec2(w, h)), id, value).changed()
-    }
-
-    /// Check boxes side by side (`StackPanel Orientation="Horizontal"`).
-    fn checks_row(&mut self, items: &mut [(&str, &mut bool)], spacing: f32) -> Option<usize> {
-        for (t, _) in items.iter() {
-            self.text(t);
-        }
-        if self.collecting() {
-            return None;
-        }
-        let h = self.d.settings_check_box_min_height;
-        let r = self.slot(h + 2.0);
-        let mut x = r.min.x;
-        let mut changed = None;
-        for (i, (t, v)) in items.iter_mut().enumerate() {
-            let cb = CheckBox { min_height: h, text_font: controls::content_font(13.0, 400), ..CheckBox::new(t) };
-            let w = cb.width(self.ui);
-            if self.check_at(x, r.min.y + 1.0, t, v, true) {
-                changed = Some(i);
-            }
-            x += w + spacing;
-        }
-        changed
-    }
-
-    /// The height of a combo box or text box row.
-    fn control_height(&self, font: &egui::FontId) -> f32 {
-        let pad = self.d.settings_control_padding;
-        (1.0 + pad.top + line_height(self.ui, font) + pad.bottom + 1.0).max(self.d.settings_control_min_height)
-    }
-
-    /// A label column `label_w` wide (8px column spacing), then a
-    /// `ComboBox.form-control`. Returns the newly selected index.
-    fn combo(&mut self, label: &str, label_w: f32, items: &[ComboItem], selected: Option<usize>, size: ComboSize, enabled: bool) -> Option<usize> {
-        self.text(label);
-        for i in items {
-            self.text(&i.text);
-        }
-        if self.collecting() {
-            return None;
-        }
-        let ch = self.control_height(&ComboBox::item_font());
-        let lh = line_height(self.ui, &Self::label_font());
-        let r = self.slot(ch.max(lh));
-        let p = palette(self.ui.ctx());
-        controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + label_w, r.max.y)), label, Self::label_font(), p.text_secondary);
-        let combo = ComboBox { padding: self.d.settings_control_padding, enabled };
-        // Avalonia sizes a combo box to its selected item.
-        let selected_items: Vec<ComboItem> = selected.and_then(|i| items.get(i)).cloned().into_iter().collect();
-        let natural = combo.content_width(self.ui, &selected_items);
-        let w = size.width.unwrap_or_else(|| natural.max(size.min_width.unwrap_or(250.0)));
-        let x = r.min.x + label_w + 8.0;
-        let w = w.min(r.max.x - x);
-        let rect = Rect::from_min_size(pos2(x, center_y(r, ch)), vec2(w, ch));
-        let id = self.id(label);
-        let out = combo.show(self.ui, rect, id, items, selected);
-        if ComboBox::is_open(self.ui.ctx(), id) {
-            self.ui.ctx().data_mut(|d| d.insert_temp(Id::new("settings-any-combo-next"), true));
-        }
-        out
-    }
-
-    /// An enum `ComboBox` bound to `value` (`EnumOption<T>`).
-    fn enum_combo<T: Described>(&mut self, label: &str, label_w: f32, value: &mut T, enabled: bool) -> bool {
-        let items: Vec<ComboItem> = T::all().iter().map(|v| ComboItem::text(v.localized_description())).collect();
-        let selected = T::all().iter().position(|v| v == value);
-        if let Some(i) = self.combo(label, label_w, &items, selected, ComboSize::default(), enabled) {
-            *value = T::all()[i].clone();
-            return true;
-        }
-        false
-    }
-
-    /// A `TextBox.form-control` after an optional label column; it
-    /// stretches (`MinWidth="300"`). Returns whether the text changed.
-    fn text_row(&mut self, label: Option<(&str, f32)>, value: &mut String, enabled: bool, password: bool) -> bool {
-        if let Some((l, _)) = label {
-            self.text(l);
-        }
-        if self.collecting() {
-            return false;
-        }
-        let th = self.control_height(&TextBox::font());
-        let lh = line_height(self.ui, &Self::label_font());
-        let r = self.slot(th.max(lh));
-        let mut x = r.min.x;
-        if let Some((l, w)) = label {
-            let p = palette(self.ui.ctx());
-            controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + w, r.max.y)), l, Self::label_font(), p.text_secondary);
-            x += w + 8.0;
-        }
-        let rect = Rect::from_min_max(pos2(x, center_y(r, th)), pos2(r.max.x.max(x + 300.0), center_y(r, th) + th));
-        let tb = TextBox { padding: self.d.settings_control_padding, enabled, password, ..Default::default() };
-        let id = self.id(&format!("text-{}", label.map_or("", |l| l.0)));
-        let before = value.clone();
-        tb.show(self.ui, rect, id, value);
-        *value != before
-    }
-
-    /// A stretching text box with buttons after it (`ColumnDefinitions="*,Auto,Auto"`).
-    fn text_with_buttons(&mut self, key: &str, value: &mut String, buttons: &[&str]) -> (bool, Option<usize>) {
-        for b in buttons {
-            self.text(b);
-        }
-        if self.collecting() {
-            return (false, None);
-        }
-        let th = self.control_height(&TextBox::font());
-        let bh = self.d.settings_control_min_height;
-        let r = self.slot(th.max(bh));
-        let button = Button::compact(self.d.settings_button_padding);
-        let widths: Vec<f32> = buttons.iter().map(|b| button.width(self.ui, b)).collect();
-        let total: f32 = widths.iter().map(|w| w + 8.0).sum();
-        let tb_rect = Rect::from_min_size(pos2(r.min.x, center_y(r, th)), vec2((r.width() - total).max(300.0), th));
-        let tb = TextBox { padding: self.d.settings_control_padding, ..Default::default() };
-        let before = value.clone();
-        let id = self.id(key);
-        tb.show(self.ui, tb_rect, id, value);
-        let mut x = tb_rect.max.x + 8.0;
-        let mut clicked = None;
-        for (i, (b, w)) in buttons.iter().zip(&widths).enumerate() {
-            let br = Rect::from_min_size(pos2(x, center_y(r, bh)), vec2(*w, bh));
-            if button.show(self.ui, br, self.id(&format!("{key}-{b}")), b, true).clicked() {
-                clicked = Some(i);
-            }
-            x += w + 8.0;
-        }
-        (*value != before, clicked)
-    }
-
-    /// A label column then a `NumericUpDown.form-control` (130 wide,
-    /// NumberBoxHeight tall), and an optional hint after it.
-    // The `NumericUpDown`'s own properties, as the XAML sets them.
-    #[allow(clippy::too_many_arguments)]
-    fn number(&mut self, label: &str, label_w: f32, min: i64, max: i64, value: &mut i64, enabled: bool, hint: Option<&str>) -> bool {
-        self.text(label);
-        if let Some(h) = hint {
-            self.text(h);
-        }
-        if self.collecting() {
-            return false;
-        }
-        let nh = self.d.settings_number_box_height;
-        let lh = line_height(self.ui, &Self::label_font());
-        let r = self.slot(nh.max(lh));
-        let p = palette(self.ui.ctx());
-        controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + label_w, r.max.y)), label, Self::label_font(), p.text_secondary);
-        let rect = Rect::from_min_size(pos2(r.min.x + label_w + 8.0, center_y(r, nh)), vec2(130.0, nh));
-        if let Some(h) = hint {
-            let hx = rect.max.x + 5.0;
-            controls::label(self.ui, Rect::from_min_max(pos2(hx, r.min.y), r.max), h, font(12.0, 400), p.text_secondary);
-        }
-        let id = self.id(label);
-        NumericUpDown { minimum: min, maximum: max, enabled }.show(self.ui, rect, id, value)
-    }
-
-    /// A `Button.compact`, left-aligned. Returns whether it was clicked.
-    fn button(&mut self, t: &str, enabled: bool) -> bool {
-        self.buttons(&[(t, enabled)], 5.0) == Some(0)
-    }
-
-    /// Compact buttons side by side, `spacing` apart.
-    fn buttons(&mut self, items: &[(&str, bool)], spacing: f32) -> Option<usize> {
-        for (t, _) in items {
-            self.text(t);
-        }
-        if self.collecting() {
-            return None;
-        }
-        let bh = self.d.settings_control_min_height;
-        let r = self.slot(bh);
-        let button = Button::compact(self.d.settings_button_padding);
-        let mut x = r.min.x;
-        let mut clicked = None;
-        for (i, (t, enabled)) in items.iter().enumerate() {
-            let w = button.width(self.ui, t);
-            if button.show(self.ui, Rect::from_min_size(pos2(x, r.min.y), vec2(w, bh)), self.id(&format!("button-{t}")), t, *enabled).clicked() {
-                clicked = Some(i);
-            }
-            x += w + spacing;
-        }
-        clicked
-    }
-
-    /// A spacing slider row: label (190), slider (*), value text (80).
-    fn slider(&mut self, label: &str, value: &mut i32, text: &str) -> bool {
-        self.text(label);
-        if self.collecting() {
-            return false;
-        }
-        let lh = line_height(self.ui, &Self::label_font());
-        // The Fluent slider's 32px `MinHeight` with 2px pre/post margins.
-        let r = self.slot(32f32.max(lh));
-        let p = palette(self.ui.ctx());
-        controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + 190.0, r.max.y)), label, Self::label_font(), p.text_secondary);
-        let slider_rect = Rect::from_min_max(pos2(r.min.x + 198.0, r.min.y), pos2(r.max.x - 88.0, r.max.y));
-        controls::label(self.ui, Rect::from_min_max(pos2(r.max.x - 80.0, r.min.y), r.max), text, Self::label_font(), p.text_secondary);
-        let mut v = *value as f32;
-        let id = self.id(label);
-        if (Slider { minimum: 0.0, maximum: 200.0, step: 5.0, enabled: true }).show(self.ui, slider_rect, id, &mut v) {
-            let v = ((v / 5.0).round() * 5.0).clamp(0.0, 200.0) as i32;
-            if v != *value {
-                *value = v;
-                return true;
-            }
-        }
-        false
-    }
-
     fn effect(&mut self, e: Effect) {
         if !self.w.effects.contains(&e) {
             self.w.effects.push(e);
@@ -1709,7 +1263,7 @@ fn page_advanced(f: &mut Form) {
 
 /// `StorageProvider.OpenFolderPickerAsync`.
 #[cfg(windows)]
-fn pick_folder(title: &str) -> Option<PathBuf> {
+pub(crate) fn pick_folder(title: &str) -> Option<PathBuf> {
     use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree};
     use windows::Win32::UI::Shell::{FOS_PICKFOLDERS, FileOpenDialog, IFileOpenDialog, SIGDN_FILESYSPATH};
     // SAFETY: COM calls on interfaces created here; the path string is
@@ -1730,7 +1284,7 @@ fn pick_folder(title: &str) -> Option<PathBuf> {
 }
 
 #[cfg(not(windows))]
-fn pick_folder(_title: &str) -> Option<PathBuf> {
+pub(crate) fn pick_folder(_title: &str) -> Option<PathBuf> {
     eprintln!("folder picker: not ported on this platform yet");
     None
 }
