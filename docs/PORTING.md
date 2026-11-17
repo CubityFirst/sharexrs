@@ -50,7 +50,10 @@ taught us about shipping on macOS.
 
 Known, accepted differences:
 - Text anti-aliasing: Avalonia uses ClearType (subpixel) on Windows, egui
-  grayscale. Shapes and positions match; edges of glyphs don't.
+  grayscale. Shapes and positions match; edges of glyphs don't. Matching it
+  (a Skia-like LCD glyph rasterizer and RGB-coverage text in egui-wgpu) is
+  planned as its own project once the major tools are ported (decided
+  2026-11-17); until then it's accepted, so don't "fix" text by moving it.
 - The title bar says ShareXrs and shows ShareXrs's icon.
 - On macOS the window keeps the native traffic lights (ShareX doesn't ship
   for macOS; this is what its Avalonia build would show).
