@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawCheckerboard, ShareX.ImageEffectsLib",
+      "Size": 10,
+      "Color": "LightGray",
+      "Color2": "White",
+      "Enabled": true
+    }
+  ]
+}

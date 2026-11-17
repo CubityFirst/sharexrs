@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Polaroid",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

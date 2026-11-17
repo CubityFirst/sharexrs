@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Pixelate",
+      "Size": 10,
+      "BorderSize": 0,
+      "BorderColor": "Black",
+      "Enabled": true
+    }
+  ]
+}

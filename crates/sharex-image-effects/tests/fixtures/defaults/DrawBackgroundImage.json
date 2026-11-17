@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawBackgroundImage, ShareX.ImageEffectsLib",
+      "ImageFilePath": "",
+      "Center": true,
+      "Tile": false,
+      "Enabled": true
+    }
+  ]
+}

@@ -468,7 +468,7 @@ impl App {
                     self.show_main_window(event_loop);
                 }
                 match result {
-                    Ok(Some(metadata)) => self.after_capture(metadata, task),
+                    Ok(Some(metadata)) => self.after_capture(metadata, task, matches!(job, CaptureJob::LastRegion)),
                     Ok(None) => {}
                     Err(CaptureError::WindowNotFound) => {
                         let message = MessageBox::ok(
@@ -544,7 +544,7 @@ impl App {
         match image {
             Some(image) => {
                 let metadata = capture::create_metadata(image, Some(rect), Some("explorer"));
-                self.after_capture(metadata, task);
+                self.after_capture(metadata, task, true);
             }
             None => eprintln!("transparent region capture: couldn't capture the screen"),
         }
@@ -659,17 +659,22 @@ impl App {
         let Outcome::Captured(result) = outcome else { return };
         self.last_regions = result.regions.clone();
         let metadata = capture_job::Metadata::from_result(&result);
-        self.after_capture(metadata, task);
+        self.after_capture(metadata, task, true);
     }
 
     /// `CaptureBase.AfterCapture`: the capture sound, then the image task
-    /// (`UploadManager.RunImageTask`) off the event loop.
-    fn after_capture(&mut self, metadata: capture_job::Metadata, task: TaskSettings) {
+    /// (`UploadManager.RunImageTask`) off the event loop. `region`: a region,
+    /// last region or transparent region capture (`ImageEffectOnlyRegionCapture`).
+    fn after_capture(&mut self, metadata: capture_job::Metadata, mut task: TaskSettings, region: bool) {
         if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterCapture) {
             sound::play_capture();
         }
+        if !region && task.ImageSettings.as_ref().is_some_and(|s| s.ImageEffectOnlyRegionCapture) {
+            task.AfterCaptureJob.remove(sharex_settings::AfterCaptureTasks::AddImageEffects);
+        }
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
-        let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent);
+        let effects = self.settings.paths.image_effects_folder();
+        let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent, effects);
         self.run_image_task(job);
         self.update_progress_ui();
     }

@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Skew",
+      "Horizontally": 0,
+      "Vertically": 0,
+      "Enabled": true
+    }
+  ]
+}

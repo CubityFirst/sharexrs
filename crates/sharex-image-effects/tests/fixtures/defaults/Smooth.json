@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Smooth, ShareX.ImageEffectsLib",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

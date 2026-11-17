@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Resize",
+      "Width": 250,
+      "Height": 0,
+      "Mode": "ResizeAll",
+      "Enabled": true
+    }
+  ]
+}

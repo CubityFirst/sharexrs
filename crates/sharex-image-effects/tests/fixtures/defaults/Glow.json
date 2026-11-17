@@ -1,0 +1,27 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Glow, ShareX.ImageEffectsLib",
+      "Size": 20,
+      "Strength": 1.0,
+      "Color": "White",
+      "UseGradient": false,
+      "Gradient": {
+        "Type": "ForwardDiagonal",
+        "Colors": [
+          {
+            "Color": "0, 187, 138",
+            "Location": 0.0
+          },
+          {
+            "Color": "0, 105, 163",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Offset": "0, 0",
+      "Enabled": true
+    }
+  ]
+}

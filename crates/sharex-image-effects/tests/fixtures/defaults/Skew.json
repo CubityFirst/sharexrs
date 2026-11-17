@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Skew, ShareX.ImageEffectsLib",
+      "Horizontally": 0,
+      "Vertically": 0,
+      "Enabled": true
+    }
+  ]
+}

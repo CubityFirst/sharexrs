@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.ColorDepth, ShareX.ImageEffectsLib",
+      "BitsPerChannel": 4,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "TornEdge",
+      "Depth": 15,
+      "Range": 20,
+      "Sides": "Top, Bottom, Left, Right",
+      "CurvedEdges": true,
+      "Enabled": true
+    }
+  ]
+}

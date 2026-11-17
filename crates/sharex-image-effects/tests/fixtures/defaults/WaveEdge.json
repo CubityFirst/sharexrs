@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.WaveEdge, ShareX.ImageEffectsLib",
+      "Depth": 15,
+      "Range": 20,
+      "Sides": "Top, Bottom, Left, Right",
+      "Enabled": true
+    }
+  ]
+}

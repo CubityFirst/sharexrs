@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ColorDepth",
+      "BitsPerChannel": 4,
+      "Enabled": true
+    }
+  ]
+}

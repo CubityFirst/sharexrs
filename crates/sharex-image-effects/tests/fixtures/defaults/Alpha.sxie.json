@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Alpha",
+      "Value": 1.0,
+      "Addition": 0.0,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ForceProportions",
+      "ProportionalWidth": 1,
+      "ProportionalHeight": 1,
+      "Method": "Grow",
+      "GrowFillColor": "Transparent",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

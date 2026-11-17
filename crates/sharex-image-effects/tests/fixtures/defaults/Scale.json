@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Scale, ShareX.ImageEffectsLib",
+      "WidthPercentage": 100.0,
+      "HeightPercentage": 0.0,
+      "Enabled": true
+    }
+  ]
+}

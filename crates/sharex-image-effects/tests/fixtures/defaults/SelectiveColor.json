@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.SelectiveColor, ShareX.ImageEffectsLib",
+      "LightColor": "White",
+      "DarkColor": "Black",
+      "PaletteSize": 10,
+      "Enabled": true
+    }
+  ]
+}

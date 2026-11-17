@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Colorize",
+      "Color": "Red",
+      "Value": 0.0,
+      "Enabled": true
+    }
+  ]
+}
