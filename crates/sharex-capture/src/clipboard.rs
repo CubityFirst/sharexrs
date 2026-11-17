@@ -126,6 +126,33 @@ fn drop_files(paths: &[std::path::PathBuf]) -> Vec<u8> {
     out
 }
 
+/// `ClipboardHelpers.Clear`: empties the clipboard.
+pub fn clear(owner: Option<isize>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let owner = owner.ok_or("no window to own the clipboard")?;
+        crate::platform::set_clipboard(owner, &[])
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = owner;
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard.clear().map_err(|e| e.to_string())
+    }
+}
+
+/// `ClipboardHelpers.ContainsText`.
+pub fn contains_text() -> bool {
+    #[cfg(windows)]
+    {
+        crate::platform::clipboard_has_format(13) // CF_UNICODETEXT
+    }
+    #[cfg(not(windows))]
+    {
+        arboard::Clipboard::new().and_then(|mut c| c.get_text()).is_ok_and(|t| !t.is_empty())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

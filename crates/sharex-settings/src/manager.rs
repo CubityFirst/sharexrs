@@ -150,6 +150,14 @@ impl SettingManager {
         self.saver.save(json, path, self.options(), wait)
     }
 
+    /// Saves another settings file (`UploadersConfig.json`, which lives in
+    /// `sharex-uploaders`) through the same writer, with the same backups,
+    /// so it's written in order with the others.
+    pub fn save_file(&mut self, json: String, path: PathBuf, wait: bool) -> io::Result<()> {
+        let options = self.options();
+        self.saver.save(json, path, options, wait)
+    }
+
     /// `SaveHotkeysConfigAsync()`: cleans up first (`CleanupHotkeysConfig`),
     /// so hotkeys using the defaults save without their sections.
     pub fn save_hotkeys_config(&mut self, wait: bool) -> io::Result<()> {
