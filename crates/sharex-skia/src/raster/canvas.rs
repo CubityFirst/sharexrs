@@ -24,6 +24,8 @@ pub enum TileMode {
     Clamp,
     Repeat,
     Mirror,
+    /// Transparent outside the image (nearest sampling only).
+    Decal,
 }
 
 /// The two blend modes ShareX draws with.
@@ -117,6 +119,9 @@ impl<'a> Paint<'a> {
 pub struct Canvas<'a> {
     pub dst: &'a mut Bitmap,
     pub matrix: Matrix,
+    /// An anti-aliased clip (`clipPath(path, kIntersect, true)`); only path
+    /// fills honour it.
+    pub aa_clip: Option<crate::aaclip::AAClip>,
 }
 
 /// A source colour from the pipeline: highp premultiplied floats or lowp 0..255.
@@ -131,7 +136,18 @@ impl<'a> Canvas<'a> {
         Canvas {
             dst,
             matrix: Matrix::IDENTITY,
+            aa_clip: None,
         }
+    }
+
+    /// `SKCanvas.ClipPath(path, Intersect, antialias: true)` on the device's
+    /// rectangular clip: `SkRasterClip::op` makes it an `SkAAClip`
+    /// (`setPath` with the clip's bounds).
+    pub fn clip_path_aa(&mut self, path: &crate::Path) {
+        assert!(self.aa_clip.is_none(), "intersecting two anti-aliased clips isn't ported");
+        let device = path.transformed(&self.ctm());
+        let bounds = crate::geom::IRect::from_ltrb(0, 0, self.width() as i32, self.height() as i32);
+        self.aa_clip = Some(crate::aaclip::AAClip::from_path(&device, bounds));
     }
 
     /// `SKCanvas.Translate`.
@@ -405,8 +421,67 @@ impl<'a> Canvas<'a> {
                 ty: m.ty(),
             })
         };
-        let cov = coverage::fill_path(&device, paint.anti_alias, self.width(), self.height());
+        let cov = match &self.aa_clip {
+            Some(clip) => coverage::fill_path_aa_clip(&device, clip, self.width(), self.height()),
+            None => coverage::fill_path(&device, paint.anti_alias, self.width(), self.height()),
+        };
         self.blit(&cov, paint);
+    }
+
+    /// The canvas matrix as a path matrix.
+    fn ctm(&self) -> crate::Matrix {
+        let m = &self.matrix;
+        crate::Matrix {
+            sx: m.sx(),
+            kx: m.kx(),
+            tx: m.tx(),
+            ky: m.ky(),
+            sy: m.sy(),
+            ty: m.ty(),
+        }
+    }
+
+    /// The matrix and device bounds a stroke's dash and stroker see.
+    pub fn stroke_context(&self) -> crate::draw::StrokeContext {
+        crate::draw::StrokeContext::new(
+            self.ctm(),
+            crate::geom::IRect::from_ltrb(0, 0, self.width() as i32, self.height() as i32),
+        )
+    }
+
+    /// Whether an anti-aliased stroke of `width` is a hairline here
+    /// (`SkDrawTreatAsHairline`).
+    pub fn is_hairline(&self, width: f32) -> bool {
+        crate::hair::hairline_coverage(width, &self.ctm()).is_some()
+    }
+
+    /// `SkCanvas::drawPath` with an anti-aliased stroke paint of `width` when
+    /// Skia draws it as a hairline (`SkDrawTreatAsHairline`): `path` is
+    /// dashed already, `cap` is the paint's. False (nothing drawn) when the
+    /// stroke is wider than a device pixel.
+    pub fn stroke_hairline(
+        &mut self,
+        path: &crate::Path,
+        width: f32,
+        cap: crate::Cap,
+        paint: &Paint,
+    ) -> bool {
+        let ctm = self.ctm();
+        let Some(coverage) = crate::hair::hairline_coverage(width, &ctm) else {
+            return false;
+        };
+        if self.dst.is_empty() {
+            return true;
+        }
+        let mut paint = paint.clone();
+        match &mut paint.shader {
+            Shader::Color(c) => c[3] = crate::hair::hairline_alpha(c[3], coverage),
+            _ => paint.alpha = crate::hair::hairline_alpha(paint.alpha, coverage),
+        }
+        let device = path.transformed(&ctm);
+        let cov = coverage::anti_hair_path(&device, cap, self.width(), self.height());
+        self.blit(&cov, &paint);
+        true
     }
 
     /// The sprite blitter (`SkBlitter::ChooseSprite`).
@@ -474,7 +549,7 @@ impl<'a> Canvas<'a> {
             (_, b) => b,
         };
         let legacy = use_legacy_blitter(paint, &sampler);
-        let pixel = |this: &mut Self, x: i32, y: i32, call: Call, c: u8| {
+        let pixel = |this: &mut Self, x: i32, y: i32, call: Call, c: u8, span_left: i32| {
             let di = y as usize * w + x as usize;
             let d = this.dst.px(di);
             let out = match &legacy {
@@ -488,7 +563,7 @@ impl<'a> Canvas<'a> {
                     let SamplerKind::Image(img) = &sampler.kind else {
                         unreachable!()
                     };
-                    let s = img.gather_nearest(x, y);
+                    let s = img.legacy_shade(x, y, span_left);
                     if call == Call::Mask {
                         blend_row_a8(s, d, c)
                     } else if c == 255 {
@@ -522,15 +597,21 @@ impl<'a> Canvas<'a> {
             } => {
                 for y in *top..*bottom {
                     for x in *left..*right {
-                        pixel(self, x, y, Call::H, 255);
+                        pixel(self, x, y, Call::H, 255, *left);
                     }
                 }
             }
             Coverage::Mask(cells) => {
                 for (i, cell) in cells.iter().enumerate() {
                     if let Some((call, c)) = *cell {
-                        pixel(self, (i % w) as i32, (i / w) as i32, call, c);
+                        let x = (i % w) as i32;
+                        pixel(self, x, (i / w) as i32, call, c, x);
                     }
+                }
+            }
+            Coverage::Hits(hits) => {
+                for &(x, y, call, c) in hits {
+                    pixel(self, x, y, call, c, x);
                 }
             }
         }
@@ -598,8 +679,17 @@ fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
     }
     match (&paint.shader, &sampler.kind) {
         (Shader::Color(c), _) => Some(Legacy::Color(LegacyColor::new(c[3], c[0], c[1], c[2]))),
+        // SkImageShader::onMakeContext: no decal, the same tiling in x and y,
+        // nearest or (clamped, scale-translate) bilinear.
         (Shader::Image { .. }, SamplerKind::Image(img))
-            if img.sampling == Sampling::Nearest && paint.alpha == 255 =>
+            if paint.alpha == 255
+                && img.tile_x != TileMode::Decal
+                && img.tile_y != TileMode::Decal
+                && (img.sampling == Sampling::Nearest
+                    || (img.sampling == Sampling::Linear
+                        && img.tile_x == TileMode::Clamp
+                        && img.tile_y == TileMode::Clamp
+                        && img.inv.is_scale_translate())) =>
         {
             Some(Legacy::Image)
         }
@@ -863,7 +953,7 @@ impl ImageSampler<'_> {
         let scale = limit as f32;
         let inv = 1.0 / scale;
         match mode {
-            TileMode::Clamp => v,
+            TileMode::Clamp | TileMode::Decal => v,
             // `exclusive_repeat`: v - floor(v * invScale) * scale.
             TileMode::Repeat => v - (v * inv).floor() * scale,
             TileMode::Mirror => {
@@ -895,6 +985,18 @@ impl ImageSampler<'_> {
         self.gather(fx, fy, true)
     }
 
+    /// The legacy shader context (`SkBitmapProcLegacyShader`): nearest as the
+    /// pipeline picks it, or `SkBitmapProcState`'s clamped bilinear filter for
+    /// a span starting at `span_left`.
+    fn legacy_shade(&self, x: i32, y: i32, span_left: i32) -> [u8; 4] {
+        if self.sampling == Sampling::Linear
+            && let Some(st) = LegacyBilerp::new(&self.inv, self.image)
+        {
+            return st.shade(self.image, x, y, span_left);
+        }
+        self.gather_nearest(x, y)
+    }
+
     fn sample_lowp(&self, x: i32, y: i32) -> [u32; 4] {
         let (fx, fy) = self.coords(x, y);
         self.gather(fx, fy, self.sampling == Sampling::Nearest)
@@ -905,6 +1007,16 @@ impl ImageSampler<'_> {
         let (fx, fy) = self.coords(x, y);
         match self.sampling {
             Sampling::Nearest => {
+                // decal_x / decal_y (nearest: the right and bottom edges are inside).
+                let decal = |v: f32, limit: u32| {
+                    let w = limit as f32;
+                    (0.0 < v && v < w) || v == w
+                };
+                if (self.tile_x == TileMode::Decal && !decal(fx, self.image.width()))
+                    || (self.tile_y == TileMode::Decal && !decal(fy, self.image.height()))
+                {
+                    return [0.0; 4];
+                }
                 let fx = self.tile(fx, self.tile_x, self.image.width());
                 let fy = self.tile(fy, self.tile_y, self.image.height());
                 load(self.gather(fx, fy, true))
@@ -959,6 +1071,116 @@ impl ImageSampler<'_> {
                 ]
             }
         }
+    }
+}
+
+/// `SkBitmapProcState` for a clamped bilinear image through a scale-translate
+/// inverse matrix (`ClampX_ClampY_filter_scale` and `S32_alpha_D32_filter_DX`,
+/// 4-bit weights). `None` when Skia turns the filter off.
+struct LegacyBilerp {
+    sx: f32,
+    tx: f32,
+    sy: f32,
+    ty: f32,
+}
+
+/// `SkFloatToFixed3232`: `x * 2^32`, saturated.
+fn to_fixed3232(x: f32) -> i64 {
+    let v = x * (65536.0f32 * 65536.0);
+    v as i64
+}
+
+impl LegacyBilerp {
+    fn new(inv: &Matrix, image: &Bitmap) -> Option<Self> {
+        let (mut sx, mut sy, mut tx, mut ty) = (inv.sx(), inv.sy(), inv.tx(), inv.ty());
+        let nearly_eq = |a: f32, b: f32, tol: f32| (a - b).abs() <= tol;
+        let integral = |sx: f32, sy: f32, tx: f32, ty: f32| {
+            let tol = 1.0f32 / 256.0;
+            sx == 1.0
+                && sy == 1.0
+                && nearly_eq(tx, tx.round_ties_even_like(), tol)
+                && nearly_eq(ty, ty.round_ties_even_like(), tol)
+        };
+        let mut integral_only = integral(sx, sy, tx, ty);
+        if !integral_only {
+            if sx != 1.0 || sy != 1.0 {
+                // just_trans_general on the forward matrix
+                let fsx = 1.0f32 / sx;
+                let fsy = 1.0f32 / sy;
+                let tol = 1.0f32 / 32768.0;
+                if (fsx - 1.0).abs() <= tol && (fsy - 1.0).abs() <= tol {
+                    let ftx = -tx * fsx;
+                    let fty = -ty * fsy;
+                    sx = 1.0;
+                    sy = 1.0;
+                    tx = -ftx;
+                    ty = -fty;
+                }
+            }
+            integral_only = integral(sx, sy, tx, ty);
+        }
+        let valid = ((image.width() | image.height()) & !0x3FFF) == 0;
+        if !valid || integral_only {
+            return None;
+        }
+        Some(Self { sx, tx, sy, ty })
+    }
+
+    /// `SkBitmapProcStateAutoMapper`: 32.32 coordinates of a pixel centre,
+    /// biased by half a filter step.
+    fn map(&self, x: i32, y: i32) -> (i64, i64) {
+        let px = x as f32 + 0.5;
+        let py = y as f32 + 0.5;
+        let mx = px * self.sx + self.tx;
+        let my = py * self.sy + self.ty;
+        let bias = ((1i64 << 16) >> 1) << 16;
+        (
+            (to_fixed3232(mx) as u64).wrapping_sub(bias as u64) as i64,
+            (to_fixed3232(my) as u64).wrapping_sub(bias as u64) as i64,
+        )
+    }
+
+    /// `pack<clamp, extract_low_bits_clamp_clamp>`: (low, weight, high).
+    fn pack(f: i32, max: i32) -> (i32, u32, i32) {
+        let clamp = |v: i32| v.clamp(0, max);
+        (
+            clamp(f >> 16),
+            ((f >> 12) & 0xF) as u32,
+            clamp(f.wrapping_add(1 << 16) >> 16),
+        )
+    }
+
+    fn shade(&self, image: &Bitmap, x: i32, y: i32, span_left: i32) -> [u8; 4] {
+        // shadeSpan works in chunks of maxCountForBufferSize(512) = 127 pixels,
+        // each starting from its own mapped coordinate.
+        const CHUNK: i32 = 127;
+        let chunk_left = span_left + (x - span_left) / CHUNK * CHUNK;
+        let (fx0, fy) = self.map(chunk_left, y);
+        let max_x = image.width() as i32 - 1;
+        let max_y = image.height() as i32 - 1;
+        let (y0, wy, y1) = Self::pack((fy >> 16) as i32, max_y);
+        let dx = to_fixed3232(self.sx);
+        let fx = fx0.wrapping_add(dx.wrapping_mul((x - chunk_left) as i64));
+        let (x0, wx, x1) = Self::pack((fx >> 16) as i32, max_x);
+        let (tl, tr) = (image.pixel(x0 as u32, y0 as u32), image.pixel(x1 as u32, y0 as u32));
+        let (bl, br) = (image.pixel(x0 as u32, y1 as u32), image.pixel(x1 as u32, y1 as u32));
+        [0, 1, 2, 3].map(|c| {
+            let top = tl[c] as u32 * (16 - wx) + tr[c] as u32 * wx;
+            let bot = bl[c] as u32 * (16 - wx) + br[c] as u32 * wx;
+            let px = (top * 16).wrapping_add(bot.wrapping_sub(top).wrapping_mul(wy)) & 0xFFFF;
+            (px >> 8).min(255) as u8
+        })
+    }
+}
+
+/// `SkScalarRoundToScalar`: `floor(x + 0.5)`.
+trait RoundLike {
+    fn round_ties_even_like(self) -> f32;
+}
+
+impl RoundLike for f32 {
+    fn round_ties_even_like(self) -> f32 {
+        (self + 0.5).floor()
     }
 }
 

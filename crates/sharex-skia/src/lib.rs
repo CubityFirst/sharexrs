@@ -11,6 +11,10 @@
 //! - [`scan`]: `SkScan::AntiFillPath`'s choice between them,
 //! - [`blitter`]: the legacy N32 blitters that blend a solid colour,
 //! - [`stroke`], [`draw`]: `SkStroke` and `drawPath` for fills and strokes,
+//! - [`hair`]: hairlines, the strokes no wider than a pixel
+//!   (`SkScan_Hairline.cpp`, `SkScan_Antihair.cpp`),
+//! - [`dash`]: `SkDashPathEffect` over `SkContourMeasure`,
+//! - [`aaclip`]: anti-aliased clips (`SkAAClip`, `SkAAClipBlitter`),
 //! - [`blur`]: `SkBlurImageFilter`'s Gaussian passes; [`resample`]: image
 //!   scaling (`scalePixels`, Mitchell `drawImageRect`),
 //! - [`raster`]: the raster pipeline's float and 16-bit stages, the sprite
@@ -37,13 +41,16 @@
 )]
 
 pub mod aaa;
+pub mod aaclip;
 pub mod blitter;
 pub mod blur;
 pub mod clip;
 pub mod cubics;
+pub mod dash;
 pub mod draw;
 pub mod fixed;
 pub mod geom;
+pub mod hair;
 pub mod path;
 pub mod pixmap;
 pub mod raster;

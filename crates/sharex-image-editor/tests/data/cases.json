@@ -262,8 +262,7 @@
       "Y": 260
      }
     }
-   ],
-   "pending": "dashing conics (SkDashPath) not ported; tiny-skia dashes the quads"
+   ]
   },
   {
    "name": "ellipse-dashdot",
@@ -281,8 +280,7 @@
       "Y": 260
      }
     }
-   ],
-   "pending": "dashing conics (SkDashPath) not ported"
+   ]
   },
   {
    "name": "rect-dashdotdot-thick",
@@ -387,8 +385,7 @@
       "Y": 280
      }
     }
-   ],
-   "pending": "1px strokes are hairlines in Skia (SkScan_Antihair) not ported"
+   ]
   },
   {
    "name": "line-2px-dash",
@@ -1426,8 +1423,7 @@
       "Y": 250
      }
     }
-   ],
-   "pending": "the elliptical magnifier is an anti-aliased clip (SkAAClip), not ported"
+   ]
   },
   {
    "name": "spotlight",

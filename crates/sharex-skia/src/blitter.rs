@@ -57,6 +57,12 @@ pub trait Blitter {
         self.blit_anti_h(x, y, &[a0, a1], &[1, 1, 0]);
     }
 
+    /// `blitAntiV2`: two vertically adjacent pixels.
+    fn blit_anti_v2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        self.blit_anti_h(x, y, &[a0], &[1, 0]);
+        self.blit_anti_h(x, y + 1, &[a1], &[1, 0]);
+    }
+
     /// An A8 mask whose rows start at `bounds.left`, blitted inside `clip`.
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
         for y in clip.top..clip.bottom {
@@ -435,6 +441,12 @@ impl Blitter for ColorBlitter<'_> {
     fn blit_anti_h2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
         self.put(x, y, Call::AntiH2, a0);
         self.put(x + 1, y, Call::AntiH2, a1);
+    }
+
+    /// The legacy blitters blend `blitAntiV2` as `blitAntiH2`.
+    fn blit_anti_v2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x, y + 1, Call::AntiH2, a1);
     }
 
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
