@@ -10,6 +10,7 @@ mod app_icon;
 mod main_menu;
 mod main_window;
 mod render;
+mod test_pattern;
 mod window;
 
 use std::time::Instant;
@@ -29,6 +30,13 @@ fn main() {
     if args.first().map(String::as_str) == Some("--render") {
         if let Err(e) = render::run(&args[1..]) {
             eprintln!("sharexrs --render: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.first().map(String::as_str) == Some("--test-pattern") {
+        if let Err(e) = test_pattern::run(&args[1..]) {
+            eprintln!("sharexrs --test-pattern: {e}");
             std::process::exit(1);
         }
         return;
