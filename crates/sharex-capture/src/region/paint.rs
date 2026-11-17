@@ -12,13 +12,16 @@ use sharex_ui::{Palette, palette, widgets};
 use super::{RegionCapture, ResizeNode, toolbar};
 use crate::geometry::{PointF, Rect as RectI, RectF};
 
+/// What the magnifier picture shows: the pixel, size, count and scale.
+type MagnifierKey = (i32, i32, i32, i32, u32);
+
 /// One overlay window's view of the session: the monitor it covers and
 /// what it uploaded.
 pub struct OverlayView {
     /// The desktop pixels the window covers.
     pub monitor: RectI,
     frozen: Option<TextureHandle>,
-    magnifier: Option<(TextureHandle, (i32, i32, i32, i32, u32))>,
+    magnifier: Option<(TextureHandle, MagnifierKey)>,
     /// Where the toolbar was drawn, in points.
     toolbar: Option<toolbar::Layout>,
 }
@@ -364,6 +367,9 @@ impl RegionCapture {
 
     fn paint_toolbar(&self, ui: &egui::Ui, view: &mut OverlayView, p: &Palette, ppp: f32, now: Instant) {
         view.toolbar = None;
+        if !self.enable_annotations {
+            return;
+        }
         let Some((ax, ay)) = self.toolbar_anchor() else { return };
         let hidden = self.toolbar_hidden_amount(now);
         let scale = self.toolbar_scale();
@@ -401,7 +407,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn halo_of_shareXs_accent_is_black() {
+    fn halo_of_the_sharex_accent_is_black() {
         assert_eq!(halo(Color32::from_rgb(0x09, 0xAA, 0xFF)), Color32::BLACK);
         assert_eq!(halo(Color32::from_rgb(0x20, 0x20, 0x60)), Color32::WHITE);
         assert_eq!(dim_alpha(20), 51);

@@ -58,6 +58,7 @@ pub fn render(
         windows,
         cursor: Some(pointer),
         last_regions: Vec::new(),
+        enable_annotations: true,
     });
     let none = Modifiers::default();
     if let Some(d) = drag {

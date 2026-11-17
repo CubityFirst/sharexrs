@@ -4,11 +4,11 @@
 //!   grabbing the screen and the mouse pointer.
 //! - [`windows_list`]: `WindowsRectangleList`: windows and controls to snap
 //!   a region to.
-//! - [`options`]: `RegionCaptureOptions`.
+//! - [`options`]: the `RegionCaptureOptions`.
 //! - [`region`]: the region capture overlay (`Presentation/RegionCapture`):
 //!   its state, input handling and drawing, independent of any window so
 //!   it can be rendered offscreen and tested.
-//! - [`clipboard`]: `ClipboardHelpers.CopyImage`.
+//! - [`clipboard`]: copying images (`ClipboardHelpers.CopyImage`).
 //! - [`platform`]: what each OS does differently (Win32, AppKit, xcap).
 
 pub mod clipboard;

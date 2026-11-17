@@ -142,7 +142,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shareX_cursors_decode() {
+    fn sharex_cursors_decode() {
         let c = cursor(CustomCursor::Crosshair, 1.0).unwrap();
         assert_eq!((c.width, c.height, c.hotspot), (32, 32, (15, 15)));
         assert!(c.rgba.chunks(4).any(|p| p[3] == 255));

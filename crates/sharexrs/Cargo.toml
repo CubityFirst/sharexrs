@@ -16,6 +16,10 @@ egui-winit.workspace = true
 winit.workspace = true
 pollster.workspace = true
 image.workspace = true
+dirs.workspace = true
 
 [build-dependencies]
 embed-resource = "3"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Media_Audio"] }

@@ -45,7 +45,7 @@ pub fn char_from(chars: &str) -> char {
 }
 
 /// `RandomCrypto.Pick`.
-pub fn pick<'a, T>(items: &'a [T]) -> Option<&'a T> {
+pub fn pick<T>(items: &[T]) -> Option<&T> {
     if items.is_empty() {
         return None;
     }

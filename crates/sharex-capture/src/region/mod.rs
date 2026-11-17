@@ -51,6 +51,8 @@ pub struct Request {
     pub cursor: Option<(i32, i32)>,
     /// `RegionCaptureIntegration.LastRegionRectangles`.
     pub last_regions: Vec<Rect>,
+    /// Shows the annotation toolbar (`!RegionCaptureDisableAnnotation`).
+    pub enable_annotations: bool,
 }
 
 /// `AvaloniaRegionCaptureResult`.
@@ -237,6 +239,7 @@ pub struct RegionCapture {
     pub(crate) options: RegionCaptureOptions,
     windows: Vec<SimpleWindowInfo>,
     last_regions: Vec<Rect>,
+    pub(crate) enable_annotations: bool,
     width: f64,
     height: f64,
     opened: Instant,
@@ -275,7 +278,8 @@ const DOUBLE_CLICK_DISTANCE: f64 = 4.0;
 
 impl RegionCapture {
     pub fn new(request: Request) -> Self {
-        let Request { screenshot, screen_bounds, screens, options, windows, cursor, last_regions } = request;
+        let Request { screenshot, screen_bounds, screens, options, windows, cursor, last_regions, enable_annotations } =
+            request;
         let width = screen_bounds.w.max(1) as f64;
         let height = screen_bounds.h.max(1) as f64;
         let mut me = Self {
@@ -285,6 +289,7 @@ impl RegionCapture {
             windows: if options.detect_windows { windows } else { Vec::new() },
             options,
             last_regions,
+            enable_annotations,
             width,
             height,
             opened: Instant::now(),

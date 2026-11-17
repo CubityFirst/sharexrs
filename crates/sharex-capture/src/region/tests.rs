@@ -14,6 +14,7 @@ fn session(windows: Vec<SimpleWindowInfo>) -> RegionCapture {
         windows,
         cursor: Some((300, 300)),
         last_regions: Vec::new(),
+        enable_annotations: true,
     })
 }
 

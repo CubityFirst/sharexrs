@@ -235,7 +235,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn toolbar_is_shareXs_size() {
+    fn toolbar_is_the_size_of_sharexs() {
         // Measured on ShareX at 100%: 909 x 50.
         assert_eq!(size(1.0), vec2(909.0, 50.0));
         let l = layout(pos2(58.0, 0.0), 1.0);

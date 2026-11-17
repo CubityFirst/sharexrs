@@ -7,14 +7,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_icon;
+mod capture_job;
 mod main_menu;
 mod main_window;
 mod region_render;
+mod region_session;
 mod render;
+mod sound;
+mod task_settings;
 mod test_pattern;
 mod window;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sharex_ui::gpu::Gpu;
 use winit::application::ApplicationHandler;
@@ -23,7 +27,11 @@ use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Icon, WindowAttributes, WindowId, WindowLevel};
 
+use main_menu::MenuCommand;
 use main_window::{Action, MainWindow};
+use region_session::RegionSession;
+use sharex_capture::region::Outcome;
+use task_settings::TaskSettings;
 use window::EguiWindow;
 
 fn main() {
@@ -43,7 +51,19 @@ fn main() {
         return;
     }
     let event_loop = EventLoop::new().expect("event loop");
-    let mut app = App { gpu: None, main: None, state: MainWindow::new(), cursor: None, swallow_release: false };
+    #[cfg(target_os = "macos")]
+    sharex_capture::platform::macos::ask_for_screen_recording();
+    let mut app = App {
+        gpu: None,
+        main: None,
+        state: MainWindow::new(),
+        cursor: None,
+        swallow_release: false,
+        settings: TaskSettings::default(),
+        region: None,
+        region_due: None,
+        last_regions: Vec::new(),
+    };
     event_loop.run_app(&mut app).expect("run");
 }
 
@@ -55,6 +75,15 @@ struct App {
     cursor: Option<egui::Pos2>,
     /// A press closed a menu (light dismiss); its release goes nowhere either.
     swallow_release: bool,
+    /// The default task settings (a stand-in until settings are loaded).
+    settings: TaskSettings,
+    /// The region capture overlay, while it's open.
+    region: Option<RegionSession>,
+    /// When to freeze the screen for a region capture: the main window
+    /// hides first (`CaptureBase`'s `autoHideForm`, 250 ms).
+    region_due: Option<Instant>,
+    /// `RegionCaptureIntegration.LastRegionRectangles`.
+    last_regions: Vec<sharex_capture::Rect>,
 }
 
 impl App {
@@ -122,9 +151,72 @@ impl App {
                 }));
             }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
+            Action::Menu(MenuCommand::CaptureRegion) => {
+                // `new CaptureRegion().Capture(autoHide)`: hide the main
+                // window, give it 250 ms to go, then capture.
+                if self.region.is_none() && self.region_due.is_none() {
+                    w.window.set_visible(false);
+                    let delay = Duration::from_secs_f64(self.settings.screenshot_delay.max(0.0));
+                    self.region_due = Some(Instant::now() + delay + Duration::from_millis(250));
+                }
+                return;
+            }
             Action::Menu(command) => eprintln!("menu: {command:?}: not ported yet"),
         }
         w.window.request_redraw();
+    }
+
+    /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync`: freezes the
+    /// screen and opens the overlay.
+    fn start_region_capture(&mut self, event_loop: &ActiveEventLoop) {
+        let dark = self.main.as_ref().is_none_or(|w| w.ctx().theme() == egui::Theme::Dark);
+        let opened = capture_job::prepare(&self.settings, self.last_regions.clone()).and_then(|request| {
+            let gpu = match &self.gpu {
+                Some(g) => g,
+                None => self.gpu.insert(sharex_ui::gpu::Gpu::new()?),
+            };
+            RegionSession::open(event_loop, gpu, request, dark)
+        });
+        match opened {
+            Ok(session) => self.region = Some(session),
+            Err(e) => {
+                eprintln!("region capture: {e}");
+                self.show_main_window();
+            }
+        }
+    }
+
+    /// `MainWindowIntegration.Activate`.
+    fn show_main_window(&self) {
+        if let Some(w) = &self.main {
+            w.window.set_visible(true);
+            w.window.focus_window();
+            w.window.request_redraw();
+        }
+    }
+
+    /// The overlay closed: the main window comes back, and a capture goes
+    /// through the after capture tasks (`CaptureBase.AfterCapture`).
+    fn finish_region_capture(&mut self, outcome: Outcome) {
+        let Some(session) = self.region.take() else { return };
+        self.settings.region_capture_options = session.capture.into_options();
+        self.show_main_window();
+        let Outcome::Captured(result) = outcome else { return };
+        self.last_regions = result.regions.clone();
+        if self.settings.play_sound_after_capture {
+            sound::play_capture();
+        }
+        let metadata = capture_job::Metadata::from_result(&result);
+        let settings = self.settings.clone();
+        // Only the auto increment number comes back from the task (as
+        // `NameParserAutoIncrementNumber`); file names don't use it by
+        // default.
+        let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
+        std::thread::spawn(move || {
+            if let Err(e) = capture_job::run_image_task(metadata, settings, owner) {
+                eprintln!("after capture tasks: {e}");
+            }
+        });
     }
 }
 
@@ -171,6 +263,13 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        if let Some(region) = self.region.as_mut().filter(|r| r.owns(id)) {
+            let outcome = region.window_event(event_loop, id, event);
+            if !matches!(outcome, Outcome::Continue) {
+                self.finish_region_capture(outcome);
+            }
+            return;
+        }
         let Some(w) = self.main.as_mut().filter(|w| w.window.id() == id) else { return };
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -220,7 +319,12 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let next = self.main.as_ref().and_then(|w| w.repaint_at);
+        if self.region_due.is_some_and(|at| at <= Instant::now()) {
+            self.region_due = None;
+            self.start_region_capture(event_loop);
+        }
+        let region = self.region.as_mut().and_then(RegionSession::wake_at);
+        let next = [self.main.as_ref().and_then(|w| w.repaint_at), self.region_due, region].into_iter().flatten().min();
         match next {
             Some(at) if at <= Instant::now() => {
                 if let Some(w) = &self.main {
