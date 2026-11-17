@@ -3757,6 +3757,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharex-screen-recording"
+version = "22.4.0"
+dependencies = [
+ "regex",
+ "serde",
+ "serde_json",
+ "sharex-settings",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "sharex-settings"
 version = "22.4.0"
 dependencies = [
