@@ -234,6 +234,8 @@ impl TaskSettingsWindow {
         let open = ui.ctx().data_mut(|d| d.remove_temp::<bool>(Id::new("settings-any-combo-next"))).unwrap_or(false);
         ui.ctx().data_mut(|d| d.insert_temp(Id::new("settings-any-combo"), open));
         let terms = self.terms();
+        // A menu opened this frame isn't dismissed by the press that opened it.
+        let had_menu = self.menu.is_some();
         // `SettingsNavigationItem.ApplyFilter`: a page shows when it or a
         // child matches.
         let mut visible = [false; 20];
@@ -275,15 +277,15 @@ impl TaskSettingsWindow {
                 scroll_indicator(&child, column, self.scroll[page], height);
             }
         }
-        self.show_menu(ui, full, ctx);
+        self.show_menu(ui, full, ctx, had_menu);
         std::mem::take(&mut self.effects)
     }
 
     /// The open popup menu, and what it chose.
-    fn show_menu(&mut self, ui: &mut Ui, full: Rect, ctx: &mut TaskCtx) {
+    fn show_menu(&mut self, ui: &mut Ui, full: Rect, ctx: &mut TaskCtx, had_menu: bool) {
         let Some(flyout) = self.menu.as_mut() else { return };
         let out = flyout.show(ui, full);
-        let outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !flyout.contains(pos));
+        let outside = had_menu && ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !flyout.contains(pos));
         if let Some(cmd) = out.command.clone() {
             let t = &mut *ctx.task;
             match cmd {

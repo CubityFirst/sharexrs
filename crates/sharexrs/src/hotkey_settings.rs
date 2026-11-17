@@ -307,6 +307,9 @@ impl HotkeySettingsWindow {
         // `Grid x:Name="ContentGrid" Margin="10,0,10,10" RowSpacing="5"`.
         let content = Rect::from_min_max(pos2(full.min.x + 10.0, full.min.y), pos2(full.max.x - 10.0, full.max.y - 10.0));
         let modal = self.reset_confirmation;
+        // A menu opened this frame isn't dismissed by the press that opened
+        // it (a click's press and release can arrive in one frame).
+        let had_menu = self.task_menu.is_some();
         let toolbar = self.toolbar(ui, content, svc, modal);
         // The banner's row keeps its `RowSpacing` when it's collapsed.
         let mut y = toolbar.max.y + 5.0;
@@ -322,7 +325,8 @@ impl HotkeySettingsWindow {
         if let Some((row, flyout)) = self.task_menu.as_mut() {
             let row = *row;
             let out = flyout.show(ui, full);
-            let pressed_outside = ui.input(|i| i.pointer.any_pressed())
+            let pressed_outside = had_menu
+                && ui.input(|i| i.pointer.any_pressed())
                 && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !flyout.contains(pos));
             if let Some(job) = out.command {
                 self.task_menu = None;
