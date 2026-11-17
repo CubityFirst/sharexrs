@@ -63,6 +63,18 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
     })
 }
 
+/// `RegionCaptureTasks.CaptureAsync` for `GetRectangleRegionAsync` (screen
+/// recording's region): the frozen screen without the pointer, and no
+/// annotations (`EnableAnnotations = false`).
+pub fn prepare_selection(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
+    let mut task = task.clone();
+    task.CaptureSettings.get_or_insert_default().ShowCursor = false;
+    let mut request = prepare(&task, last_regions)?;
+    request.enable_annotations = false;
+    request.editor_options = sharex_image_editor::ImageEditorOptions::default();
+    Ok(request)
+}
+
 /// `TaskSettings.ToolsSettingsReference.ImageEditorOptions`.
 pub fn image_editor_options(task: &TaskSettings) -> sharex_image_editor::ImageEditorOptions {
     task.ToolsSettings

@@ -183,5 +183,18 @@ pub fn definitions() -> FontDefinitions {
         mono_list.insert(0, "sharex-mono-semibold".into());
     }
     defs.families.insert(mono_semibold(), mono_list);
+    // `FontFamily="Consolas"` (the FFmpeg command box): Consolas where the
+    // system has it, else the monospace font.
+    let mut consolas_list = defs.families[&FontFamily::Monospace].clone();
+    if let Some(face) = first_of(&["Consolas"], &["consola.ttf"], 400) {
+        defs.font_data.insert("sharex-consolas".into(), Arc::new(face));
+        consolas_list.insert(0, "sharex-consolas".into());
+    }
+    defs.families.insert(consolas(), consolas_list);
     defs
+}
+
+/// `FontFamily="Consolas"`.
+pub fn consolas() -> FontFamily {
+    FontFamily::Name("consolas".into())
 }

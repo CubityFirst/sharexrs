@@ -122,6 +122,31 @@ pub fn create_file_uploader_task(path: &Path, task: TaskSettings, ctx: &mut NewT
     })
 }
 
+/// `WorkerTask.CreateFileJobTask`: a file a capture made (a screen
+/// recording) going through the after capture tasks; the file is opened
+/// only when the task uploads (`LoadFileStream`), `None` when that fails.
+pub fn create_file_job_task(path: &Path, task: TaskSettings, ctx: &mut NewTaskContext) -> Option<UploadTask> {
+    let path_str = path.to_string_lossy();
+    let data_type = find_data_type(&path_str, &task);
+    let mut file_name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if task.UploadSettings.as_ref().is_some_and(|u| u.FileUploadUseNamePattern) {
+        let ext = get_file_name_extension(&path_str);
+        file_name = name_pattern_file_name(&task, ctx, &ext);
+    }
+    let source = if task.AfterCaptureJob.contains(AfterCaptureTasks::UploadImageToHost) {
+        match std::fs::File::open(path) {
+            Ok(f) => Source::File(f),
+            Err(e) => {
+                eprintln!("{}: {e}", path.display());
+                return None;
+            }
+        }
+    } else {
+        Source::None
+    };
+    Some(UploadTask { job: TaskJob::Job, data_type, file_name, file_path: Some(path.to_path_buf()), url: String::new(), task, source })
+}
+
 /// `WorkerTask.CreateImageUploaderTask`: a capture's image task.
 pub fn create_image_uploader_task(image: ImageTask) -> UploadTask {
     UploadTask {

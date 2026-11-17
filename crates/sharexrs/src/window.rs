@@ -21,15 +21,34 @@ pub struct EguiWindow {
     /// What the window is cleared to before egui draws (premultiplied
     /// RGBA); the theme's panel colour when unset.
     pub clear_color: Option<[f32; 4]>,
+    /// Where the pointer last moved in the window: winit doesn't repeat a
+    /// `CursorMoved` at the same spot after the pointer left and came back
+    /// (a click at the same place twice, the window cut to a region),
+    /// while egui forgets the pointer when it leaves.
+    last_cursor: Option<winit::dpi::PhysicalPosition<f64>>,
 }
 
 impl EguiWindow {
     pub fn new(window: Window, gpu: &Gpu, resize_border: Option<f32>) -> Result<Self, String> {
+        Self::with_alpha(window, gpu, resize_border, false)
+    }
+
+    /// A window whose transparent pixels show what's behind it
+    /// (`TransparencyLevelHint="Transparent"`): the swap chain is composited
+    /// with premultiplied alpha (DirectComposition on Windows), and the
+    /// window is cleared to transparent.
+    pub fn transparent(window: Window, gpu: &Gpu) -> Result<Self, String> {
+        let mut w = Self::with_alpha(window, gpu, None, true)?;
+        w.clear_color = Some([0.0; 4]);
+        Ok(w)
+    }
+
+    fn with_alpha(window: Window, gpu: &Gpu, resize_border: Option<f32>, alpha: bool) -> Result<Self, String> {
         let window = Arc::new(window);
         let ctx = egui::Context::default();
         sharex_ui::install(&ctx);
         let config = egui_wgpu::WgpuConfiguration { wgpu_setup: gpu.egui_setup(), ..Default::default() };
-        let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, false, Default::default()));
+        let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, alpha, Default::default()));
         pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window.clone())))
             .map_err(|e| format!("couldn't set up the window: {e}"))?;
         let state = egui_winit::State::new(
@@ -40,7 +59,7 @@ impl EguiWindow {
             window.theme(),
             painter.max_texture_side(),
         );
-        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None })
+        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None })
     }
 
     pub fn ctx(&self) -> &egui::Context {
@@ -58,7 +77,17 @@ impl EguiWindow {
                     self.painter.on_window_resized(egui::ViewportId::ROOT, w, h);
                 }
             }
+            WindowEvent::CursorEntered { device_id } => {
+                let _ = self.state.on_window_event(&self.window, event);
+                if let Some(position) = self.last_cursor {
+                    let moved = WindowEvent::CursorMoved { device_id: *device_id, position };
+                    let _ = self.state.on_window_event(&self.window, &moved);
+                }
+                self.window.request_redraw();
+                return;
+            }
             WindowEvent::CursorMoved { position, .. } => {
+                self.last_cursor = Some(*position);
                 let dir = self.resize_direction(position.x, position.y);
                 if dir != self.resize_hover {
                     self.resize_hover = dir;

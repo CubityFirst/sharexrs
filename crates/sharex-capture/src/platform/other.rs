@@ -135,6 +135,24 @@ pub fn prepare_overlay(_window: &winit::window::Window) {
     super::macos::cover_everything(_window);
 }
 
+/// Keeps the window out of screen captures: `setSharingType(None)` on
+/// macOS (what snapr does for its recording frame); nothing elsewhere.
+pub fn exclude_from_capture(_window: &winit::window::Window) -> bool {
+    #[cfg(target_os = "macos")]
+    return super::macos::exclude_from_capture(_window);
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
+/// The taskbar's light theme (Windows only).
+pub fn light_taskbar() -> bool {
+    false
+}
+
+/// A window region (Windows only; elsewhere the window's transparent
+/// pixels are clicked through by the window manager or not at all).
+pub fn set_window_region(_window: &winit::window::Window, _rects: &[Rect]) {}
+
 /// Called once an overlay's first frame is on screen: macOS fades it in
 /// (`docs/MACOS-LEARNINGS.md` 3.7).
 pub fn overlay_presented(_window: &winit::window::Window) {
@@ -161,6 +179,11 @@ pub fn window_rect(handle: isize) -> Rect {
 /// No client area apart from the frame outside Windows.
 pub fn client_rect(handle: isize) -> Rect {
     window_rect(handle)
+}
+
+/// Listed windows are the visible ones.
+pub fn is_window_visible(handle: isize) -> bool {
+    listed_windows().iter().any(|(i, _)| i.handle == handle)
 }
 
 pub fn is_minimized(handle: isize) -> bool {

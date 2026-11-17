@@ -4265,6 +4265,7 @@ dependencies = [
  "sharex-image-editor",
  "sharex-image-effects",
  "sharex-ocr",
+ "sharex-screen-recording",
  "sharex-settings",
  "sharex-strings",
  "sharex-ui",
@@ -4272,6 +4273,7 @@ dependencies = [
  "windows",
  "windows-sys 0.61.2",
  "winit",
+ "zip",
 ]
 
 [[package]]

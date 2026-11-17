@@ -690,6 +690,55 @@ pub fn prepare_overlay(window: &winit::window::Window) {
 /// Called once an overlay's first frame is on screen (macOS fades it in).
 pub fn overlay_presented(_window: &winit::window::Window) {}
 
+/// `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`: the window doesn't
+/// show in screen captures (the recording frame with the native recorder).
+pub fn exclude_from_capture(window: &winit::window::Window) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowDisplayAffinity;
+    let Some(h) = hwnd(window) else { return false };
+    // SAFETY: our own window.
+    unsafe { SetWindowDisplayAffinity(h, 0x11) != 0 }
+}
+
+/// `TrayIconImage.IsLightTaskbarTheme`: `SystemUsesLightTheme` (missing
+/// means light, as ShareX reads it).
+pub fn light_taskbar() -> bool {
+    let key: Vec<u16> = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\0".encode_utf16().collect();
+    let name: Vec<u16> = "SystemUsesLightTheme\0".encode_utf16().collect();
+    let mut value = 0u32;
+    let mut size = 4u32;
+    // SAFETY: valid strings and a DWORD buffer of `size` bytes.
+    let ok = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            name.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            (&raw mut value).cast(),
+            &mut size,
+        )
+    } == 0;
+    !ok || value != 0
+}
+
+/// `SetWindowRgn` to these rectangles (window pixels).
+pub fn set_window_region(window: &winit::window::Window, rects: &[Rect]) {
+    use windows_sys::Win32::Graphics::Gdi::{CombineRgn, CreateRectRgn, DeleteObject, RGN_OR, SetWindowRgn};
+    let Some(h) = hwnd(window) else { return };
+    // SAFETY: regions created here; SetWindowRgn owns the combined one.
+    unsafe {
+        let region = CreateRectRgn(0, 0, 0, 0);
+        for r in rects {
+            let part = CreateRectRgn(r.x, r.y, r.right(), r.bottom());
+            CombineRgn(region, region, part, RGN_OR);
+            DeleteObject(part);
+        }
+        if SetWindowRgn(h, region, 1) == 0 {
+            DeleteObject(region);
+        }
+    }
+}
+
 // ---- windows for Capture › Window and the other capture jobs -------------
 
 /// `NativeMethods.GetForegroundWindow`.
@@ -714,6 +763,13 @@ pub fn is_minimized(handle: isize) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::IsIconic;
     // SAFETY: no pointers.
     unsafe { IsIconic(handle as HWND) != 0 }
+}
+
+/// `WindowInfo.IsVisible`.
+pub fn is_window_visible(handle: isize) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+    // SAFETY: no pointers.
+    unsafe { IsWindowVisible(handle as HWND) != 0 }
 }
 
 /// `WindowInfo.Restore`.

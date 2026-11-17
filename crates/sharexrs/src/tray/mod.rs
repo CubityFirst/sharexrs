@@ -150,11 +150,17 @@ const PROGRESS_COLOR: [u8; 3] = [16, 116, 193];
 /// edge, the percentage (at most 99) in white Arial 10pt in the middle, and
 /// the four corner pixels cleared.
 pub fn progress_icon(size: u32, percentage: i32) -> RgbaImage {
+    progress_icon_in(size, percentage, PROGRESS_COLOR)
+}
+
+/// [`progress_icon`] filled with `color` (the recording frame's encoding
+/// progress is #8C0024).
+pub fn progress_icon_in(size: u32, percentage: i32, color: [u8; 3]) -> RgbaImage {
     let percentage = percentage.clamp(0, 100);
     let s = size.max(1);
     let mut img = RgbaImage::from_pixel(s, s, image::Rgba([39, 39, 39, 255]));
     let height = (s as f32 * (percentage as f32 / 100.0)) as u32;
-    let [r, g, b] = PROGRESS_COLOR;
+    let [r, g, b] = color;
     for y in s - height..s {
         for x in 0..s {
             img.put_pixel(x, y, image::Rgba([r, g, b, 255]));
@@ -163,7 +169,7 @@ pub fn progress_icon(size: u32, percentage: i32) -> RgbaImage {
     if height > 0 && height < s {
         // `ColorHelpers.LighterColor(color, 0.3f)`, a 1px antialiased line
         // from (0, y) to (size - 1, y): half on each row it straddles.
-        let lighter = PROGRESS_COLOR.map(|c| (c as f32 + (255.0 - c as f32) * 0.3) as u8);
+        let lighter = color.map(|c| (c as f32 + (255.0 - c as f32) * 0.3) as u8);
         let y = s - height;
         for row in [y - 1, y] {
             for x in 0..s - 1 {

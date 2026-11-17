@@ -43,6 +43,8 @@ type Form<'u, 'a, 'b> = settings_form::Form<'u, 'a, TaskCtx<'b>, TaskSettingsWin
 pub enum Effect {
     /// A feature that isn't ported yet was asked for.
     NotPorted(&'static str),
+    /// Screen recording options... (`ShowScreenRecordingOptions`).
+    FFmpegOptions,
 }
 
 /// A page: `SettingsNavigationItem` (id, title, icon) and its parent.
@@ -1261,7 +1263,7 @@ fn page_screen_recorder(f: &mut Form) {
         chk!(f, s::TaskSettingsWindow_RecordLosslesslyFirstThenApplyEncodingOptions(), !native, CaptureSettings.ScreenRecordTwoPassEncoding);
         chk!(f, s::TaskSettingsWindow_AskForConfirmationWhenAborting(), CaptureSettings.ScreenRecordAskConfirmationOnAbort);
         if f.buttons(&[(s::TaskSettingsWindow_ScreenRecordingOptionsWithEllipsis(), !native)], 6.0).is_some() {
-            f.effect(Effect::NotPorted("screen recording options"));
+            f.effect(Effect::FFmpegOptions);
         }
     });
 }

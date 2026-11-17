@@ -76,6 +76,24 @@ fn rasterize(svg: &str, tinted: bool, side: u32) -> Option<ColorImage> {
     Some(ColorImage::from_rgba_premultiplied([side as usize, side as usize], pixmap.data()))
 }
 
+/// Icon `key` as a `side` x `side` picture (straight RGBA) in `color`:
+/// `TrayIconImage.RenderIcon`, for tray icons.
+pub fn image(key: &str, side: u32, color: Color32) -> Option<image::RgbaImage> {
+    let (svg, tinted) = source(key, pack(), true)?;
+    let [r, g, b, _] = color.to_srgba_unmultiplied();
+    let svg = if tinted || svg.contains("currentColor") {
+        svg.replace("currentColor", &format!("#{r:02X}{g:02X}{b:02X}"))
+    } else {
+        svg.to_string()
+    };
+    let painted = rasterize(&svg, false, side)?;
+    let mut out = image::RgbaImage::new(side, side);
+    for (dst, p) in out.pixels_mut().zip(painted.pixels.iter()) {
+        *dst = image::Rgba(p.to_srgba_unmultiplied());
+    }
+    Some(out)
+}
+
 type Cache = Arc<Mutex<HashMap<(String, u32, IconPack, bool, Option<[u8; 3]>), Option<(TextureHandle, bool)>>>>;
 
 /// The texture for `key` at `side` physical pixels, and whether it's tinted.

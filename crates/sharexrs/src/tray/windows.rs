@@ -1,8 +1,11 @@
 //! `WindowsTrayIcon`: a notification area icon through `Shell_NotifyIconW`
 //! that reports every mouse button. Its messages go to a hidden window on
 //! the main thread (snapr's approach), so winit's message loop drives it.
+//! Each icon has its own window: the app's, and the recording frame's
+//! (`ScreenRecordWindow`'s own `TrayIcon`) while recording.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ptr::null;
 
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
@@ -32,7 +35,13 @@ struct State {
 }
 
 thread_local! {
-    static STATE: RefCell<Option<State>> = const { RefCell::new(None) };
+    /// Every icon, by its window.
+    static STATE: RefCell<HashMap<usize, State>> = RefCell::new(HashMap::new());
+}
+
+/// Runs `f` on the state of the icon whose window is `hwnd`.
+fn with_state<T>(hwnd: HWND, f: impl FnOnce(&mut State) -> T) -> Option<T> {
+    STATE.with(|s| s.borrow_mut().get_mut(&(hwnd as usize)).map(f))
 }
 
 fn wide(s: &str) -> Vec<u16> {
@@ -79,7 +88,7 @@ impl Tray {
             taskbar_created: unsafe { RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()) },
             callback,
         };
-        STATE.with(|s| *s.borrow_mut() = Some(state));
+        STATE.with(|s| s.borrow_mut().insert(hwnd as usize, state));
         let tray = Self { hwnd };
         tray.set_tooltip(tooltip);
         tray.set_icon(&super::app_icon(Self::icon_size()));
@@ -115,38 +124,32 @@ impl Tray {
         if icon.is_null() {
             return;
         }
-        STATE.with(|s| {
-            if let Some(state) = s.borrow_mut().as_mut() {
-                let previous = std::mem::replace(&mut state.icon, icon);
-                update(state);
-                if !previous.is_null() {
-                    // SAFETY: ours, and the shell has the new one.
-                    unsafe { DestroyIcon(previous) };
-                }
+        with_state(self.hwnd, |state| {
+            let previous = std::mem::replace(&mut state.icon, icon);
+            update(state);
+            if !previous.is_null() {
+                // SAFETY: ours, and the shell has the new one.
+                unsafe { DestroyIcon(previous) };
             }
         });
     }
 
     /// `ToolTipText` (at most 63 characters).
     pub fn set_tooltip(&self, text: &str) {
-        STATE.with(|s| {
-            if let Some(state) = s.borrow_mut().as_mut() {
-                let text: String = text.chars().take(63).collect();
-                if state.tooltip != text {
-                    state.tooltip = text;
-                    update(state);
-                }
+        with_state(self.hwnd, |state| {
+            let text: String = text.chars().take(63).collect();
+            if state.tooltip != text {
+                state.tooltip = text;
+                update(state);
             }
         });
     }
 
     /// `Visible`.
     pub fn set_visible(&self, visible: bool) {
-        STATE.with(|s| {
-            if let Some(state) = s.borrow_mut().as_mut() {
-                state.visible = visible;
-                update(state);
-            }
+        with_state(self.hwnd, |state| {
+            state.visible = visible;
+            update(state);
         });
     }
 
@@ -156,7 +159,7 @@ impl Tray {
 
 impl Drop for Tray {
     fn drop(&mut self) {
-        if let Some(mut state) = STATE.with(|s| s.borrow_mut().take()) {
+        if let Some(mut state) = STATE.with(|s| s.borrow_mut().remove(&(self.hwnd as usize))) {
             state.visible = false;
             update(&mut state);
             if !state.icon.is_null() {
@@ -198,9 +201,9 @@ fn update(state: &mut State) {
     }
 }
 
-fn dispatch(event: TrayEvent) {
+fn dispatch(hwnd: HWND, event: TrayEvent) {
     // Cloned out of the RefCell so the callback can't re-enter a borrow.
-    let callback = STATE.with(|s| s.borrow().as_ref().map(|st| st.callback.clone()));
+    let callback = with_state(hwnd, |st| st.callback.clone());
     if let Some(cb) = callback {
         cb(event);
     }
@@ -219,23 +222,24 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             };
             if let Some(b) = button {
                 if matches!(m, 0x201 | 0x203 | 0x204 | 0x206 | 0x207 | 0x209) {
-                    dispatch(TrayEvent::Down(b));
+                    dispatch(hwnd, TrayEvent::Down(b));
                 }
                 if matches!(m, 0x202 | 0x205 | 0x208) {
-                    dispatch(TrayEvent::Up(b));
+                    dispatch(hwnd, TrayEvent::Up(b));
                 }
             }
         }
         return 0;
     }
-    let readded = STATE.with(|s| {
-        let mut s = s.borrow_mut();
-        let state = s.as_mut().filter(|st| st.taskbar_created == msg)?;
+    let readded = with_state(hwnd, |state| {
+        if state.taskbar_created != msg {
+            return false;
+        }
         state.added = false;
         update(state);
-        Some(())
+        true
     });
-    if readded.is_some() {
+    if readded == Some(true) {
         return 0;
     }
     // SAFETY: unhandled messages go to the default procedure.

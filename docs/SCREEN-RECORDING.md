@@ -238,12 +238,18 @@ FFmpeg. "Action completed" sound after each segment. Abort deletes the file;
   `ffmpeg.exe` beside ShareX.exe (`.github/workflows/build.yml`). The
   downloaders in HelpersLib (`FFmpegDownloader`: the dead zeranoe URL;
   `FFmpegGitHubDownloader`: ShareX/FFmpeg releases, `*win64.zip`, extract
-  `ffmpeg.exe` ≤ 200 MB) aren't called anywhere in 22.4.
+  `ffmpeg.exe` ≤ 200 MB) aren't called anywhere in 22.4: a missing FFmpeg
+  is only the warning above. ShareXrs doesn't ship FFmpeg, so it adds "Would
+  you like to download it?" (HelpersLib's `UpdateMessageBox_Portable`) to
+  that warning, Yes/No; Yes runs `FFmpegGitHubDownloader` on a thread (the
+  latest ShareX/FFmpeg release's `*win64.zip`, `ffmpeg.exe` extracted to
+  where FFmpeg was looked for) and says how it went in a message box
+  (`DownloaderWindow`, with its progress, isn't ported).
 - The reference here: `G:/scripts/sharexrs-ref/ShareX-22.4.0-portable/
   ffmpeg.exe` (n9.0.2, GPL, with libx264/x265/vpx/xvid/webp, NVENC, AMF,
   QSV). The source build (`ShareX-build`) has none.
 
-## 6. The FFmpeg options window (later)
+## 6. The FFmpeg options window
 
 `FFmpegOptionsWindow`: custom FFmpeg path + browse, video/audio sources with
 refresh and a status line (found N devices / FFmpeg not found / enumeration
@@ -254,7 +260,7 @@ bitrate; QSV preset/bitrate; GIF stats mode, dither, Bayer scale; AAC
 commands with the command preview, reset. Opened from Task settings ›
 Screen recorder.
 
-## 7. The recording frame (later)
+## 7. The recording frame
 
 `ScreenRecordWindow`: a transparent topmost window around the area with
 `RecordingRegionBorder` (dashed dark backdrop, accent goldenrod while
@@ -265,7 +271,7 @@ confirmation; draggable while waiting; its own tray icon (gold video-off
 while waiting, then progress during encoding) with the same four commands.
 Excluded from capture for the native recorder.
 
-## 8. The recorder bar (later)
+## 8. The recorder bar
 
 `ScreenRecorderBarWindow`, before recording when `ScreenRecordShowBar`: a
 draggable bar: grip, **Record**, Start delay (toggle + 1–5 s menu); sources
@@ -355,19 +361,81 @@ encoding, a 32-bit Windows.
 
 ### Not ported yet
 
-- The native recorder (§2), which is ShareX's default: until it is,
-  ShareXrs should run FFmpeg for `ScreenRecordUseNative` too (its GIFs then
-  come from palettegen, not the adaptive encoder; no WASAPI loopback, no
-  camera overlay).
-- All UI: the recording frame, the recorder bar, the FFmpeg options window,
-  the abort confirmation, tray icon states, the output box for FFmpeg errors,
-  the mouse highlighter during recording.
-- The start flow's app parts: region selection for recording, active window
-  and client area, `ScreenRecordRegion`, the after capture window, the file
-  task, `HandleExistsFile`'s dialog.
+- The native recorder (§2), which is ShareX's default: ShareXrs records
+  with FFmpeg when `ScreenRecordUseNative` is on too, logs "ShareX's native
+  screen recorder isn't ported yet: recording with FFmpeg instead.", keeps
+  the frame out of captures as ShareX does for the native recorder
+  (`ExcludeFromCapture = useNative`), and shows the FFmpeg recorder bar. Its
+  GIFs come from palettegen, not the adaptive encoder; no WASAPI loopback,
+  no camera overlay.
+- The mouse highlighter during recording, and the bar's Mouse highlighter
+  options panel (it opens with its title and says so; Task settings › Mouse
+  highlighter has the options).
+- The after capture window (a recording goes on as accepted, logged), the
+  file exists dialog (a unique name), the output box for FFmpeg errors (a
+  message box with FFmpeg's output), `DownloaderWindow`, `DoFileJobs`.
+- The FFmpeg options window isn't modal over Task settings, and its pages
+  don't scroll (ShareX's do when the window is short).
+- The bar's window covers its screen's work area (cut to the bar and its
+  menu), so it can't be dragged to another monitor.
 - `GetVideoInfo` is ported as ShareX has it, which finds no streams in
   FFmpeg 9's output (`Stream #0:0[0x1](und)`): ShareX's patterns predate the
   stream ids; only duration and bitrate come out (same in ShareX).
+
+### The app (`crates/sharexrs/src/recording`)
+
+| Module | Ports |
+|---|---|
+| `mod.rs` | `ScreenRecordManager`: the recorder jobs (`run_recording_job`: `StartStopRecording`, `StopRecording`, `PauseScreenRecording`, `AbortRecording`), Capture › Screen recording (GIF) in the main menu and tray, `StartRecording`'s checks and message boxes, the area (the region overlay with no annotations or pointer, `capture_job::prepare_selection`; active window, custom and last region), `ScreenRecorderBarSettings.Commit`, `ScreenRecordRegion`, the frame window and its tray icon and menu, the worker thread with `TaskHelpers`' file naming, the finished file as a file job task (`upload::manager::create_file_job_task`) |
+| `frame.rs` | `ScreenRecordWindow` and `RecordingRegionBorder`: `ConfigureGeometry`, the dashed border (backdrop and accent, corners three quarters covered), the toolbar (timer with countdown, Start/Stop, Pause/Resume, Restart, Abort, labels or not, the inline abort confirmation), `ChangeState`/`UpdateUI`, the tray icon's pictures and text |
+| `bar.rs` | `ScreenRecorderBarWindow` for the FFmpeg recorder: grip, Record, Start delay (1–5 s menu), Cursor, Mouse highlighter, Options (Recording and Bar tabs), Cancel, `PositionNearRegion`, `ClampToScreen` |
+| `ffmpeg_options.rs` | `FFmpegOptionsWindow` (Sources with the DirectShow lists, Video, Audio, Advanced with the command preview and custom commands, reset), FFmpeg's download |
+
+The frame, the bar and the region outline are transparent windows
+(`EguiWindow::transparent`: DirectComposition with premultiplied alpha)
+cut to what they show with `SetWindowRgn`, as ShareX's; the outline ignores
+the pointer. The frame's tray icon is a second notification icon.
+
+#### Validated (Windows, 1024x768 at 100%, over `--test-pattern`)
+
+`scripts/record-session.ps1` records the same 320x240 region at 300,200
+in either app (ShareX from Capture › Screen recording, ShareXrs from a
+hotkey with its main window hidden), grabs the bar, the frame, paused and
+resumed, then stops; FFmpeg is ShareX 22.4.0's `ffmpeg.exe` (n9.0.2) in
+both, through the custom path, no audio source.
+
+- **Command lines** (ShareX's log vs ShareXrs's stderr): identical but for
+  the output path, for MP4 (`-f gdigrab ... -c:v libx264 -r 30 -preset
+  ultrafast -tune zerolatency -crf 28 -pix_fmt yuv420p -movflags +faststart`),
+  GIF (the `-qp 0` lossless pass at 15 fps, then `palettegen=stats_mode=full
+  ... paletteuse=dither=sierra2_4a`), and pause/resume (two segments, then
+  `-f concat -safe 0 -i "<name>-temp.mp4.txt" -c copy`; GIF: concat, then
+  palettegen).
+- **Outputs** (`ffmpeg -i` from the same FFmpeg): MP4 isom, H.264
+  Constrained Baseline yuv420p, 320x240, 30 fps in both; GIF 320x240,
+  16.67 fps (15 tbr) in both; with a pause, the same durations (MP4 7.03 s,
+  GIF 7.14 s). No `-concat`/`-temp` files left behind.
+- **Pixels** (whole-screen grabs at the same moments, `compare.py`): the bar
+  0.00% dark / 0.01% light, its Options panel 0.08% / 0.11%, the start
+  delay menu 0.02% / 0.12%, the frame recording 0.01% / 0.01%, paused
+  0.01–0.02%, with labels 0.02% (light), the abort confirmation 0.01%
+  (light); the border ring identical but the corners before they were
+  fixed. `--render ffmpeg-options` vs ShareX's window: Sources 0.23% /
+  0.16%, Video 0.33% / 0.23%, Audio 0.12% / 0.08%, Advanced 0.97% / 0.89%
+  (Consolas in ClearType vs grayscale), GIF codec page 0.14% (light),
+  reset confirmation 0.20% (light).
+- **Behaviour**: start delay menu, Options panel, Escape (panel, then
+  cancel), Record and Stop from the same hotkey, Pause/Resume and Abort
+  from the frame, the abort confirmation and its Cancel, the file task in
+  the task list, `ScreenRecordUseNative` (the log line, the frame kept out of
+  a screen grab), "FFmpeg is missing" with a missing custom path (No; the
+  download itself is unit-tested on a local zip, not run).
+
+Untested: Restart, the timer drag, a fixed duration's countdown, the start
+delay countdown live, the frame's tray icon menu, active window / custom /
+last region recordings, other codecs live, monitors at other DPIs, macOS
+and Linux (the transparent windows, `setSharingType`, the native tray menu),
+the download over the network.
 
 ### The hook into the app
 

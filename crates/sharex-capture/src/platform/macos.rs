@@ -145,6 +145,17 @@ pub fn cover_everything(window: &Window) {
     }
 }
 
+/// `NSWindow.sharingType = .none`: kept out of screen captures.
+pub fn exclude_from_capture(window: &Window) -> bool {
+    match ns_window(window) {
+        Some(w) => {
+            w.setSharingType(objc2_app_kit::NSWindowSharingType::None);
+            true
+        }
+        None => false,
+    }
+}
+
 /// Fades an overlay in once its first frame is presented.
 pub fn fade_in(window: &Window) {
     if let Some(ns_window) = ns_window(window) {
