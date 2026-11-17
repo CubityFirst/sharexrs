@@ -1,8 +1,9 @@
 # Builds and tests on all three platforms on every push and pull request:
 # snapr's macOS build once broke silently for weeks because only release
-# tags built it (docs/MACOS-LEARNINGS.md 3.12). The macOS job also packs
-# ShareXrs.app (ad hoc signed) so bundling breaks show up here, not at
-# release time.
+# tags built it (docs/MACOS-LEARNINGS.md 3.12). Pushes to master, and pull
+# requests that touch packaging, also build every release package
+# (package.yml, unsigned: the Mac app ad hoc, no API keys), so packaging
+# breaks show up here, not at release time.
 
 name: CI
 
@@ -50,9 +51,35 @@ jobs:
         run: cargo test --workspace --locked --target ${{ matrix.target }}
       - name: Clippy
         run: cargo clippy --workspace --locked --target ${{ matrix.target }} -- -D warnings
-      - name: Pack ShareXrs.app (ad hoc)
-        if: runner.os == 'macOS'
+
+  # Whether to build the packages: on master pushes, and on pull requests
+  # that change what goes into them. Release builds of four targets take a
+  # while, so not on every push.
+  packaging-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          cargo build --release --locked --target ${{ matrix.target }}
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          bash scripts/macos-bundle.sh "target/${{ matrix.target }}/release/sharexrs" "$version" aarch64 dist
+          run=false
+          if [ "$EVENT" = push ] && [ "$GITHUB_REF" = refs/heads/master ]; then
+            run=true
+          elif [ "$EVENT" = pull_request ] && git diff --name-only "$BASE" HEAD |
+            grep -qE '^(packaging/|scripts/(package-|macos-bundle|fetch-bundled|release-notes)|\.github/workflows/(ci|package|release)\.yml$|crates/sharexrs/(Cargo\.toml|build\.rs)$|\.cargo/|Cargo\.lock$|assets/)'; then
+            run=true
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  package:
+    needs: packaging-changed
+    if: needs.packaging-changed.outputs.run == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      retention-days: 3
