@@ -59,3 +59,26 @@ fn harness_config_round_trips_byte_for_byte() {
     assert!(list.iter().any(|i| i.body == CustomUploaderBody::JSON));
     assert!(list.iter().any(|i| i.request_method == HttpMethod::PUT));
 }
+
+#[test]
+fn saves_and_loads_with_sharex_backups() {
+    let dir = std::env::temp_dir().join(format!("sharexrs-uploaders-config-{}", std::process::id()));
+    let backup = dir.join("Backup");
+    std::fs::create_dir_all(&backup).unwrap();
+    let path = dir.join("UploadersConfig.json");
+    let mut config: UploadersConfig = load_file(&fixture("UploadersConfig.harness.json")).unwrap();
+    config.save(&path, &backup).unwrap();
+    let loaded = UploadersConfig::load(Some(&path), Some(&backup), true);
+    assert_eq!(loaded.source.as_deref(), Some(path.as_path()));
+    // Loading runs ShareX's backward compatibility tasks (the 13.1.0 uploader is migrated).
+    let mut migrated = config.clone();
+    migrated.backward_compatibility_tasks();
+    assert_ne!(migrated.CustomUploadersList, config.CustomUploadersList);
+    assert_eq!(loaded.settings.CustomUploadersList, migrated.CustomUploadersList);
+    assert_eq!(loaded.settings.ApplicationVersion.as_deref(), Some("22.4.0"));
+    // A missing file falls back to the backup the save left.
+    std::fs::remove_file(&path).unwrap();
+    let fallback = UploadersConfig::load(Some(&path), Some(&backup), true);
+    assert!(fallback.source.as_ref().is_some_and(|s| s.starts_with(&backup)), "loaded from {:?}", fallback.source);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -6,7 +6,7 @@ after-upload tasks) and what `crates/sharex-uploaders` ports of it.
 Validation: [tools/uploaders-harness](../tools/uploaders-harness/README.md)
 runs ShareX's own DLL and ShareXrs against a local mock server and diffs
 requests byte for byte and results; every case listed below as validated
-is identical.
+is identical (97 of 97 cases).
 
 ## Layers
 
@@ -241,26 +241,26 @@ keeps working. Uploaders that refresh tokens hand them back with
 | FTP / FTPS / SFTP | FluentFTP / SSH.NET | ⬜ (next: `suppaftp` + `russh`/`ssh2`) |
 | OneDrive | OAuth 2 loopback | ⬜ |
 | Google Drive, Google Cloud Storage, YouTube | Google OAuth 2 loopback (PKCE) | ⬜ |
-| puush | API key | ⬜ (simple HTTP) |
+| puush | API key | ✅ success, authentication error, garbage response; login ported |
 | Box | OAuth 2 PIN | ⬜ |
 | MEGA | MEGA's own crypto (AES, RSA) | ⬜ |
 | Amazon S3 (and compatible) | access key + secret, SigV4 | ✅ single PUT, signed payload + path style + storage class + region, custom domain + no extension, 403 error, multipart (parallel parts, ETag, complete), complete error + abort; signatures verified on both sides. List/download/copy (remote storage browser) not ported; delete ported |
 | Azure Storage | SharedKey (HMAC-SHA256) | ⬜ (simple HTTP + HMAC) |
 | Backblaze B2 | key + SHA1 per file | ⬜ (simple HTTP) |
-| ownCloud / Nextcloud | basic auth, WebDAV + OCS share | ⬜ (simple HTTP) |
-| Immich | API key | ⬜ (simple HTTP) |
+| ownCloud / Nextcloud | basic auth, WebDAV + OCS share | ✅ direct link + file name, preview + expiring share (3.x URL form), no share, share error, PUT error |
+| Immich | API key | ✅ shareable link, photo URL with metadata, no asset id (the GUID and time it sends each upload are normalised) |
 | MediaFire | login + SHA1 signatures | ⬜ |
 | Pushbullet | API key | ⬜ (simple HTTP; also the sharing service) |
 | SendSpace | API key + login (MD5) | ⬜ |
 | Hostr (Localhostr) | basic auth | ⬜ (simple HTTP) |
 | Lambda | API key | ✅ success (and the old `λ.pw` URL fixed), error list |
-| img.fish | API key | ⬜ (simple HTTP) |
+| img.fish | API key | ✅ success, error, response that isn't JSON |
 | Pomf | upload URL (+ result URL) | ✅ |
 | Uguu, transfer.sh | — | ✅ |
 | Seafile | token | ⬜ (simple HTTP) |
-| Streamable | optional basic auth | ⬜ (simple HTTP) |
+| Streamable | optional basic auth | ✅ upload + transcode polling (progress 0–100, 1 s between checks), transcode failure, no shortcode |
 | s-ul | API key | ✅ success and error |
-| LobFile (Lithiio) | API key | ⬜ (simple HTTP) |
+| LobFile (Lithiio) | API key | ✅ success and error; API key fetch ported |
 | Plik | URL (+ API key / login) | ⬜ (simple HTTP) |
 | Shared folder | local file copy | ⬜ |
 | Email | SMTP | ⬜ |
@@ -292,17 +292,18 @@ another account encrypted reads as null. Fixtures: a fresh profile and one
 written by ShareX's own `Save` (custom uploaders, OAuth tokens, settings)
 both round-trip byte for byte, and a new config equals ShareX's fresh one.
 
-Where it lives: `AppPaths.uploaders_config_file` (personal folder or
-`CustomUploadersConfigPath`); `UseMachineSpecificUploadersConfig` (copy to
-`UploadersConfig-<machine>.json`) isn't wired yet. ShareXrs doesn't load it
-at startup yet (no upload tasks yet).
+Where it lives: `config::uploaders_config_file_path` (personal folder or
+`CustomUploadersConfigPath`, and with `UseMachineSpecificUploadersConfig`
+`UploadersConfig-<machine>.json`, copied from the shared file the first
+time). `UploadersConfig::load` (ShareX's fallbacks to the temp file and the
+backups, then the backward compatibility tasks) and `save` (backup and
+weekly backup) are ready; the app doesn't call them yet (no upload tasks).
 
 ## Not ported yet
 
 - Destinations marked ⬜ above; FTP/SFTP and the OAuth-loopback services
-  (Google, OneDrive) next, then the simple-HTTP ones (puush, Immich,
-  Streamable, Plik, ownCloud, Azure, B2, Seafile, Pushbullet, Hostr,
-  img.fish, LobFile).
+  (Google, OneDrive) next, then the simple-HTTP ones (Plik, Azure, B2,
+  Seafile, Pushbullet, Hostr).
 - OAuth sign-in flows and windows; `OAuthManager` (OAuth 1.0a).
 - `UploaderFilter` (per-extension destinations), `UploadersConfigValidator`.
 - `UploadManager` (upload file/folder/clipboard/text/URL, drag and drop,

@@ -71,11 +71,11 @@ with and without non-ASCII elsewhere), and ported in
 
 ## Results
 
-78 cases, all identical (requests byte for byte, results, error texts):
+97 cases, all identical (requests byte for byte, results, error texts):
 28 custom uploader cases (every body type, every non-dialog syntax
 function, escapes, non-ASCII names, redirects, error messages, invalid
 JSON, old-syntax migration, unsupported versions, cookies, custom content
-types) and 50 built-in destination cases. See `docs/UPLOADERS.md` for the
+types) and 69 built-in destination cases. See `docs/UPLOADERS.md` for the
 per-destination table.
 
 Amazon S3 requests are signed with the time, so they can't be byte-equal:

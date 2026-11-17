@@ -7,10 +7,14 @@
 //! this version doesn't know are kept in `extra`. A ShareX profile reads and
 //! writes back byte for byte.
 
+use std::io;
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value, json};
 use sharex_settings::settings;
-use sharex_settings::settings_base::SettingsFile;
+use sharex_settings::settings_base::{self, Loaded, SaveOptions, SettingsFile};
+use sharex_settings::{AppPaths, ApplicationConfig};
 
 use crate::custom::{CustomUploaderItem, SerializeMode};
 use crate::dpapi::Secret;
@@ -390,4 +394,55 @@ impl UploadersConfig {
             let _ = item.check_backward_compatibility();
         }
     }
+
+    /// `SettingManager.LoadUploadersConfig`: the file (with ShareX's
+    /// fallbacks to its temp file and backups), then the backward
+    /// compatibility tasks. `None` path (sandbox): new settings.
+    pub fn load(path: Option<&Path>, backup_folder: Option<&Path>, fallback: bool) -> Loaded<UploadersConfig> {
+        let mut loaded: Loaded<UploadersConfig> = settings_base::load(path, backup_folder, fallback);
+        loaded.settings.backward_compatibility_tasks();
+        loaded
+    }
+
+    /// `SettingsBase.Save` with ShareX's options for this file (backup and
+    /// weekly backup in `backup_folder`); secrets are DPAPI-encrypted on
+    /// Windows as ShareX's `SupportDPAPIEncryption`.
+    pub fn save(&mut self, path: &Path, backup_folder: &Path) -> io::Result<()> {
+        self.set_application_version(settings_base::application_version().to_owned());
+        let json = settings_base::to_json(self);
+        let options = SaveOptions { backup_folder: Some(backup_folder.to_owned()), create_backup: true, create_weekly_backup: true };
+        settings_base::write(&json, path, &options)
+    }
+}
+
+/// `SettingManager.UploadersConfigFilePath` with `GetUploadersConfigFileName`:
+/// in the personal folder (or `CustomUploadersConfigPath`), and with
+/// `UseMachineSpecificUploadersConfig`, `UploadersConfig-<machine>.json`
+/// (created as a copy of `UploadersConfig.json` the first time).
+pub fn uploaders_config_file_path(paths: &AppPaths, settings: Option<&ApplicationConfig>) -> Option<PathBuf> {
+    let default = paths.uploaders_config_file(settings)?;
+    let folder = default.parent()?.to_owned();
+    if settings.is_some_and(|s| s.UseMachineSpecificUploadersConfig) {
+        let machine = sharex_helpers::file_helpers::sanitize_file_name(&machine_name().to_lowercase());
+        if !machine.is_empty() {
+            let name = format!("UploadersConfig-{machine}.json");
+            let machine_path = folder.join(&name);
+            if !machine_path.exists() && default.exists() {
+                // Ignore copy issues; the file may have been created meanwhile.
+                let _ = std::fs::copy(&default, &machine_path);
+            }
+            return Some(machine_path);
+        }
+    }
+    Some(default)
+}
+
+/// `Environment.MachineName`.
+fn machine_name() -> String {
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .ok()
+        .filter(|n| !n.is_empty())
+        .or_else(|| std::fs::read_to_string("/etc/hostname").ok().map(|s| s.trim().to_owned()))
+        .unwrap_or_default()
 }
