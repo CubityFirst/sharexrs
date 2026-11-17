@@ -10,4 +10,4 @@ chrono = "0.4.45"
 getrandom = "0.3"
 
 [target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_Registry"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Registry", "Win32_Globalization"] }
