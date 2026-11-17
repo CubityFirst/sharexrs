@@ -66,9 +66,15 @@ crates/
                     the pointer; the region capture overlay (state, input,
                     drawing, offscreen-renderable); copying images
   sharex-helpers/   ShareX.HelpersLib's shared parts: NameParser, file names
+  sharex-image-editor/ ShareX.ImageEditor: the annotation model (ShareX's
+                    JSON), ImageEditorOptions, rendering annotations as the
+                    editor exports them (docs/IMAGE-EDITOR.md)
   sharex-image-effects/ ShareX.ImageEffectsLib: every effect, presets in
-                    ShareX's JSON, .sxie, and the Skia raster maths they need
-                    (docs/IMAGE-EFFECTS.md)
+                    ShareX's JSON, .sxie (docs/IMAGE-EFFECTS.md)
+  sharex-skia/      Skia m119's CPU rasteriser as ShareX's SkiaSharp runs it:
+                    SkPath, analytic AA and supersampling, edge clipping,
+                    SkStroke, legacy blitters, blur, resampling, the raster
+                    pipeline maths; shared by the editor and the effects
   sharex-settings/  ShareX's settings files (ApplicationConfig, HotkeysConfig),
                     read and written as ShareX does; where they live
   sharex-strings/   ShareX's .resx (29 languages) -> Rust, generated at build
@@ -123,7 +129,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 | Category | Tools | Status |
 |---|---|---|
 | Screen | Color picker, Screen color picker, Ruler, Classic ruler, Mouse highlighter, Pin to screen | ⬜ |
-| Images | Image editor, Photo editor, Pixel editor, Image effects, Beautifier, Combiner, Comparer, Converter, Resizer, Splitter, Thumbnailer, Viewer, Watermark, Icon converter, Background remover | 🟨 Image effects engine (`sharex-image-effects`, docs/IMAGE-EFFECTS.md): all 51 effects, presets in ShareX's JSON (settings and export forms, every default and round trip equal to ShareX's), `.sxie`; against ShareX's own DLLs headlessly (`tools/effects-harness`), 107/121 cases byte-identical, the rest differ only on anti-aliased edges of simple paths (Skia's analytic AA not ported) and Text watermark glyphs (DirectWrite). Not yet: the Image effects window and packager, `.sxie` import; the other tools ⬜ |
+| Images | Image editor, Photo editor, Pixel editor, Image effects, Beautifier, Combiner, Comparer, Converter, Resizer, Splitter, Thumbnailer, Viewer, Watermark, Icon converter, Background remover | 🟨 Image effects engine (`sharex-image-effects`, docs/IMAGE-EFFECTS.md): all 51 effects, presets in ShareX's JSON (settings and export forms, every default and round trip equal to ShareX's), `.sxie`; against ShareX's own DLLs headlessly (`tools/effects-harness`), 116/121 cases byte-identical, the rest: Text watermark glyphs (DirectWrite), a 1 px border's corners (hairline), ±1 under a gradient. Image editor rendering (`sharex-image-editor` on `sharex-skia`, docs/IMAGE-EDITOR.md): annotation model and `ImageEditorOptions`, rectangle, ellipse, line, arrow, freehand, highlight, blur, pixelate, magnify, spotlight, text, step, speech balloon and drop shadows; against ShareX's editor headlessly (`tools/editor-harness`), 51/60 cases pixel-identical, the rest: conic dashes, 1 px hairlines, the elliptical magnifier (`SkAAClip`), step/balloon glyphs (DirectWrite) and tails (PathOps). Not yet: the editor UI (workspace, toolbar, region capture hosting, editor window), image/emoji/cursor/smart eraser rendering, the Image effects window and packager, `.sxie` import; the other tools ⬜ |
 | Video | Animated GIF maker, GIF trimmer, Video converter, Video player, Video thumbnailer, Video trimmer | ⬜ |
 | Data | Analyze image, Hash checker, Index folder, Metadata, OCR, QR code, Remote storage browser | ⬜ |
 | System | Borderless window, Clipboard viewer, Inspect window, Monitor test, Network monitor | ⬜ |
