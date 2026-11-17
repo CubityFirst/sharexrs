@@ -3728,6 +3728,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharex-image-editor"
+version = "22.4.0"
+dependencies = [
+ "harfrust",
+ "image",
+ "serde",
+ "serde_json",
+ "sharex-settings",
+ "sharex-skia",
+ "ttf-parser",
+]
+
+[[package]]
 name = "sharex-image-effects"
 version = "22.4.0"
 dependencies = [
@@ -3736,6 +3749,7 @@ dependencies = [
  "image",
  "serde_json",
  "sharex-helpers",
+ "sharex-skia",
  "sharex-strings",
  "tiny-skia",
  "ttf-parser",
@@ -3752,6 +3766,13 @@ dependencies = [
  "serde_json",
  "sharex-strings",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "sharex-skia"
+version = "22.4.0"
+dependencies = [
+ "tiny-skia",
 ]
 
 [[package]]

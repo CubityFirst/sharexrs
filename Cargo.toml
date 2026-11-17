@@ -16,6 +16,8 @@ sharex-strings = { path = "crates/sharex-strings" }
 sharex-helpers = { path = "crates/sharex-helpers" }
 sharex-capture = { path = "crates/sharex-capture" }
 sharex-settings = { path = "crates/sharex-settings" }
+sharex-skia = { path = "crates/sharex-skia" }
+sharex-image-editor = { path = "crates/sharex-image-editor" }
 sharex-image-effects = { path = "crates/sharex-image-effects" }
 sharex-uploaders = { path = "crates/sharex-uploaders" }
 

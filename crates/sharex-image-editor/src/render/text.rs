@@ -1,0 +1,610 @@
+//! Text as Avalonia lays it out and outlines it for ShareX's text
+//! annotations (`FormattedText` + `BuildGeometry`): HarfBuzz advances
+//! (font units times `size / unitsPerEm`, in doubles), lines as
+//! `TextLineImpl` measures them, and each glyph's outline as Skia gets it
+//! (`SKFont.GetGlyphPath` with no hinting: the TrueType outline scaled),
+//! added at its pen position.
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
+
+use sharex_skia::{FillType, Path};
+
+/// A font file, as Avalonia's font manager finds it for a family, weight
+/// and style.
+pub struct FontFace {
+    data: Arc<Vec<u8>>,
+}
+
+impl FontFace {
+    fn face(&self) -> Option<ttf_parser::Face<'_>> {
+        ttf_parser::Face::parse(&self.data, 0).ok()
+    }
+}
+
+fn fonts_dir() -> std::path::PathBuf {
+    let windir = std::env::var_os("WINDIR").unwrap_or_else(|| "C:\\Windows".into());
+    std::path::PathBuf::from(windir).join("Fonts")
+}
+
+/// The file of a system family's face (Windows' fonts folder).
+fn font_file(family: &str, bold: bool, italic: bool) -> Option<std::path::PathBuf> {
+    let base = match family.to_ascii_lowercase().as_str() {
+        "segoe ui" => "segoeui",
+        "arial" => "arial",
+        "consolas" => "consola",
+        "calibri" => "calibri",
+        _ => return None,
+    };
+    let suffix = match (base, bold, italic) {
+        ("segoeui", false, false) => "",
+        ("segoeui", true, false) => "b",
+        ("segoeui", false, true) => "i",
+        ("segoeui", true, true) => "z",
+        (_, false, false) => "",
+        (_, true, false) => "bd",
+        (_, false, true) => "i",
+        (_, true, true) => "bi",
+    };
+    let p = fonts_dir().join(format!("{base}{suffix}.ttf"));
+    p.exists().then_some(p)
+}
+
+/// Avalonia's `FontFamily.Default` with `WithInterFont()`: the Inter
+/// Avalonia.Fonts.Inter bundles, looked up in `SHAREXRS_INTER_DIR`.
+fn default_font_file(bold: bool) -> Option<std::path::PathBuf> {
+    let dir = std::env::var_os("SHAREXRS_INTER_DIR")?;
+    let p = std::path::PathBuf::from(dir).join(if bold {
+        "Inter-Bold.ttf"
+    } else {
+        "Inter-Regular.ttf"
+    });
+    p.exists().then_some(p)
+}
+
+/// Loads (once) the face for `family` (`$Default` for Avalonia's default).
+pub fn load_face(family: &str, bold: bool, italic: bool) -> Option<FontFace> {
+    static CACHE: OnceLock<Mutex<HashMap<std::path::PathBuf, Arc<Vec<u8>>>>> = OnceLock::new();
+    let path = if family == "$Default" {
+        default_font_file(bold)?
+    } else {
+        font_file(family, bold, italic)?
+    };
+    let mut cache = CACHE.get_or_init(Default::default).lock().ok()?;
+    let data = match cache.get(&path) {
+        Some(d) => d.clone(),
+        None => {
+            let d = Arc::new(std::fs::read(&path).ok()?);
+            cache.insert(path, d.clone());
+            d
+        }
+    };
+    Some(FontFace { data })
+}
+
+/// A shaped glyph.
+#[derive(Clone, Copy, Debug)]
+pub struct Glyph {
+    pub id: u16,
+    pub advance: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
+}
+
+/// One laid out line.
+#[derive(Clone, Debug)]
+pub struct Line {
+    pub glyphs: Vec<Glyph>,
+    /// Width without trailing whitespace.
+    pub width: f64,
+    pub width_including_trailing_whitespace: f64,
+    pub height: f64,
+    pub baseline: f64,
+    /// `TextLineMetrics.Start`: the alignment offset.
+    pub start: f64,
+}
+
+/// `FormattedText`, laid out.
+#[derive(Clone, Debug)]
+pub struct TextLayout {
+    pub lines: Vec<Line>,
+    pub size: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
+}
+
+impl TextLayout {
+    /// `FormattedText.Width`: the widest line.
+    pub fn width(&self) -> f64 {
+        self.lines.iter().map(|l| l.width).fold(0.0, f64::max)
+    }
+
+    /// `FormattedText.Height`.
+    pub fn height(&self) -> f64 {
+        self.lines.iter().map(|l| l.height).sum()
+    }
+}
+
+/// Font metrics as Avalonia's `GlyphTypeface.Metrics` reads them
+/// (HarfBuzz's: OS/2 typo metrics when USE_TYPO_METRICS is set, else
+/// hhea), in font units, ascent negative.
+fn metrics(face: &ttf_parser::Face) -> (f64, f64, f64, f64) {
+    let em = face.units_per_em() as f64;
+    let use_typo = face
+        .tables()
+        .os2
+        .map(|t| t.use_typographic_metrics())
+        .unwrap_or(false);
+    let (asc, desc, gap) = if use_typo {
+        (
+            face.typographic_ascender().unwrap_or(0),
+            face.typographic_descender().unwrap_or(0),
+            face.typographic_line_gap().unwrap_or(0),
+        )
+    } else {
+        (face.ascender(), face.descender(), face.line_gap())
+    };
+    (em, -(asc as f64), -(desc as f64), gap as f64)
+}
+
+fn shape(font: &FontFace, text: &str, scale: f64) -> Vec<Glyph> {
+    let Some(fref) = harfrust::FontRef::new(&font.data).ok() else {
+        return Vec::new();
+    };
+    let data = harfrust::ShaperData::new(&fref);
+    let shaper = data.shaper(&fref).build();
+    let mut buffer = harfrust::UnicodeBuffer::new();
+    buffer.push_str(text);
+    buffer.guess_segment_properties();
+    let out = shaper.shape(buffer, harfrust::ShapeOptions::new());
+    out.glyph_infos()
+        .iter()
+        .zip(out.glyph_positions())
+        .map(|(i, p)| Glyph {
+            id: i.glyph_id as u16,
+            advance: p.x_advance as f64 * scale,
+            offset_x: p.x_offset as f64 * scale,
+            offset_y: -(p.y_offset as f64) * scale,
+        })
+        .collect()
+}
+
+/// Lays out `text` (lines split at line breaks; no wrapping yet) at
+/// `size`, aligned within `paragraph_width` (infinite: no alignment).
+pub fn layout(
+    font: &FontFace,
+    text: &str,
+    size: f64,
+    align: Align,
+    paragraph_width: f64,
+) -> Option<TextLayout> {
+    let face = font.face()?;
+    let (em, ascent, descent, gap) = metrics(&face);
+    let scale = size / em;
+    let (asc, desc, gap) = (ascent * scale, descent * scale, gap * scale);
+    let mut lines = Vec::new();
+    for line_text in text.split('\n') {
+        let line_text = line_text.trim_end_matches('\r');
+        let glyphs = shape(font, line_text, scale);
+        let total: f64 = glyphs.iter().map(|g| g.advance).sum();
+        let trailing_ws: f64 = {
+            let n = line_text
+                .chars()
+                .rev()
+                .take_while(|c| c.is_whitespace())
+                .count();
+            glyphs.iter().rev().take(n).map(|g| g.advance).sum()
+        };
+        let width = total - trailing_ws;
+        let half_gap = gap * 0.5;
+        let height = desc - asc + gap;
+        let baseline = -asc + half_gap;
+        let start = if paragraph_width.is_infinite() {
+            0.0
+        } else {
+            match align {
+                Align::Center => ((paragraph_width - width) / 2.0).max(0.0),
+                Align::Right => (paragraph_width - total).max(0.0),
+                Align::Left => 0.0,
+            }
+        };
+        lines.push(Line {
+            glyphs,
+            width,
+            width_including_trailing_whitespace: total,
+            height,
+            baseline,
+            start,
+        });
+    }
+    Some(TextLayout { lines, size })
+}
+
+/// The outline of glyph `id` at `size`, as `SKFont.GetGlyphPath` returns
+/// it (y down, origin on the baseline).
+fn glyph_path(face: &ttf_parser::Face, id: u16, scale: f32) -> Path {
+    // DirectWrite's outline (through Skia's geometry sink) has no closing
+    // line back to a contour's start: Close implies it.
+    struct B {
+        p: Path,
+        s: f32,
+        start: (f32, f32),
+        pending: Option<(f32, f32)>,
+    }
+    impl B {
+        fn flush(&mut self) {
+            if let Some((x, y)) = self.pending.take() {
+                self.p.line_to(x, y);
+            }
+        }
+    }
+    impl ttf_parser::OutlineBuilder for B {
+        fn move_to(&mut self, x: f32, y: f32) {
+            self.flush();
+            self.start = (x * self.s, -y * self.s);
+            self.p.move_to(x * self.s, -y * self.s);
+        }
+        fn line_to(&mut self, x: f32, y: f32) {
+            self.flush();
+            self.pending = Some((x * self.s, -y * self.s));
+        }
+        fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
+            self.flush();
+            self.p
+                .quad_to(x1 * self.s, -y1 * self.s, x * self.s, -y * self.s);
+        }
+        fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+            self.flush();
+            self.p.cubic_to(
+                x1 * self.s,
+                -y1 * self.s,
+                x2 * self.s,
+                -y2 * self.s,
+                x * self.s,
+                -y * self.s,
+            );
+        }
+        fn close(&mut self) {
+            if self.pending == Some(self.start) {
+                self.pending = None;
+            }
+            self.flush();
+            self.p.close();
+        }
+    }
+    let mut b = B {
+        p: Path::new(),
+        s: scale,
+        start: (0.0, 0.0),
+        pending: None,
+    };
+    face.outline_glyph(ttf_parser::GlyphId(id), &mut b);
+    b.p
+}
+
+/// `FormattedText.BuildGeometry(origin)`: every glyph's outline at its
+/// pen position, in one non-zero path.
+pub fn build_geometry(font: &FontFace, layout: &TextLayout, origin: (f64, f64)) -> Option<Path> {
+    let face = font.face()?;
+    let scale = (layout.size / face.units_per_em() as f64) as f32;
+    let mut out = Path::new();
+    out.fill_type = FillType::Winding;
+    let mut line_y = origin.1;
+    for line in &layout.lines {
+        let mut x = origin.0 + line.start;
+        let y = line_y + line.baseline;
+        for g in &line.glyphs {
+            let p = glyph_path(&face, g.id, scale);
+            if !p.is_empty() {
+                out.add_path(&p.translated(x as f32, y as f32));
+            }
+            x += g.advance;
+        }
+        line_y += line.height;
+    }
+    Some(out)
+}
+
+/// `OutlinedTextControl.Render` for a `TextAnnotation`: the text (wrapped
+/// to the annotation's width less its padding, aligned) as glyph
+/// outlines, stroked (round joins) then filled, clipped to the control.
+pub fn draw_text_annotation(
+    pm: &mut sharex_skia::Pixmap,
+    c: &crate::model::Common,
+    p: &crate::model::TextProps,
+) {
+    use super::shapes::{Pen, draw_geometry_clipped};
+    const TEXT_PADDING: f64 = 8.0;
+    if p.text.is_empty() {
+        return;
+    }
+    let Some(font) = load_face(&p.font_family, p.is_bold, p.is_italic) else {
+        return;
+    };
+    // TextAnnotation.GetBounds: at least 10x10.
+    let (mut l, mut t, mut r, mut b) = super::shapes::bounds(c);
+    if r - l < 10.0 {
+        r = l + 10.0;
+    }
+    if b - t < 10.0 {
+        b = t + 10.0;
+    }
+    let _ = (&mut l, &mut t);
+    let a = super::layout::arrange(
+        l as f64,
+        t as f64,
+        ((r - l) as f64).max(1.0),
+        ((b - t) as f64).max(1.0),
+    );
+    let ctm = super::layout::visual_transform(&a, c.rotation_angle);
+
+    let stroke = c.stroke_width as f64;
+    let hp = TEXT_PADDING + stroke;
+    let vp = TEXT_PADDING + stroke;
+    let max_text_width = (a.width - hp * 2.0).max(0.0);
+    let align = match p.horizontal_alignment {
+        crate::model::TextHorizontalAlignment::Left => Align::Left,
+        crate::model::TextHorizontalAlignment::Right => Align::Right,
+        _ => Align::Center,
+    };
+    let paragraph = if max_text_width > 0.0 {
+        max_text_width
+    } else {
+        f64::INFINITY
+    };
+    let Some(lay) = layout(&font, &p.text, p.font_size as f64, align, paragraph) else {
+        return;
+    };
+    let text_height = lay.height();
+    let mut origin_y = vp.max((a.height - text_height) / 2.0);
+    origin_y = origin_y.min(vp.max(a.height - text_height - vp));
+    let Some(geometry) = build_geometry(&font, &lay, (hp, origin_y)) else {
+        return;
+    };
+
+    // ClipToBounds: the control's rectangle (in device space when unrotated).
+    let clip = (c.rotation_angle == 0.0).then(|| {
+        sharex_skia::IRect::from_xywh(a.x as i32, a.y as i32, a.width as i32, a.height as i32)
+    });
+    let text_color = super::color::parse_color(&p.text_color);
+    let stroke_color = super::color::parse_color(&c.stroke_color);
+    if c.stroke_width > 0.0 && stroke_color.a > 0 {
+        let pen = Pen {
+            color: stroke_color,
+            thickness: stroke,
+            dashes: Vec::new(),
+            cap: sharex_skia::Cap::Butt,
+            join: sharex_skia::Join::Round,
+        };
+        draw_geometry_clipped(pm, &ctm, None, &geometry, Some(&pen), &geometry, clip);
+    }
+    if text_color.a > 0 {
+        draw_geometry_clipped(pm, &ctm, Some(text_color), &geometry, None, &geometry, clip);
+    }
+}
+
+/// `SKTypeface.Default` (Segoe UI on Windows) measured as `SKFont` does:
+/// the advance width of `text` and `descent - ascent`, at `size`.
+pub fn default_typeface_measure(text: &str, size: f32) -> Option<(f32, f32)> {
+    let font = load_face("Segoe UI", false, false)?;
+    let face = font.face()?;
+    let em = face.units_per_em() as f32;
+    let scale = size / em;
+    let mut width = 0.0f32;
+    for ch in text.chars() {
+        let g = face.glyph_index(ch)?;
+        width += face.glyph_hor_advance(g).unwrap_or(0) as f32 * scale;
+    }
+    // DWRITE_FONT_METRICS: usWinAscent / usWinDescent.
+    let os2 = face.tables().os2?;
+    let ascent = -(os2.windows_ascender() as f32) * scale;
+    let descent = (os2.windows_descender().unsigned_abs() as f32) * scale;
+    Some((width, descent - ascent))
+}
+
+/// `StepTypeFormatter.Format`.
+pub fn step_text(value: i32, step_type: &crate::model::StepType) -> String {
+    use crate::model::StepType;
+    if value <= 0 {
+        return value.to_string();
+    }
+    let alpha = |upper: bool| {
+        let mut s = Vec::new();
+        let mut cur = value;
+        while cur > 0 {
+            cur -= 1;
+            s.insert(0, (b'A' + (cur % 26) as u8) as char);
+            cur /= 26;
+        }
+        let s: String = s.into_iter().collect();
+        if upper { s } else { s.to_lowercase() }
+    };
+    let roman = |upper: bool| {
+        const R: [(i32, &str); 13] = [
+            (1000, "M"),
+            (900, "CM"),
+            (500, "D"),
+            (400, "CD"),
+            (100, "C"),
+            (90, "XC"),
+            (50, "L"),
+            (40, "XL"),
+            (10, "X"),
+            (9, "IX"),
+            (5, "V"),
+            (4, "IV"),
+            (1, "I"),
+        ];
+        let mut s = String::new();
+        let mut rem = value;
+        for (v, sym) in R {
+            while rem >= v {
+                s.push_str(sym);
+                rem -= v;
+            }
+        }
+        if upper { s } else { s.to_lowercase() }
+    };
+    match step_type {
+        StepType::UppercaseLetter => alpha(true),
+        StepType::LowercaseLetter => alpha(false),
+        StepType::UppercaseRoman => roman(true),
+        StepType::LowercaseRoman => roman(false),
+        _ => value.to_string(),
+    }
+}
+
+/// `NumberAnnotation.Radius` (`CalculateRadius`).
+pub fn step_radius(p: &crate::model::NumberProps) -> f32 {
+    let base = 12.0f32.max(p.font_size * 0.7);
+    let text = step_text(p.number, &p.step_type);
+    let (w, h) =
+        default_typeface_measure(&text, (p.font_size * 0.6).max(1.0)).unwrap_or((0.0, 0.0));
+    let padding = 6.0f32.max(p.font_size * 0.35);
+    let measured = w.max(h) * 0.5 + padding;
+    base.max(measured)
+}
+
+/// `StepControl.Render` without a tail (the tail is a path union, not
+/// ported): the circle filled then stroked, the number centred in it.
+/// The number is drawn from Inter's outlines; ShareX draws it as glyph
+/// masks rasterised by DirectWrite, so its edges differ.
+pub fn draw_step(
+    pm: &mut sharex_skia::Pixmap,
+    c: &crate::model::Common,
+    p: &crate::model::NumberProps,
+) {
+    use super::shapes::{Pen, draw_geometry};
+    let r = step_radius(p);
+    let (sx, sy) = (c.start_point.x, c.start_point.y);
+    let (l, t, rr, b) = (sx - r, sy - r, sx + r, sy + r);
+    let a = super::layout::arrange(l as f64, t as f64, (rr - l) as f64, (b - t) as f64);
+    let ctm = super::layout::visual_transform(&a, 0.0);
+    let width = ((rr - l) as f64).max(2.0);
+    let height = ((b - t) as f64).max(2.0);
+    let mut body = Path::new();
+    body.add_oval(
+        sharex_skia::Rect::from_ltrb(0.0, 0.0, width as f32, height as f32),
+        sharex_skia::Direction::Cw,
+    );
+    let fill = super::color::parse_color(&c.fill_color);
+    draw_geometry(pm, &ctm, Some(fill), &body, None, &body);
+    let pen = Pen {
+        color: super::color::parse_color(&c.stroke_color),
+        thickness: c.stroke_width as f64,
+        dashes: Vec::new(),
+        cap: sharex_skia::Cap::Butt,
+        join: sharex_skia::Join::Miter,
+    };
+    draw_geometry(pm, &ctm, None, &body, Some(&pen), &body);
+
+    let text = step_text(p.number, &p.step_type);
+    let Some(font) = load_face("$Default", p.is_bold, false) else {
+        return;
+    };
+    let size = p.font_size as f64 * 0.6;
+    let Some(lay) = layout(&font, &text, size, Align::Left, f64::INFINITY) else {
+        return;
+    };
+    let tx = (width - lay.width()) / 2.0;
+    let ty = (height - lay.height()) / 2.0;
+    if let Some(geometry) = build_geometry(&font, &lay, (tx, ty)) {
+        let color = super::color::parse_color(&p.text_color);
+        draw_geometry(pm, &ctm, Some(color), &geometry, None, &geometry);
+    }
+}
+
+/// `SpeechBalloonControl.Render`: the rounded body filled then stroked,
+/// and the text centred in it. The tail is a path union with the body
+/// (`CombinedGeometry`, Skia's PathOps), not ported: balloons render
+/// without it. Text is drawn from outlines (ShareX draws glyph masks).
+pub fn draw_balloon(
+    pm: &mut sharex_skia::Pixmap,
+    c: &crate::model::Common,
+    p: &crate::model::SpeechBalloonProps,
+) {
+    use super::shapes::{Pen, StreamGeometry, draw_geometry};
+    const TEXT_PADDING: f64 = 12.0;
+    let (l, t, r, b) = super::shapes::bounds(c);
+    let a = super::layout::arrange(l as f64, t as f64, (r - l) as f64, (b - t) as f64);
+    let ctm = super::layout::visual_transform(&a, c.rotation_angle);
+    let width = ((r - l) as f64).max(20.0);
+    let height = ((b - t) as f64).max(20.0);
+    let radius = (p.corner_radius as f64).clamp(0.0, ((width.min(height)) / 2.0).trunc());
+    let mut g = StreamGeometry::new();
+    let (left, top, right, bottom) = (0.0, 0.0, width, height);
+    if radius <= 0.0 {
+        g.begin_figure(left, top, true);
+        g.line_to(right, top);
+        g.line_to(right, bottom);
+        g.line_to(left, bottom);
+        g.end_figure(true);
+    } else {
+        g.begin_figure(left + radius, top, true);
+        g.line_to(right - radius, top);
+        g.arc_to(right, top + radius, radius, radius, false, true);
+        g.line_to(right, bottom - radius);
+        g.arc_to(right - radius, bottom, radius, radius, false, true);
+        g.line_to(left + radius, bottom);
+        g.arc_to(left, bottom - radius, radius, radius, false, true);
+        g.line_to(left, top + radius);
+        g.arc_to(left + radius, top, radius, radius, false, true);
+        g.end_figure(true);
+    }
+    let (stroke_path, fill_path) = g.finish();
+    draw_geometry(
+        pm,
+        &ctm,
+        Some(super::color::parse_color(&c.fill_color)),
+        &fill_path,
+        None,
+        &stroke_path,
+    );
+    let pen = Pen {
+        color: super::color::parse_color(&c.stroke_color),
+        thickness: c.stroke_width as f64,
+        dashes: Vec::new(),
+        cap: sharex_skia::Cap::Butt,
+        join: sharex_skia::Join::Miter,
+    };
+    draw_geometry(pm, &ctm, None, &fill_path, Some(&pen), &stroke_path);
+
+    if p.text.is_empty() {
+        return;
+    }
+    let family = if p.font_family.trim().is_empty() {
+        "Segoe UI"
+    } else {
+        p.font_family.as_str()
+    };
+    let Some(font) = load_face(family, p.is_bold, p.is_italic) else {
+        return;
+    };
+    let align = match p.horizontal_alignment {
+        crate::model::TextHorizontalAlignment::Left => Align::Left,
+        crate::model::TextHorizontalAlignment::Right => Align::Right,
+        _ => Align::Center,
+    };
+    let max_text_width = (width - TEXT_PADDING * 2.0).max(0.0);
+    let Some(lay) = layout(&font, &p.text, p.font_size as f64, align, max_text_width) else {
+        return;
+    };
+    let tx = TEXT_PADDING;
+    let mut ty = TEXT_PADDING.max((height - lay.height()) / 2.0);
+    ty = ty.min(height - lay.height() - TEXT_PADDING);
+    if let Some(geometry) = build_geometry(&font, &lay, (tx, ty)) {
+        draw_geometry(
+            pm,
+            &ctm,
+            Some(super::color::parse_color(&p.text_color)),
+            &geometry,
+            None,
+            &geometry,
+        );
+    }
+}
