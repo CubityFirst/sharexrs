@@ -15,8 +15,13 @@ mod message_box;
 mod region_render;
 mod region_session;
 mod render;
+mod shell;
 mod sound;
+mod task_actions;
+mod task_view;
+mod tasks;
 mod test_pattern;
+mod thumbnail;
 mod window;
 
 use std::sync::Arc;
@@ -37,7 +42,7 @@ use main_menu::MenuCommand;
 use main_window::{Action, MainWindow};
 use region_session::RegionSession;
 use sharex_capture::region::Outcome;
-use message_box::{MessageBox, MessageBoxIcon};
+use message_box::{DialogResult, MessageBox, MessageBoxIcon};
 use window::EguiWindow;
 
 /// What other threads tell the event loop.
@@ -45,6 +50,8 @@ use window::EguiWindow;
 pub enum UserEvent {
     /// A global hotkey was pressed (its `HotkeyInfo.ID`).
     Hotkey(u16),
+    /// A task's thread or a thumbnail decoder finished.
+    Task(tasks::TaskEvent),
 }
 
 fn main() {
@@ -77,6 +84,7 @@ fn main() {
     sharex_capture::platform::macos::ask_for_screen_recording();
     let event_loop = EventLoop::<UserEvent>::with_user_event().build().expect("event loop");
     let proxy = event_loop.create_proxy();
+    let task_proxy = proxy.clone();
     let host = hotkeys::platform_host(Arc::new(move |id| {
         let _ = proxy.send_event(UserEvent::Hotkey(id));
     }));
@@ -95,6 +103,7 @@ fn main() {
         region: None,
         pending_capture: None,
         last_regions: Vec::new(),
+        proxy: task_proxy,
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -103,6 +112,16 @@ fn main() {
 struct Dialog {
     window: EguiWindow,
     message: MessageBox,
+    /// What the answer is for.
+    purpose: DialogPurpose,
+}
+
+/// Why a message box is open.
+enum DialogPurpose {
+    /// The "Hotkey registration failed" warning at startup.
+    HotkeysFailed,
+    /// `TaskHelpers.ConfirmFileDelete` for these tasks' files.
+    DeleteFiles(Vec<u64>),
 }
 
 struct App {
@@ -128,6 +147,8 @@ struct App {
     pending_capture: Option<PendingCapture>,
     /// `RegionCaptureIntegration.LastRegionRectangles`.
     last_regions: Vec<sharex_capture::Rect>,
+    /// For tasks' threads to report back to the event loop.
+    proxy: winit::event_loop::EventLoopProxy<UserEvent>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -183,6 +204,10 @@ impl App {
     }
 
     fn act(&mut self, event_loop: &ActiveEventLoop, action: Action) {
+        if let Action::Task(action) = action {
+            self.task_action(event_loop, action);
+            return;
+        }
         let Some(w) = &self.main else { return };
         match action {
             Action::DragWindow => {
@@ -222,6 +247,7 @@ impl App {
                 return;
             }
             Action::Menu(command) => eprintln!("menu: {command:?}: not ported yet"),
+            Action::Task(_) => {}
         }
         w.window.request_redraw();
     }
@@ -311,12 +337,7 @@ impl App {
         let metadata = capture_job::Metadata::from_result(&result);
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent);
-        let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
-        std::thread::spawn(move || {
-            if let Err(e) = job.run(owner) {
-                eprintln!("after capture tasks: {e}");
-            }
-        });
+        self.run_image_task(job);
     }
 }
 
@@ -332,9 +353,10 @@ impl App {
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         eprintln!("HotkeyManager started.");
         self.refresh_hotkey_tips();
+        self.init_task_view();
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
-            match self.open_dialog(event_loop, message) {
+            match self.open_dialog(event_loop, message, DialogPurpose::HotkeysFailed) {
                 Ok(()) => return,
                 Err(e) => eprintln!("couldn't open the message box: {e}"),
             }
@@ -368,7 +390,7 @@ impl App {
     }
 
     /// `MessageBox.Show` with no owner: centred on the screen, topmost.
-    fn open_dialog(&mut self, event_loop: &ActiveEventLoop, message: MessageBox) -> Result<(), String> {
+    fn open_dialog(&mut self, event_loop: &ActiveEventLoop, message: MessageBox, purpose: DialogPurpose) -> Result<(), String> {
         let theme = self.theme();
         let gpu = match &self.gpu {
             Some(g) => g,
@@ -397,12 +419,15 @@ impl App {
         w.window.set_visible(true);
         w.window.focus_window();
         w.window.request_redraw();
-        self.dialog = Some(Dialog { window: w, message });
+        self.dialog = Some(Dialog { window: w, message, purpose });
         Ok(())
     }
 
-    fn close_dialog(&mut self, event_loop: &ActiveEventLoop) {
-        self.dialog = None;
+    fn close_dialog(&mut self, event_loop: &ActiveEventLoop, result: DialogResult) {
+        let Some(dialog) = self.dialog.take() else { return };
+        if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
+            self.file_delete_answered(ids, result, dialog.message.checked);
+        }
         if self.main.is_none()
             && let Err(e) = self.open_main_window(event_loop)
         {
@@ -414,12 +439,15 @@ impl App {
     fn dialog_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
         let Some(d) = self.dialog.as_mut() else { return };
         match event {
-            // `GetCancelResult(OK)` is OK: closing the window answers it.
-            WindowEvent::CloseRequested => self.close_dialog(event_loop),
+            // Closing the window answers `GetCancelResult`.
+            WindowEvent::CloseRequested => {
+                let result = d.message.cancel_result();
+                self.close_dialog(event_loop, result);
+            }
             WindowEvent::RedrawRequested => {
-                let message = &d.message;
-                if d.window.paint(|ui| message.ui(ui)).is_some() {
-                    self.close_dialog(event_loop);
+                let message = &mut d.message;
+                if let Some(result) = d.window.paint(|ui| message.ui(ui)) {
+                    self.close_dialog(event_loop, result);
                 }
             }
             other => d.window.on_event(&other),
@@ -582,6 +610,7 @@ impl ApplicationHandler<UserEvent> for App {
                 let task = hotkey.TaskSettings.safe_task_settings(defaults);
                 self.run_job(event_loop, task.Job.clone(), task);
             }
+            UserEvent::Task(event) => self.task_event(event),
         }
     }
 
@@ -626,6 +655,7 @@ impl ApplicationHandler<UserEvent> for App {
                 for a in actions {
                     self.act(event_loop, a);
                 }
+                self.decode_task_images();
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = w.window.scale_factor();
@@ -638,10 +668,8 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Light dismiss: a press outside the open menu closes it, and
             // Avalonia doesn't pass that press on.
-            WindowEvent::MouseInput { state: ElementState::Pressed, .. }
-                if self.state.flyout.as_ref().is_some_and(|f| !self.cursor.is_some_and(|c| f.contains(c))) =>
-            {
-                self.state.flyout = None;
+            WindowEvent::MouseInput { state: ElementState::Pressed, .. } if self.state.menu_at(self.cursor) == Some(false) => {
+                self.state.close_menus();
                 self.swallow_release = true;
                 w.window.request_redraw();
             }
@@ -650,7 +678,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Popups close with their window's activation.
             WindowEvent::Focused(false) => {
-                if self.state.flyout.take().is_some() {
+                if self.state.close_menus() {
                     w.window.request_redraw();
                 }
                 w.on_event(&event);

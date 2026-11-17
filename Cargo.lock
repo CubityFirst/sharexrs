@@ -3158,6 +3158,7 @@ dependencies = [
 name = "sharexrs"
 version = "22.4.0"
 dependencies = [
+ "chrono",
  "dirs",
  "egui",
  "egui-wgpu",
@@ -3166,6 +3167,7 @@ dependencies = [
  "image",
  "livesplit-hotkey",
  "pollster",
+ "serde_json",
  "sharex-capture",
  "sharex-helpers",
  "sharex-settings",
