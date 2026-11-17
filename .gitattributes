@@ -6,3 +6,5 @@
 crates/sharex-settings/tests/fixtures/** -text
 # Tool outputs exactly as ShareX wrote them (compared byte for byte).
 crates/sharex-tools/tests/fixtures/** -text
+# ShareX's OCR outputs, zlib-compressed, compared bit for bit.
+crates/sharex-ocr/tests/fixtures/** -text
