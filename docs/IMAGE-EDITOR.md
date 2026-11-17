@@ -3,7 +3,8 @@
 ShareX 22.4's image editor (`ShareX.ImageEditor`, Avalonia) and its port:
 `crates/sharex-image-editor` (annotation model, tool options, renderer) on
 `crates/sharex-skia` (Skia m119's CPU rasteriser, shared with the image
-effects). The editor UI isn't ported yet; the plan is at the end.
+effects). The editor's workspace and its region capture host are ported
+("The editor UI" below); the standalone editor window isn't yet.
 
 ## Map of ShareX's editor
 
@@ -168,6 +169,63 @@ reproduced by filling outlines.
 Not ported yet: Image, Emoji, Cursor and Smart eraser rendering; rotated
 effect annotations; `SkDashPath`, hairlines, `SkAAClip`, PathOps; crop,
 cut-out and flatten.
+
+## The editor UI
+
+`sharex_image_editor::editor` is the workspace `EditorView` is, with no
+window: `Workspace` holds the image and annotations (`EditorCore`), draws
+them with the tools from `ImageEditorOptions` (`EditorInputController`),
+selects, moves, resizes and rotates them (`EditorSelectionController`:
+ShareX's hit tests, the base `HitTest` tolerance of 10 that C# binds, handles,
+hover outlines), undoes and redoes as annotation-list snapshots
+(`EditorHistory`: adds, deletes, clears and reorders, not moves, as ShareX),
+deletes with step renumbering, types text in place, and takes the editor's
+keys (`EditorView.OnKeyDown`/`OnKeyUp`). `ToolState` is
+`MainViewModel.ToolOptions`: each tool loads its own options and writes them
+back as they change. `Workspace::composite` is `render::render_cached` of the
+annotations over the image (the effects' whole-image sources cached: about
+7 ms for 2560x1440 in a debug build once cached), so the live view is the
+export.
+
+Region capture (`crates/sharex-capture/src/region`) hosts it as
+`RegionCaptureWindow` hosts `EditorView`: the toolbar's tools and hotkeys
+switch to the annotation tools, Tab, NumPad0 and the region button back, the
+tool options row (`ToolOptionsBorder`, `options_row.rs`) hangs under the
+toolbar, right and middle clicks run the capture actions on the active tool's
+annotations, Escape drops the selection first, and the capture is
+`GetSnapshot(Rect)` of the composite (image modified).
+
+Validated against ShareX's overlay over the test pattern
+(`scripts/annotate-tools.ps1` takes ShareX's shots, `scripts/compare-annotate.py`
+renders `--render region-* --steps` and compares): every tool chosen, every
+drawable shape mid-draw and finished with its handles, text typed and
+committed, a step placed: 0.00-0.04% of pixels differ (the text box 0.09%),
+text anti-aliasing and the handles' shadow; live ShareXrs gives the same
+(0.01-0.04%). Output, side by side: eleven annotations (rectangle, ellipse,
+arrow, line, freehand, highlight, blur, pixelate, magnify, text, step) drawn
+with the same input in both apps, then a region captured: same size, 99.37%
+of pixels identical; 0.52% differ by at most 3 levels on anti-aliased edges
+(see below), more only on the freehand stroke (the moves ShareX received
+differ: Avalonia can coalesce pointer moves) and the step's number (glyphs,
+above).
+
+ShareX's region capture renders its output through a `VisualBrush` of the
+workspace into an intermediate surface (`GetSnapshot(Rect)`), not as
+`GetSnapshot()` draws the editor's export: shapes' anti-aliased edge pixels
+come out up to 3 levels different from the harness's (and ShareXrs's)
+rendering, solid and effect pixels identical. Probably a different blend path
+(raster pipeline rather than the legacy blitters); for sharex-skia.
+
+Not ported yet: the options' dropdowns and colour popups (they draw closed;
+toggles and sliders work), the shadow options popup, the speech balloon's text
+editor and default tail on selection (ShareX opens both as soon as a balloon
+is drawn), editing an existing text in its own box (double click edits it in
+the creation box), the Image, Emoji, Clone, Cursor and Smart eraser tools
+(selectable; Image and Emoji open dialogs in ShareX, not ported), crop and
+cut out, copy/paste/duplicate of annotations, the context menu,
+`RightClickDeletesShape`, the cursor annotation ShareX inserts for a shown
+pointer (ShareXrs draws the pointer into the frozen screen), the
+standalone editor window.
 
 ## Plan for the editor UI
 
