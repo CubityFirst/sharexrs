@@ -183,6 +183,8 @@ enum DialogPurpose {
     /// A message that only needs reading (`CaptureCustomWindow`'s window
     /// not found).
     Information,
+    /// Custom uploader settings' "Clear all..." confirmation.
+    ClearCustomUploaders,
 }
 
 struct App {
@@ -365,6 +367,11 @@ impl App {
                 self.show_hotkey_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_CustomUploaderSettings`.
+            Action::Nav(11, _) => {
+                self.show_custom_uploader_settings(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -420,6 +427,7 @@ impl App {
             MenuCommand::ApplicationSettings => self.show_application_settings(event_loop),
             MenuCommand::TaskSettings => self.show_task_settings(event_loop, app_windows::TaskTarget::Default),
             MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
+            MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -889,6 +897,12 @@ impl App {
         let Some(dialog) = self.dialog.take() else { return };
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
+        } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
+            && result == DialogResult::Yes
+            && let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("custom-uploader-settings"))
+        {
+            d.dialog.confirmed();
+            d.window.window.request_redraw();
         }
         if self.main.is_none()
             && let Err(e) = self.open_main_window(event_loop)

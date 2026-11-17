@@ -14,6 +14,7 @@ pub mod after_upload;
 pub mod before_upload;
 pub mod clipboard_upload;
 pub mod confirm;
+pub mod custom_uploaders;
 pub mod drop_window;
 pub mod layout;
 pub mod qr_code;
@@ -108,6 +109,14 @@ pub enum Effect {
     /// The QR code window's screen scan: hidden for 250 ms, the screen
     /// grabbed and scanned, shown again ([`Dialog::scanned`]).
     ScanScreen,
+    /// `SettingManager.SaveUploadersConfigAsync` and `RefreshMenus`.
+    SaveUploadersConfig,
+    /// `ResponseWindow.ShowInstance(result)`.
+    ShowResponse(Box<response::ResponseData>),
+    /// Custom uploader settings' "Clear all..." confirmation.
+    ConfirmClearCustomUploaders,
+    /// `TextUploadWindow.ShowAsync(text)` for an answer, not an upload.
+    AskText(String, std::sync::mpsc::Sender<Option<String>>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
 }
@@ -169,6 +178,9 @@ pub trait Dialog {
         let _ = cx;
         Vec::new()
     }
+
+    /// A confirmation the window asked for was answered Yes.
+    fn confirmed(&mut self) {}
 
     /// `ResponseWindow.ShowInstance` on the open response window.
     fn show_response(&mut self, _data: response::ResponseData) {}
@@ -355,9 +367,49 @@ impl App {
                     d.dialog.scanned(grab.map(|g| qr_code::scan(&g)));
                     d.window.window.request_redraw();
                 }
+                Effect::SaveUploadersConfig => {
+                    self.save_uploaders_config(false);
+                    self.refresh_menus();
+                }
+                Effect::ShowResponse(data) => self.show_response(event_loop, *data),
+                Effect::ConfirmClearCustomUploaders => {
+                    let message = crate::message_box::MessageBox::yes_no(
+                        crate::rs_title(sharex_strings::sharex::CustomUploaderSettingsWindow_ConfirmationTitle()),
+                        sharex_strings::sharex::CustomUploaderSettingsWindow_ClearConfirmation(),
+                        crate::message_box::MessageBoxIcon::Question,
+                    );
+                    if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::ClearCustomUploaders) {
+                        eprintln!("couldn't open the message box: {e}");
+                    }
+                }
+                Effect::AskText(text, reply) => {
+                    let task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    let mut w = text_upload::TextUploadWindow::new(Some(text), task);
+                    w.reply = Some(reply);
+                    self.open_dialog_window(event_loop, Box::new(w));
+                }
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
             }
         }
+    }
+
+    /// `ResponseWindow.ShowInstance(result)`: the open window shows it.
+    pub(crate) fn show_response(&mut self, event_loop: &ActiveEventLoop, data: response::ResponseData) {
+        if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("response")) {
+            d.dialog.show_response(data);
+            d.window.window.set_minimized(false);
+            d.window.window.focus_window();
+            d.window.window.request_redraw();
+        } else {
+            self.open_dialog_window(event_loop, Box::new(response::ResponseWindow::new(data)));
+        }
+    }
+
+    /// `CustomUploaderSettingsIntegration.Show`: one window, bound to the
+    /// config once it's loaded.
+    pub(crate) fn show_custom_uploader_settings(&mut self, event_loop: &ActiveEventLoop) {
+        let w = self.uploads.config.with(|c| custom_uploaders::CustomUploaderSettingsWindow::new(c));
+        self.open_dialog_window(event_loop, Box::new(w));
     }
 
     /// A window of ours to own the clipboard's data.

@@ -18,6 +18,8 @@ pub struct TextUploadWindow {
     select_initial: bool,
     opened: bool,
     task: TaskSettings,
+    /// Answers with the text instead of uploading it (`ShowAsync`'s result).
+    pub reply: Option<std::sync::mpsc::Sender<Option<String>>>,
 }
 
 impl TextUploadWindow {
@@ -28,7 +30,7 @@ impl TextUploadWindow {
             if sharex_capture::clipboard::contains_text() { sharex_capture::clipboard::get_text() } else { None }
         });
         let text = content.unwrap_or_default();
-        Self { select_initial: !text.is_empty(), text, opened: false, task }
+        Self { select_initial: !text.is_empty(), text, opened: false, task, reply: None }
     }
 
     /// `UpdateCharacterCount`: .NET's `Length`, UTF-16 units.
@@ -65,6 +67,13 @@ pub fn focus_text_box(ui: &egui::Ui, id: Id, text: &str, select_all: bool) {
 }
 
 impl Dialog for TextUploadWindow {
+    fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {
+        if let Some(r) = self.reply.take() {
+            let _ = r.send(None);
+        }
+        Vec::new()
+    }
+
     fn spec(&self) -> Spec {
         Spec::sized(crate::rs_title(s::TextUploadWindow_ShareX_Text_upload()), 680.0, 560.0, 480.0, 380.0)
     }
@@ -101,6 +110,10 @@ impl Dialog for TextUploadWindow {
             return vec![Effect::Close];
         }
         if upload {
+            if let Some(r) = self.reply.take() {
+                let _ = r.send(Some(self.text.clone()));
+                return vec![Effect::Close];
+            }
             // `ShowTextUploadDialog`: an empty text uploads nothing.
             let mut out = Vec::new();
             if !self.text.is_empty() {

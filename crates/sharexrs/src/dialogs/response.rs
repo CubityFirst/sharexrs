@@ -118,7 +118,7 @@ fn xml_format(text: &str) -> Option<String> {
 
 pub struct ResponseWindow {
     data: ResponseData,
-    section: usize,
+    pub section: usize,
     response_text: String,
     format_status: Option<String>,
 }
@@ -288,12 +288,14 @@ impl Dialog for ResponseWindow {
             x = r.max.x + 6.0;
         }
         let mut text_top = card.max.y + 8.0;
-        if self.section == 2
-            && let Some(status) = &self.format_status
-        {
-            let sf = layout::text_font();
-            layout::text(ui, pos2(panel.min.x, text_top), status, sf.clone(), p.cancel_border, panel.width());
-            text_top += line_height(ui, &sf) + 8.0;
+        if self.section == 2 {
+            // `FormatStatusText`'s row: its `RowSpacing` stays when it's hidden.
+            if let Some(status) = &self.format_status {
+                let sf = layout::text_font();
+                layout::text(ui, pos2(panel.min.x, text_top), status, sf.clone(), p.cancel_border, panel.width());
+                text_top += line_height(ui, &sf);
+            }
+            text_top += 8.0;
         }
         let text_card = Rect::from_min_max(pos2(panel.min.x, text_top), panel.max);
         layout::panel(ui, text_card, 6.0);

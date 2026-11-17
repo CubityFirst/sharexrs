@@ -136,6 +136,46 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             };
             Box::new(super::after_upload::AfterUploadWindow::new(info))
         }
+        "response" => {
+            // The mock's answer to a custom uploader test (`--content
+            // result|info|text` picks the section).
+            let base = "http://127.0.0.1:18765";
+            let text = format!("{{\"url\": \"{base}/u/mock0.png\", \"thumb\": \"{base}/t/mock0.png\", \"delete\": \"{base}/d/mock0\"}}");
+            let data = super::response::ResponseData {
+                url: format!("{base}/u/mock0.png"),
+                thumbnail_url: format!("{base}/t/mock0.png"),
+                deletion_url: format!("{base}/d/mock0"),
+                response: text.clone(),
+                response_info: Some(sharex_uploaders::http::ResponseInfo {
+                    status_code: 200,
+                    status_description: "OK".into(),
+                    response_url: Some(format!("{base}/upload")),
+                    headers: vec![("Content-Type".into(), "application/json".into()), ("Content-Length".into(), text.len().to_string())],
+                    response_text: Some(text),
+                    response_data: None,
+                }),
+                ..Default::default()
+            };
+            let mut w = super::response::ResponseWindow::new(data);
+            w.section = match o.content.as_deref() {
+                Some("info") => 1,
+                Some("text") => 2,
+                _ => 0,
+            };
+            Box::new(w)
+        }
+        "custom-uploader" => {
+            let config = mock_config();
+            let mut w = super::custom_uploaders::CustomUploaderSettingsWindow::new(&config);
+            w.section = match o.content.as_deref() {
+                Some("request") => 1,
+                Some("body") => 2,
+                Some("response") => 3,
+                Some("test") => 4,
+                _ => 0,
+            };
+            Box::new(w)
+        }
         "qr-code" => {
             let mut w = super::qr_code::QrCodeWindow::new(Some(o.text.clone().unwrap_or_default()));
             w.size = o.count as f64;
@@ -159,6 +199,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "before-upload"
             | "after-upload"
             | "qr-code"
+            | "response"
+            | "custom-uploader"
     )
 }
 
@@ -167,7 +209,7 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
     let mut d = dialog(name, o)?;
     let spec = d.spec();
     let mut settings = ApplicationConfig::default();
-    let store = UploadersConfigStore::loaded(sharex_uploaders::UploadersConfig::default());
+    let store = UploadersConfigStore::loaded(mock_config());
     let mut height = spec.height;
     if spec.size_to_content {
         let mut probe = Offscreen::new([spec.width as u32, 400], o.scale, o.dark)?;

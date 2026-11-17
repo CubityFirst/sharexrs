@@ -674,8 +674,17 @@ impl TextBox<'_> {
         let mut copy = self.read_only.then(|| text.clone());
         let text = copy.as_mut().unwrap_or(text);
         let links = self.links.map(|c| (c, find_links(text)));
+        // `TextWrapping="NoWrap"`: lines run on past the box.
+        let nowrap_font = text_font.clone();
+        let mut nowrap = move |ui: &Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
+            let job = egui::text::LayoutJob::simple(buf.as_str().to_owned(), nowrap_font.clone(), fg, f32::INFINITY);
+            ui.fonts_mut(|f| f.layout_job(job))
+        };
         let mut edit = if self.multiline { egui::TextEdit::multiline(text) } else { egui::TextEdit::singleline(text) };
-        let width = if self.multiline && !self.wrap { f32::INFINITY } else { edit_rect.width() };
+        if self.multiline && !self.wrap {
+            edit = edit.layouter(&mut nowrap);
+        }
+        let width = edit_rect.width();
         edit = edit
             .id(id)
             .font(text_font)
@@ -710,6 +719,19 @@ impl TextBox<'_> {
         v.text_cursor.stroke = Stroke::new(1.0, if selecting { Color32::TRANSPARENT } else { p.text });
         let out = edit.show(&mut child);
         let r = out.response.response;
+        if self.multiline && !self.wrap {
+            // Fluent's collapsed horizontal scroll bar when the lines run past
+            // the box: a 2px thumb 4px up from the content's bottom, in a
+            // track 16px short of each side.
+            let content = out.galley.size().x;
+            if content > inner.width() {
+                let f = fluent(ui.ctx());
+                let track = Rect::from_min_max(pos2(inner.min.x + 16.0, inner.max.y - 4.0), pos2(inner.max.x - 16.0, inner.max.y - 2.0));
+                let thumb_w = (track.width() * inner.width() / content).max(20.0).round();
+                let thumb = Rect::from_min_size(track.min, vec2(thumb_w, 2.0));
+                ui.painter().rect_filled(thumb, CornerRadius::same(1), f.chrome_disabled_low);
+            }
+        }
         if let Some((color, ranges)) = links {
             // A 1px line under each link, at the bottom of its line box.
             let painter = ui.painter().with_clip_rect(inner.intersect(ui.clip_rect()));
