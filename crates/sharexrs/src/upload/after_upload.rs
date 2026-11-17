@@ -308,6 +308,43 @@ mod tests {
         assert_eq!(r("abc", "x*", "-"), "-a-b-c-");
     }
 
+    /// `fixtures/after_upload.sharex.json` is what ShareX's own
+    /// `UploadInfoParser.Parse` and `Regex.Replace` made of
+    /// `tools/uploaders-harness/after_upload_cases.json`
+    /// (`UploadersHarness --after-upload`, ShareX.dll of the reference build).
+    #[test]
+    fn after_upload_results_match_sharex() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("fixtures/after_upload.sharex.json")).unwrap();
+        let s = |v: &serde_json::Value| v.as_str().map(str::to_owned);
+        let mut compared = 0;
+        for c in fixture["parse"].as_array().unwrap() {
+            if c["windows_only"].as_bool() == Some(true) && !cfg!(windows) {
+                continue;
+            }
+            let result = UploadResult {
+                url: s(&c["url"]),
+                thumbnail_url: s(&c["thumbnail_url"]),
+                deletion_url: s(&c["deletion_url"]),
+                shortened_url: s(&c["shortened_url"]),
+                ..Default::default()
+            };
+            let file_path = s(&c["file_path"]).map(std::path::PathBuf::from);
+            // `FilePath`'s setter sets `FileName`; a given one comes after.
+            let file_name = s(&c["file_name"]).unwrap_or_else(|| {
+                file_path.as_deref().and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+            });
+            let info = InfoFields { result: &result, file_name: &file_name, file_path: file_path.as_deref(), thumbnail_file_path: None, upload_duration: None };
+            assert_eq!(parse_upload_info(&info, c["pattern"].as_str().unwrap()), c["output"].as_str().unwrap(), "{}", c["id"]);
+            compared += 1;
+        }
+        for c in fixture["regex"].as_array().unwrap() {
+            let out = dotnet_regex_replace(c["input"].as_str().unwrap(), c["pattern"].as_str().unwrap(), c["replacement"].as_str().unwrap());
+            assert_eq!(out.unwrap(), c["output"].as_str().unwrap(), "{}", c["id"]);
+            compared += 1;
+        }
+        assert!(compared >= if cfg!(windows) { 33 } else { 31 });
+    }
+
     #[test]
     fn upload_info_variables() {
         let result = UploadResult {

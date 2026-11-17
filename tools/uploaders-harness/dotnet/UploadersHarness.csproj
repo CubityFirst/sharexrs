@@ -19,6 +19,8 @@
   <ItemGroup>
     <Reference Include="ShareX.UploadersLib"><HintPath>$(ShareXBuild)\ShareX.UploadersLib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath><Private>false</Private></Reference>
+    <!-- UploadInfoParser and TaskInfo, for the after upload results (AfterUpload.cs). -->
+    <Reference Include="ShareX"><HintPath>$(ShareXBuild)\ShareX.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

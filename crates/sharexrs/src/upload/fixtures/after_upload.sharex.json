@@ -1,0 +1,304 @@
+{
+  "parse": [
+    {
+      "id": "result",
+      "pattern": "$result",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": "https://i.example.com/delete/abc",
+      "shortened_url": null,
+      "file_path": null,
+      "output": "https://i.example.com/abc.png"
+    },
+    {
+      "id": "result-shortened",
+      "pattern": "$result",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": "https://s.example.com/x1",
+      "file_path": null,
+      "output": "https://s.example.com/x1"
+    },
+    {
+      "id": "result-file-path",
+      "pattern": "$result",
+      "url": null,
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": "C:\\Users\\made-up\\Pictures\\2026-11\\shot.png",
+      "windows_only": true,
+      "output": "C:\\Users\\made-up\\Pictures\\2026-11\\shot.png"
+    },
+    {
+      "id": "result-nothing",
+      "pattern": "[$result]",
+      "url": null,
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[]"
+    },
+    {
+      "id": "all-urls",
+      "pattern": "$url|$shorturl|$thumbnailurl|$deletionurl",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": "https://i.example.com/delete/abc",
+      "shortened_url": "https://s.example.com/x1",
+      "file_path": null,
+      "output": "https://i.example.com/abc.png|https://s.example.com/x1|https://i.example.com/abc_t.png|https://i.example.com/delete/abc"
+    },
+    {
+      "id": "html-link",
+      "pattern": "<a href=\"$url\">$url</a>",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "<a href=\"https://i.example.com/abc.png\">https://i.example.com/abc.png</a>"
+    },
+    {
+      "id": "html-linked-image",
+      "pattern": "<a href=\"$url\"><img src=\"$thumbnailurl\"></a>",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "<a href=\"https://i.example.com/abc.png\"><img src=\"https://i.example.com/abc_t.png\"></a>"
+    },
+    {
+      "id": "forum-linked-image",
+      "pattern": "[url=$url][img]$thumbnailurl[/img][/url]",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[url=https://i.example.com/abc.png][img]https://i.example.com/abc_t.png[/img][/url]"
+    },
+    {
+      "id": "wiki-linked-image",
+      "pattern": "[$url $thumbnailurl]",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[https://i.example.com/abc.png https://i.example.com/abc_t.png]"
+    },
+    {
+      "id": "markdown-linked-image",
+      "pattern": "[![]($thumbnailurl)]($url)",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": "https://i.example.com/abc_t.png",
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[![](https://i.example.com/abc_t.png)](https://i.example.com/abc.png)"
+    },
+    {
+      "id": "missing-thumbnail",
+      "pattern": "[url=$url][img]$thumbnailurl[/img][/url]",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[url=https://i.example.com/abc.png][img][/img][/url]"
+    },
+    {
+      "id": "file-variables",
+      "pattern": "$filename|$filenamenoext|$filepath|$folderpath|$foldername",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": "C:\\Users\\made-up\\Pictures\\2026-11\\made-up shot.v2.png",
+      "windows_only": true,
+      "output": "made-up shot.v2.png|made-up shot.v2|C:\\Users\\made-up\\Pictures\\2026-11\\made-up shot.v2.png|C:\\Users\\made-up\\Pictures\\2026-11|2026-11"
+    },
+    {
+      "id": "file-name-only",
+      "pattern": "$filename|$filenamenoext|$filepath|$folderpath|$foldername",
+      "url": "https://s.example.com/x1",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "file_name": "Shorten URL (is.gd)",
+      "output": "Shorten URL (is.gd)|Shorten URL (is|||"
+    },
+    {
+      "id": "thumbnail-file-unset",
+      "pattern": "[$thumbnailfilename|$thumbnailfilenamenoext|$uploadtime]",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "[||$uploadtime]"
+    },
+    {
+      "id": "repeated",
+      "pattern": "$url $url$url",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "https://i.example.com/abc.png https://i.example.com/abc.pnghttps://i.example.com/abc.png"
+    },
+    {
+      "id": "dollar-prefix",
+      "pattern": "$$url $urls $URL",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "$https://i.example.com/abc.png https://i.example.com/abc.pngs $URL"
+    },
+    {
+      "id": "name-parser-escape",
+      "pattern": "100\\% $url",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "100\\% https://i.example.com/abc.png"
+    },
+    {
+      "id": "name-parser-empty-window",
+      "pattern": "%pn|%t|$url",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": "%pn|%t|https://i.example.com/abc.png"
+    },
+    {
+      "id": "name-parser-new-line",
+      "pattern": "$url%n$shorturl",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": "https://s.example.com/x1",
+      "file_path": null,
+      "output": "https://i.example.com/abc.png%nhttps://s.example.com/x1"
+    },
+    {
+      "id": "url-with-variable-text",
+      "pattern": "$result",
+      "url": "https://i.example.com/$filename.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "file_name": "made-up.png",
+      "output": "https://i.example.com/made-up.png.png"
+    },
+    {
+      "id": "empty-pattern",
+      "pattern": "",
+      "url": "https://i.example.com/abc.png",
+      "thumbnail_url": null,
+      "deletion_url": null,
+      "shortened_url": null,
+      "file_path": null,
+      "output": ""
+    }
+  ],
+  "regex": [
+    {
+      "id": "default-force-https",
+      "input": "http://i.example.com/abc.png",
+      "pattern": "^https?://(.+)$",
+      "replacement": "https://$1",
+      "output": "https://i.example.com/abc.png"
+    },
+    {
+      "id": "domain",
+      "input": "https://i.example.com/abc.png",
+      "pattern": "i\\.example\\.com",
+      "replacement": "cdn.example.org",
+      "output": "https://cdn.example.org/abc.png"
+    },
+    {
+      "id": "no-match",
+      "input": "https://i.example.com/abc.png",
+      "pattern": "^ftp://(.+)$",
+      "replacement": "x$1",
+      "output": "https://i.example.com/abc.png"
+    },
+    {
+      "id": "digits-after-group",
+      "input": "abc",
+      "pattern": "(b)",
+      "replacement": "[$1a]",
+      "output": "a[ba]c"
+    },
+    {
+      "id": "group-out-of-range",
+      "input": "abc",
+      "pattern": "(b)",
+      "replacement": "[$12]",
+      "output": "a[$12]c"
+    },
+    {
+      "id": "substitutions",
+      "input": "abc",
+      "pattern": "(?<n>b)",
+      "replacement": "[${n}|$0|$&|$$|$`|$'|$+|$_]",
+      "output": "a[b|b|b|$|a|c|b|abc]c"
+    },
+    {
+      "id": "unknown-names",
+      "input": "abc",
+      "pattern": "(b)",
+      "replacement": "[${x}|$x|${1}|$]",
+      "output": "a[${x}|$x|b|$]c"
+    },
+    {
+      "id": "named-numbered-after-unnamed",
+      "input": "ab",
+      "pattern": "(?<first>a)(b)",
+      "replacement": "$1$2|${first}|$+",
+      "output": "ba|a|a"
+    },
+    {
+      "id": "empty-matches",
+      "input": "abc",
+      "pattern": "x*",
+      "replacement": "-",
+      "output": "-a-b-c-"
+    },
+    {
+      "id": "all-matches",
+      "input": "a-a-a",
+      "pattern": "a",
+      "replacement": "b",
+      "output": "b-b-b"
+    },
+    {
+      "id": "unicode",
+      "input": "https://i.example.com/ünï/çödé.png",
+      "pattern": "(ü\\w+)/(.)",
+      "replacement": "$2/$1",
+      "output": "https://i.example.com/ç/ünïödé.png"
+    },
+    {
+      "id": "optional-group-missing",
+      "input": "https://example.com",
+      "pattern": "^(https?)://(www\\.)?(.+)$",
+      "replacement": "$1|$2|$3",
+      "output": "https||example.com"
+    }
+  ]
+}
