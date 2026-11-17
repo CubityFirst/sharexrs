@@ -1,14 +1,21 @@
-//! The parts of Skia's CPU renderer that ShareX's image editor output
-//! depends on, ported from Skia milestone 119 (what SkiaSharp 3.119, and
-//! so Avalonia 12 and ShareX, ship), so ShareXrs draws the same pixels:
+//! The parts of Skia's CPU renderer that ShareX's drawing depends on, ported
+//! from Skia milestone 119 (what SkiaSharp 3.119, and so Avalonia 12 and
+//! ShareX, ship), so ShareXrs draws the same pixels. Shared by the image
+//! editor (`sharex-image-editor`) and the image effects
+//! (`sharex-image-effects`):
 //!
 //! - [`path`]: `SkPath` (conics, `addOval`, the SVG `arcTo`, convexity),
 //! - [`aaa`]: the analytic anti-aliasing scan converter Skia uses for most
-//!   paths (`SkScan_AAAPath.cpp`), bit for bit,
-//! - [`scan`]: `SkScan::AntiFillPath`'s choice between analytic AA and
-//!   supersampling (the latter through tiny-skia, a port of Skia's),
+//!   paths (`SkScan_AAAPath.cpp`), bit for bit, and [`saa`]: the
+//!   supersampler it uses for the rest (`SkScan_AntiPath.cpp`),
+//! - [`scan`]: `SkScan::AntiFillPath`'s choice between them,
 //! - [`blitter`]: the legacy N32 blitters that blend a solid colour,
-//! - [`draw`]: `drawPath` for fills and strokes.
+//! - [`stroke`], [`draw`]: `SkStroke` and `drawPath` for fills and strokes,
+//! - [`blur`]: `SkBlurImageFilter`'s Gaussian passes; [`resample`]: image
+//!   scaling (`scalePixels`, Mitchell `drawImageRect`),
+//! - [`raster`]: the raster pipeline's float and 16-bit stages, the sprite
+//!   blitter, pixel conversions, matrices, image shaders and gradients over a
+//!   premultiplied RGBA [`raster::Bitmap`] (`SKCanvas` for the image effects).
 //!
 //! Skia is BSD-licensed (Copyright Google Inc. and The Android Open Source
 //! Project); this is a translation of its code.
@@ -38,6 +45,7 @@ pub mod fixed;
 pub mod geom;
 pub mod path;
 pub mod pixmap;
+pub mod raster;
 pub mod resample;
 pub mod saa;
 pub mod scan;

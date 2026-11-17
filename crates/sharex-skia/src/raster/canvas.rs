@@ -6,7 +6,7 @@
 use super::coverage::{self, Coverage};
 use super::gradient::LinearGradient;
 use super::*;
-use crate::Bitmap;
+use super::Bitmap;
 
 /// `SKSamplingOptions` as ShareX uses them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
