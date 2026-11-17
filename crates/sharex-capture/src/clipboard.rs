@@ -70,8 +70,72 @@ pub fn copy_image(image: &RgbaImage, owner: Option<isize>) -> Result<(), String>
     }
 }
 
+/// `ClipboardHelpers.CopyText`: the text as CF_UNICODETEXT on Windows.
+pub fn copy_text(text: &str, owner: Option<isize>) -> Result<(), String> {
+    if text.is_empty() {
+        return Err("no text".into());
+    }
+    #[cfg(windows)]
+    {
+        let owner = owner.ok_or("no window to own the clipboard")?;
+        let wide: Vec<u8> = text.encode_utf16().chain([0]).flat_map(u16::to_le_bytes).collect();
+        crate::platform::set_clipboard(owner, &[(crate::platform::ClipboardFormat::Id(13), &wide)]) // CF_UNICODETEXT
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = owner;
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard.set_text(text.to_owned()).map_err(|e| e.to_string())
+    }
+}
+
+/// `ClipboardHelpers.CopyFile`: the files as a file drop list (CF_HDROP on
+/// Windows), so pasting in a file manager copies them.
+pub fn copy_files(paths: &[std::path::PathBuf], owner: Option<isize>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("no files".into());
+    }
+    #[cfg(windows)]
+    {
+        let owner = owner.ok_or("no window to own the clipboard")?;
+        crate::platform::set_clipboard(owner, &[(crate::platform::ClipboardFormat::Id(15), &drop_files(paths))]) // CF_HDROP
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = owner;
+        Err("copying files isn't ported to this platform yet".into())
+    }
+}
+
+/// A `DROPFILES` header and the paths as UTF-16, each NUL-terminated, with
+/// a final NUL.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn drop_files(paths: &[std::path::PathBuf]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&20u32.to_le_bytes()); // pFiles: the header's size
+    out.extend_from_slice(&0i32.to_le_bytes()); // pt
+    out.extend_from_slice(&0i32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes()); // fNC
+    out.extend_from_slice(&1u32.to_le_bytes()); // fWide
+    for p in paths {
+        for u in p.to_string_lossy().encode_utf16().chain([0]) {
+            out.extend_from_slice(&u.to_le_bytes());
+        }
+    }
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn drop_lists_are_wide_and_double_terminated() {
+        let d = super::drop_files(&[std::path::PathBuf::from("a"), std::path::PathBuf::from("bc")]);
+        assert_eq!(d.len(), 20 + 2 * (2 + 3 + 1));
+        assert_eq!(&d[20..24], &[b'a', 0, 0, 0]);
+        assert_eq!(&d[d.len() - 4..], &[0, 0, 0, 0]);
+    }
+
     use super::*;
 
     #[test]

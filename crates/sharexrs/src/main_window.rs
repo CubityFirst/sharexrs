@@ -2,8 +2,9 @@
 //!
 //! A borderless window with ShareX's own 38px title bar (icon, title, theme
 //! toggle, always-on-top, minimize, maximize, close), the navigation
-//! sidebar (`MainMenuBuilder.BuildNavigation`) and the task area, which
-//! shows the "ShareX hotkeys" panel while there are no tasks. A sidebar
+//! sidebar (`MainMenuBuilder.BuildNavigation`) and the task area
+//! ([`crate::task_view`]), which shows the "ShareX hotkeys" panel while
+//! there are no tasks. A sidebar
 //! entry with a chevron opens its menu (`OnNavigationClick`), built by
 //! [`crate::main_menu`].
 
@@ -17,6 +18,7 @@ use sharex_ui::icons;
 use sharex_ui::menu::{Flyout, FlyoutOutput, Placement};
 
 use crate::main_menu::{self, MenuCommand, MenuState};
+use crate::task_view::{TaskAction, TaskView};
 
 /// `MainWindow.axaml`'s `ExtendClientAreaTitleBarHeightHint`.
 pub const TITLE_BAR_HEIGHT: f32 = 38.0;
@@ -40,6 +42,8 @@ pub enum Action {
     Nav(usize, Rect),
     /// A menu entry was chosen.
     Menu(MenuCommand),
+    /// Something in the task area.
+    Task(TaskAction),
 }
 
 /// One `HotkeyTipViewModel`.
@@ -68,6 +72,8 @@ pub struct MainWindow {
     pub nav_rects: Vec<(usize, Rect)>,
     /// Files are being dragged over the window (`DropOverlay`).
     pub drop_overlay: bool,
+    /// The task area (`ThumbnailPanel`) and the tasks behind it.
+    pub tasks: TaskView,
 }
 
 /// A sidebar entry: `MainNavigationSection`.
@@ -135,6 +141,7 @@ impl MainWindow {
             work_area: None,
             nav_rects: Vec::new(),
             drop_overlay: false,
+            tasks: TaskView::new(),
         }
     }
 
@@ -182,7 +189,20 @@ impl MainWindow {
         self.sidebar(ui, nav, &mut actions);
 
         let content = Rect::from_min_max(pos2(nav.max.x, body.min.y), body.max);
-        self.hotkey_panel(ui, content);
+        self.tasks.work_area = self.work_area;
+        let task_actions = self.tasks.ui(ui, content, self.flyout.is_some());
+        // `TryOpenContextMenu`: one menu at a time.
+        if self.tasks.flyout.is_some() && self.flyout.is_some() {
+            self.tasks.flyout = None;
+        }
+        actions.extend(task_actions.into_iter().map(|a| match a {
+            TaskAction::CloseWindow => Action::Close,
+            other => Action::Task(other),
+        }));
+        // `Grid IsVisible="{Binding IsEmpty}"`: the hotkeys over an empty area.
+        if self.tasks.is_empty() {
+            self.hotkey_panel(ui, content);
+        }
 
         if self.drop_overlay {
             drop_overlay(ui, body);
@@ -193,9 +213,10 @@ impl MainWindow {
 
         // `OnNavigationClick`: entries with a menu open it beside themselves
         // (`TryOpenContextMenu` / `TryOpenGridMenu`, only one at a time).
+        let menu_open = self.flyout.is_some() || self.tasks.flyout.is_some();
         actions.retain(|a| match a {
-            Action::Nav(i, rect) if self.flyout.is_none() && self.open_nav(*i, *rect) => false,
-            Action::Nav(..) if self.flyout.is_some() => false,
+            Action::Nav(i, rect) if !menu_open && self.open_nav(*i, *rect) => false,
+            Action::Nav(..) if menu_open => false,
             _ => true,
         });
         if let Some(flyout) = &mut self.flyout {
@@ -209,6 +230,25 @@ impl MainWindow {
             }
         }
         actions
+    }
+
+    /// Whether a menu (a sidebar menu or a task context menu) is open, and
+    /// whether `pos` is on it (as drawn last frame).
+    pub fn menu_at(&self, pos: Option<egui::Pos2>) -> Option<bool> {
+        let f = self.flyout.as_ref().map(|f| pos.is_some_and(|p| f.contains(p)));
+        let t = self.tasks.flyout.as_ref().map(|f| pos.is_some_and(|p| f.contains(p)));
+        match (f, t) {
+            (None, None) => None,
+            (a, b) => Some(a.unwrap_or(false) || b.unwrap_or(false)),
+        }
+    }
+
+    /// Closes every open menu (light dismiss, losing activation).
+    pub fn close_menus(&mut self) -> bool {
+        let open = self.flyout.is_some() || self.tasks.flyout.is_some();
+        self.flyout = None;
+        self.tasks.flyout = None;
+        open
     }
 
     /// Opens sidebar entry `index`'s menu beside `anchor` (the entry's
