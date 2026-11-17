@@ -376,7 +376,9 @@ mod tests {
         let t = parse_tags("WindowTitle= x \r\nFavorite\n\n  =skip\nTag=a=b");
         assert_eq!(t.to_json(), r#"{"WindowTitle":" x ","Favorite":null,"Tag":"a=b"}"#);
         assert_eq!(tags_to_edit_text(Some(&t)), ["Favorite=", "Tag=a=b", "WindowTitle= x "].join(crate::stats::NEW_LINE));
-        assert_eq!(rename_target(r"C:\s\a.png", " b "), Some("b.png".into()));
-        assert_eq!(rename_target(r"C:\s\a.png", "A"), None);
+        // Forward slashes: a path every platform splits (`\` isn't a
+        // separator on macOS and Linux).
+        assert_eq!(rename_target("C:/s/a.png", " b "), Some("b.png".into()));
+        assert_eq!(rename_target("C:/s/a.png", "A"), None);
     }
 }
