@@ -1,4 +1,4 @@
-//! The .NET string comparisons the history windows use. ShareX runs with
+//! The .NET string comparisons ShareX's windows and tools sort and match with. ShareX runs with
 //! `System.Globalization.UseNls` (ShareX.runtimeconfig.json), so its
 //! culture-aware comparisons are Windows NLS calls; on Windows these are
 //! the same calls with the flags .NET passes (`CompareInfo.Nls.cs`:

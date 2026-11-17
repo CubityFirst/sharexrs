@@ -10,7 +10,8 @@
 //! machine's time zone matters exactly as it does for ShareX.
 
 pub mod actions;
-pub mod culture;
+/// The .NET string comparisons, shared with the other tools (`sharex_helpers::culture`).
+pub use sharex_helpers::culture;
 pub mod datetime;
 pub mod error;
 pub mod item;

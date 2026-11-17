@@ -79,7 +79,8 @@ crates/
   sharex-capture/   ShareX.ScreenCaptureLib: grabbing the screen, windows and
                     the pointer; the region capture overlay (state, input,
                     drawing, offscreen-renderable); copying images
-  sharex-helpers/   ShareX.HelpersLib's shared parts: NameParser, file names
+  sharex-helpers/   ShareX.HelpersLib's shared parts: NameParser, file names,
+                    culture-aware (NLS) string comparisons
   sharex-image-editor/ ShareX.ImageEditor: the annotation model (ShareX's
                     JSON), ImageEditorOptions, rendering annotations as the
                     editor exports them (docs/IMAGE-EDITOR.md)
@@ -101,6 +102,10 @@ crates/
                     values), the legacy JSON/XML files and their migration,
                     the history windows' queries and actions, the stats
                     (docs/HISTORY.md)
+  sharex-tools/     ShareX.Tools' engines without their windows: the image
+                    tools, hash checker, QR codes, index folder, metadata,
+                    the video tools' FFmpeg command lines, monitor test
+                    (docs/TOOLS.md)
   sharex-ui/        theme, density, fonts, icon packs, shared widgets,
                     wgpu device, offscreen renderer
   sharexrs/         the app: winit event loop, one egui context per OS window
@@ -112,7 +117,7 @@ egui-wgpu, one shared wgpu device, windows created and destroyed on demand),
 which already copes with tray-only operation, per-monitor capture overlays
 and macOS's quirks. New ShareX projects become crates as they're ported
 (`sharex-capture` for ShareX.ScreenCaptureLib, `sharex-uploaders`,
-`sharex-history`, `sharex-image-effects`, ...).
+`sharex-history`, `sharex-image-effects`, `sharex-tools`, ...).
 
 ## Tracker
 
@@ -153,10 +158,10 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 | Category | Tools | Status |
 |---|---|---|
 | Screen | Color picker, Screen color picker, Ruler, Classic ruler, Mouse highlighter, Pin to screen | ⬜ |
-| Images | Image editor, Photo editor, Pixel editor, Image effects, Beautifier, Combiner, Comparer, Converter, Resizer, Splitter, Thumbnailer, Viewer, Watermark, Icon converter, Background remover | 🟨 Image effects engine (`sharex-image-effects`, docs/IMAGE-EFFECTS.md): all 51 effects, presets in ShareX's JSON (settings and export forms, every default and round trip equal to ShareX's), `.sxie`; against ShareX's own DLLs headlessly (`tools/effects-harness`), 117/121 cases byte-identical, the rest: Text watermark glyphs (DirectWrite), ±1 under a gradient. Image editor rendering (`sharex-image-editor` on `sharex-skia`, docs/IMAGE-EDITOR.md): annotation model and `ImageEditorOptions`, rectangle, ellipse, line, arrow, freehand, highlight, blur, pixelate, magnify, spotlight, text, step, speech balloon and drop shadows; against ShareX's editor headlessly (`tools/editor-harness`), 55/60 cases pixel-identical, the rest: step/balloon glyphs (DirectWrite) and tails (PathOps). Editor workspace (`sharex_image_editor::editor`) and region capture hosting it: see the Region capture row. Not yet: the editor window, the options' dropdowns, image/emoji/cursor/smart eraser rendering, the Image effects window and packager, `.sxie` import; the other tools ⬜ |
-| Video | Animated GIF maker, GIF trimmer, Video converter, Video player, Video thumbnailer, Video trimmer | ⬜ |
-| Data | Analyze image, Hash checker, Index folder, Metadata, OCR, QR code, Remote storage browser | ⬜ |
-| System | Borderless window, Clipboard viewer, Inspect window, Monitor test, Network monitor | ⬜ |
+| Images | Image editor, Photo editor, Pixel editor, Image effects, Beautifier, Combiner, Comparer, Converter, Resizer, Splitter, Thumbnailer, Viewer, Watermark, Icon converter, Background remover | 🟨 Image effects engine (`sharex-image-effects`, docs/IMAGE-EFFECTS.md): all 51 effects, presets in ShareX's JSON (settings and export forms, every default and round trip equal to ShareX's), `.sxie`; against ShareX's own DLLs headlessly (`tools/effects-harness`), 117/121 cases byte-identical, the rest: Text watermark glyphs (DirectWrite), ±1 under a gradient. Image editor rendering (`sharex-image-editor` on `sharex-skia`, docs/IMAGE-EDITOR.md): annotation model and `ImageEditorOptions`, rectangle, ellipse, line, arrow, freehand, highlight, blur, pixelate, magnify, spotlight, text, step, speech balloon and drop shadows; against ShareX's editor headlessly (`tools/editor-harness`), 55/60 cases pixel-identical, the rest: step/balloon glyphs (DirectWrite) and tails (PathOps). Editor workspace (`sharex_image_editor::editor`) and region capture hosting it: see the Region capture row. Not yet: the editor UI (workspace, toolbar, region capture hosting, editor window), image/emoji/cursor/smart eraser rendering, the Image effects window and packager, `.sxie` import. Tool engines (`sharex-tools`, docs/TOOLS.md), no windows yet: combiner, splitter, thumbnailer, resizer, converter, watermark, icon converter, comparer, with ShareX's image I/O (libjpeg-turbo's encoder and decoder ported, Skia's BMP/GIF/PNG pixel paths, its GIF quantizers); against ShareX's own code headlessly (`tools/tools-harness`): 553/568 cases byte- or pixel-identical, 5 close (text watermark glyphs), 10 skipped (lossy WebP: written lossless). Not yet: the tools' windows (plan in TOOLS.md), lossy WebP, the background remover (ONNX), Beautifier (an image editor mode); Photo/Pixel editor, Viewer ⬜ |
+| Video | Animated GIF maker, GIF trimmer, Video converter, Video player, Video thumbnailer, Video trimmer | 🟨 engines (`sharex-tools::video`, docs/TOOLS.md): the converter's and trimmer's FFmpeg command lines (498 cases identical) and output info (10/10), the thumbnailer (4 runs on ShareX's FFmpeg: 2 identical, 2 close by text glyphs), the GIF maker (24/24 byte-identical), the GIF trimmer's lossless cuts and timing (5/5). Not yet: the windows, the GIF trimmer's re-encode, the video player |
+| Data | Analyze image, Hash checker, Index folder, Metadata, OCR, QR code, Remote storage browser | 🟨 engines (`sharex-tools`, docs/TOOLS.md), all identical to ShareX's: hash checker (6), QR generate/SVG (60) and scan (21), index folder in all four outputs (75), metadata read, copy text and strip (17 formats). Not yet: the windows, Analyze image (AI providers, mapped), OCR, Remote storage browser |
+| System | Borderless window, Clipboard viewer, Inspect window, Monitor test, Network monitor | 🟨 Monitor test patterns (`sharex-tools::monitor_test`): 33/33 pixel-identical to ShareX's control rendered by Avalonia.Headless. Not yet: its window and the other tools |
 
 ### Phase 4: settings windows and the rest
 | Item | ShareX source | Status |

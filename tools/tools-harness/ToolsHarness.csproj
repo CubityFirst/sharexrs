@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference for ShareXrs's tool engines (crates/sharex-tools): runs
+    ShareX's own ShareX.Tools.dll / ShareX.HelpersLib.dll / ShareX.dll code (from a
+    ShareX build of REFERENCE_COMMIT) over the cases in cases.json and writes
+    what each tool produces (images, icons, GIFs, hashes, QR codes, folder
+    indexes, metadata, FFmpeg command lines). No window opens. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ShareX.runtimeconfig.json sets this: culture comparisons go through Windows NLS. -->
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="ShareX"><HintPath>$(ShareXBuild)\ShareX.dll</HintPath></Reference>
+    <Reference Include="ShareX.Tools"><HintPath>$(ShareXBuild)\ShareX.Tools.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.ScreenRecordingLib"><HintPath>$(ShareXBuild)\ShareX.ScreenRecordingLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.Avalonia"><HintPath>$(ShareXBuild)\ShareX.Avalonia.dll</HintPath></Reference>
+    <Reference Include="SkiaSharp"><HintPath>$(ShareXBuild)\SkiaSharp.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
+    <Reference Include="zxing"><HintPath>$(ShareXBuild)\zxing.dll</HintPath></Reference>
+    <Reference Include="CommunityToolkit.Mvvm"><HintPath>$(ShareXBuild)\CommunityToolkit.Mvvm.dll</HintPath></Reference>
+    <!-- The Monitor test control renders through Avalonia.Headless (Skia, no window). -->
+    <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.6" />
+    <!-- Everything else ShareX's libraries load. -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

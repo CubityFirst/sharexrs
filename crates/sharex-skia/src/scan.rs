@@ -157,8 +157,12 @@ fn antifilldot8(l: i32, t: i32, r: i32, b: i32, blitter: &mut dyn Blitter, fill_
 
 /// `SkScan::AntiFillRect` with a rectangular clip.
 pub fn anti_fill_rect(r: Rect, clip: IRect, blitter: &mut dyn Blitter) {
-    // SkScalarToFDot8: (int)(x * 256).
-    let fdot8 = |v: f32| (v * 256.0) as i32;
+    // antifillrect(const SkRect&): XRect_set (SkScalarToFixed, truncating),
+    // then SkFixedToFDot8, which rounds: (x + 0x80) >> 8.
+    let fdot8 = |v: f32| {
+        let fixed = (v * 65536.0) as i32;
+        (fixed + 0x80) >> 8
+    };
     let fill = |r: Rect, blitter: &mut dyn Blitter| {
         antifilldot8(
             fdot8(r.left),

@@ -6,7 +6,10 @@
 //! - [`file_helpers`]: `FileHelpers`' file name sanitising and unique paths.
 //! - [`random`]: `RandomCrypto` and the `Helpers` character sets.
 //! - [`mime_types`]: `MimeTypes`, the MIME type of a file name.
+//! - [`culture`]: the .NET string comparisons (current culture through NLS,
+//!   ordinal ignoring case) that sorting and matching depend on.
 
+pub mod culture;
 pub mod emoji;
 pub mod file_helpers;
 pub mod mime_types;
