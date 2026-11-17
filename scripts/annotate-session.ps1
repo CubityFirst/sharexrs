@@ -64,6 +64,9 @@ function Press([int] $vk) {
     [AInput]::keybd_event([byte]$vk, 0, 2, [IntPtr]::Zero)
 }
 function MoveTo([int] $x, [int] $y) {
+    # A pixel off and back, so the window hears a move (as input.ps1 does).
+    [void][AInput]::SetCursorPos($x + 1, $y + 1)
+    [AInput]::mouse_event(0x1, 0, 0, 0, [IntPtr]::Zero)
     [void][AInput]::SetCursorPos($x, $y)
     [AInput]::mouse_event(0x1, 0, 0, 0, [IntPtr]::Zero)
 }
@@ -116,7 +119,9 @@ try {
                 $from = New-Object AInput+POINT
                 [void][AInput]::GetCursorPos([ref]$from)
                 for ($i = 1; $i -le 12; $i++) {
-                    MoveTo ([int]($from.X + ($p[0] - $from.X) * $i / 12)) ([int]($from.Y + ($p[1] - $from.Y) * $i / 12))
+                    # Each step is a new place: no nudge (it would add points).
+                    [void][AInput]::SetCursorPos([int]($from.X + ($p[0] - $from.X) * $i / 12), [int]($from.Y + ($p[1] - $from.Y) * $i / 12))
+                    [AInput]::mouse_event(0x1, 0, 0, 0, [IntPtr]::Zero)
                     Start-Sleep -Milliseconds 25
                 }
                 Start-Sleep -Milliseconds 80

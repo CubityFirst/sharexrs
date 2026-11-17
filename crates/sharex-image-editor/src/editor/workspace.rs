@@ -346,24 +346,16 @@ impl Workspace {
         format!("00000000-0000-4000-8000-{:012x}", self.next_id)
     }
 
-    /// The image with every annotation, as exported (the text being typed
-    /// shows as it will be once committed).
+    /// The image with every annotation, as exported. The text being typed
+    /// isn't in it: it's in its text box ([`text_box`]) until committed.
     pub fn composite(&mut self) -> &Pixmap {
         if self.composite.as_ref().is_none_or(|(v, _)| *v != self.version) {
-            let mut list: Vec<Annotation> = self
+            let list: Vec<Annotation> = self
                 .annotations
                 .iter()
                 .filter(|a| self.text.as_ref().and_then(|t| t.existing.as_ref()) != Some(&a.common.id))
                 .cloned()
                 .collect();
-            if let Some(t) = &self.text {
-                let mut a = t.annotation.clone();
-                if let Kind::Text(p) = &mut a.kind {
-                    p.text = t.text.clone();
-                }
-                fit_text(&mut a);
-                list.push(a);
-            }
             let pm = render::render_cached(&self.source, &list, &mut self.cache);
             self.composite = Some((self.version, pm));
         }
@@ -1415,14 +1407,66 @@ impl Workspace {
     }
 }
 
-/// The text box's area while typing (its top-left at the click).
+/// The text box being typed in (`CreateCreationTextEditor`'s `TextBox`):
+/// its top-left at the click, the text in the annotation's font with the
+/// box's 4px padding and border around it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextBox {
+    /// Left, top, width, height in image pixels.
+    pub rect: (f64, f64, f64, f64),
+    /// Where the first line's text starts.
+    pub text_origin: P,
+    pub line_height: f64,
+    pub font_family: String,
+    pub font_size: f64,
+    pub bold: bool,
+    pub italic: bool,
+    pub color: String,
+    /// The caret's x (image pixels) and line.
+    pub caret: (f64, usize),
+}
+
+/// The `TextBox`'s padding (4) and border (1) on each side.
+const TEXT_BOX_INSET: f64 = 5.0;
+
+pub fn text_box(t: &TextEdit) -> Option<TextBox> {
+    let Kind::Text(p) = &t.annotation.kind else { return None };
+    let font = render::text::load_face(&p.font_family, p.is_bold, p.is_italic)?;
+    let measure = |s: &str| render::text::layout(&font, s, p.font_size as f64, render::text::Align::Left, f64::INFINITY);
+    let lay = measure(if t.text.is_empty() { "" } else { &t.text })?;
+    let line_height = measure(" ")?.height().ceil();
+    let lines = t.text.split('\n').count().max(1) as f64;
+    let width = lay.lines.iter().map(|l| l.width_including_trailing_whitespace).fold(0.0, f64::max).ceil();
+    let s = t.annotation.common.start_point;
+    let (x, y) = (s.x as f64, s.y as f64);
+    let rect = (x, y, width + 2.0 * TEXT_BOX_INSET, line_height * lines + 2.0 * TEXT_BOX_INSET);
+    // The caret: after the text before it on its line.
+    let before: String = t.text.chars().take(t.caret).collect();
+    let line = before.matches('\n').count();
+    let tail = before.rsplit('\n').next().unwrap_or("");
+    let cx = measure(tail).map(|l| l.lines.first().map(|l| l.width_including_trailing_whitespace).unwrap_or(0.0)).unwrap_or(0.0);
+    Some(TextBox {
+        rect,
+        text_origin: (x + TEXT_BOX_INSET, y + TEXT_BOX_INSET),
+        line_height,
+        font_family: p.font_family.clone(),
+        font_size: p.font_size as f64,
+        bold: p.is_bold,
+        italic: p.is_italic,
+        color: p.text_color.clone(),
+        caret: (x + TEXT_BOX_INSET + cx, line),
+    })
+}
+
+/// The text box's area while typing.
 pub fn text_rect(t: &TextEdit) -> Rect {
-    let mut a = t.annotation.clone();
-    if let Kind::Text(p) = &mut a.kind {
-        p.text = if t.text.is_empty() { " ".into() } else { t.text.clone() };
+    match text_box(t) {
+        Some(b) => Rect::new(b.rect.0 as f32, b.rect.1 as f32, (b.rect.0 + b.rect.2) as f32, (b.rect.1 + b.rect.3) as f32),
+        None => {
+            let s = t.annotation.common.start_point;
+            Rect::new(s.x, s.y, s.x + 10.0, s.y + 10.0)
+        }
     }
-    fit_text(&mut a);
-    geometry::bounds(&a)
 }
 
 /// `OutlinedTextControl.MeasureNaturalSize` (padding 8 and the stroke on

@@ -239,6 +239,27 @@ impl RegionSession {
         }
     }
 
+    /// The pointer moved over overlay `i`: the toolbar part under it (when
+    /// no button is down), a dragged slider, then the overlay.
+    fn cursor_moved(&mut self, i: usize, position: PhysicalPosition<f64>) -> Outcome {
+        let m = self.modifiers;
+        self.overlays[i].pointer = Some(position);
+        let o = &self.overlays[i];
+        let ppp = o.window.window.scale_factor() as f32;
+        let at = egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp);
+        if self.buttons_down == 0 && !self.capture.dragging_toolbar() {
+            let part = o.view.toolbar_part_at(at);
+            self.capture.set_toolbar_hover(part);
+        }
+        if let Some(item) = self.capture.slider_dragging()
+            && let Some(t) = o.view.slider_fraction(item, at)
+        {
+            self.capture.set_slider_fraction(item, t);
+        }
+        let p = self.image_point(i, position);
+        self.capture.pointer_moved(p, m)
+    }
+
     /// Handles an event of one of the overlay windows.
     pub fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) -> Outcome {
         let Some(i) = self.overlays.iter().position(|o| o.window.window.id() == id) else { return Outcome::Continue };
@@ -252,23 +273,7 @@ impl RegionSession {
                 o.window.paint(|ui| capture.paint(ui, view, now));
                 return Outcome::Continue;
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.overlays[i].pointer = Some(position);
-                let o = &self.overlays[i];
-                let ppp = o.window.window.scale_factor() as f32;
-                let at = egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp);
-                if self.buttons_down == 0 && !self.capture.dragging_toolbar() {
-                    let part = o.view.toolbar_part_at(at);
-                    self.capture.set_toolbar_hover(part);
-                }
-                if let Some(item) = self.capture.slider_dragging()
-                    && let Some(t) = o.view.slider_fraction(item, at)
-                {
-                    self.capture.set_slider_fraction(item, t);
-                }
-                let p = self.image_point(i, position);
-                self.capture.pointer_moved(p, m)
-            }
+            WindowEvent::CursorMoved { position, .. } => self.cursor_moved(i, position),
             WindowEvent::CursorLeft { .. } => {
                 if self.buttons_down == 0 {
                     self.capture.pointer_left();
@@ -284,8 +289,28 @@ impl RegionSession {
                     MouseButton::Forward => Button::X2,
                     MouseButton::Other(_) => return Outcome::Continue,
                 };
+                // A button message has its own position (Avalonia's pointer
+                // events do): a move we weren't told of comes first.
+                if state == ElementState::Pressed
+                    && let Some((x, y)) = sharex_capture::screenshot::cursor_position()
+                {
+                    let mon = self.overlays[i].view.monitor;
+                    let pos = PhysicalPosition::new((x - mon.x) as f64, (y - mon.y) as f64);
+                    if mon.contains(x, y) && self.overlays[i].pointer != Some(pos) {
+                        self.cursor_moved(i, pos);
+                    }
+                }
                 let Some(p) = self.last_point(i) else { return Outcome::Continue };
                 let scale = self.overlays[i].scale;
+                if std::env::var_os("SHAREXRS_LOG_INPUT").is_some() {
+                    eprintln!(
+                        "region input: {state:?} {button:?} at {:.0},{:.0}, {} down, toolbar {:?}",
+                        p.x,
+                        p.y,
+                        self.buttons_down,
+                        self.capture.toolbar_hover()
+                    );
+                }
                 match state {
                     ElementState::Pressed => {
                         self.buttons_down += 1;

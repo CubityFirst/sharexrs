@@ -1325,6 +1325,11 @@ impl RegionCapture {
         self.toolbar_hover = if self.toolbar.hidden { None } else { part };
     }
 
+    /// The toolbar part under the pointer, as last told.
+    pub fn toolbar_hover(&self) -> Option<toolbar::Part> {
+        self.toolbar_hover
+    }
+
     /// Whether the toolbar is being dragged.
     pub fn dragging_toolbar(&self) -> bool {
         self.toolbar.drag.is_some()

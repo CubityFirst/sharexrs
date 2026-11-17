@@ -219,21 +219,25 @@ fn items(ui: &Ui, v: &Visible, s: &ToolState) -> Vec<(OptionItem, f32)> {
         }
     };
     push(v.strength, O::Strength, SLIDER_WIDTH);
-    push(v.border_color, O::BorderColor, dropdown(24.0 + 6.0));
-    push(v.fill_color, O::FillColor, dropdown(24.0 + 6.0));
-    push(v.text_color, O::TextColor, dropdown(24.0 + 6.0));
-    push(v.thickness, O::Thickness, dropdown(24.0 + 6.0));
+    // The buttons' `MinWidth`s (EditorStyles.axaml): colour 60, corner
+    // radius 60, font size 70, number 60, step type 90, alignment 58, width 60.
+    push(v.border_color, O::BorderColor, dropdown(24.0 + 6.0).max(60.0));
+    push(v.fill_color, O::FillColor, dropdown(24.0 + 6.0).max(60.0));
+    push(v.text_color, O::TextColor, dropdown(24.0 + 6.0).max(60.0));
+    push(v.thickness, O::Thickness, dropdown(24.0 + 6.0).max(60.0));
     push(v.border_style, O::BorderStyle, dropdown(tw(border_style_name(&s.border_style)) + 6.0 + 52.0).clamp(92.0, 168.0));
-    push(v.corner_radius, O::CornerRadius, dropdown(24.0 + 6.0));
+    push(v.corner_radius, O::CornerRadius, dropdown(24.0 + 6.0).max(60.0));
     push(v.font_family, O::FontFamily, dropdown(tw(&s.font_family) + 6.0).clamp(180.0, 240.0));
-    push(v.text_alignment, O::TextAlignment, dropdown(18.0 + 8.0));
+    push(v.text_alignment, O::TextAlignment, dropdown(18.0 + 8.0).max(58.0));
     push(v.arrow_style, O::ArrowStyle, dropdown(tw(arrow_style_name(&s.arrow_style)) + 6.0 + 52.0).clamp(80.0, 160.0));
-    push(v.cursor_type, O::CursorType, dropdown(tw(&format!("{:?}", s.cursor_type)) + 6.0).clamp(90.0, 180.0));
-    push(v.font_size, O::FontSize, dropdown(tw(&font_size_text(s.font_size)) + 6.0));
+    // The text, then the cursor's 24px preview with 8px margins (the
+    // preview, `WindowsCursorBitmapRenderer`, isn't drawn yet).
+    push(v.cursor_type, O::CursorType, dropdown(tw(&format!("{:?}", s.cursor_type)) + 6.0 + 40.0).clamp(90.0, 180.0));
+    push(v.font_size, O::FontSize, dropdown(tw(&font_size_text(s.font_size)) + 6.0).max(70.0));
     push(v.text_style, O::Bold, BUTTON);
     push(v.text_italic, O::Italic, BUTTON);
-    push(v.step_type, O::StepType, dropdown(tw(step_type_preview(&s.step_type)) + 8.0));
-    push(v.step_start_number, O::StepStart, dropdown(tw(&s.step_start_number.to_string()) + 4.0 + tw("...")));
+    push(v.step_type, O::StepType, dropdown(tw(step_type_preview(&s.step_type)) + 8.0).max(90.0));
+    push(v.step_start_number, O::StepStart, dropdown(tw(&s.step_start_number.to_string()) + 4.0 + tw("...")).max(60.0));
     push(v.spotlight_blur, O::SpotlightBlurIcon, BUTTON);
     push(v.spotlight_blur, O::SpotlightBlur, SLIDER_WIDTH);
     push(v.effect_ellipse, O::EffectEllipse, BUTTON);
@@ -373,7 +377,8 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
                 let min = if *item == OptionItem::Strength { 1.0 } else { 0.0 };
                 sharex_ui::controls::Slider { minimum: min, maximum: max, step: 1.0, enabled: true }.show(
                     ui,
-                    Rect::from_min_size(pos2(slider.min.x, slider.center().y - 16.0 * scale), vec2(120.0, 32.0) * scale),
+                    // The track on the row's centre (measured).
+                    Rect::from_min_size(pos2(slider.min.x, slider.center().y - 14.0 * scale), vec2(120.0, 32.0) * scale),
                     egui::Id::new(("option-slider", *item as u8)),
                     &mut v,
                 );

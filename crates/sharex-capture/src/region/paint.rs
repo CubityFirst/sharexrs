@@ -436,13 +436,26 @@ impl RegionCapture {
         for h in handles {
             paint_node(painter, m, h.at);
         }
-        if let Some(t) = e.text_edit()
-            && t.existing.is_none()
-        {
-            // The creation `TextBox`: a 1px white border around the text.
-            let r = ed::text_rect(t);
-            let rect = m.rect(r.l as f64, r.t as f64, r.width() as f64, r.height() as f64);
-            painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::WHITE), StrokeKind::Inside);
+        if let Some(b) = e.text_edit().and_then(ed::text_box) {
+            // The `TextBox` (ShareX's style): control background, a border,
+            // 4px corners, the text plain in its colour, and the caret.
+            let p = palette(painter.ctx());
+            let (l, t, w, h) = b.rect;
+            let rect = m.rect(l, t, w, h);
+            painter.rect_filled(rect, CornerRadius::same(4), p.control_background);
+            painter.rect_stroke(rect, CornerRadius::same(4), Stroke::new(2.0 / m.ppp, p.border), StrokeKind::Inside);
+            let c = sharex_image_editor::render::parse_color(&b.color);
+            let color = Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
+            let weight = if b.bold { 700 } else { 400 };
+            let font = egui::FontId::new(b.font_size as f32 / m.ppp, sharex_ui::widgets::font(12.0, weight).family);
+            let text = e.text_edit().map(|t| t.text.clone()).unwrap_or_default();
+            for (i, line) in text.split('\n').enumerate() {
+                let g = painter.layout_no_wrap(line.to_string(), font.clone(), color);
+                let at = m.pos(b.text_origin.0, b.text_origin.1 + i as f64 * b.line_height);
+                painter.galley(at, g, color);
+            }
+            let caret_top = b.text_origin.1 + b.caret.1 as f64 * b.line_height;
+            painter.rect_filled(m.rect(b.caret.0, caret_top, 1.0, b.line_height), 0.0, color);
         }
     }
 
