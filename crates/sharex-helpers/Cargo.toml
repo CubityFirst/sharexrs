@@ -1,0 +1,10 @@
+[package]
+name = "sharex-helpers"
+description = "The parts of ShareX.HelpersLib that ShareXrs's tools share: the file name pattern parser (NameParser) and file helpers."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono = "0.4.45"
+getrandom = "0.3"
