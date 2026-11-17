@@ -12,6 +12,7 @@ mod app_windows;
 mod appearance;
 mod capture;
 mod capture_job;
+mod controls_gallery;
 mod hotkeys;
 mod main_menu;
 mod main_window;

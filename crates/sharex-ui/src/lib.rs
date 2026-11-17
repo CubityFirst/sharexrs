@@ -11,13 +11,17 @@
 //! - [`icons`]: the Modern and Legacy icon packs (`ShareX.Icons`), as the
 //!   same SVG files.
 //! - [`menu`]: menus and flyouts (compact context menus, the tool grid).
+//! - [`border`]: Avalonia's `Border` as Skia draws it (centred border,
+//!   exact corner coverage), and [`focus`]: keyboard focus and its adorner.
 //! - [`widgets`]: ShareX's shared controls (caption buttons, nav buttons,
 //!   cards, toggles, accent buttons).
 //! - [`gpu`] and [`offscreen`]: one wgpu device for every window, and
 //!   rendering any UI to a PNG for comparing against ShareX.
 
 pub mod accent;
+pub mod border;
 pub mod controls;
+pub mod focus;
 pub mod fonts;
 pub mod gpu;
 pub mod keys;
@@ -33,4 +37,5 @@ pub use theme::{Density, Palette, palette};
 pub fn install(ctx: &egui::Context) {
     fonts::install(ctx);
     theme::apply(ctx);
+    focus::install(ctx);
 }

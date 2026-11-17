@@ -41,6 +41,9 @@
 //! `--legacy` (icon pack) and `--compact`, and `--click X,Y[;X,Y]` (clicks
 //! before drawing, to open a dropdown).
 //!
+//! `controls-gallery` is every shared control in every state (see
+//! `controls_gallery`), for comparing with the Avalonia.Headless probe's.
+//!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
 //! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
 //! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
@@ -460,6 +463,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 state.ui(ui, &mut settings);
             })
         }
+        "controls-gallery" => crate::controls_gallery::render(dark)?,
         "app-icon" => {
             let side = width.unwrap_or(256);
             let mut screen = Offscreen::new([side, side], 1.0, dark)?;

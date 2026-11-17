@@ -159,6 +159,13 @@ pub struct Fluent {
     /// `SystemControlTransientBorderBrush` (`#000000` at 36% / 14%):
     /// `MenuFlyoutPresenterBorderBrush`, a submenu's border.
     pub transient_border: Color32,
+    /// `SystemChromeDisabledHighColor`: `SliderTrackFillDisabled` /
+    /// `SliderTrackValueFillDisabled`.
+    pub chrome_disabled_high: Color32,
+    /// `FocusStrokeColorOuter`: the focus adorner's outer 2px border.
+    pub focus_outer: Color32,
+    /// `FocusStrokeColorInner`: the focus adorner's inner 1px border.
+    pub focus_inner: Color32,
 }
 
 pub const FLUENT_DARK: Fluent = Fluent {
@@ -170,6 +177,9 @@ pub const FLUENT_DARK: Fluent = Fluent {
     list_low: hexa(0x19FFFFFF),
     list_medium: hexa(0x33FFFFFF),
     transient_border: hexa(0x5C000000),
+    chrome_disabled_high: hexa(0xFF333333),
+    focus_outer: hexa(0xFFFFFFFF),
+    focus_inner: hexa(0x99000000),
 };
 
 pub const FLUENT_LIGHT: Fluent = Fluent {
@@ -181,6 +191,9 @@ pub const FLUENT_LIGHT: Fluent = Fluent {
     list_low: hexa(0x19000000),
     list_medium: hexa(0x33000000),
     transient_border: hexa(0x24000000),
+    chrome_disabled_high: hexa(0xFFCCCCCC),
+    focus_outer: hexa(0xFF000000),
+    focus_inner: hexa(0x99FFFFFF),
 };
 
 /// The Fluent colours of the theme `ctx` is showing.

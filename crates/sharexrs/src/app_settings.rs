@@ -17,7 +17,8 @@ use sharex_ui::controls::{self, Button, CheckBox, ColorButton, ComboBox, ComboIt
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{Density, density, fluent, palette};
 use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
-use sharex_ui::{icons, menu::paint_accent_gradient};
+use sharex_ui::border::{self, Brush, Part};
+use sharex_ui::{focus, icons, menu::paint_accent_gradient};
 
 use crate::appearance;
 use crate::startup;
@@ -271,24 +272,25 @@ impl ApplicationSettings {
             y += item_h + 2.0;
             let resp = ui.interact(r, Id::new(("settings-nav", i)), egui::Sense::click());
             let selected = i == self.page;
-            let radius = CornerRadius::same(4);
+            let fill = |color| Part::Border { rect: r, radius: 4.0, thickness: 0.0, background: Some(Brush::Solid(color)), border: None };
             if selected {
                 // Fluent's `:selected` sets `TreeViewItemBackgroundSelected`
                 // (the accent fill, solid) over ShareX's gradient.
-                let fill = if resp.is_pointer_button_down_on() {
+                let color = if resp.is_pointer_button_down_on() {
                     p.accent_fill_dark[0]
                 } else if resp.hovered() {
                     p.accent_fill_light[0]
                 } else {
                     p.accent_start
                 };
-                ui.painter().rect_filled(r, radius, fill);
-                // `ShareX.BoxShadow.Accent.Outline`: an inset 1px ring.
-                ui.painter().rect_stroke(r, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
+                // `ShareX.BoxShadow.Accent.Outline`: an inset `BoxShadow`
+                // (spread 1) over the background, clipped to its corners.
+                let outline = Part::InsetShadow { rect: r, radius: 4.0, spread: 1.0, color: p.accent_border };
+                border::paint(ui.painter(), &[fill(color), outline], 1.0);
             } else if resp.is_pointer_button_down_on() {
-                ui.painter().rect_filled(r, radius, f.list_medium);
+                border::paint(ui.painter(), &[fill(f.list_medium)], 1.0);
             } else if resp.hovered() {
-                ui.painter().rect_filled(r, radius, f.list_low);
+                border::paint(ui.painter(), &[fill(f.list_low)], 1.0);
             }
             let (title, key) = page_title(i);
             let content = Rect::from_min_max(pos2(r.min.x + 36.0 + d.settings_nav_item_margin.left, r.min.y), pos2(r.max.x - d.settings_nav_item_margin.right, r.max.y));
@@ -296,6 +298,9 @@ impl ApplicationSettings {
             let icon_color = if selected { p.accent_foreground } else { p.accent_icon };
             icons::paint(ui.painter(), Rect::from_min_size(pos2(content.min.x + 2.0, center_y(r, 16.0)), Vec2::splat(16.0)), key, icon_color);
             controls::label(ui, Rect::from_min_max(pos2(content.min.x + 26.0, r.min.y), pos2(content.max.x, r.max.y)), title, font(13.0, 400), fg);
+            if focus::visible(ui.ctx(), resp.id) {
+                focus::paint_adorner(ui.painter(), r);
+            }
             if resp.clicked() && !selected {
                 self.page = i;
                 if i == 2 {
