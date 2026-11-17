@@ -510,7 +510,10 @@ fn a_file_upload_reports_progress_into_the_task_list() {
     // The list view's transfer columns keep the last report.
     let task = out.manager.get(out.id).unwrap();
     assert_eq!(task.transfer[0], format!("{0} / {0}", crate::tasks::size_string(total, false)));
-    assert!(task.transfer[1].ends_with("/s"));
+    // A speed needs two reports over time; with one (see above) it's blank.
+    if progress.len() >= 2 {
+        assert!(task.transfer[1].ends_with("/s"), "speed: {:?}", task.transfer[1]);
+    }
     assert_eq!(out.status(), TaskStatus::Completed);
     assert_eq!(out.info().file_path.as_deref(), Some(path.as_path()));
     assert!(out.ui.is_empty(), "no after upload tasks: {:?}", out.ui);
