@@ -28,6 +28,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let (mut width, mut height, mut scale) = (None, None, 1.0f32);
     let mut hover = None;
     let mut unregistered: Vec<usize> = Vec::new();
+    let mut drop_overlay = false;
+    let mut maximized = false;
     let mut open: Vec<usize> = Vec::new();
     let mut work_area = None;
     let mut monitors: Vec<(i32, i32, u32, u32)> = Vec::new();
@@ -57,6 +59,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     monitors.push((0, 0, w.parse().map_err(|_| "--monitors WxH")?, h.parse().map_err(|_| "--monitors WxH")?));
                 }
             }
+            "--drop-overlay" => drop_overlay = true,
+            "--maximized" => maximized = true,
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -76,6 +80,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     t.registered = false;
                 }
             }
+            state.drop_overlay = drop_overlay;
+            state.maximized = maximized;
             // The window's height defaults to the sidebar's, as in ShareX.
             let probe = Offscreen::new([1, 1], scale, dark)?;
             let h = height.unwrap_or_else(|| (state.opening_height(&probe.ctx) * scale).round() as u32);

@@ -165,6 +165,11 @@ impl ApplicationHandler for App {
         let Some(w) = self.main.as_mut().filter(|w| w.window.id() == id) else { return };
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_) => {
+                // Uploading what's dropped comes with the upload tools.
+                self.state.drop_overlay = matches!(event, WindowEvent::HoveredFile(_));
+                w.window.request_redraw();
+            }
             WindowEvent::RedrawRequested => {
                 self.state.maximized = w.window.is_maximized();
                 let state = &mut self.state;

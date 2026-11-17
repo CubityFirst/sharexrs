@@ -105,6 +105,25 @@ pub fn paint(painter: &Painter, rect: Rect, key: &str, color: Color32) {
     }
 }
 
+/// [`paint`] with a render transform: `offset` (points) and `angle`
+/// (radians, clockwise) about the icon's centre, as XAML's
+/// `RenderTransform="translateY(..) rotate(..)"` with a 50%,50% origin.
+pub fn paint_transformed(painter: &Painter, rect: Rect, key: &str, color: Color32, offset: Vec2, angle: f32) {
+    if angle == 0.0 {
+        return paint(painter, rect.translate(offset), key, color);
+    }
+    let ppp = painter.ctx().pixels_per_point();
+    let side = (rect.width().max(rect.height()) * ppp).round().max(1.0) as u32;
+    let rect = Rect::from_center_size(rect.center() + offset, Vec2::splat(side as f32 / ppp));
+    if let Some((tex, tinted)) = texture(painter.ctx(), key, side) {
+        let tint = if tinted { color } else { Color32::WHITE.gamma_multiply(color.a() as f32 / 255.0) };
+        let mut mesh = egui::Mesh::with_texture(tex.id());
+        mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), tint);
+        mesh.rotate(egui::emath::Rot2::from_angle(angle), rect.center());
+        painter.add(mesh);
+    }
+}
+
 /// Draws a tinted (`currentColor`) SVG given inline, stretched uniformly
 /// into `rect` like a XAML `Path` with `Stretch="Uniform"`: for the few
 /// shapes ShareX takes from a control template rather than its icon packs

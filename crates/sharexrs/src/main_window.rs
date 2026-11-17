@@ -65,6 +65,8 @@ pub struct MainWindow {
     pub work_area: Option<Rect>,
     /// Each visible sidebar entry's rect last frame, by section index.
     pub nav_rects: Vec<(usize, Rect)>,
+    /// Files are being dragged over the window (`DropOverlay`).
+    pub drop_overlay: bool,
 }
 
 /// A sidebar entry: `MainNavigationSection`.
@@ -134,6 +136,7 @@ impl MainWindow {
             flyout: None,
             work_area: None,
             nav_rects: Vec::new(),
+            drop_overlay: false,
         }
     }
 
@@ -164,9 +167,12 @@ impl MainWindow {
         let mut actions = Vec::new();
         let p = palette(ui.ctx());
         let full = ui.max_rect();
-        // `WindowFrame`: main background inside a 1px border.
+        // `WindowFrame`: main background inside a 1px border, which goes
+        // when maximized so the caption buttons reach the screen's edge
+        // (`UpdateWindowFrame`).
+        let frame = if self.maximized { 0.0 } else { FRAME };
         ui.painter().rect_filled(full, 0.0, p.background_main);
-        let inner = full.shrink(FRAME);
+        let inner = full.shrink(frame);
 
         let title = Rect::from_min_size(inner.min, vec2(inner.width(), TITLE_BAR_HEIGHT));
         self.title_bar(ui, title, &mut actions);
@@ -180,7 +186,12 @@ impl MainWindow {
         let content = Rect::from_min_max(pos2(nav.max.x, body.min.y), body.max);
         self.hotkey_panel(ui, content);
 
-        ui.painter().rect_stroke(full, 0.0, Stroke::new(FRAME, p.border), egui::StrokeKind::Inside);
+        if self.drop_overlay {
+            drop_overlay(ui, body);
+        }
+        if frame > 0.0 {
+            ui.painter().rect_stroke(full, 0.0, Stroke::new(frame, p.border), egui::StrokeKind::Inside);
+        }
 
         // `OnNavigationClick`: entries with a menu open it beside themselves
         // (`TryOpenContextMenu` / `TryOpenGridMenu`, only one at a time).
@@ -261,12 +272,11 @@ impl MainWindow {
         let buttons = Rect::from_min_max(pos2(rect.max.x - 46.0 * 5.0, rect.min.y), pos2(rect.max.x, rect.min.y + 38.0));
         ui.scope_builder(UiBuilder::new().max_rect(buttons).layout(Layout::left_to_right(Align::Min)), |ui| {
             let dark = ui.ctx().theme() == egui::Theme::Dark;
-            let (theme_icon, theme_tip) = if dark {
-                (icon::CaptionMoon, s::ApplicationSettingsWindow_Dark())
-            } else {
-                (icon::CaptionSun, s::ApplicationSettingsWindow_Light())
-            };
-            if widgets::caption_button(ui, theme_icon, 16.0, Caption::Normal).on_hover_text(theme_tip).clicked() {
+            let theme_tip = if dark { s::ApplicationSettingsWindow_Dark() } else { s::ApplicationSettingsWindow_Light() };
+            // The icon is drawn by `theme_toggle_icons` below, animated.
+            let r = widgets::caption_button(ui, "", 16.0, Caption::Normal).on_hover_text(theme_tip);
+            theme_toggle_icons(ui, r.rect, dark, p.text);
+            if r.clicked() {
                 actions.push(Action::ToggleTheme);
             }
             let pin = if self.topmost { icon::CaptionUnpin } else { icon::CaptionPin };
@@ -422,15 +432,24 @@ impl MainWindow {
             let row = Rect::from_min_size(pos2(inner.min.x, y), vec2(inner.width(), row_h));
             clip.rect_filled(Rect::from_min_size(row.min, vec2(row.width(), 1.0)), 0.0, p.border);
             let cells = Rect::from_min_max(pos2(row.min.x + 6.0, row.min.y + 1.0 + 8.0), pos2(row.max.x - 6.0, row.max.y - 8.0));
-            let cy = cells.center().y;
             let (key, color) = if tip.registered { (icon::CircleCheck, p.accent_icon) } else { (icon::CircleX, FAILED) };
-            icons::paint(&clip, Rect::from_center_size(pos2(cells.min.x + 12.0, cy), Vec2::splat(17.0)), key, color);
+            // A 17px icon centred in the 24px column and the 18px row, with
+            // layout rounding (half-to-even, so 0.5 rounds down to 0).
+            let icon_min = pos2(
+                cells.min.x + ((24.0f32 - 17.0) / 2.0).round_ties_even(),
+                widgets::center_y(cells, 17.0),
+            );
+            icons::paint(&clip, Rect::from_min_size(icon_min, Vec2::splat(17.0)), key, color);
             let hx = cells.min.x + 24.0 + 10.0;
             let g = widgets::galley(ui, &tip.hotkey, mono(FONT_SIZE), p.text_secondary, hotkey_w);
             clip.galley(pos2(hx, widgets::center_y(cells, mono_h)), g, p.text_secondary);
             let dx = hx + hotkey_w + 10.0;
             let g = widgets::galley(ui, &tip.description, font(FONT_SIZE, 400), p.text_secondary, (cells.max.x - dx).max(0.0));
             clip.galley(pos2(dx, widgets::center_y(cells, text_h_normal)), g, p.text_secondary);
+            // `ToolTip.Tip="{Binding Description}"`.
+            let tip_rect = Rect::from_min_max(pos2(dx, cells.min.y), cells.max).intersect(inner);
+            ui.interact(tip_rect, ui.id().with(("hotkey-tip", &tip.hotkey)), Sense::hover())
+                .on_hover_text(&tip.description);
             y += row_h;
         }
     }
@@ -451,6 +470,82 @@ fn separator_positions(sections: &[NavSection]) -> Vec<usize> {
         visible += 1;
     }
     out
+}
+
+/// The theme toggle's two icons (`IconPresenter.theme-toggle-icon`): the
+/// active one (moon when dark) at rest, the other faded out 20px away and
+/// turned 45°, sliding over 320ms with a cubic ease-out, clipped to a 20x20
+/// box.
+fn theme_toggle_icons(ui: &Ui, button: Rect, dark: bool, color: egui::Color32) {
+    let t = ui.ctx().animate_bool_with_time_and_easing(
+        ui.id().with("theme-toggle"),
+        dark,
+        0.32,
+        egui::emath::easing::cubic_out,
+    );
+    let box_rect = Rect::from_center_size(button.center(), Vec2::splat(20.0));
+    let painter = ui.painter().with_clip_rect(box_rect);
+    let icon = Rect::from_center_size(button.center(), Vec2::splat(16.0));
+    // t = 1: moon active. Moon at rest is translateY(20) rotate(-45deg).
+    let moon = 1.0 - t;
+    icons::paint_transformed(
+        &painter,
+        icon,
+        icon::CaptionMoon,
+        color.gamma_multiply(t),
+        vec2(0.0, 20.0 * moon),
+        (-45.0f32).to_radians() * moon,
+    );
+    icons::paint_transformed(
+        &painter,
+        icon,
+        icon::CaptionSun,
+        color.gamma_multiply(1.0 - t),
+        vec2(0.0, -20.0 * t),
+        45.0f32.to_radians() * t,
+    );
+}
+
+/// `DropOverlay`: a modal tint over everything below the title bar, and a
+/// panel saying files will be uploaded. (ShareX also shows it for dragged
+/// text; winit only reports dragged files.)
+fn drop_overlay(ui: &Ui, area: Rect) {
+    let p = palette(ui.ctx());
+    ui.painter().rect_filled(area, 0.0, p.overlay_modal);
+    let title_font = font(22.0, 600);
+    let desc_font = font(FONT_SIZE, 400);
+    let inner_w = 440.0 - 2.0 * (32.0 + 2.0);
+    let desc = {
+        let mut job = egui::text::LayoutJob::single_section(
+            s::MainWindow_FilesDroppedUploadDescription().to_owned(),
+            egui::TextFormat::simple(desc_font.clone(), p.text_secondary),
+        );
+        job.wrap.max_width = inner_w;
+        job.halign = Align::Center;
+        ui.fonts_mut(|f| f.layout_job(job))
+    };
+    let title_h = widgets::line_height(ui, &title_font);
+    let desc_h = desc.rows.len() as f32 * widgets::line_height(ui, &desc_font);
+    let content_h = 48.0 + 12.0 + title_h + 12.0 + desc_h;
+    let h = content_h + 2.0 * (32.0 + 2.0);
+    let panel = Rect::from_min_size(
+        pos2(area.min.x + ((area.width() - 440.0) / 2.0).round_ties_even(), widgets::center_y(area, h)),
+        vec2(440.0, h),
+    );
+    ui.painter().rect(
+        panel,
+        CornerRadius::same(12),
+        p.background_panel,
+        Stroke::new(2.0, p.accent_border),
+        egui::StrokeKind::Inside,
+    );
+    let inner = panel.shrink(34.0);
+    let cx = inner.center().x;
+    icons::paint(ui.painter(), Rect::from_min_size(pos2(cx - 24.0, inner.min.y), Vec2::splat(48.0)), icon::Upload, p.accent_icon);
+    let ty = inner.min.y + 48.0 + 12.0;
+    let title = widgets::galley(ui, s::MainWindow_ReleaseToUploadFiles(), title_font, p.text, f32::INFINITY);
+    ui.painter().galley(pos2(cx - (title.size().x / 2.0).round(), ty), title, p.text);
+    ui.painter().galley(pos2(cx, ty + title_h + 12.0), desc, p.text_secondary);
 }
 
 /// The ShareX logo in the title bar (`TitleBarIcon`).
