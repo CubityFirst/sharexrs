@@ -33,6 +33,14 @@
 //!
 //! `file-delete-confirm` is the "File delete confirmation" message box.
 //!
+//! `start-screen` is the Start screen of a fresh profile (`--height` caps
+//! it as a short screen does, `--scroll N` scrolls it); `settings-<page>`
+//! is Application settings on a page (`general`, `theme`, `integration`,
+//! `paths`, `settings`, `main-window`, `clipboard-formats`, `upload`,
+//! `history`, `print`, `proxy`, `advanced`). Both take `--accent #RRGGBB`,
+//! `--legacy` (icon pack) and `--compact`, and `--click X,Y[;X,Y]` (clicks
+//! before drawing, to open a dropdown).
+//!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
 //! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
 //! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
@@ -45,6 +53,59 @@ use sharex_settings::{HotkeySettings, HotkeyStatus, HotkeysConfig, TaskSettings}
 
 use crate::main_window::{self, MainWindow};
 use crate::message_box::{self, MessageBox, MessageBoxIcon};
+
+/// A fresh profile's settings with these theme options, applied
+/// (`ThemeManager`: accent, icon pack, spacing).
+fn theme_settings(dark: bool, accent: Option<&str>, legacy: bool, compact: bool) -> sharex_settings::ApplicationConfig {
+    let mut settings = sharex_settings::ApplicationConfig::default();
+    let o = settings.theme_options();
+    o.Theme = if dark { "Dark" } else { "Light" }.into();
+    if let Some(a) = accent {
+        o.AccentColorHex = a.into();
+    }
+    if legacy {
+        o.IconPack = sharex_settings::IconPack::Legacy;
+    }
+    o.CompactMode = compact;
+    crate::appearance::apply(&settings, None);
+    settings
+}
+
+/// Runs `ui` for enough frames to settle, with the pointer at `hover` and a
+/// click at each of `clicks` (one every few frames), then draws it.
+pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], ui: &mut dyn FnMut(&mut egui::Ui)) -> image::RgbaImage {
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Default::default(),
+    };
+    let mut frame = 0;
+    let mut run = |screen: &mut Offscreen, events: Vec<egui::Event>| {
+        screen.run(events, &mut |u: &mut egui::Ui| ui(u));
+    };
+    run(screen, Vec::new());
+    run(screen, Vec::new());
+    for &c in clicks {
+        run(screen, vec![egui::Event::PointerMoved(c)]);
+        run(screen, vec![button(c, true)]);
+        run(screen, vec![button(c, false)]);
+        run(screen, Vec::new());
+        frame += 4;
+    }
+    let _ = frame;
+    if let Some(h) = hover {
+        for _ in 0..4 {
+            run(screen, vec![egui::Event::PointerMoved(h)]);
+        }
+    } else {
+        run(screen, vec![egui::Event::PointerGone]);
+    }
+    for _ in 0..3 {
+        run(screen, Vec::new());
+    }
+    screen.draw()
+}
 
 /// ShareX's default hotkeys, registered except those at `failed`.
 fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
@@ -154,6 +215,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut list_view = false;
     let mut select: Vec<usize> = Vec::new();
     let mut context = None;
+    let mut scroll = 0.0f32;
+    // Theme options for the Start screen and settings screens.
+    let mut accent: Option<String> = None;
+    let mut legacy = false;
+    let mut compact = false;
+    let mut click: Vec<egui::Pos2> = Vec::new();
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -203,6 +270,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 context = Some(egui::pos2(x.parse().map_err(|_| "--context X,Y")?, y.parse().map_err(|_| "--context X,Y")?));
             }
             "--maximized" => maximized = true,
+            "--accent" => accent = Some(val()?),
+            "--legacy" => legacy = true,
+            "--compact" => compact = true,
+            "--scroll" => scroll = val()?.parse().map_err(|_| "--scroll N")?,
+            "--click" => {
+                for c in val()?.split(';') {
+                    let (x, y) = c.split_once(',').ok_or("--click X,Y[;X,Y]")?;
+                    click.push(egui::pos2(x.parse().map_err(|_| "--click X,Y")?, y.parse().map_err(|_| "--click X,Y")?));
+                }
+            }
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -348,6 +425,39 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let mut screen = Offscreen::new([w, h], scale, dark)?;
             screen.render(|ui| {
                 dialog.ui(ui);
+            })
+        }
+        "start-screen" => {
+            // The Start screen of a fresh profile; `--height` caps the window
+            // as `FitToWorkingArea` does, `--scroll` scrolls its content.
+            let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
+            let mut state = crate::start_screen::StartScreen::default();
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = state.content_height(ui, &settings));
+            let full = (h * scale).round() as u32;
+            let h = height.map_or(full, |cap| cap.min(full));
+            let w = width.unwrap_or((crate::start_screen::WIDTH * scale) as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            state.scroll = scroll;
+            render_frames(&mut screen, hover, &click, &mut |ui| {
+                state.ui(ui, &mut settings);
+            })
+        }
+        s if s.starts_with("settings-") => {
+            // Application settings on a page (`settings-general`,
+            // `settings-main-window`, ...), with a fresh profile's settings.
+            let name = &s["settings-".len()..];
+            let page = crate::app_settings::PAGES.iter().position(|p| *p == name).ok_or(format!("no settings page {name}"))?;
+            let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
+            let parent = sharex_settings::paths::absolute_path("ShareXrs").join("Screenshots");
+            let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent);
+            state.page = page;
+            let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
+            let h = height.unwrap_or((crate::app_settings::HEIGHT * scale) as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            render_frames(&mut screen, hover, &click, &mut |ui| {
+                state.ui(ui, &mut settings);
             })
         }
         "app-icon" => {

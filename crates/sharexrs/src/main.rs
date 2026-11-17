@@ -7,6 +7,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_icon;
+mod app_settings;
+mod app_windows;
+mod appearance;
 mod capture;
 mod capture_job;
 mod hotkeys;
@@ -18,6 +21,8 @@ mod region_session;
 mod render;
 mod shell;
 mod sound;
+mod start_screen;
+mod startup;
 mod task_actions;
 mod task_view;
 mod tasks;
@@ -89,6 +94,8 @@ fn main() {
     }
     let settings = SettingManager::load(paths, system);
     settings.paths.create_application_folders(Some(&settings.settings));
+    // `LanguageHelper.ChangeLanguage(Settings.Language)`.
+    appearance::change_language(&settings.settings.Language);
 
     #[cfg(target_os = "macos")]
     sharex_capture::platform::macos::ask_for_screen_recording();
@@ -131,6 +138,12 @@ fn main() {
         transparent_grab: None,
         tray_progress: -1,
         modifiers: Default::default(),
+        start_window: None,
+        settings_window: None,
+        current_theme: egui::Theme::Dark,
+        system_theme: None,
+        // `StartupOptions.SilentRun` (`-silent`, `-s`): start in the tray.
+        silent: is_command_present(&args, &["silent", "s"]),
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -197,6 +210,15 @@ struct App {
     tray_progress: i32,
     /// The keyboard's modifiers in the main window.
     modifiers: winit::keyboard::ModifiersState,
+    /// The Start screen, on first run.
+    start_window: Option<app_windows::StartWindow>,
+    /// Application settings, while it's open.
+    settings_window: Option<app_windows::SettingsWindow>,
+    /// `ThemeManager.GetCurrentTheme()`.
+    current_theme: egui::Theme,
+    /// The OS's light or dark mode, for `UseSystemTheme`.
+    system_theme: Option<winit::window::Theme>,
+    silent: bool,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -293,11 +315,17 @@ impl App {
                     egui::Theme::Dark => egui::Theme::Light,
                     egui::Theme::Light => egui::Theme::Dark,
                 };
-                set_theme(w, next);
                 let options = self.settings.settings.theme_options();
                 options.Theme = if next == egui::Theme::Dark { "Dark" } else { "Light" }.into();
                 options.UseSystemTheme = false;
                 let _ = self.settings.save_application_config(false);
+                self.apply_appearance();
+                return;
+            }
+            // `MainMenuBuilder_ApplicationSettings`.
+            Action::Nav(7, _) => {
+                self.show_application_settings(event_loop);
+                return;
             }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
@@ -343,6 +371,7 @@ impl App {
             }
             MenuCommand::ToggleHotkeys => self.toggle_hotkeys(),
             MenuCommand::ShowMainWindow => self.show_main_window(event_loop),
+            MenuCommand::ApplicationSettings => self.show_application_settings(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -682,6 +711,21 @@ impl App {
     /// failed" message box if any failed (`ShowFailedHotkeys` holds startup
     /// until it's closed).
     fn start(&mut self, event_loop: &ActiveEventLoop) {
+        self.system_theme = event_loop.system_theme();
+        self.apply_appearance();
+        // The Start screen comes first, on a fresh profile.
+        if self.settings.settings.ShowStartScreen && !self.settings.paths.sandbox {
+            eprintln!("Start screen opening.");
+            match self.open_start_screen(event_loop) {
+                Ok(()) => return,
+                Err(e) => eprintln!("couldn't open the Start screen: {e}"),
+            }
+        }
+        self.continue_start(event_loop);
+    }
+
+    /// The rest of `StartApplicationAsync`, after the Start screen.
+    fn continue_start(&mut self, event_loop: &ActiveEventLoop) {
         // `new DesktopTrayIconService(…, ApplicationInfo.TitleShort, ShowTray)`.
         let proxy = self.proxy.clone();
         let callback: tray::Callback = Arc::new(move |e| {
@@ -705,6 +749,12 @@ impl App {
                 Err(e) => eprintln!("couldn't open the message box: {e}"),
             }
         }
+        // `showMainWindow`: not when starting silently to the tray.
+        let s = &self.settings.settings;
+        let show = !(self.silent || s.SilentRun) || !s.ShowTray || self.tray.is_none();
+        if !show {
+            return;
+        }
         if let Err(e) = self.open_main_window(event_loop) {
             eprintln!("couldn't open the main window: {e}");
             event_loop.exit();
@@ -721,16 +771,7 @@ impl App {
 
     /// The theme the settings ask for (`ThemeManager.GetCurrentTheme`).
     fn theme(&self) -> egui::Theme {
-        let options = self.settings.settings.ThemeOptions.clone().unwrap_or_default();
-        let name = if options.UseSystemTheme {
-            match self.main.as_ref().and_then(|w| w.window.theme()) {
-                Some(winit::window::Theme::Light) => "Light",
-                _ => "Dark",
-            }
-        } else {
-            options.Theme.as_str()
-        };
-        if name.eq_ignore_ascii_case("Light") { egui::Theme::Light } else { egui::Theme::Dark }
+        self.current_theme
     }
 
     /// `MessageBox.Show` with no owner: centred on the screen, topmost.
@@ -1073,6 +1114,9 @@ impl ApplicationHandler<UserEvent> for App {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // `DisposeWindowResources`: the tray icon goes.
         self.tray_menu = None;
+        if let Some(mut s) = self.settings_window.take() {
+            s.state.flush_personal_path();
+        }
         self.tray = None;
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
@@ -1083,6 +1127,19 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        // The OS switched light/dark mode: `PlatformSettings.ColorValuesChanged`.
+        if let WindowEvent::ThemeChanged(t) = event
+            && self.system_theme != Some(t)
+        {
+            self.system_theme = Some(t);
+            let o = self.settings.settings.ThemeOptions.clone().unwrap_or_default();
+            if o.UseSystemTheme || o.UseSystemAccentColor {
+                self.apply_appearance();
+            }
+        }
+        if self.app_window_event(event_loop, id, &event) {
+            return;
+        }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
             let outcome = region.session.window_event(event_loop, id, event);
             if !matches!(outcome, Outcome::Continue) {
@@ -1195,6 +1252,7 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(m) = &mut self.tray_menu {
             m.redraw_if_due(now);
         }
+        let app_windows = self.app_windows_due(now);
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
         let next = [
@@ -1204,6 +1262,7 @@ impl ApplicationHandler<UserEvent> for App {
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),
             self.tray_click_at,
+            app_windows,
         ]
         .into_iter()
         .flatten()
