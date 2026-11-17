@@ -1,7 +1,7 @@
 """Writes cases.json for the recording harness (see README.md).
 
 Every case is run by ShareX's own code (RecordingHarness) and by ShareXrs
-(`cargo run -p sharex-screen-recording --example harness`); the results must
+(`cargo run -p sharex-screen-recording --example recording_harness`); the results must
 be identical.
 """
 

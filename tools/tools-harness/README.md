@@ -20,7 +20,7 @@ inputs are skipped).
 python tools/tools-harness/make_cases.py tools/tools-harness/cases.json
 dotnet build tools/tools-harness -c Release -o G:/scripts/sharexrs-ref/tools-harness/bin
 G:/scripts/sharexrs-ref/tools-harness/bin/ToolsHarness.exe tools/tools-harness/cases.json G:/scripts/sharexrs-ref/tools-harness/work [case prefix]
-cargo run --release -p sharex-tools --example validate -- tools/tools-harness/cases.json G:/scripts/sharexrs-ref/tools-harness/work [case prefix]
+cargo run --release -p sharex-tools --example tools_validate -- tools/tools-harness/cases.json G:/scripts/sharexrs-ref/tools-harness/work [case prefix]
 ```
 
 The last step runs every case through the Rust port, writes `<work>/sharexrs/*`

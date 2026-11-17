@@ -21,6 +21,7 @@ mod main_menu;
 mod menu_settings;
 mod main_window;
 mod message_box;
+mod ocr;
 mod region_render;
 mod region_session;
 mod render;

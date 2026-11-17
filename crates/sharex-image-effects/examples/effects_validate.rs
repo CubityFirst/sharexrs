@@ -3,7 +3,7 @@
 //! Run `tools/effects-harness` first (it writes `<work>/inputs`, `<work>/sharex`,
 //! `<work>/roundtrip`, `<work>/defaults`), then:
 //!
-//!   cargo run --release -p sharex-image-effects --example validate -- <cases.json> <work> [case prefix]
+//!   cargo run --release -p sharex-image-effects --example effects_validate -- <cases.json> <work> [case prefix]
 //!
 //! Writes `<work>/sharexrs/<case>.sxrb|png`, `<work>/diff/<case>.png` (differing pixels
 //! in red) and `<work>/report.md`: per case the size check, the largest difference per

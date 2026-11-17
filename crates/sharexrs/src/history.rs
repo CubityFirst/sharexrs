@@ -14,6 +14,7 @@ use sharex_history::{DateTime, HistoryItem, HistoryManagerSqlite, SystemZone, Ta
 use sharex_settings::{AppPaths, ApplicationConfig, TaskSettings};
 use sharex_uploaders::{ImageDestination, TextDestination, UploadResult};
 
+use crate::ocr::PendingText;
 use crate::tasks::{EDataType, TaskInfo, TaskJob};
 
 static HISTORY: Mutex<Option<HistoryManagerSqlite>> = Mutex::new(None);
@@ -124,9 +125,10 @@ pub fn history_item(end: &TaskEnd<'_>) -> HistoryItem {
 
 /// `Task_TaskCompleted`: a task with a result (`info.ToString()` not empty)
 /// goes into history when `HistorySaveTasks`, and with `HistoryCheckURL`
-/// only if it has a URL or a shortened URL; added off the event loop.
-/// (`HistorySaveOCRText` waits for OCR to be ported.)
-pub fn task_completed(settings: &ApplicationConfig, info: &TaskInfo, item: Option<&HistoryItem>) {
+/// only if it has a URL or a shortened URL; added off the event loop, after
+/// the image's text when `HistorySaveOCRText` recognized it
+/// (`AppendHistoryItemAsync`).
+pub fn task_completed(settings: &ApplicationConfig, info: &TaskInfo, item: Option<&HistoryItem>, ocr: Option<PendingText>) {
     let Some(item) = item else { return };
     if info.text().is_empty()
         || !settings.HistorySaveTasks
@@ -136,6 +138,10 @@ pub fn task_completed(settings: &ApplicationConfig, info: &TaskInfo, item: Optio
     }
     let mut item = item.clone();
     std::thread::spawn(move || {
+        // The item is still added without its text, e.g. when the OCR models are missing.
+        if let Some(text) = ocr.and_then(|o| o.wait()).filter(|t| !t.trim().is_empty()) {
+            item.tags.get_or_insert_with(Tags::new).set("OCR", Some(text));
+        }
         if let Some(m) = HISTORY.lock().unwrap().as_mut()
             && !m.append_history_item(&mut item)
         {

@@ -2,13 +2,13 @@
 //! and compares the outputs with what ShareX's own code wrote (the harness's
 //! `<work>/sharex`). Writes `<work>/sharexrs/*` and `<work>/report.md`.
 //!
-//!   cargo run --release -p sharex-tools --example validate -- tools/tools-harness/cases.json <work> [case prefix]
+//!   cargo run --release -p sharex-tools --example tools_validate -- tools/tools-harness/cases.json <work> [case prefix]
 
-#[path = "validate/cases.rs"]
+#[path = "tools_validate/cases.rs"]
 mod cases;
-#[path = "validate/compare.rs"]
+#[path = "tools_validate/compare.rs"]
 mod compare;
-#[path = "validate/cases_data.rs"]
+#[path = "tools_validate/cases_data.rs"]
 mod cases_data;
 
 use std::collections::BTreeMap;

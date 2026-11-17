@@ -203,7 +203,7 @@ soft and hard transparency, a 9×7 random image and auto-crop images; random
 effects with a fixed seed), and writes the raw premultiplied pixels. Then:
 
 ```
-cargo run --release -p sharex-image-effects --example validate -- tools/effects-harness/cases.json <work>
+cargo run --release -p sharex-image-effects --example effects_validate -- tools/effects-harness/cases.json <work>
 ```
 
 compares per channel (premultiplied B, G, R, A, as ShareX holds them).

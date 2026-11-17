@@ -50,7 +50,7 @@ Border and Text watermark box exact), and its canvas gained Catmull-Rom.
 ## Validation
 
 `tools/tools-harness` (README there) runs ShareX's own code headlessly over
-1321 cases and `cargo run --release -p sharex-tools --example validate`
+1321 cases and `cargo run --release -p sharex-tools --example tools_validate`
 compares. "Exact" means byte for byte (or equal values/strings); "pixel-exact"
 means the bitmap before encoding is identical and the encoded file decodes to
 the same pixels (only the PNG zlib stream differs); "close" is within a stated

@@ -206,7 +206,8 @@ pub struct TaskOutcome {
     /// prepared for saving or uploading.
     pub data: Option<Vec<u8>>,
     pub file_name: Option<String>,
-    /// `Info.Metadata.Image` after the after capture tasks.
+    /// The image after the after capture tasks (`WorkerTask.Image`,
+    /// `Info.Metadata.Image`): for the upload windows and OCR.
     pub image: Option<RgbaImage>,
 }
 

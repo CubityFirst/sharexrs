@@ -1,7 +1,7 @@
 // ShareXrs tools harness: runs ShareX's own tool code (ShareX.Tools.dll and the
 // HelpersLib/ShareX helpers it calls) over the cases in cases.json, headlessly,
 // and writes what each tool produces so crates/sharex-tools can be compared
-// with it (examples/validate.rs).
+// with it (examples/tools_validate.rs).
 //
 //   ToolsHarness <cases.json> <work dir> [case prefix]
 //

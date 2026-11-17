@@ -14,7 +14,7 @@ Needs the .NET SDK that builds ShareX (net11.0) and the reference build in
 ```
 dotnet build tools/effects-harness -c Release -o G:/scripts/sharexrs-ref/effects-harness/bin
 G:/scripts/sharexrs-ref/effects-harness/bin/EffectsHarness.exe tools/effects-harness/cases.json G:/scripts/sharexrs-ref/effects-harness/work [case prefix]
-cargo run --release -p sharex-image-effects --example validate -- tools/effects-harness/cases.json G:/scripts/sharexrs-ref/effects-harness/work [case prefix]
+cargo run --release -p sharex-image-effects --example effects_validate -- tools/effects-harness/cases.json G:/scripts/sharexrs-ref/effects-harness/work [case prefix]
 ```
 
 The last step writes `<work>/report.md` (per case: size check, largest

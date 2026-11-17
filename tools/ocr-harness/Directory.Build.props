@@ -1,0 +1,6 @@
+<Project>
+  <!-- Keep build intermediates out of the source tree (under the repo's ignored target/). -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\target\ocr-harness-obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

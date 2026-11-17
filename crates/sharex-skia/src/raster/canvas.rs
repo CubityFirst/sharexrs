@@ -19,6 +19,9 @@ pub enum Sampling {
     /// `SKCubicResampler.CatmullRom` (B = 0, C = 1/2), what ShareX's icon and image
     /// converters draw with.
     CatmullRom,
+    /// `SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)`: bilinear within
+    /// the two nearest mipmap levels, blended (what ShareX's OCR scales down with).
+    LinearMipmapLinear,
 }
 
 impl Sampling {
@@ -693,6 +696,7 @@ fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
         // nearest or (clamped, scale-translate) bilinear.
         (Shader::Image { .. }, SamplerKind::Image(img))
             if paint.alpha == 255
+                && !img.mipmapped
                 && img.tile_x != TileMode::Decal
                 && img.tile_y != TileMode::Decal
                 && (img.sampling == Sampling::Nearest
@@ -819,11 +823,26 @@ enum SamplerKind<'a> {
 }
 
 struct ImageSampler<'a> {
-    image: &'a Bitmap,
+    /// The image, or for a mipmapped draw the level `SkMipmapAccessor` picked.
+    image: std::borrow::Cow<'a, Bitmap>,
     inv: Matrix,
     sampling: Sampling,
     tile_x: TileMode,
     tile_y: TileMode,
+    /// A linear mipmap was asked for: never the legacy blitter (`onMakeContext` only
+    /// takes no mipmaps or nearest ones).
+    mipmapped: bool,
+    /// The smaller mipmap level blended in (`mipmap_linear_*`).
+    lower: Option<LowerLevel>,
+}
+
+/// `SkRasterPipeline_MipmapCtx`: the lower level, its weight and how its coordinates
+/// scale from the upper level's.
+struct LowerLevel {
+    image: Bitmap,
+    weight: f32,
+    scale_x: f32,
+    scale_y: f32,
 }
 
 impl<'a> Sampler<'a> {
@@ -847,9 +866,45 @@ impl<'a> Sampler<'a> {
                 tile_y,
             } => {
                 let total = Matrix::concat(ctm, matrix);
-                let inv = total.invert()?;
-                // `tweak_sampling`: bilinear through an integer translate is nearest.
+                let mut inv = total.invert()?;
+                let mipmapped = *sampling == Sampling::LinearMipmapLinear;
                 let mut sampling = *sampling;
+                let mut level: std::borrow::Cow<'a, Bitmap> = std::borrow::Cow::Borrowed(*image);
+                let mut lower = None;
+                if mipmapped {
+                    // `SkMipmapAccessor`: sample the level the scale picks (the image when
+                    // not shrinking) through `Scale(level / image) * inv`, and blend in
+                    // the next smaller level.
+                    let choice = super::mipmap::choose_linear(&inv, image.width(), image.height());
+                    if choice.upper.is_some() || choice.lower.is_some() {
+                        let mut levels = super::mipmap::build(image);
+                        let upper = match choice.upper {
+                            Some(i) => std::borrow::Cow::Owned(levels[i].clone()),
+                            None => std::borrow::Cow::Borrowed(*image),
+                        };
+                        let scale_to = |b: &Bitmap| {
+                            Matrix::scale_translate(
+                                b.width() as f32 / image.width() as f32,
+                                b.height() as f32 / image.height() as f32,
+                                0.0,
+                                0.0,
+                            )
+                        };
+                        inv = Matrix::concat(&scale_to(&upper), &inv);
+                        if let Some((i, weight)) = choice.lower {
+                            let lower_image = levels.swap_remove(i);
+                            lower = Some(LowerLevel {
+                                scale_x: lower_image.width() as f32 / upper.width() as f32,
+                                scale_y: lower_image.height() as f32 / upper.height() as f32,
+                                image: lower_image,
+                                weight,
+                            });
+                        }
+                        level = upper;
+                    }
+                    sampling = Sampling::Linear;
+                }
+                // `tweak_sampling`: bilinear through an integer translate is nearest.
                 if sampling == Sampling::Linear
                     && inv.is_translate()
                     && inv.tx() == inv.tx().trunc()
@@ -857,16 +912,20 @@ impl<'a> Sampler<'a> {
                 {
                     sampling = Sampling::Nearest;
                 }
+                // The mipmap stages and the generic bilinear sampler are float only.
                 let lowp = !sampling.is_cubic()
                     && *tile_x == TileMode::Clamp
-                    && *tile_y == TileMode::Clamp;
+                    && *tile_y == TileMode::Clamp
+                    && !(mipmapped && (sampling == Sampling::Linear || lower.is_some()));
                 (
                     SamplerKind::Image(ImageSampler {
-                        image,
+                        image: level,
                         inv,
                         sampling,
                         tile_x: *tile_x,
                         tile_y: *tile_y,
+                        mipmapped,
+                        lower,
                     }),
                     lowp,
                 )
@@ -1000,9 +1059,9 @@ impl ImageSampler<'_> {
     /// a span starting at `span_left`.
     fn legacy_shade(&self, x: i32, y: i32, span_left: i32) -> [u8; 4] {
         if self.sampling == Sampling::Linear
-            && let Some(st) = LegacyBilerp::new(&self.inv, self.image)
+            && let Some(st) = LegacyBilerp::new(&self.inv, &self.image)
         {
-            return st.shade(self.image, x, y, span_left);
+            return st.shade(&self.image, x, y, span_left);
         }
         self.gather_nearest(x, y)
     }
@@ -1031,23 +1090,18 @@ impl ImageSampler<'_> {
                 let fy = self.tile(fy, self.tile_y, self.image.height());
                 load(self.gather(fx, fy, true))
             }
-            Sampling::Linear => {
-                // bilerp_clamp_8888.
-                let frac = |v: f32| v - v.floor();
-                let (tx, ty) = (frac(fx + 0.5), frac(fy + 0.5));
-                let mut acc = [0.0f32; 4];
-                for py in [-0.5f32, 0.5] {
-                    for px in [-0.5f32, 0.5] {
-                        let s = load(self.gather(fx + px, fy + py, false));
-                        let sx = if px > 0.0 { tx } else { 1.0 - tx };
-                        let sy = if py > 0.0 { ty } else { 1.0 - ty };
-                        let area = sx * sy;
-                        for i in 0..4 {
-                            acc[i] += s[i] * area;
-                        }
+            Sampling::Linear | Sampling::LinearMipmapLinear => {
+                // bilerp_clamp_8888, or for a mipmapped draw the generic
+                // bilinear_setup/accumulate stages (the same sums) on each level,
+                // blended by mipmap_linear_finish (`lerp`).
+                let upper = bilinear_clamp(&self.image, fx, fy);
+                match &self.lower {
+                    None => upper,
+                    Some(l) => {
+                        let lower = bilinear_clamp(&l.image, fx * l.scale_x, fy * l.scale_y);
+                        [0, 1, 2, 3].map(|i| mad(lower[i] - upper[i], l.weight, upper[i]))
                     }
                 }
-                acc
             }
             Sampling::Mitchell | Sampling::CatmullRom => {
                 // bicubic_clamp_8888 with CubicResamplerMatrix(B, C), then clamp_gamut.
@@ -1086,6 +1140,31 @@ impl ImageSampler<'_> {
             }
         }
     }
+}
+
+/// Bilinear sampling of a clamped 8888 image at (`fx`, `fy`): the four pixels at
+/// +-0.5 weighted by their overlap, accumulated in the pipeline's order.
+fn bilinear_clamp(image: &Bitmap, fx: f32, fy: f32) -> [f32; 4] {
+    let frac = |v: f32| v - v.floor();
+    let (tx, ty) = (frac(fx + 0.5), frac(fy + 0.5));
+    let gather = |x: f32, y: f32| {
+        let ix = gather_index(x, image.width(), false);
+        let iy = gather_index(y, image.height(), false);
+        image.pixel(ix, iy)
+    };
+    let mut acc = [0.0f32; 4];
+    for py in [-0.5f32, 0.5] {
+        for px in [-0.5f32, 0.5] {
+            let s = load(gather(fx + px, fy + py));
+            let sx = if px > 0.0 { tx } else { 1.0 - tx };
+            let sy = if py > 0.0 { ty } else { 1.0 - ty };
+            let area = sx * sy;
+            for i in 0..4 {
+                acc[i] += s[i] * area;
+            }
+        }
+    }
+    acc
 }
 
 /// `SkBitmapProcState` for a clamped bilinear image through a scale-translate

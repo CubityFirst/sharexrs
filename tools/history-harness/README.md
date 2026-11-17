@@ -20,7 +20,7 @@ Needs the .NET SDK that builds ShareX (net11.0) and the reference build in
 ```
 python tools/history-harness/make_cases.py tools/history-harness/cases.json
 dotnet build tools/history-harness -c Release -o G:/scripts/sharexrs-ref/history-harness/bin
-cargo run -p sharex-history --example harness -- G:/scripts/sharexrs-ref/history-harness/bin/HistoryHarness.exe tools/history-harness/cases.json G:/scripts/sharexrs-ref/history-harness/work [<a History.db to compare, copied first>]
+cargo run -p sharex-history --example history_harness -- G:/scripts/sharexrs-ref/history-harness/bin/HistoryHarness.exe tools/history-harness/cases.json G:/scripts/sharexrs-ref/history-harness/work [<a History.db to compare, copied first>]
 ```
 
 The example runs `HistoryHarness sharex <cases> <work>` (ShareX's side, into

@@ -38,7 +38,7 @@ Needs the .NET SDK that builds ShareX (net11.0) and the reference build in
 python tools/recording-harness/make_cases.py tools/recording-harness/cases.json
 dotnet build tools/recording-harness -c Release -o G:/scripts/sharexrs-ref/recording-harness/bin
 G:/scripts/sharexrs-ref/recording-harness/bin/RecordingHarness.exe tools/recording-harness/cases.json G:/scripts/sharexrs-ref/recording-harness/sharex.json G:/scripts/sharexrs-ref/recording-harness/work
-cargo run -p sharex-screen-recording --example harness -- tools/recording-harness/cases.json G:/scripts/sharexrs-ref/recording-harness/sharex.json G:/scripts/sharexrs-ref/recording-harness/work
+cargo run -p sharex-screen-recording --example recording_harness -- tools/recording-harness/cases.json G:/scripts/sharexrs-ref/recording-harness/sharex.json G:/scripts/sharexrs-ref/recording-harness/work
 ```
 
 The last step runs the same cases through ShareXrs (FFmpeg replaced by a

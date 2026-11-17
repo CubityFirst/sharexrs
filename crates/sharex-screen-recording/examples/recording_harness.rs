@@ -3,7 +3,7 @@
 //! harness replaces it with Harmony), compares with what ShareX's DLLs gave
 //! (`sharex.json`) and writes `<work>/rust.json` and `<work>/report.md`.
 //!
-//!   cargo run -p sharex-screen-recording --example harness -- <cases.json> <sharex.json> <work dir>
+//!   cargo run -p sharex-screen-recording --example recording_harness -- <cases.json> <sharex.json> <work dir>
 
 use std::sync::{Arc, Mutex};
 

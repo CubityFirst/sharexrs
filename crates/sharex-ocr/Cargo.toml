@@ -1,0 +1,19 @@
+[package]
+name = "sharex-ocr"
+description = "ShareX.OCR: offline OCR with the PaddleOCR PP-OCRv6 ONNX models, ported with the same preprocessing, thresholds and post-processing so the same image gives the same text."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-skia.workspace = true
+# ONNX Runtime, loaded at run time (`load-dynamic`): the same onnxruntime
+# library ShareX ships (1.24, CPU execution provider), found beside the
+# executable or through ORT_DYLIB_PATH. Nothing is downloaded at build time.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic"] }
+
+[dev-dependencies]
+image.workspace = true
+serde_json.workspace = true
+# The test fixtures' raw images are zlib-compressed (tools/ocr-harness/make_fixtures.py).
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }

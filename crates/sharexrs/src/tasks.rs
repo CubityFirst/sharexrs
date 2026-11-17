@@ -260,6 +260,8 @@ pub struct TaskReport {
     pub upload_duration: Option<Duration>,
     /// `TaskInfo.GetHistoryItem` at the task's end.
     pub history: Option<sharex_history::HistoryItem>,
+    /// `TaskInfo.HistoryOCRTask`: the image's text for the history item's `OCR` tag.
+    pub history_ocr: Option<crate::ocr::PendingText>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

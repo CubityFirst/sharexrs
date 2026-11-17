@@ -1,7 +1,7 @@
 //! Compares ShareXrs's history with ShareX's own HistoryLib (see
 //! tools/history-harness/README.md):
 //!
-//!   cargo run -p sharex-history --example harness -- <HistoryHarness.exe> <cases.json> <work dir>
+//!   cargo run -p sharex-history --example history_harness -- <HistoryHarness.exe> <cases.json> <work dir>
 //!
 //! Runs ShareX's side first (`HistoryHarness sharex`), then reads ShareX's
 //! files with ShareXrs, writes the same items with ShareXrs and has ShareX
