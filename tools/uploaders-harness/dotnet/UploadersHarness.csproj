@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs ShareX's real uploaders (ShareX.UploadersLib.dll from the reference
+    build) against the local mock server. Build it outside the repo:
+      dotnet build tools/uploaders-harness/dotnet -o G:/scripts/sharexrs-ref/uploaders-harness/bin
+    ShareXBuild points at the reference build (ShareX built from REFERENCE_COMMIT).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Helpers.GetApplicationVersion() reads the entry assembly: ShareX's version, as in ShareX.exe. -->
+    <Version>22.4.0</Version>
+    <AssemblyVersion>22.4.0.0</AssemblyVersion>
+    <FileVersion>22.4.0.0</FileVersion>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.UploadersLib"><HintPath>$(ShareXBuild)\ShareX.UploadersLib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>
