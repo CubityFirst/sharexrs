@@ -1423,8 +1423,7 @@
       "Y": 250
      }
     }
-   ],
-   "pending": "the elliptical magnifier is an anti-aliased clip (SkAAClip), not ported"
+   ]
   },
   {
    "name": "spotlight",

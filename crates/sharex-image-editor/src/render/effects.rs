@@ -91,50 +91,170 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
             );
         }
     }
-    if p.is_ellipse {
-        // The elliptical clip (an anti-aliased SkAAClip) isn't ported.
-        return;
-    }
-    // The visual: the effect bitmap stretched over the arranged rectangle
-    // (1:1 for whole-pixel bounds).
-    let (ar, ctm) = super::shapes::arranged(&a.common);
-    let (ox, oy) = (ar.x as i32, ar.y as i32);
-    for y in 0..full_h {
-        for x in 0..full_w {
-            let (dx, dy) = (ox + x, oy + y);
-            if dx < 0 || dy < 0 || dx >= pm.width() as i32 || dy >= pm.height() as i32 {
-                continue;
-            }
-            let d = pm.pixel_mut(dx, dy);
-            *d = src_over(effect.pixel(x, y), *d);
-        }
-    }
-    // ApplyMagnifyBorder: a transparent border has no width.
+    // ApplyMagnifyShape: the visual is the annotation's Rectangle, clipped to
+    // an ellipse of its bounds when IsEllipse, with a border (a transparent
+    // one has no width) whose corners are rounded into an ellipse too.
     let color = parse_color(&a.common.stroke_color);
     let thickness = if color.a == 0 {
         0.0
     } else {
         a.common.stroke_width.max(0.0) as f64
     };
-    if thickness > 0.0 {
-        let h = thickness / 2.0;
-        let rect = Rect::from_ltrb(
-            h as f32,
-            h as f32,
-            (h + (ar.width - thickness).max(0.0)) as f32,
-            (h + (ar.height - thickness).max(0.0)) as f32,
+    let (width, height) = ((r - l) as f64, (b - t) as f64);
+    let round = p.is_ellipse && thickness > 0.0;
+    let radii = if round {
+        (
+            (width - thickness).max(0.0) / 2.0,
+            (height - thickness).max(0.0) / 2.0,
+        )
+    } else {
+        (0.0, 0.0)
+    };
+    let pen = (thickness > 0.0).then(|| super::shapes::Pen {
+        color,
+        thickness,
+        dashes: super::shapes::dash_array(&p.border_style),
+        cap: super::shapes::line_cap(&p.border_style),
+        join: sharex_skia::Join::Miter,
+    });
+    let clip = p.is_ellipse.then_some((width, height));
+    draw_effect_rectangle(pm, &effect, a, radii, pen.as_ref(), clip);
+}
+
+/// An effect annotation's `Rectangle` visual as Avalonia renders it
+/// (`Shape.Render` → `DrawGeometry`): its geometry (`RectangleGeometry` of
+/// the bounds deflated by half the stroke, rounded with `radii` through
+/// `GeometryBuilder.DrawRoundedCornersRectangle`) filled with the effect
+/// bitmap's `ImageBrush` (`Stretch.Fill` over the geometry's bounds:
+/// `ConfigureTileBrush`'s intermediate image, then a decal image shader),
+/// then stroked with `pen`; all inside an anti-aliased elliptical clip
+/// (`Control.Clip = EllipseGeometry(0, 0, w, h)`) when `clip` is given.
+fn draw_effect_rectangle(
+    pm: &mut Pixmap,
+    effect: &Pixmap,
+    a: &Annotation,
+    radii: (f64, f64),
+    pen: Option<&super::shapes::Pen>,
+    clip: Option<(f64, f64)>,
+) {
+    use sharex_skia::raster::{
+        Bitmap, Canvas, Matrix as RMatrix, Paint, Rect as RRect, Sampling, Shader, TileMode,
+    };
+    let (ar, ctm) = super::shapes::arranged(&a.common);
+    let thickness = pen.map_or(0.0, |p| p.thickness);
+
+    // Rectangle.CreateDefiningGeometry
+    let h = thickness / 2.0;
+    let gx = h;
+    let gy = h;
+    let gw = (ar.width - h - h).max(0.0);
+    let gh = (ar.height - h - h).max(0.0);
+    let (rx, ry) = radii;
+    let path = if rx == 0.0 && ry == 0.0 {
+        let mut p = sharex_skia::Path::new();
+        p.add_rect(
+            sharex_skia::Rect::from_ltrb(gx as f32, gy as f32, (gx + gw) as f32, (gy + gh) as f32),
+            sharex_skia::Direction::Cw,
+            0,
         );
-        let mut path = sharex_skia::Path::new();
-        path.add_rect(rect, sharex_skia::Direction::Cw, 0);
-        let pen = super::shapes::Pen {
-            color,
-            thickness,
-            dashes: super::shapes::dash_array(&p.border_style),
-            cap: super::shapes::line_cap(&p.border_style),
-            join: sharex_skia::Join::Miter,
-        };
-        super::shapes::draw_geometry(pm, &ctm, None, &path, Some(&pen), &path);
+        p
+    } else {
+        let (right, bottom) = (gx + gw, gy + gh);
+        let mut g = super::shapes::StreamGeometry::new();
+        g.begin_figure(gx + rx, gy, true);
+        g.line_to(right - rx, gy);
+        g.arc_to(right, gy + ry, rx, ry, false, true);
+        g.line_to(right, bottom - ry);
+        g.arc_to(right - rx, bottom, rx, ry, false, true);
+        g.line_to(gx + rx, bottom);
+        g.arc_to(gx, bottom - ry, rx, ry, false, true);
+        g.line_to(gx, gy + ry);
+        g.arc_to(gx + rx, gy, rx, ry, false, true);
+        g.end_figure(true);
+        g.finish().0
+    };
+    // Geometry.Bounds: the path's tight bounds.
+    let tb = path.tight_bounds();
+    let target = (
+        tb.left as f64,
+        tb.top as f64,
+        (tb.right - tb.left) as f64,
+        (tb.bottom - tb.top) as f64,
+    );
+
+    let mut bmp = Bitmap::from_premultiplied(pm.width(), pm.height(), pm.to_premul_rgba());
+    let m = ctm.to_sk();
+    let mut canvas = Canvas::new(&mut bmp);
+    canvas.matrix = RMatrix([m.sx, m.kx, m.tx, m.ky, m.sy, m.ty, 0.0, 0.0, 1.0]);
+    if let Some((w, h)) = clip {
+        let mut oval = sharex_skia::Path::new();
+        oval.add_oval(
+            sharex_skia::Rect::from_ltrb(0.0, 0.0, w as f32, h as f32),
+            sharex_skia::Direction::Cw,
+        );
+        canvas.clip_path_aa(&oval);
     }
+
+    // The fill: ConfigureTileBrush with TileMode None, Stretch Fill.
+    let content = (effect.width() as f64, effect.height() as f64);
+    let (tw, th) = (target.2, target.3);
+    if tw > 0.0 && th > 0.0 && content.0 > 0.0 && content.1 > 0.0 {
+        let scale = (tw / content.0, th / content.1);
+        // CalculateTranslate (centred).
+        let tx = (tw - content.0 * scale.0) / 2.0;
+        let ty = (th - content.1 * scale.1) / 2.0;
+        let (iw, ih) = (tw.ceil() as u32, th.ceil() as u32);
+        let mut inter = Bitmap::new(iw, ih);
+        {
+            let source = Bitmap::from_premultiplied(
+                effect.width(),
+                effect.height(),
+                effect.to_premul_rgba(),
+            );
+            let mut c = Canvas::new(&mut inter);
+            c.matrix = RMatrix([
+                scale.0 as f32,
+                0.0,
+                tx as f32,
+                0.0,
+                scale.1 as f32,
+                ty as f32,
+                0.0,
+                0.0,
+                1.0,
+            ]);
+            let mut paint = Paint::shader(Shader::Color([255, 255, 255, 255]));
+            paint.anti_alias = true;
+            let r = RRect::xywh(0.0, 0.0, content.0 as f32, content.1 as f32);
+            // DrawBitmap with RenderOptions' default interpolation: linear.
+            c.draw_image_rect(&source, Some(r), r, Sampling::Linear, Some(&paint));
+        }
+        let mut fill = path.clone();
+        fill.fill_type = sharex_skia::FillType::EvenOdd;
+        let mut paint = Paint::shader(Shader::Image {
+            image: &inter,
+            matrix: RMatrix::translate(target.0 as f32, target.1 as f32),
+            sampling: Sampling::Nearest,
+            tile_x: TileMode::Decal,
+            tile_y: TileMode::Decal,
+        });
+        paint.anti_alias = true;
+        canvas.fill_sk_path(&fill, &paint);
+    }
+
+    if let Some(pen) = pen
+        && pen.color.a != 0
+        && let Some(stroke) = pen.stroke()
+    {
+        let ctx = canvas.stroke_context();
+        if let Some(mut outline) = sharex_skia::draw::stroke_to_path(&path, &stroke, &ctx) {
+            outline.fill_type = sharex_skia::FillType::Winding;
+            let c = pen.color;
+            canvas.fill_sk_path(&outline, &Paint::fill([c.r, c.g, c.b, c.a]));
+        }
+    }
+    drop(canvas);
+    *pm = Pixmap::from_premul_rgba(pm.width(), pm.height(), bmp.data());
 }
 
 /// `BlurAnnotation.CreateBlurredSourceCache`: the whole image, its edges
