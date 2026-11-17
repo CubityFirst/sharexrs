@@ -14,12 +14,47 @@ use sharex_skia::{FillType, Path};
 /// and style.
 pub struct FontFace {
     data: Arc<Vec<u8>>,
+    /// The face's index in a collection (.ttc); 0 for a single font.
+    index: u32,
 }
 
 impl FontFace {
     fn face(&self) -> Option<ttf_parser::Face<'_>> {
-        ttf_parser::Face::parse(&self.data, 0).ok()
+        ttf_parser::Face::parse(&self.data, self.index).ok()
     }
+}
+
+/// The Inter Avalonia bundles (`WithInterFont()`), the same files ShareXrs's
+/// UI uses: Avalonia's `FontFamily.Default`, and what a family that isn't
+/// installed falls back to.
+const INTER_REGULAR: &[u8] = include_bytes!("../../../sharex-ui/assets/fonts/Inter-Regular.ttf");
+const INTER_BOLD: &[u8] = include_bytes!("../../../sharex-ui/assets/fonts/Inter-Bold.ttf");
+
+fn inter(bold: bool) -> FontFace {
+    static FACES: OnceLock<[Arc<Vec<u8>>; 2]> = OnceLock::new();
+    let [regular, bold_face] = FACES.get_or_init(|| [Arc::new(INTER_REGULAR.to_vec()), Arc::new(INTER_BOLD.to_vec())]);
+    FontFace { data: if bold { bold_face.clone() } else { regular.clone() }, index: 0 }
+}
+
+/// Any installed family, as the system lists it (Windows' and the user's
+/// font folders, macOS's and Linux's font directories).
+fn system_face(family: &str, bold: bool, italic: bool) -> Option<FontFace> {
+    static DB: OnceLock<fontdb::Database> = OnceLock::new();
+    let db = DB.get_or_init(|| {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        db
+    });
+    let query = fontdb::Query {
+        families: &[fontdb::Family::Name(family)],
+        weight: if bold { fontdb::Weight::BOLD } else { fontdb::Weight::NORMAL },
+        style: if italic { fontdb::Style::Italic } else { fontdb::Style::Normal },
+        ..Default::default()
+    };
+    let id = db.query(&query)?;
+    let (_, index) = db.face_source(id)?;
+    let data = db.with_face_data(id, |bytes, _| bytes.to_vec())?;
+    Some(FontFace { data: Arc::new(data), index })
 }
 
 fn fonts_dir() -> std::path::PathBuf {
@@ -62,24 +97,39 @@ fn default_font_file(bold: bool) -> Option<std::path::PathBuf> {
     p.exists().then_some(p)
 }
 
-/// Loads (once) the face for `family` (`$Default` for Avalonia's default).
+/// Loads (once) the face for `family` (`$Default` for Avalonia's default),
+/// as Avalonia's font manager finds it: the system's family, else the
+/// default (Inter), so text never comes out empty on a system without it.
+/// Found faces by (family, bold, italic): the file's bytes and face index,
+/// or `None` when the system hasn't the family.
+type FaceCache = HashMap<(String, bool, bool), Option<(Arc<Vec<u8>>, u32)>>;
+
 pub fn load_face(family: &str, bold: bool, italic: bool) -> Option<FontFace> {
-    static CACHE: OnceLock<Mutex<HashMap<std::path::PathBuf, Arc<Vec<u8>>>>> = OnceLock::new();
-    let path = if family == "$Default" {
-        default_font_file(bold)?
-    } else {
-        font_file(family, bold, italic)?
-    };
-    let mut cache = CACHE.get_or_init(Default::default).lock().ok()?;
-    let data = match cache.get(&path) {
-        Some(d) => d.clone(),
-        None => {
-            let d = Arc::new(std::fs::read(&path).ok()?);
-            cache.insert(path, d.clone());
-            d
+    static CACHE: OnceLock<Mutex<FaceCache>> = OnceLock::new();
+    if family == "$Default" {
+        // `SHAREXRS_INTER_DIR` lets the harness point at Avalonia's own files.
+        if let Some(path) = default_font_file(bold)
+            && let Ok(d) = std::fs::read(path)
+        {
+            return Some(FontFace { data: Arc::new(d), index: 0 });
         }
-    };
-    Some(FontFace { data })
+        return Some(inter(bold));
+    }
+    let key = (family.to_ascii_lowercase(), bold, italic);
+    let mut cache = CACHE.get_or_init(Default::default).lock().ok()?;
+    let found = cache
+        .entry(key)
+        .or_insert_with(|| {
+            font_file(family, bold, italic)
+                .and_then(|p| std::fs::read(p).ok())
+                .map(|d| (Arc::new(d), 0))
+                .or_else(|| system_face(family, bold, italic).map(|f| (f.data, f.index)))
+        })
+        .clone();
+    Some(match found {
+        Some((data, index)) => FontFace { data, index },
+        None => inter(bold),
+    })
 }
 
 /// A shaped glyph.

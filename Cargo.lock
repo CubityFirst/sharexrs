@@ -1356,6 +1356,7 @@ checksum = "457e789b3d1202543297a350643cf459f836cade38934e7a4cf6a39e7cde2905"
 dependencies = [
  "fontconfig-parser",
  "log",
+ "memmap2",
  "slotmap",
  "tinyvec",
  "ttf-parser",
@@ -3804,6 +3805,7 @@ dependencies = [
 name = "sharex-image-editor"
 version = "22.4.0"
 dependencies = [
+ "fontdb",
  "harfrust",
  "image",
  "serde",
