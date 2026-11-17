@@ -507,6 +507,11 @@ impl Workspace {
     pub fn select_tool(&mut self, tool: EditorTool) {
         self.commit_text();
         self.clear_selection();
+        if matches!(tool, EditorTool::Image | EditorTool::Emoji) {
+            // `RequestImageInsertion` / `ShowEmojiPickerDialog` (not ported):
+            // the active tool stays.
+            return;
+        }
         if tool == self.tool {
             return;
         }

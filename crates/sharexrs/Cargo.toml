@@ -12,6 +12,7 @@ sharex-capture.workspace = true
 sharex-helpers.workspace = true
 sharex-settings.workspace = true
 sharex-image-effects.workspace = true
+sharex-image-editor.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true
 egui-winit.workspace = true

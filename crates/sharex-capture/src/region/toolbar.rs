@@ -2,18 +2,21 @@
 //! (drag handle and rectangle region button) leading the image editor's
 //! `AnnotationToolbar` (`AnnotationToolbar.axaml`) with the default tool
 //! items (`ToolbarCustomizationItemViewModel`, without Crop and Cut out,
-//! `RegionCaptureToolbar.CreateItems`). The annotation tools are drawn but
-//! inert until the image editor is ported.
+//! `RegionCaptureToolbar.CreateItems`); the active tool shows as active
+//! (`ToolbarCustomizationItemViewModel.IsActive`) and its options row
+//! ([`super::options_row`]) hangs under it.
 
 use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Stroke, StrokeKind, pos2, vec2};
+use sharex_image_editor::model::EditorTool;
 use sharex_strings::{image_editor as ie, screen_capture_lib as sc};
 use sharex_ui::keys::image_editor_icons as icon;
 use sharex_ui::{Palette, icons};
 
 /// An annotation tool on the toolbar (`ToolbarItemDefinition`).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct ToolItem {
     pub id: &'static str,
+    pub tool: EditorTool,
     pub name: fn() -> &'static str,
     pub icon: &'static str,
     pub hotkey: &'static str,
@@ -24,36 +27,45 @@ pub struct ToolItem {
 
 const fn tool(
     id: &'static str,
+    tool: EditorTool,
     name: fn() -> &'static str,
     icon: &'static str,
     hotkey: &'static str,
     secondary_hotkey: &'static str,
 ) -> ToolItem {
-    ToolItem { id, name, icon, hotkey, secondary_hotkey, begin_group: false }
+    ToolItem { id, tool, name, icon, hotkey, secondary_hotkey, begin_group: false }
 }
 
 /// The default items, in order: every tool but Crop and Cut out (which
 /// region capture leaves out), Select starting a group.
 pub const TOOLS: [ToolItem; 19] = [
-    ToolItem { begin_group: true, ..tool("Select", ie::ToolbarCustomizationItemViewModel_Select, icon::Select, "V", "") },
-    tool("Rectangle", ie::ToolbarCustomizationItemViewModel_Rectangle, icon::Rectangle, "R", "NumPad1"),
-    tool("Ellipse", ie::ToolbarCustomizationItemViewModel_Ellipse, icon::Ellipse, "E", "NumPad2"),
-    tool("Line", ie::ToolbarCustomizationItemViewModel_Line, icon::Line, "L", "NumPad4"),
-    tool("Arrow", ie::ToolbarCustomizationItemViewModel_Arrow, icon::Arrow, "A", "NumPad5"),
-    tool("Freehand", ie::ToolbarCustomizationItemViewModel_Freehand, icon::Freehand, "F", "NumPad3"),
-    tool("Text", ie::ToolbarCustomizationItemViewModel_Text, icon::Text, "T", "NumPad6"),
-    tool("SpeechBalloon", ie::ToolbarCustomizationItemViewModel_SpeechBalloon, icon::SpeechBalloon, "O", ""),
-    tool("Step", ie::ToolbarCustomizationItemViewModel_Step, icon::Step, "N", "NumPad7"),
-    tool("Image", ie::ToolbarCustomizationItemViewModel_Image, icon::Image, "I", ""),
-    tool("Clone", ie::ToolbarCustomizationItemViewModel_Clone, icon::Clone, "D", ""),
-    tool("Emoji", ie::ToolbarCustomizationItemViewModel_Emoji, icon::Emoji, "J", ""),
-    tool("Cursor", ie::ToolbarCustomizationItemViewModel_Cursor, icon::Cursor, "K", ""),
-    tool("Highlight", ie::ToolbarCustomizationItemViewModel_Highlight, icon::Highlight, "H", ""),
-    tool("SmartEraser", ie::ToolbarCustomizationItemViewModel_SmartEraser, icon::SmartEraser, "W", ""),
-    tool("Blur", ie::ToolbarCustomizationItemViewModel_Blur, icon::Blur, "B", "NumPad8"),
-    tool("Pixelate", ie::ToolbarCustomizationItemViewModel_Pixelate, icon::Pixelate, "P", "NumPad9"),
-    tool("Magnify", ie::ToolbarCustomizationItemViewModel_Magnify, icon::Magnify, "M", ""),
-    tool("Spotlight", ie::ToolbarCustomizationItemViewModel_Spotlight, icon::Spotlight, "S", ""),
+    ToolItem {
+        id: "Select",
+        tool: EditorTool::Select,
+        name: ie::ToolbarCustomizationItemViewModel_Select,
+        icon: icon::Select,
+        hotkey: "V",
+        secondary_hotkey: "",
+        begin_group: true,
+    },
+    tool("Rectangle", EditorTool::Rectangle, ie::ToolbarCustomizationItemViewModel_Rectangle, icon::Rectangle, "R", "NumPad1"),
+    tool("Ellipse", EditorTool::Ellipse, ie::ToolbarCustomizationItemViewModel_Ellipse, icon::Ellipse, "E", "NumPad2"),
+    tool("Line", EditorTool::Line, ie::ToolbarCustomizationItemViewModel_Line, icon::Line, "L", "NumPad4"),
+    tool("Arrow", EditorTool::Arrow, ie::ToolbarCustomizationItemViewModel_Arrow, icon::Arrow, "A", "NumPad5"),
+    tool("Freehand", EditorTool::Freehand, ie::ToolbarCustomizationItemViewModel_Freehand, icon::Freehand, "F", "NumPad3"),
+    tool("Text", EditorTool::Text, ie::ToolbarCustomizationItemViewModel_Text, icon::Text, "T", "NumPad6"),
+    tool("SpeechBalloon", EditorTool::SpeechBalloon, ie::ToolbarCustomizationItemViewModel_SpeechBalloon, icon::SpeechBalloon, "O", ""),
+    tool("Step", EditorTool::Step, ie::ToolbarCustomizationItemViewModel_Step, icon::Step, "N", "NumPad7"),
+    tool("Image", EditorTool::Image, ie::ToolbarCustomizationItemViewModel_Image, icon::Image, "I", ""),
+    tool("Clone", EditorTool::Clone, ie::ToolbarCustomizationItemViewModel_Clone, icon::Clone, "D", ""),
+    tool("Emoji", EditorTool::Emoji, ie::ToolbarCustomizationItemViewModel_Emoji, icon::Emoji, "J", ""),
+    tool("Cursor", EditorTool::Cursor, ie::ToolbarCustomizationItemViewModel_Cursor, icon::Cursor, "K", ""),
+    tool("Highlight", EditorTool::Highlight, ie::ToolbarCustomizationItemViewModel_Highlight, icon::Highlight, "H", ""),
+    tool("SmartEraser", EditorTool::SmartEraser, ie::ToolbarCustomizationItemViewModel_SmartEraser, icon::SmartEraser, "W", ""),
+    tool("Blur", EditorTool::Blur, ie::ToolbarCustomizationItemViewModel_Blur, icon::Blur, "B", "NumPad8"),
+    tool("Pixelate", EditorTool::Pixelate, ie::ToolbarCustomizationItemViewModel_Pixelate, icon::Pixelate, "P", "NumPad9"),
+    tool("Magnify", EditorTool::Magnify, ie::ToolbarCustomizationItemViewModel_Magnify, icon::Magnify, "M", ""),
+    tool("Spotlight", EditorTool::Spotlight, ie::ToolbarCustomizationItemViewModel_Spotlight, icon::Spotlight, "S", ""),
 ];
 
 impl ToolItem {
@@ -81,6 +93,8 @@ pub enum Part {
     DragHandle,
     RegionButton,
     Tool(usize),
+    /// A control of the tool options row.
+    Option(super::options_row::OptionItem),
     /// The toolbar's background (not a button).
     Background,
 }
@@ -152,6 +166,30 @@ impl Layout {
     }
 }
 
+/// `ToolbarHotkeyHelper.Matches` against the items' hotkeys
+/// (`TrySelectToolForToolbarHotkey`): the tool of `key` with `m`.
+pub fn tool_for_hotkey(key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<EditorTool> {
+    TOOLS.iter().find_map(|t| {
+        [t.hotkey, t.secondary_hotkey]
+            .iter()
+            .any(|h| {
+                let mut parts: Vec<&str> = h.split('+').map(str::trim).filter(|s| !s.is_empty()).collect();
+                let Some(k) = parts.pop() else { return false };
+                let has = |m: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(m));
+                k.eq_ignore_ascii_case(key)
+                    && has("Ctrl") == ctrl
+                    && has("Shift") == shift
+                    && has("Alt") == alt
+            })
+            .then(|| t.tool.clone())
+    })
+}
+
+/// `.toolbar-button.active`'s background: `ShareX.Brush.Accent`.
+pub fn fill_accent(painter: &Painter, rect: Rect, radius: CornerRadius, p: &Palette) {
+    fill_gradient(painter, rect, radius, p.accent_start, p.accent_end);
+}
+
 /// `ShareX.Brush.Accent`: the accent gradient, top-left to bottom-right,
 /// over a tessellated shape's mesh (its alpha keeps the edges' smoothing).
 fn fill_gradient(painter: &Painter, rect: Rect, radius: CornerRadius, start: Color32, end: Color32) {
@@ -193,7 +231,18 @@ fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: bool, h
 
 /// Draws the toolbar laid out as `layout`, `opacity` for its hide
 /// animation, with `hovered` under the pointer.
-pub fn paint(painter: &Painter, p: &Palette, layout: &Layout, hovered: Option<Part>, region_active: bool, scale: f32, opacity: f32) {
+/// `active_tool`: the tool shown active (none while the region tool is).
+#[allow(clippy::too_many_arguments)]
+pub fn paint(
+    painter: &Painter,
+    p: &Palette,
+    layout: &Layout,
+    hovered: Option<Part>,
+    region_active: bool,
+    active_tool: Option<&EditorTool>,
+    scale: f32,
+    opacity: f32,
+) {
     let painter = painter.clone().with_layer_id(painter.layer_id());
     let mut painter = painter;
     painter.set_opacity(opacity);
@@ -216,7 +265,8 @@ pub fn paint(painter: &Painter, p: &Palette, layout: &Layout, hovered: Option<Pa
         painter.rect_filled(*sep, 0.0, p.separator);
     }
     for (i, (rect, item)) in layout.tools.iter().zip(TOOLS.iter()).enumerate() {
-        button(&painter, p, *rect, item.icon, false, hovered == Some(Part::Tool(i)), scale);
+        let active = active_tool == Some(&item.tool);
+        button(&painter, p, *rect, item.icon, active, hovered == Some(Part::Tool(i)), scale);
     }
 }
 
@@ -226,7 +276,7 @@ pub fn tooltip(part: Part) -> Option<String> {
         Part::DragHandle => Some(sc::RegionCaptureWindow_MoveToolbar().to_string()),
         Part::RegionButton => Some(sc::RegionCaptureWindow_RectangleRegionTab().to_string()),
         Part::Tool(i) => TOOLS.get(i).map(ToolItem::tooltip),
-        Part::Background => None,
+        Part::Option(_) | Part::Background => None,
     }
 }
 
