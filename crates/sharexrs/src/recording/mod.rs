@@ -1253,7 +1253,8 @@ pub fn render(screen: &str, dark: bool, o: &RenderOptions) -> Result<image::Rgba
             sharex_ui::install(&ctx);
             ctx.set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
             let mut size = egui::Vec2::ZERO;
-            let _ = ctx.run_ui(egui::RawInput::default(), |ui| size = bar.size(ui));
+            let mut measured = ctx.run_ui(egui::RawInput::default(), |ui| size = bar.size(ui));
+            measured.textures_delta.clear();
             let w = o.width.unwrap_or((size.x * o.scale).ceil() as u32);
             let h = o.height.unwrap_or((size.y * o.scale).ceil() as u32);
             let mut screen = Offscreen::new([w, h], o.scale, dark)?;
