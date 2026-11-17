@@ -10,3 +10,7 @@
 # The recording harness's .NET build output.
 /tools/recording-harness/bin
 /tools/recording-harness/obj
+
+# The OCR harness's .NET build output.
+/tools/ocr-harness/bin
+/tools/ocr-harness/obj

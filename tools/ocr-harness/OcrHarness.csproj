@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference for ShareXrs's OCR (crates/sharex-ocr): generates synthetic
+    test images with SkiaSharp, then runs ShareX's own ShareX.OCR.dll (PaddleOCREngine,
+    with ONNX Runtime and SkiaSharp from a ShareX build of REFERENCE_COMMIT) over them
+    and writes the text, the regions and lines, and the intermediate results (model
+    input, probability map, boxes, line crops, raw texts and scores). No window opens;
+    nothing leaves the machine. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.OCR"><HintPath>$(ShareXBuild)\ShareX.OCR.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="SkiaSharp"><HintPath>$(ShareXBuild)\SkiaSharp.dll</HintPath></Reference>
+    <Reference Include="Microsoft.ML.OnnxRuntime"><HintPath>$(ShareXBuild)\Microsoft.ML.OnnxRuntime.dll</HintPath></Reference>
+    <!-- Everything else ShareX's libraries load, and the native onnxruntime.dll / libSkiaSharp.dll. -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>
