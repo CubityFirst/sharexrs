@@ -19,6 +19,7 @@ pub mod macros;
 pub mod application_config;
 pub mod defaults;
 pub mod enums;
+pub mod ffmpeg_options;
 pub mod hotkeys;
 pub mod manager;
 pub mod paths;
@@ -29,6 +30,7 @@ pub mod types;
 
 pub use application_config::{ApplicationConfig, ApplicationThemeOptions, QuickTaskInfo};
 pub use enums::*;
+pub use ffmpeg_options::{FFmpegCaptureDevice, FFmpegOptions};
 pub use hotkeys::{HotkeyInfo, HotkeySettings, HotkeyStatus, HotkeysConfig, InputKey, default_hotkey_list};
 pub use manager::SettingManager;
 pub use paths::{AppPaths, SystemOptions};

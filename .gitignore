@@ -6,3 +6,7 @@
 # The image effects harness's .NET build output.
 /tools/effects-harness/bin
 /tools/effects-harness/obj
+
+# The recording harness's .NET build output.
+/tools/recording-harness/bin
+/tools/recording-harness/obj

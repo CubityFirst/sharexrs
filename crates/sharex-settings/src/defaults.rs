@@ -1,5 +1,5 @@
 //! Defaults for the settings classes ShareXrs keeps as plain JSON until the
-//! tools that own them are ported (`FFmpegOptions`, `OCROptions`, the
+//! tools that own them are ported (`OCROptions`, the
 //! tools' options, ...): exactly what ShareX's serializer writes for a new
 //! instance, taken from a fresh ShareX profile (`defaults.json`).
 //!
@@ -22,7 +22,7 @@ pub fn json(class: &str) -> Value {
 mod tests {
     #[test]
     fn every_default_parses() {
-        for class in ["FFmpegOptions", "ImageEditorOptions", "TimeZoneInfo.Utc", "ProxyInfo"] {
+        for class in ["ImageEditorOptions", "TimeZoneInfo.Utc", "ProxyInfo"] {
             assert!(super::json(class).is_object(), "{class}");
         }
         assert!(super::json("NotificationActionButton.CreateDefaultButtons").is_array());

@@ -4,6 +4,7 @@
 use serde_json::Value;
 
 use crate::enums::*;
+use crate::ffmpeg_options::FFmpegOptions;
 use crate::region_capture::RegionCaptureOptions;
 use crate::settings;
 use crate::types::{Rectangle, Size};
@@ -255,8 +256,7 @@ settings! {
         CaptureCustomRegion: Rectangle = Rectangle::new(0, 0, 0, 0),
         CaptureCustomWindow: String = String::new(),
         RegionCaptureOptions: RegionCaptureOptions = RegionCaptureOptions::default(),
-        /// `ShareX.ScreenCaptureLib.FFmpegOptions` (not ported yet).
-        FFmpegOptions: Value = defaults::json("FFmpegOptions"),
+        FFmpegOptions: FFmpegOptions = FFmpegOptions::default(),
         ScreenRecordUseNative: bool = true,
         ScreenRecordShowBar: bool = true,
         ScreenRecordSystemAudio: bool = true,

@@ -1,0 +1,15 @@
+[package]
+name = "sharex-screen-recording"
+description = "ShareX's FFmpeg screen recorder: FFmpegOptions' command lines, running FFmpeg (stop, pause by segments, abort), the two-pass and GIF encodes, FFmpeg discovery and the recording devices."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-settings.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex = "1"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Registry"] }
