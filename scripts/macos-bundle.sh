@@ -4,19 +4,27 @@
 # which swaps the whole app. Runs on macOS. Adapted from snapr's, which
 # learned each line the hard way (docs/MACOS-LEARNINGS.md, section 1).
 #
-#   scripts/macos-bundle.sh <sharexrs binary> <version> <arch> <out dir>
+#   scripts/macos-bundle.sh <sharexrs binary> <version> <arch> <out dir> [<payload dir>]
 #
 # Writes <out dir>/ShareXrs-macos-<arch>.dmg and ShareXrs-macos-<arch>.app.zip.
 # Signs with $SHAREXRS_SIGN_IDENTITY (in $SHAREXRS_SIGN_KEYCHAIN) when set,
 # ad hoc otherwise.
+#
+# <payload dir> is scripts/fetch-bundled.py's output for macos-arm64; its
+# pieces go where ShareXrs looks for them (docs/RELEASING.md):
+#
+#   Contents/MacOS/ffmpeg                    beside the program (ShareX's rule)
+#   Contents/Frameworks/libonnxruntime.dylib
+#   Contents/Resources/Models/...            the OCR models
+#   Contents/Resources/Licenses/*.txt
 
 set -euo pipefail
 
-if [ $# -ne 4 ]; then
-  echo "usage: $0 <sharexrs binary> <version> <arch> <out dir>" >&2
+if [ $# -ne 4 ] && [ $# -ne 5 ]; then
+  echo "usage: $0 <sharexrs binary> <version> <arch> <out dir> [<payload dir>]" >&2
   exit 2
 fi
-bin=$1 version=$2 arch=$3 out=$4
+bin=$1 version=$2 arch=$3 out=$4 payload=${5:-}
 here=$(cd "$(dirname "$0")" && pwd)
 
 work=$(mktemp -d)
@@ -28,6 +36,16 @@ chmod 755 "$app/Contents/MacOS/sharexrs"
 # The app icon, rendered by ShareXrs itself into assets/ShareXrs.iconset
 # (scripts/make-icons.sh).
 iconutil -c icns "$here/../assets/ShareXrs.iconset" -o "$app/Contents/Resources/ShareXrs.icns"
+
+# Everything else bundled; nested code is signed below, before the app.
+nested=()
+if [ -n "$payload" ]; then
+  mkdir -p "$app/Contents/Frameworks"
+  install -m 755 "$payload/ffmpeg" "$app/Contents/MacOS/ffmpeg"
+  install -m 644 "$payload/libonnxruntime.dylib" "$app/Contents/Frameworks/libonnxruntime.dylib"
+  cp -R "$payload/Models" "$payload/Licenses" "$app/Contents/Resources/"
+  nested=("$app/Contents/Frameworks/libonnxruntime.dylib" "$app/Contents/MacOS/ffmpeg")
+fi
 
 # CFBundleIdentifier is part of what macOS files Screen Recording and
 # Accessibility grants under (with the signature, below): it never changes.
@@ -80,9 +98,13 @@ plutil -lint "$app/Contents/Info.plist"
 # them (snapr 6d6bbe7); signing with the same certificate every release
 # makes it name the certificate instead. Without one it falls back to ad
 # hoc, which still seals the app (Apple silicon won't run unsigned code).
+# FFmpeg and ONNX Runtime are signed first with the same identity (replacing
+# their own signatures), as codesign seals nested code by its signature.
 identity=${SHAREXRS_SIGN_IDENTITY:--}
-codesign --force --sign "$identity" ${SHAREXRS_SIGN_KEYCHAIN:+--keychain "$SHAREXRS_SIGN_KEYCHAIN"} "$app"
-codesign --verify --strict --verbose=2 "$app"
+for code in ${nested[@]+"${nested[@]}"} "$app"; do
+  codesign --force --sign "$identity" ${SHAREXRS_SIGN_KEYCHAIN:+--keychain "$SHAREXRS_SIGN_KEYCHAIN"} "$code"
+done
+codesign --verify --deep --strict --verbose=2 "$app"
 requirement=$(codesign --display --requirements - "$app" 2>&1)
 echo "$requirement"
 if [ "$identity" != - ] && grep -q cdhash <<<"$requirement"; then
