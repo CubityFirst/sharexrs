@@ -51,6 +51,15 @@
 //! `general`, `general-notifications`, `image`, `capture-region`, ...): the
 //! default task settings, or `--hotkey` the first default hotkey's.
 //!
+//! `ffmpeg-options` is the FFmpeg options window on a page (`--content
+//! sources|video|audio|advanced`; `--text` is a custom FFmpeg path, whose
+//! DirectShow devices are listed). `recording-toolbar` is the recording
+//! frame's toolbar (`--content` waiting, before, working, recording,
+//! paused, confirm; `-labels` with button labels, `-notimer` without the
+//! timer; `--text` the timer's text). `recorder-bar` is the recorder bar
+//! (`--content` default, labels, options, options-bar, gif). Both draw on
+//! grey (#808080).
+//!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
 //! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
 //! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
@@ -498,6 +507,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
             })
         }
         "controls-gallery" => crate::controls_gallery::render(dark)?,
+        "ffmpeg-options" | "recording-toolbar" | "recorder-bar" => {
+            crate::appearance::apply(&theme_settings(dark, accent.as_deref(), legacy, compact), None);
+            let o = crate::recording::RenderOptions {
+                content: dialog.content.clone().unwrap_or_default(),
+                text: dialog.text.clone(),
+                width,
+                height,
+                scale,
+                hover,
+                clicks: click.clone(),
+            };
+            crate::recording::render(&screen, dark, &o)?
+        }
         "hotkeys" => {
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             settings.DisableHotkeys = hk_disabled;

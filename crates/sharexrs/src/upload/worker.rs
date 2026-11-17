@@ -56,6 +56,8 @@ pub enum Source {
     /// `CreateURLShortenerTask`, `CreateShareURLTask`, `CreateDownloadTask`:
     /// the URL is the result's.
     Url,
+    /// `CreateFileJobTask` that doesn't upload: the file is the result.
+    None,
 }
 
 /// A task to start: `WorkerTask` as its constructors make it.

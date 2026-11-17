@@ -513,7 +513,7 @@ impl App {
         }
     }
 
-    fn task_window_event(&mut self, _event_loop: &ActiveEventLoop, event: &WindowEvent) {
+    fn task_window_event(&mut self, event_loop: &ActiveEventLoop, event: &WindowEvent) {
         let Some(t) = self.task_window.as_mut() else { return };
         match event {
             WindowEvent::CloseRequested => self.close_task_settings(),
@@ -528,10 +528,17 @@ impl App {
                 };
                 let state = &mut t.state;
                 let effects = t.window.paint(|ui| state.ui(ui, &mut ctx));
+                let target = t.target;
+                let mut ffmpeg = false;
                 for e in effects {
                     match e {
                         task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                        task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                     }
+                }
+                if ffmpeg {
+                    self.show_ffmpeg_options(event_loop, target);
+                    return;
                 }
                 // The hotkey list shows the task and its "custom settings" mark.
                 if matches!(t.target, TaskTarget::Hotkey(_))

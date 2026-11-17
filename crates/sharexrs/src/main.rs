@@ -21,6 +21,7 @@ mod main_menu;
 mod menu_settings;
 mod main_window;
 mod message_box;
+mod recording;
 mod region_render;
 mod region_session;
 mod render;
@@ -77,6 +78,8 @@ pub enum UserEvent {
     Task(tasks::TaskEvent),
     /// A task's thread asks for a window (the before upload window, ...).
     Ui(upload::UiRequest),
+    /// The screen recording's worker or tray icon.
+    Recording(recording::Event),
 }
 
 fn main() {
@@ -162,6 +165,9 @@ fn main() {
         system_theme: None,
         // `StartupOptions.SilentRun` (`-silent`, `-s`): start in the tray.
         silent: is_command_present(&args, &["silent", "s"]),
+        recording: None,
+        ffmpeg_options: None,
+        ffmpeg_download: None,
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -185,6 +191,8 @@ enum DialogPurpose {
     Information,
     /// Custom uploader settings' "Clear all..." confirmation.
     ClearCustomUploaders,
+    /// FFmpeg is missing (`CheckFFmpeg`): Yes downloads it.
+    DownloadFFmpeg(std::path::PathBuf),
 }
 
 struct App {
@@ -250,6 +258,12 @@ struct App {
     /// The OS's light or dark mode, for `UseSystemTheme`.
     system_theme: Option<winit::window::Theme>,
     silent: bool,
+    /// `ScreenRecordManager` while `IsRecording`.
+    recording: Option<recording::Recording>,
+    /// The FFmpeg options window, while it's open.
+    ffmpeg_options: Option<recording::ffmpeg_options::FFmpegOptionsHost>,
+    /// FFmpeg being downloaded.
+    ffmpeg_download: Option<recording::ffmpeg_options::Download>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -408,6 +422,14 @@ impl App {
         if let Some(job) = job {
             let task = task();
             self.capture(job, task, auto_hide);
+            return;
+        }
+        // `TaskHelpers.StartScreenRecording(output, Region)`: the default
+        // task settings, and no hiding of the main window.
+        if let MenuCommand::ScreenRecording | MenuCommand::ScreenRecordingGif = command {
+            let job = if command == MenuCommand::ScreenRecordingGif { HotkeyType::ScreenRecorderGIF } else { HotkeyType::ScreenRecorder };
+            let task = task();
+            self.run_recording_job(event_loop, &job, &task, None);
             return;
         }
         if self.upload_menu_command(event_loop, &command) {
@@ -903,6 +925,10 @@ impl App {
         let Some(dialog) = self.dialog.take() else { return };
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
+        } else if let DialogPurpose::DownloadFFmpeg(path) = &dialog.purpose {
+            if result == DialogResult::Yes {
+                self.download_ffmpeg(path.clone());
+            }
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
             && result == DialogResult::Yes
             && let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("custom-uploader-settings"))
@@ -983,13 +1009,16 @@ impl App {
     /// settings filled in from the defaults (`GetSafeTaskSettings`).
     /// Captures and tools hook in here as they're ported; until then the
     /// job is logged.
-    fn run_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType, task: TaskSettings) {
+    fn run_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType, task: TaskSettings, origin: Option<usize>) {
         if job == HotkeyType::None {
             return;
         }
         eprintln!("job: {} ({})", job.name(), task.display_name());
         if let Some(capture) = CaptureJob::from_hotkey(&job) {
             self.capture(capture, task, false);
+            return;
+        }
+        if self.run_recording_job(event_loop, &job, &task, origin) {
             return;
         }
         if self.run_upload_job(event_loop, &job, &task) {
@@ -1009,7 +1038,7 @@ impl App {
     fn run_default_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType) {
         let defaults = &self.settings.settings.DefaultTaskSettings;
         let task = defaults.safe_task_settings(defaults);
-        self.run_job(event_loop, job, task);
+        self.run_job(event_loop, job, task, None);
     }
 
     /// `DesktopTrayIconService.OnMouseUp` / `OnMouseDown` and the main
@@ -1209,7 +1238,7 @@ impl ApplicationHandler<UserEvent> for App {
                 let hotkey = &self.settings.hotkeys.Hotkeys[i];
                 eprintln!("Hotkey triggered. {hotkey}");
                 let task = hotkey.TaskSettings.safe_task_settings(defaults);
-                self.run_job(event_loop, task.Job.clone(), task);
+                self.run_job(event_loop, task.Job.clone(), task, Some(i));
             }
             UserEvent::Tray(e) => self.tray_event(event_loop, e),
             UserEvent::Task(event) => {
@@ -1220,6 +1249,7 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             UserEvent::Ui(request) => self.ui_request(event_loop, request),
+            UserEvent::Recording(event) => self.recording_event(event_loop, event),
         }
     }
 
@@ -1228,6 +1258,8 @@ impl ApplicationHandler<UserEvent> for App {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // `DisposeWindowResources`: the tray icon goes.
         self.tray_menu = None;
+        self.recording = None;
+        self.ffmpeg_options = None;
         if let Some(mut s) = self.settings_window.take() {
             s.state.flush_personal_path();
         }
@@ -1260,6 +1292,12 @@ impl ApplicationHandler<UserEvent> for App {
             return;
         }
         if self.dialog_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.recording_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.ffmpeg_options_window_event(event_loop, id, &event) {
             return;
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
@@ -1374,6 +1412,8 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(m) = &mut self.tray_menu {
             m.redraw_if_due(now);
         }
+        let recording = self.recording_wake_at();
+        let ffmpeg_options = self.ffmpeg_options_wake_at(now);
         let app_windows = self.app_windows_due(now);
         let dialogs = self.dialogs_due(now);
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
@@ -1387,6 +1427,8 @@ impl ApplicationHandler<UserEvent> for App {
             self.tray_click_at,
             app_windows,
             dialogs,
+            recording,
+            ffmpeg_options,
         ]
         .into_iter()
         .flatten()

@@ -14,6 +14,7 @@ sharex-settings.workspace = true
 sharex-image-effects.workspace = true
 sharex-history.workspace = true
 sharex-uploaders.workspace = true
+sharex-screen-recording.workspace = true
 # .NET regex substitutions for the after upload URL replace, as sharex-uploaders uses it.
 fancy-regex = "0.11"
 sharex-image-editor.workspace = true
@@ -34,6 +35,8 @@ rfd = "0.17.2"
 # The QR code window: ZXing's encoding (`qrcode` segments) and scanning.
 qrcode = { version = "0.14.1", default-features = false }
 rqrr = { version = "0.11.0", default-features = false }
+# FFmpeg's download (`FFmpegGitHubDownloader.ExtractFFmpeg`).
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target."cfg(windows)".dependencies]
 # The Startup folder shortcut (`ShortcutHelpers`): IShellLinkW.

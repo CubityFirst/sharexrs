@@ -66,7 +66,7 @@ impl App {
         }
     }
 
-    fn new_task_context(&mut self) -> NewTaskContext<'_> {
+    pub(crate) fn new_task_context(&mut self) -> NewTaskContext<'_> {
         let screenshots_parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let image_effects_folder = self.settings.paths.image_effects_folder();
         NewTaskContext::new(&mut self.settings.settings, screenshots_parent, image_effects_folder)
