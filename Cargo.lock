@@ -3374,11 +3374,13 @@ dependencies = [
 name = "sharex-image-editor"
 version = "22.4.0"
 dependencies = [
+ "harfrust",
  "image",
  "serde",
  "serde_json",
  "sharex-settings",
  "sharex-skia",
+ "ttf-parser",
 ]
 
 [[package]]
