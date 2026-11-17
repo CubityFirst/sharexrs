@@ -1,0 +1,418 @@
+//! ShareX's upload windows, each in an OS window of its own: the text,
+//! URL and shorten URL windows, the clipboard content viewer, the drag and
+//! drop window, the multi upload and large file confirmations, the before
+//! and after upload windows and the QR code window.
+//!
+//! Every one is a [`Dialog`]: it describes its window ([`Spec`]), draws its
+//! client area and answers with [`Effect`]s, which the app carries out
+//! (`App::dialog_effects`). ShareX's windows that block a task's thread
+//! (`LargeFileUploadWarningWindowIntegration.Show`,
+//! `BeforeUploadWindowIntegration.Show`) answer through a channel the
+//! task's thread waits on.
+
+pub mod after_upload;
+pub mod before_upload;
+pub mod clipboard_upload;
+pub mod confirm;
+pub mod drop_window;
+pub mod layout;
+pub mod qr_code;
+pub mod render;
+pub mod text_upload;
+pub mod url_input;
+
+use std::path::PathBuf;
+
+use image::RgbaImage;
+use sharex_settings::{ApplicationConfig, TaskSettings};
+use winit::dpi::LogicalSize;
+use winit::event::WindowEvent;
+use winit::event_loop::ActiveEventLoop;
+use winit::window::{Icon, WindowAttributes, WindowButtons, WindowId, WindowLevel};
+
+use crate::upload::UploadersConfigStore;
+use crate::upload::manager::ClipboardContent;
+use crate::window::EguiWindow;
+use crate::{App, app_icon, center, set_theme};
+
+/// How a dialog's window is made (its `Window` attributes in the `.axaml`).
+#[derive(Clone, Debug)]
+pub struct Spec {
+    pub title: String,
+    pub width: f32,
+    pub height: f32,
+    pub min_width: f32,
+    pub min_height: f32,
+    /// `CanResize`.
+    pub resizable: bool,
+    /// `SizeToContent="Height"`: the height comes from [`Dialog::content_height`].
+    pub size_to_content: bool,
+    /// `Topmost`.
+    pub topmost: bool,
+    /// `ShowInTaskbar="False"`.
+    pub skip_taskbar: bool,
+    /// `CanMaximize="False"`.
+    pub maximizable: bool,
+    /// `ShowActivated`.
+    pub activate: bool,
+    /// `WindowDecorations="None"` with a transparent background.
+    pub borderless: bool,
+}
+
+impl Spec {
+    /// A resizable window `width` x `height` with these minimums.
+    pub fn sized(title: impl Into<String>, width: f32, height: f32, min_width: f32, min_height: f32) -> Self {
+        Self {
+            title: title.into(),
+            width,
+            height,
+            min_width,
+            min_height,
+            resizable: true,
+            size_to_content: false,
+            topmost: false,
+            skip_taskbar: false,
+            maximizable: true,
+            activate: true,
+            borderless: false,
+        }
+    }
+
+    /// A fixed-size window as tall as its content.
+    pub fn fit_height(title: impl Into<String>, width: f32, min_width: f32) -> Self {
+        Self { resizable: false, size_to_content: true, ..Self::sized(title, width, 200.0, min_width, 0.0) }
+    }
+}
+
+/// What the app does for a dialog.
+pub enum Effect {
+    /// The window closes (`Close()`).
+    Close,
+    /// Tasks to start (`UploadManager`).
+    Upload(Box<UploadRequest>),
+    /// `ClipboardHelpers.CopyText`.
+    CopyText(String),
+    /// `ClipboardHelpers.CopyImage`.
+    CopyImage(RgbaImage),
+    /// `URLHelpers.OpenURL`.
+    OpenUrl(String),
+    /// `FileHelpers.OpenFile`.
+    OpenFile(PathBuf),
+    /// `FileHelpers.OpenFolderWithFile`.
+    OpenFolderWithFile(PathBuf),
+    /// `BeginMoveDrag`.
+    DragWindow,
+    /// `SizeToContent="Height"` after the content changed.
+    SetHeight(f32),
+    /// The QR code window's screen scan: hidden for 250 ms, the screen
+    /// grabbed and scanned, shown again ([`Dialog::scanned`]).
+    ScanScreen,
+    /// What isn't ported yet (logged).
+    NotPorted(&'static str),
+}
+
+/// `UploadManager`'s entry points a dialog starts.
+pub enum UploadRequest {
+    /// `UploadText(text, taskSettings, allowCustomText)`.
+    Text { text: String, task: TaskSettings, allow_custom_text: bool },
+    /// `ProcessTextUpload`.
+    ProcessText { text: String, task: TaskSettings },
+    /// `DownloadAndUploadFile`.
+    DownloadAndUpload { url: String, task: TaskSettings },
+    /// `ShortenURL`.
+    ShortenUrl { url: String, task: TaskSettings },
+    /// `ProcessImageUpload`.
+    ProcessImage { image: RgbaImage, task: TaskSettings },
+    /// `UploadFile(files)`: asks first when there are more than 10, unless
+    /// already `confirmed`.
+    Files { files: Vec<PathBuf>, task: TaskSettings, confirmed: bool },
+    /// `UploadImage(image)` of a generated QR code.
+    QrCodeImage(RgbaImage),
+}
+
+impl UploadRequest {
+    /// `ClipboardUploadWindow.UploadClipboardContent`.
+    pub fn clipboard(content: ClipboardContent, task: TaskSettings) -> Self {
+        match content {
+            ClipboardContent::Image(image) => Self::ProcessImage { image, task },
+            ClipboardContent::Text(text) => Self::ProcessText { text, task },
+            ClipboardContent::Files(files) => Self::Files { files, task, confirmed: false },
+        }
+    }
+}
+
+/// What a dialog may read and change while it's drawn.
+pub struct Cx<'a> {
+    /// `ApplicationState.Settings`.
+    pub settings: &'a mut ApplicationConfig,
+    /// `ApplicationState.UploadersConfig`.
+    #[allow(dead_code)]
+    pub uploaders: &'a UploadersConfigStore,
+}
+
+/// One of ShareX's upload windows.
+pub trait Dialog {
+    fn spec(&self) -> Spec;
+
+    /// The height of the content for [`Spec::size_to_content`].
+    fn content_height(&mut self, ui: &mut egui::Ui) -> f32 {
+        let _ = ui;
+        self.spec().height
+    }
+
+    /// Draws the client area.
+    fn ui(&mut self, ui: &mut egui::Ui, cx: &mut Cx) -> Vec<Effect>;
+
+    /// The window closed (`Closed`), whichever way: the last answer.
+    fn closed(&mut self, cx: &mut Cx) -> Vec<Effect> {
+        let _ = cx;
+        Vec::new()
+    }
+
+    /// What a screen scan found (`ScanScreen`).
+    fn scanned(&mut self, _results: Option<Vec<String>>) {}
+
+    /// Files dragged over the window (`DragEnter`/`DragLeave`) and dropped.
+    fn drag(&mut self, _hover: bool) {}
+    fn dropped(&mut self, _files: Vec<PathBuf>, _cx: &mut Cx) -> Vec<Effect> {
+        Vec::new()
+    }
+
+    /// The window's `Opacity` (premultiplied into the clear colour).
+    fn opacity(&self) -> f32 {
+        1.0
+    }
+
+    /// `DragDropUploadWindow.TaskSettings`: the drop window's tasks run
+    /// with the settings it was last opened with.
+    fn set_task(&mut self, _task: TaskSettings) {}
+
+    /// Windows ShareX keeps one of (`ClipboardUploadWindowIntegration._window`):
+    /// asking again brings that one to the front.
+    fn single(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Where the window goes once it's sized; centred on the screen when
+    /// `None` (`WindowStartupLocation="CenterScreen"`).
+    fn position(&self, work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
+        let _ = (work_area, size);
+        None
+    }
+}
+
+/// An open dialog.
+pub struct DialogWindow {
+    pub window: EguiWindow,
+    pub dialog: Box<dyn Dialog>,
+}
+
+impl App {
+    /// Opens `dialog` in a window of its own (`Window.Show()`).
+    pub(crate) fn open_dialog_window(&mut self, event_loop: &ActiveEventLoop, dialog: Box<dyn Dialog>) {
+        if let Some(key) = dialog.single()
+            && let Some(open) = self.dialogs.iter().find(|d| d.dialog.single() == Some(key))
+        {
+            open.window.window.set_minimized(false);
+            open.window.window.focus_window();
+            return;
+        }
+        if let Err(e) = self.try_open_dialog_window(event_loop, dialog) {
+            eprintln!("couldn't open the window: {e}");
+        }
+    }
+
+    fn try_open_dialog_window(&mut self, event_loop: &ActiveEventLoop, mut dialog: Box<dyn Dialog>) -> Result<(), String> {
+        let theme = self.theme();
+        let gpu = match &self.gpu {
+            Some(g) => g,
+            None => self.gpu.insert(sharex_ui::gpu::Gpu::new()?),
+        };
+        let spec = dialog.spec();
+        let attrs = attributes(&spec, theme);
+        let window = event_loop.create_window(attrs).map_err(|e| e.to_string())?;
+        let mut w = EguiWindow::new(window, gpu, None)?;
+        set_theme(&w, theme);
+        if spec.borderless {
+            w.clear_color = Some([0.0; 4]);
+        }
+        if spec.size_to_content {
+            let height = w.paint(|ui| dialog.content_height(ui));
+            let _ = w.window.request_inner_size(LogicalSize::new(spec.width, height));
+        }
+        let size = w.window.outer_size();
+        let screens = sharex_capture::screenshot::screens();
+        let placed = screens
+            .iter()
+            .find(|s| s.primary)
+            .or(screens.first())
+            .and_then(|s| dialog.position(s.work_area, (size.width, size.height)));
+        match placed {
+            Some((x, y)) => w.window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y)),
+            None => center(&w.window, event_loop),
+        }
+        w.window.set_visible(true);
+        if spec.activate {
+            w.window.focus_window();
+        }
+        w.window.request_redraw();
+        self.dialogs.push(DialogWindow { window: w, dialog });
+        Ok(())
+    }
+
+    /// Routes an event to a dialog's window; false when it's none of theirs.
+    pub(crate) fn dialog_window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: &WindowEvent) -> bool {
+        let Some(i) = self.dialogs.iter().position(|d| d.window.window.id() == id) else { return false };
+        let mut cx = Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
+        let d = &mut self.dialogs[i];
+        let effects = match event {
+            WindowEvent::CloseRequested => vec![Effect::Close],
+            WindowEvent::RedrawRequested => {
+                let dialog = &mut d.dialog;
+                d.window.paint(|ui| {
+                    ui.multiply_opacity(dialog.opacity());
+                    dialog.ui(ui, &mut cx)
+                })
+            }
+            WindowEvent::HoveredFile(_) => {
+                d.dialog.drag(true);
+                d.window.window.request_redraw();
+                Vec::new()
+            }
+            WindowEvent::HoveredFileCancelled => {
+                d.dialog.drag(false);
+                d.window.window.request_redraw();
+                Vec::new()
+            }
+            WindowEvent::DroppedFile(path) => {
+                // winit gives one event per file; ShareX gets them together.
+                d.dialog.drag(false);
+                d.window.window.request_redraw();
+                d.dialog.dropped(vec![path.clone()], &mut cx)
+            }
+            other => {
+                d.window.on_event(other);
+                Vec::new()
+            }
+        };
+        self.dialog_effects(event_loop, id, effects);
+        true
+    }
+
+    /// Carries out what the dialog `id` asked for.
+    pub(crate) fn dialog_effects(&mut self, event_loop: &ActiveEventLoop, id: WindowId, effects: Vec<Effect>) {
+        for e in effects {
+            match e {
+                Effect::Close => {
+                    let Some(i) = self.dialogs.iter().position(|d| d.window.window.id() == id) else { continue };
+                    let mut d = self.dialogs.remove(i);
+                    let mut cx = Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
+                    let last = d.dialog.closed(&mut cx);
+                    drop(d);
+                    self.dialog_effects(event_loop, id, last);
+                }
+                Effect::Upload(request) => self.upload_request(event_loop, *request),
+                Effect::CopyText(text) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_text(&text, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy text failed: {e}");
+                    }
+                }
+                Effect::CopyImage(image) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_image(&image, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy image failed: {e}");
+                    }
+                }
+                Effect::OpenUrl(url) => crate::upload::open_url(&url),
+                Effect::OpenFile(path) => {
+                    crate::shell::open_file(&path);
+                }
+                Effect::OpenFolderWithFile(path) => {
+                    crate::shell::open_folder_with_file(&path);
+                }
+                Effect::DragWindow => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let _ = d.window.window.drag_window();
+                    }
+                }
+                Effect::SetHeight(h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let w = d.window.window.inner_size().to_logical::<f32>(d.window.window.scale_factor()).width;
+                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                    }
+                }
+                Effect::ScanScreen => {
+                    let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) else { continue };
+                    d.window.window.set_visible(false);
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                    let screens = sharex_capture::screenshot::screens();
+                    let grab = sharex_capture::screenshot::Screenshot::default().capture_fullscreen(&screens);
+                    d.window.window.set_visible(true);
+                    d.window.window.focus_window();
+                    d.dialog.scanned(grab.map(|g| qr_code::scan(&g)));
+                    d.window.window.request_redraw();
+                }
+                Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+            }
+        }
+    }
+
+    /// A window of ours to own the clipboard's data.
+    pub(crate) fn clipboard_owner(&self) -> Option<isize> {
+        self.main
+            .as_ref()
+            .or(self.dialogs.first().map(|d| &d.window))
+            .and_then(|w| sharex_capture::platform::window_handle(&w.window))
+    }
+
+    /// Repaints dialogs that asked to be; the next time one wants to be.
+    pub(crate) fn dialogs_due(&mut self, now: std::time::Instant) -> Option<std::time::Instant> {
+        let mut next: Option<std::time::Instant> = None;
+        for d in &mut self.dialogs {
+            match d.window.repaint_at {
+                Some(at) if at <= now => {
+                    d.window.window.request_redraw();
+                    d.window.repaint_at = None;
+                }
+                Some(at) => next = Some(next.map_or(at, |n| n.min(at))),
+                None => {}
+            }
+        }
+        next
+    }
+}
+
+/// The window's attributes from its spec.
+fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
+    let mut attrs = WindowAttributes::default()
+        .with_title(&spec.title)
+        .with_window_icon(Icon::from_rgba(app_icon::rgba64(), 64, 64).ok())
+        .with_inner_size(LogicalSize::new(spec.width, spec.height))
+        .with_resizable(spec.resizable)
+        .with_theme(Some(match theme {
+            egui::Theme::Dark => winit::window::Theme::Dark,
+            egui::Theme::Light => winit::window::Theme::Light,
+        }))
+        .with_visible(false)
+        .with_active(spec.activate);
+    if spec.min_width > 0.0 || spec.min_height > 0.0 {
+        attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
+    }
+    if !spec.maximizable {
+        attrs = attrs.with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE);
+    }
+    if spec.topmost {
+        attrs = attrs.with_window_level(WindowLevel::AlwaysOnTop);
+    }
+    if spec.borderless {
+        attrs = attrs.with_decorations(false).with_transparent(true);
+    }
+    // `ShowInTaskbar="False"` (Windows; elsewhere every window shows).
+    #[cfg(windows)]
+    if spec.skip_taskbar {
+        use winit::platform::windows::WindowAttributesExtWindows;
+        attrs = attrs.with_skip_taskbar(true);
+    }
+    #[cfg(not(windows))]
+    let _ = spec.skip_taskbar;
+    attrs
+}

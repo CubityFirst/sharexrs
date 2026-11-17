@@ -19,7 +19,9 @@ pub mod worker;
 mod tests;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
+
+use sharex_settings::TaskSettings;
 
 use sharex_uploaders::http::CancellationToken;
 
@@ -43,12 +45,55 @@ pub trait TaskUi: Send + Sync {
     fn open_url(&self, url: &str);
     /// `TaskHelpers.OpenQRCode(text)`: the QR code window.
     fn show_qr_code(&self, text: &str);
+    /// `LargeFileUploadWarningWindowIntegration.Show()`: (continue, don't
+    /// show again). The task's thread waits for the answer.
+    fn large_file_warning(&self) -> (bool, bool) {
+        (true, false)
+    }
+    /// `BeforeUploadWindowIntegration.Show(info)`: the task settings with
+    /// the destination the window left chosen, or `None` when cancelled.
+    /// The task's thread waits for the answer.
+    fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {
+        Some(request.task)
+    }
 }
+
+/// What the before upload window shows of a task (`TaskInfo`).
+pub struct BeforeUpload {
+    pub data_type: crate::tasks::EDataType,
+    pub file_name: String,
+    pub file_path: Option<std::path::PathBuf>,
+    /// `Info.Metadata.Image`.
+    pub image: Option<Arc<image::RgbaImage>>,
+    pub task: TaskSettings,
+}
+
+/// What a task's thread asks the event loop to show.
+pub enum UiRequest {
+    LargeFileWarning(mpsc::Sender<(bool, bool)>),
+    BeforeUpload(Box<BeforeUpload>, mpsc::Sender<Option<TaskSettings>>),
+    QrCode(String),
+}
+
+impl std::fmt::Debug for UiRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LargeFileWarning(_) => f.write_str("LargeFileWarning"),
+            Self::BeforeUpload(r, _) => write!(f, "BeforeUpload({})", r.file_name),
+            Self::QrCode(t) => write!(f, "QrCode({t})"),
+        }
+    }
+}
+
+/// Where a task's thread sends what it asks the UI.
+pub type RequestSink = Arc<dyn Fn(UiRequest) + Send + Sync>;
 
 /// The desktop's clipboard (owned by the main window, which Windows needs)
 /// and browser.
 pub struct SystemUi {
     pub owner: Option<isize>,
+    /// The event loop, for the windows a task opens.
+    pub requests: Option<RequestSink>,
 }
 
 impl TaskUi for SystemUi {
@@ -73,8 +118,24 @@ impl TaskUi for SystemUi {
     }
 
     fn show_qr_code(&self, text: &str) {
-        // `QRCodeWindow` (ShareX.Tools) isn't ported yet.
-        eprintln!("QR code window not ported yet: {text}");
+        if let Some(r) = &self.requests {
+            r(UiRequest::QrCode(text.to_owned()));
+        }
+    }
+
+    fn large_file_warning(&self) -> (bool, bool) {
+        let Some(r) = &self.requests else { return (true, false) };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::LargeFileWarning(tx));
+        // A window closed without answering is Cancel.
+        rx.recv().unwrap_or((false, false))
+    }
+
+    fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {
+        let Some(r) = &self.requests else { return Some(request.task) };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::BeforeUpload(Box::new(request), tx));
+        rx.recv().ok().flatten()
     }
 }
 

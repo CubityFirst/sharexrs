@@ -13,6 +13,7 @@ mod appearance;
 mod capture;
 mod capture_job;
 mod controls_gallery;
+mod dialogs;
 mod history;
 mod hotkey_settings;
 mod hotkeys;
@@ -73,6 +74,8 @@ pub enum UserEvent {
     Tray(TrayEvent),
     /// A task's thread or a thumbnail decoder finished.
     Task(tasks::TaskEvent),
+    /// A task's thread asks for a window (the before upload window, ...).
+    Ui(upload::UiRequest),
 }
 
 fn main() {
@@ -152,6 +155,8 @@ fn main() {
         settings_window: None,
         hotkey_window: None,
         task_window: None,
+        dialogs: Vec::new(),
+        pending_dialogs: Vec::new(),
         current_theme: egui::Theme::Dark,
         system_theme: None,
         // `StartupOptions.SilentRun` (`-silent`, `-s`): start in the tray.
@@ -232,6 +237,11 @@ struct App {
     hotkey_window: Option<app_windows::HotkeyWindow>,
     /// Task settings (the defaults' or a hotkey's), while it's open.
     task_window: Option<app_windows::TaskWindow>,
+    /// The upload windows that are open (`dialogs`).
+    dialogs: Vec<dialogs::DialogWindow>,
+    /// Windows to open once the event loop is at hand (a finished task's
+    /// after upload window).
+    pending_dialogs: Vec<Box<dyn dialogs::Dialog>>,
     /// `ThemeManager.GetCurrentTheme()`.
     current_theme: egui::Theme,
     /// The OS's light or dark mode, for `UseSystemTheme`.
@@ -387,7 +397,7 @@ impl App {
             self.capture(job, task, auto_hide);
             return;
         }
-        if self.upload_menu_command(&command) {
+        if self.upload_menu_command(event_loop, &command) {
             return;
         }
         let capture = self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default();
@@ -946,7 +956,7 @@ impl App {
             self.capture(capture, task, false);
             return;
         }
-        if self.run_upload_job(&job, &task) {
+        if self.run_upload_job(event_loop, &job, &task) {
             return;
         }
         match job {
@@ -1082,6 +1092,15 @@ fn tray_double_click_time() -> Duration {
     Duration::from_millis(500)
 }
 
+/// A ShareX window title with ShareXrs's name: "ShareX - Text upload"
+/// becomes "ShareXrs - Text upload".
+fn rs_title(title: &str) -> String {
+    match title.strip_prefix("ShareX") {
+        Some(rest) if rest.is_empty() || rest.starts_with(' ') => format!("ShareXrs{rest}"),
+        _ => title.to_owned(),
+    }
+}
+
 fn set_theme(w: &EguiWindow, theme: egui::Theme) {
     w.ctx().set_theme(theme);
     w.window.set_theme(Some(match theme {
@@ -1160,7 +1179,11 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Task(event) => {
                 self.task_event(event);
                 self.update_progress_ui();
+                for d in std::mem::take(&mut self.pending_dialogs) {
+                    self.open_dialog_window(event_loop, d);
+                }
             }
+            UserEvent::Ui(request) => self.ui_request(event_loop, request),
         }
     }
 
@@ -1174,6 +1197,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.hotkey_window = None;
         self.task_window = None;
+        self.dialogs.clear();
         self.tray = None;
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
@@ -1197,6 +1221,9 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         if self.app_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.dialog_window_event(event_loop, id, &event) {
             return;
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
@@ -1312,6 +1339,7 @@ impl ApplicationHandler<UserEvent> for App {
             m.redraw_if_due(now);
         }
         let app_windows = self.app_windows_due(now);
+        let dialogs = self.dialogs_due(now);
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
         let next = [
@@ -1322,6 +1350,7 @@ impl ApplicationHandler<UserEvent> for App {
             self.transparent_grab.as_ref().map(|g| g.0),
             self.tray_click_at,
             app_windows,
+            dialogs,
         ]
         .into_iter()
         .flatten()

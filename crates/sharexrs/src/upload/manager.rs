@@ -2,11 +2,10 @@
 //! Upload menu, the tray, hotkeys and the clipboard start. Each gives the
 //! tasks to start; the app starts them (`TaskManager.Start`).
 //!
-//! The pickers and dialogs these open in ShareX (file and folder pickers,
-//! the text and URL windows, the clipboard content viewer, the multi upload
-//! confirmation) aren't ported: [`dialogs`] stands in for them, so the
-//! menu entries call through it and the flows behind them take a path or a
-//! text directly.
+//! The windows these open in ShareX (the text and URL windows, the
+//! clipboard content viewer, the multi upload confirmation) are
+//! `crate::dialogs`; the app opens them and calls back in here with what
+//! they give.
 
 use std::path::{Path, PathBuf};
 
@@ -30,79 +29,42 @@ pub struct NewTaskContext<'a> {
     pub screenshots_parent: PathBuf,
     /// `AppPaths.ImageEffectsFolder`.
     pub image_effects_folder: PathBuf,
+    /// More than 10 files waiting for `MultiUploadConfirmationWindow`
+    /// (`IsUploadConfirmed`): the app asks, then uploads them confirmed.
+    pub confirm_files: Option<Vec<PathBuf>>,
+    /// The files given were confirmed already.
+    pub files_confirmed: bool,
 }
 
-/// What the clipboard held (`ClipboardHelpers.ContainsImage/Text/FileDropList`).
-/// Nothing reads the clipboard yet ([`dialogs::clipboard_content`]).
-#[cfg_attr(not(test), allow(dead_code))]
+impl<'a> NewTaskContext<'a> {
+    pub fn new(app: &'a mut ApplicationConfig, screenshots_parent: PathBuf, image_effects_folder: PathBuf) -> Self {
+        Self { app, screenshots_parent, image_effects_folder, confirm_files: None, files_confirmed: false }
+    }
+}
+
+/// What the clipboard held (`ClipboardHelpers.ContainsImage/Text/FileDropList`),
+/// as `crate::dialogs::clipboard_upload::read_clipboard` reads it.
 pub enum ClipboardContent {
     Image(RgbaImage),
     Text(String),
     Files(Vec<PathBuf>),
 }
 
-/// ShareX's pickers and dialogs for uploads, not ported yet: each logs and
-/// gives nothing (the multi upload confirmation goes ahead), so the menu
-/// entries do nothing until their windows are ported.
-pub mod dialogs {
+/// The file and folder pickers (`FileDialogHelpers.OpenFiles`,
+/// `FileHelpers.BrowseFolder`): the system's, through rfd.
+pub mod pickers {
     use super::*;
 
-    fn not_ported(what: &str) {
-        eprintln!("{what} isn't ported yet.");
-    }
-
-    /// `FileDialogHelpers.OpenFiles("ShareX - File upload", multiselect, initialDirectory)`.
-    pub fn open_files(_initial_directory: &Path) -> Vec<PathBuf> {
-        not_ported("The file upload picker");
-        Vec::new()
+    /// `FileDialogHelpers.OpenFiles("ShareX - File upload", multiselect: true, initialDirectory)`.
+    pub fn open_files(initial_directory: &Path) -> Vec<PathBuf> {
+        let title = format!("ShareXrs - {}", s::UploadManager_UploadFile_File_upload());
+        rfd::FileDialog::new().set_title(title).set_directory(initial_directory).pick_files().unwrap_or_default()
     }
 
     /// `FileHelpers.BrowseFolder("ShareX - Folder upload", initialDirectory)`.
-    pub fn browse_folder(_initial_directory: &Path) -> Option<PathBuf> {
-        not_ported("The folder upload picker");
-        None
-    }
-
-    /// `TextUploadWindow.ShowAsync()`.
-    pub fn text_upload_window() -> Option<String> {
-        not_ported("The text upload window");
-        None
-    }
-
-    /// `URLUploadWindow.ShowAsync(inputText)`.
-    pub fn url_upload_window(_input: Option<&str>) -> Option<String> {
-        not_ported("The upload from URL window");
-        None
-    }
-
-    /// `ShortenURLWindow.ShowAsync(inputText)`.
-    pub fn shorten_url_window(_input: Option<&str>) -> Option<String> {
-        not_ported("The shorten URL window");
-        None
-    }
-
-    /// `ClipboardHelpers.GetImage/GetText/GetFileDropList`, as
-    /// `UploadManager.ClipboardUpload` reads them.
-    pub fn clipboard_content() -> Option<ClipboardContent> {
-        not_ported("Reading the clipboard for an upload");
-        None
-    }
-
-    /// `ClipboardUploadWindowIntegration.Show`: the clipboard content viewer.
-    pub fn clipboard_upload_window() {
-        not_ported("The clipboard content viewer");
-    }
-
-    /// `MultiUploadConfirmationWindowIntegration.Show(count)`: (confirmed,
-    /// don't show again).
-    pub fn multi_upload_confirmation(count: usize) -> (bool, bool) {
-        eprintln!("The multi upload confirmation window isn't ported yet; uploading {count} files.");
-        (true, false)
-    }
-
-    /// `OpenDropWindow`: the drag and drop upload window.
-    pub fn drop_window() {
-        not_ported("The drag and drop upload window");
+    pub fn browse_folder(initial_directory: &Path) -> Option<PathBuf> {
+        let title = format!("ShareXrs - {}", s::UploadManager_UploadFolder_Folder_upload());
+        rfd::FileDialog::new().set_title(title).set_directory(initial_directory).pick_folder()
     }
 }
 
@@ -254,20 +216,19 @@ pub fn upload_files(files: &[PathBuf], task: &TaskSettings, ctx: &mut NewTaskCon
     if files.is_empty() {
         return Vec::new();
     }
-    if files.len() > 10 && ctx.app.ShowMultiUploadWarning {
-        let (confirmed, dont_show_again) = dialogs::multi_upload_confirmation(files.len());
-        ctx.app.ShowMultiUploadWarning = !dont_show_again;
-        if !confirmed {
-            return Vec::new();
-        }
+    if files.len() > 10 && ctx.app.ShowMultiUploadWarning && !std::mem::take(&mut ctx.files_confirmed) {
+        // The window answers later; the first files to ask wait for it.
+        ctx.confirm_files.get_or_insert_with(|| files.to_vec());
+        return Vec::new();
     }
+    ctx.files_confirmed = false;
     files.iter().flat_map(|f| upload_file(f, task, ctx)).collect()
 }
 
 /// `UploadManager.UploadFile(taskSettings)`: the file picker, from the last
 /// upload folder (or the desktop).
 pub fn upload_file_with_picker(task: &TaskSettings, ctx: &mut NewTaskContext) -> Vec<UploadTask> {
-    let files = dialogs::open_files(&initial_directory(ctx.app));
+    let files = pickers::open_files(&initial_directory(ctx.app));
     if let Some(dir) = files.first().and_then(|f| f.parent()) {
         ctx.app.FileUploadDefaultDirectory = dir.to_string_lossy().into_owned();
     }
@@ -276,7 +237,7 @@ pub fn upload_file_with_picker(task: &TaskSettings, ctx: &mut NewTaskContext) ->
 
 /// `UploadManager.UploadFolder`.
 pub fn upload_folder_with_picker(task: &TaskSettings, ctx: &mut NewTaskContext) -> Vec<UploadTask> {
-    let Some(folder) = dialogs::browse_folder(&initial_directory(ctx.app)) else { return Vec::new() };
+    let Some(folder) = pickers::browse_folder(&initial_directory(ctx.app)) else { return Vec::new() };
     ctx.app.FileUploadDefaultDirectory = folder.to_string_lossy().into_owned();
     upload_file(&folder, task, ctx)
 }
@@ -363,23 +324,15 @@ pub fn share_url(url: &str, task: &TaskSettings) -> Option<UploadTask> {
     (!url.is_empty()).then(|| create_share_url_task(url.to_owned(), task.clone()))
 }
 
-/// `UploadManager.ClipboardUpload`: an image, text or files on the clipboard.
+/// `UploadManager.ClipboardUpload`: an image, text or files on the clipboard
+/// (the app goes through `crate::dialogs::UploadRequest::clipboard`).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn clipboard_upload(content: ClipboardContent, task: &TaskSettings, ctx: &mut NewTaskContext) -> Vec<UploadTask> {
     match content {
         ClipboardContent::Image(image) => vec![process_image_upload(image, task.clone(), ctx)],
         ClipboardContent::Text(text) => process_text_upload(&text, task, ctx),
         ClipboardContent::Files(files) => upload_files(&files, task, ctx),
     }
-}
-
-/// `UploadManager.ClipboardUploadMainWindow`: the clipboard content viewer
-/// first when `ShowClipboardContentViewer`.
-pub fn clipboard_upload_main_window(task: &TaskSettings, ctx: &mut NewTaskContext) -> Vec<UploadTask> {
-    if ctx.app.ShowClipboardContentViewer {
-        dialogs::clipboard_upload_window();
-        return Vec::new();
-    }
-    dialogs::clipboard_content().map(|c| clipboard_upload(c, task, ctx)).unwrap_or_default()
 }
 
 /// `HttpUtility.HtmlEncode`: `<>&"'` and the Latin-1 supplement as entities.
@@ -419,7 +372,7 @@ mod tests {
     #[test]
     fn download_tasks_are_named_from_the_url() {
         let mut app = ApplicationConfig::default();
-        let mut ctx = NewTaskContext { app: &mut app, screenshots_parent: PathBuf::new(), image_effects_folder: PathBuf::new() };
+        let mut ctx = NewTaskContext::new(&mut app, PathBuf::new(), PathBuf::new());
         let t = create_download_task("https://example.com/a/My%20File.png?x=1", true, TaskSettings::default(), &mut ctx).unwrap();
         assert_eq!((t.file_name.as_str(), t.data_type, t.job), ("My File.png", EDataType::Image, TaskJob::DownloadUpload));
         assert!(create_download_task("https://example.com/", false, TaskSettings::default(), &mut ctx).is_none());
@@ -432,7 +385,7 @@ mod tests {
         let file = dir.join("a.zip");
         std::fs::write(&file, b"made up").unwrap();
         let mut app = ApplicationConfig::default();
-        let mut ctx = NewTaskContext { app: &mut app, screenshots_parent: dir.clone(), image_effects_folder: dir.clone() };
+        let mut ctx = NewTaskContext::new(&mut app, dir.clone(), dir.clone());
         let task = TaskSettings::default();
         let image = clipboard_upload(ClipboardContent::Image(RgbaImage::new(2, 2)), &task, &mut ctx);
         // `ProcessImageUpload`: only uploaded, unless images are processed.
@@ -449,7 +402,7 @@ mod tests {
     #[test]
     fn urls_on_the_clipboard_follow_the_task() {
         let mut app = ApplicationConfig::default();
-        let mut ctx = NewTaskContext { app: &mut app, screenshots_parent: PathBuf::new(), image_effects_folder: PathBuf::new() };
+        let mut ctx = NewTaskContext::new(&mut app, PathBuf::new(), PathBuf::new());
         let mut task = TaskSettings::default();
         task.UploadSettings.get_or_insert_default().ClipboardUploadShortenURL = true;
         let tasks = process_text_upload(" https://example.com/long ", &task, &mut ctx);

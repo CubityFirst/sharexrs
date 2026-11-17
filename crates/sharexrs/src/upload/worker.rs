@@ -132,6 +132,8 @@ pub(super) struct Worker<'a> {
     /// `Info.Metadata`'s window title and process name (image tasks), the
     /// history item's tags.
     metadata: (Option<String>, Option<String>),
+    /// `Info.Metadata.Image`, for the before and after upload windows.
+    image: Option<Arc<image::RgbaImage>>,
 }
 
 impl<'a> Worker<'a> {
@@ -169,6 +171,7 @@ impl<'a> Worker<'a> {
             early_url_copied: Arc::default(),
             task_ref,
             metadata,
+            image: None,
         }
     }
 
@@ -273,6 +276,7 @@ impl<'a> Worker<'a> {
                         if let Some(data) = outcome.data {
                             self.set_data(data);
                         }
+                        self.image = outcome.image.map(Arc::new);
                     }
                     Err(e) => {
                         eprintln!("after capture tasks: {e}");
@@ -372,7 +376,13 @@ impl<'a> Worker<'a> {
             let n = app.ShowLargeFileSizeWarning as u64;
             let size = if app.BinaryUnits { n * 1024 * 1024 } else { n * 1000 * 1000 };
             if self.data.is_some() && self.data_length > size {
-                eprintln!("Large file upload warning window not ported yet; uploading.");
+                let (go_on, dont_show_again) = self.ctx.ui.large_file_warning();
+                if dont_show_again {
+                    self.emit(TaskEvent::LargeFileWarningOff);
+                }
+                if !go_on {
+                    self.stop.stop();
+                }
             }
         }
         if self.stop_requested() {
@@ -382,7 +392,18 @@ impl<'a> Worker<'a> {
         drop(self.ctx.config.wait());
         self.status(TaskStatus::Working, s::UploadTask_DoUploadJob_Uploading());
         if self.task.AfterCaptureJob.contains(AfterCaptureTasks::ShowBeforeUploadWindow) {
-            eprintln!("Before upload window not ported yet; uploading.");
+            let request = super::BeforeUpload {
+                data_type: self.data_type,
+                file_name: self.file_name.clone(),
+                file_path: self.file_path.clone(),
+                image: self.image.clone(),
+                task: self.task.clone(),
+            };
+            match self.ctx.ui.before_upload(request) {
+                Some(task) => self.task = task,
+                // `cancelUpload`: nothing is uploaded, the task goes on.
+                None => return,
+            }
         }
         let mut status = format!("Upload started. File name: {}", self.file_name);
         if let Some(p) = &self.file_path {
@@ -573,6 +594,9 @@ impl<'a> Worker<'a> {
             is_upload_job: self.is_upload_job(),
             play_sound: general.PlaySoundAfterUpload,
             show_after_upload_window: self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow),
+            data_type: self.data_type,
+            image: self.image.clone().filter(|_| self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow)),
+            auto_close_after_upload_form: self.task.AdvancedSettings.as_ref().is_some_and(|a| a.AutoCloseAfterUploadForm),
             show_toast: general.ShowToastNotificationAfterTaskCompleted,
             upload_duration: self.upload_duration,
             history: Some(history),
