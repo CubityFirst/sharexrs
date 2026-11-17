@@ -262,8 +262,7 @@
       "Y": 260
      }
     }
-   ],
-   "pending": "dashing conics (SkDashPath) not ported; tiny-skia dashes the quads"
+   ]
   },
   {
    "name": "ellipse-dashdot",
@@ -281,8 +280,7 @@
       "Y": 260
      }
     }
-   ],
-   "pending": "dashing conics (SkDashPath) not ported"
+   ]
   },
   {
    "name": "rect-dashdotdot-thick",

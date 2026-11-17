@@ -409,6 +409,33 @@ impl<'a> Canvas<'a> {
         self.blit(&cov, paint);
     }
 
+    /// The canvas matrix as a path matrix.
+    fn ctm(&self) -> crate::Matrix {
+        let m = &self.matrix;
+        crate::Matrix {
+            sx: m.sx(),
+            kx: m.kx(),
+            tx: m.tx(),
+            ky: m.ky(),
+            sy: m.sy(),
+            ty: m.ty(),
+        }
+    }
+
+    /// The matrix and device bounds a stroke's dash and stroker see.
+    pub fn stroke_context(&self) -> crate::draw::StrokeContext {
+        crate::draw::StrokeContext::new(
+            self.ctm(),
+            crate::geom::IRect::from_ltrb(0, 0, self.width() as i32, self.height() as i32),
+        )
+    }
+
+    /// Whether an anti-aliased stroke of `width` is a hairline here
+    /// (`SkDrawTreatAsHairline`).
+    pub fn is_hairline(&self, width: f32) -> bool {
+        crate::hair::hairline_coverage(width, &self.ctm()).is_some()
+    }
+
     /// `SkCanvas::drawPath` with an anti-aliased stroke paint of `width` when
     /// Skia draws it as a hairline (`SkDrawTreatAsHairline`): `path` is
     /// dashed already, `cap` is the paint's. False (nothing drawn) when the
@@ -420,15 +447,7 @@ impl<'a> Canvas<'a> {
         cap: crate::Cap,
         paint: &Paint,
     ) -> bool {
-        let m = &self.matrix;
-        let ctm = crate::Matrix {
-            sx: m.sx(),
-            kx: m.kx(),
-            tx: m.tx(),
-            ky: m.ky(),
-            sy: m.sy(),
-            ty: m.ty(),
-        };
+        let ctm = self.ctm();
         let Some(coverage) = crate::hair::hairline_coverage(width, &ctm) else {
             return false;
         };
