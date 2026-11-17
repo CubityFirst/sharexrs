@@ -491,6 +491,35 @@ mod tests {
     }
 
     #[test]
+    fn selected_nav_corner_matches_sharex() {
+        // Application settings' selected page (8,93,203,32) on #222222:
+        // ShareX shows #195371 one pixel in on the top row (Dark, accent
+        // #09AAFF): the r4 fill and the inset outline each cover it ~0.2.
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(203.0, 32.0));
+        let parts = [
+            Part::Border { rect, radius: 4.0, thickness: 0.0, background: Some(Brush::Solid(hex(0x09AAFF))), border: None },
+            Part::InsetShadow { rect, radius: 4.0, spread: 1.0, color: hex(0x09AAFF) },
+        ];
+        let px = render_over(&parts, 203, 32, hex(0x222222));
+        let near = |a: [u8; 3], b: u32| a.iter().zip([(b >> 16) as u8, (b >> 8) as u8, b as u8]).all(|(x, y)| x.abs_diff(y) <= 2);
+        assert!(near(px[1], 0x195371), "{:02X?}", px[1]);
+        assert!(near(px[2], 0x0B9EEA), "{:02X?}", px[2]);
+        assert_eq!(px[0], [0x22; 3]);
+    }
+
+    #[test]
+    fn checkerboard_alternate_cells_are_even() {
+        // `ShareX.Brush.Checkered.Small`: the second colour in the tile's
+        // top-left and bottom-right 4px squares.
+        let board = Brush::Checkered { colors: [hex(0x272727), hex(0x2E2E2E)], cell: 4.0 };
+        let parts = [Part::Border { rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 24.0)), radius: 4.0, thickness: 0.0, background: Some(board), border: None }];
+        let px = render_over(&parts, 24, 24, hex(0x000000));
+        assert_eq!(px[2 * 24 + 2], [0x2E; 3]);
+        assert_eq!(px[2 * 24 + 6], [0x27; 3]);
+        assert_eq!(px[6 * 24 + 6], [0x2E; 3]);
+    }
+
+    #[test]
     fn group_content_is_exact_when_lighter() {
         // White text at 40% over #2E2E2E in a 35% layer, on #242424.
         let c = group_content(Color32::from_white_alpha(102), hex(0x2E2E2E), 0.35, hex(0x242424));
