@@ -1,5 +1,5 @@
 //! `ShareX.HelpersLib/Helpers/FileHelpers.cs`: the parts used for naming and
-//! saving files.
+//! saving files, and telling file types apart by extension.
 
 use std::path::{Path, PathBuf};
 
@@ -88,9 +88,68 @@ pub fn unique_file_path(path: &Path) -> PathBuf {
     }
 }
 
+/// `FileHelpers.ImageFileExtensions`.
+pub const IMAGE_FILE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "ico", "webp"];
+/// `FileHelpers.TextFileExtensions`.
+pub const TEXT_FILE_EXTENSIONS: &[&str] = &[
+    "txt", "log", "nfo", "c", "cpp", "cc", "cxx", "h", "hpp", "hxx", "cs", "vb", "html", "htm", "xhtml", "xht", "xml",
+    "css", "js", "php", "bat", "java", "lua", "py", "pl", "cfg", "ini", "dart", "go", "gohtml",
+];
+/// `FileHelpers.VideoFileExtensions`.
+pub const VIDEO_FILE_EXTENSIONS: &[&str] = &[
+    "mp4", "webm", "mkv", "avi", "vob", "ogv", "ogg", "mov", "qt", "wmv", "m4p", "m4v", "mpg", "mp2", "mpeg", "mpe",
+    "mpv", "m2v", "m4v", "flv", "f4v",
+];
+
+/// `FileHelpers.GetFileNameExtension`: what follows the last dot (no dot),
+/// with `tar.` kept in front of a second extension (`tar.gz`).
+pub fn get_file_name_extension(path: &str) -> String {
+    let Some(pos) = path.rfind('.') else { return String::new() };
+    let ext = &path[pos + 1..];
+    let rest = &path[..pos];
+    if let Some(pos2) = rest.rfind('.') {
+        let ext2 = &rest[pos2 + 1..];
+        if ext2.eq_ignore_ascii_case("tar") {
+            return format!("{ext2}.{ext}");
+        }
+    }
+    ext.to_string()
+}
+
+/// `FileHelpers.CheckExtension`.
+pub fn check_extension(path: &str, extensions: &[&str]) -> bool {
+    let ext = get_file_name_extension(path);
+    !ext.is_empty() && extensions.iter().any(|e| e.eq_ignore_ascii_case(&ext))
+}
+
+/// `FileHelpers.IsImageFile`.
+pub fn is_image_file(path: &str) -> bool {
+    check_extension(path, IMAGE_FILE_EXTENSIONS)
+}
+
+/// `FileHelpers.IsTextFile`.
+pub fn is_text_file(path: &str) -> bool {
+    check_extension(path, TEXT_FILE_EXTENSIONS)
+}
+
+/// `FileHelpers.IsVideoFile`.
+pub fn is_video_file(path: &str) -> bool {
+    check_extension(path, VIDEO_FILE_EXTENSIONS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_types_go_by_extension() {
+        assert!(is_image_file("a/b/shot.PNG"));
+        assert!(!is_image_file("shot"));
+        assert!(is_video_file("clip.mp4"));
+        assert!(is_text_file("notes.txt"));
+        assert_eq!(get_file_name_extension("a.tar.gz"), "tar.gz");
+        assert_eq!(get_file_name_extension("a.b.gz"), "gz");
+    }
 
     #[test]
     fn file_names_lose_invalid_characters() {
