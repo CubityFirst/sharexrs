@@ -51,6 +51,16 @@ pub struct WindowInfo {
     pub process_name: Option<String>,
 }
 
+/// A window Capture › Window lists (`WindowsList.GetVisibleWindowsList`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct VisibleWindow {
+    pub handle: isize,
+    /// `WindowInfo.Text`.
+    pub title: String,
+    /// `WindowInfo.Rectangle`, desktop pixels.
+    pub rect: Rect,
+}
+
 /// The mouse pointer, ready to draw into a screenshot: its picture
 /// (straight alpha) and where its top-left corner goes, in the
 /// screenshot's pixels.

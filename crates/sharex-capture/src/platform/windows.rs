@@ -614,3 +614,129 @@ pub fn prepare_overlay(window: &winit::window::Window) {
 
 /// Called once an overlay's first frame is on screen (macOS fades it in).
 pub fn overlay_presented(_window: &winit::window::Window) {}
+
+// ---- windows for Capture › Window and the other capture jobs -------------
+
+/// `NativeMethods.GetForegroundWindow`.
+pub fn foreground_window() -> isize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    // SAFETY: no arguments.
+    unsafe { GetForegroundWindow() as isize }
+}
+
+/// `CaptureHelpers.GetWindowRectangle`.
+pub fn window_rect(handle: isize) -> Rect {
+    window_rectangle(handle as HWND)
+}
+
+/// `NativeMethods.GetClientRect`: the client area in screen pixels.
+pub fn client_rect(handle: isize) -> Rect {
+    client_rectangle(handle as HWND)
+}
+
+/// `WindowInfo.IsMinimized`.
+pub fn is_minimized(handle: isize) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsIconic;
+    // SAFETY: no pointers.
+    unsafe { IsIconic(handle as HWND) != 0 }
+}
+
+/// `WindowInfo.Restore`.
+pub fn restore_window(handle: isize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SW_RESTORE, ShowWindow};
+    // SAFETY: no pointers.
+    unsafe { ShowWindow(handle as HWND, SW_RESTORE) };
+}
+
+/// `WindowInfo.Activate`.
+pub fn activate_window(handle: isize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+    // SAFETY: no pointers.
+    unsafe { SetForegroundWindow(handle as HWND) };
+}
+
+/// `WindowsList.GetVisibleWindowsList`: top-level windows in z-order that
+/// are visible, not cloaked, titled, not the desktop (`Progman`) or a
+/// `Button`, with a non-empty rectangle.
+pub fn visible_windows() -> Vec<crate::VisibleWindow> {
+    unsafe extern "system" fn each(hwnd: HWND, data: LPARAM) -> i32 {
+        // SAFETY: `data` is the Vec below, alive for the enumeration.
+        let list = unsafe { &mut *(data as *mut Vec<HWND>) };
+        list.push(hwnd);
+        1
+    }
+    let mut handles: Vec<HWND> = Vec::new();
+    // SAFETY: the callback only pushes into `handles`.
+    unsafe { EnumWindows(Some(each), &raw mut handles as LPARAM) };
+    handles
+        .into_iter()
+        .filter_map(|hwnd| {
+            // SAFETY: a window handle from the enumeration.
+            if unsafe { IsWindowVisible(hwnd) } == 0 || is_cloaked(hwnd) {
+                return None;
+            }
+            let title = window_info(hwnd as isize).title;
+            if title.is_empty() {
+                return None;
+            }
+            let class = class_name(hwnd);
+            if ["Progman", "Button"].iter().any(|c| class.eq_ignore_ascii_case(c)) {
+                return None;
+            }
+            let rect = window_rectangle(hwnd);
+            // `Rectangle.IsValid`: a positive width and height.
+            (rect.w > 0 && rect.h > 0).then_some(crate::VisibleWindow { handle: hwnd as isize, title, rect })
+        })
+        .collect()
+}
+
+/// `NativeMethods.GetApplicationIcon`: the window's small icon (asked of
+/// the window, then its class, then `WM_QUERYDRAGICON`), else its big one,
+/// as RGBA at its own size (`WindowsImageInterop.FromIcon`).
+pub fn window_icon(handle: isize) -> Option<RgbaImage> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GCLP_HICON, GCLP_HICONSM, GetClassLongPtrW, ICON_BIG, ICON_SMALL, ICON_SMALL2, SMTO_ABORTIFHUNG,
+        SendMessageTimeoutW, WM_GETICON, WM_QUERYDRAGICON,
+    };
+    let hwnd = handle as HWND;
+    let ask = |msg: u32, w: usize| -> HICON {
+        let mut result = 0usize;
+        // SAFETY: a valid out pointer; the timeout keeps a hung window
+        // from blocking.
+        unsafe { SendMessageTimeoutW(hwnd, msg, w, 0, SMTO_ABORTIFHUNG, 1000, &mut result) };
+        result as HICON
+    };
+    // SAFETY: reads the window class's icon handles.
+    let class = |index| unsafe { GetClassLongPtrW(hwnd, index) as HICON };
+    let tries: [&dyn Fn() -> HICON; 6] = [
+        &|| ask(WM_GETICON, ICON_SMALL2 as usize),
+        &|| ask(WM_GETICON, ICON_SMALL as usize),
+        &|| class(GCLP_HICONSM),
+        &|| ask(WM_QUERYDRAGICON, 0),
+        &|| ask(WM_GETICON, ICON_BIG as usize),
+        &|| class(GCLP_HICON),
+    ];
+    let icon = tries.iter().map(|f| f()).find(|i| !i.is_null())?;
+    from_icon(icon, (0, 0), &RgbaImage::new(0, 0), (0, 0))
+}
+
+/// `NativeMethods.SearchWindow`: the window with exactly this title, else
+/// the main window of a process whose main window's title contains it.
+pub fn search_window(title: &str) -> isize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowW, GW_OWNER, GetWindow};
+    let wide: Vec<u16> = title.encode_utf16().chain([0]).collect();
+    // SAFETY: a NUL-terminated string.
+    let found = unsafe { FindWindowW(std::ptr::null(), wide.as_ptr()) };
+    if !found.is_null() {
+        return found as isize;
+    }
+    // `Process.MainWindowHandle`: a process's first visible, unowned
+    // top-level window.
+    let needle = title.to_lowercase();
+    visible_windows()
+        .into_iter()
+        // SAFETY: a window handle from the list.
+        .filter(|w| unsafe { GetWindow(w.handle as HWND, GW_OWNER) }.is_null())
+        .find(|w| w.title.to_lowercase().contains(&needle))
+        .map_or(0, |w| w.handle)
+}
