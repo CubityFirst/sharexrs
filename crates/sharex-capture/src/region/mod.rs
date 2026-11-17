@@ -15,13 +15,18 @@
 //! Space, `~`, arrows, Delete, Escape, Shift for squares, Ctrl to move
 //! while drawing), mouse actions (right click cancels, X buttons capture
 //! fullscreen and the active monitor), the wheel on the magnifier, and
-//! selection resizing when quick capture is off. Not yet: annotation tools
-//! (the image editor), ellipse and freehand regions (hidden toolbar items),
-//! multi region mode, the screen crosshair option, custom info text,
-//! tooltips.
+//! selection resizing when quick capture is off, and the annotation tools:
+//! the image editor's workspace ([`Workspace`], ShareX's `EditorView`)
+//! holds the frozen screen and its annotations, the toolbar's tools switch
+//! to it (`ActivateAnnotationTool`), Tab or the region button back
+//! (`ActivateRegionTool`), and the capture includes the annotations
+//! (`GetSnapshot(Rect)`). Not yet: ellipse and freehand regions (hidden
+//! toolbar items), multi region mode, the screen crosshair option, custom
+//! info text, tooltips, the options' dropdowns.
 
 pub mod cursors;
 pub mod magnifier;
+pub mod options_row;
 mod paint;
 pub mod toolbar;
 
@@ -34,6 +39,9 @@ use sharex_settings::region_capture::limits;
 use sharex_settings::types::Point;
 use sharex_settings::{RegionCaptureAction, RegionCaptureMagnifierScrollAction, RegionCaptureOptions};
 use crate::{Screen, SimpleWindowInfo, WindowInfo};
+use sharex_image_editor::ImageEditorOptions;
+use sharex_image_editor::editor::{self as ed, Workspace};
+use sharex_image_editor::model::EditorTool;
 
 pub use paint::OverlayView;
 
@@ -55,6 +63,8 @@ pub struct Request {
     pub last_regions: Vec<Rect>,
     /// Shows the annotation toolbar (`!RegionCaptureDisableAnnotation`).
     pub enable_annotations: bool,
+    /// The annotation tools' options (`ToolsSettingsReference.ImageEditorOptions`).
+    pub editor_options: ImageEditorOptions,
 }
 
 /// `AvaloniaRegionCaptureResult`.
@@ -66,7 +76,7 @@ pub struct CaptureResult {
     /// The window it's of (the hovered window picked, else the window under
     /// the pointer), for naming.
     pub window_info: Option<WindowInfo>,
-    /// Annotations were drawn (never yet: annotations aren't ported).
+    /// Annotations were drawn (`MainViewModel.IsDirty`).
     pub image_modified: bool,
     /// The window captured whole, or 0.
     pub window_handle: isize,
@@ -112,6 +122,17 @@ pub enum Key {
     Alt,
     Super,
     H,
+    Backspace,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    /// A letter key, upper case.
+    Letter(char),
+    /// A digit of the main keyboard.
+    Digit(u8),
+    /// NumPad1 to NumPad9 (NumPad0 is its own key).
+    NumPad(u8),
     Other,
 }
 
@@ -128,6 +149,8 @@ pub enum CursorKind {
     Custom(cursors::CustomCursor),
     Arrow,
     Move,
+    /// The text box's I-beam.
+    Text,
 }
 
 /// `RegionInteraction`.
@@ -269,6 +292,16 @@ pub struct RegionCapture {
     pub(crate) toolbar_hover: Option<toolbar::Part>,
     pub(crate) pointer_known: bool,
     closing: bool,
+    /// The image editor's workspace, when annotations are enabled.
+    pub(crate) editor: Option<Workspace>,
+    /// `_regionToolActive`: the region tool, not an annotation tool.
+    pub(crate) region_tool_active: bool,
+    annotation_right_pressed: bool,
+    /// A slider of the options row being dragged.
+    slider_drag: Option<options_row::OptionItem>,
+
+    /// Escape went to the text box, so its release doesn't cancel.
+    escape_to_text: bool,
 }
 
 /// `Distance(...) >= 4` before a press on a hovered window starts a new
@@ -280,8 +313,21 @@ const DOUBLE_CLICK_DISTANCE: f64 = 4.0;
 
 impl RegionCapture {
     pub fn new(request: Request) -> Self {
-        let Request { screenshot, screen_bounds, screens, options, windows, cursor, last_regions, enable_annotations } =
-            request;
+        let Request {
+            screenshot,
+            screen_bounds,
+            screens,
+            options,
+            windows,
+            cursor,
+            last_regions,
+            enable_annotations,
+            editor_options,
+        } = request;
+        let editor = enable_annotations.then(|| {
+            let pm = sharex_skia::Pixmap::from_rgba(screenshot.width(), screenshot.height(), screenshot.as_raw());
+            Workspace::new(pm, editor_options)
+        });
         let width = screen_bounds.w.max(1) as f64;
         let height = screen_bounds.h.max(1) as f64;
         let mut me = Self {
@@ -323,6 +369,11 @@ impl RegionCapture {
             toolbar_hover: None,
             pointer_known: false,
             closing: false,
+            editor,
+            region_tool_active: true,
+            annotation_right_pressed: false,
+            slider_drag: None,
+            escape_to_text: false,
         };
         // `OnOpened`: the pointer, the toolbar on its monitor, the hover.
         let desktop = cursor.or_else(|| me.screens.iter().find(|s| s.primary).map(|s| (s.bounds.x, s.bounds.y)));
@@ -532,6 +583,18 @@ impl RegionCapture {
         {
             self.update_toolbar_position(desktop);
         }
+        if self.slider_drag.is_some() {
+            return Outcome::Continue;
+        }
+        if !self.region_tool_active {
+            self.last_pointer = self.clamp(p);
+            if let Some(e) = self.editor.as_mut()
+                && (self.toolbar_hover.is_none() || e.is_interacting())
+            {
+                e.pointer_moved((p.x, p.y), editor_mods(m));
+            }
+            return Outcome::Continue;
+        }
         // Over the toolbar the input surface sees nothing (unless dragging).
         if self.interaction == Interaction::None && self.toolbar_hover.is_some() {
             return Outcome::Continue;
@@ -573,6 +636,9 @@ impl RegionCapture {
         }
         if self.toolbar_hover.is_some() {
             return Outcome::Continue;
+        }
+        if !self.region_tool_active {
+            return self.annotation_pressed(p, button, m);
         }
         let p = self.clamp(p);
         self.last_pointer = p;
@@ -622,7 +688,7 @@ impl RegionCapture {
     }
 
     /// A button came up at `p`.
-    pub fn pointer_released(&mut self, p: PointF, button: Button, _m: Modifiers) -> Outcome {
+    pub fn pointer_released(&mut self, p: PointF, button: Button, m: Modifiers) -> Outcome {
         if self.closing {
             return Outcome::Continue;
         }
@@ -632,6 +698,12 @@ impl RegionCapture {
                 self.options.ToolbarPosition = Point::new(x.round() as i32, y.round() as i32);
             }
             return Outcome::Continue;
+        }
+        if button == Button::Left && self.slider_drag.take().is_some() {
+            return Outcome::Continue;
+        }
+        if !self.region_tool_active {
+            return self.annotation_released(p, button, m);
         }
         let p = self.clamp(p);
         if self.interaction == Interaction::None && self.toolbar_hover.is_some() {
@@ -694,6 +766,9 @@ impl RegionCapture {
                     limits::TOOLBAR_BUTTON_SIZE_MAXIMUM,
                 );
             }
+            return Outcome::Continue;
+        }
+        if !self.region_tool_active {
             return Outcome::Continue;
         }
         let direction = delta_y.signum();
@@ -771,13 +846,22 @@ impl RegionCapture {
         }
         let none = m == Modifiers::default();
         if self.keyboard_enabled && none && matches!(key, Key::Tab | Key::NumPad0) {
-            // `ActivateRegionTool`: it's the only tool here.
-            self.update_hover(self.last_pointer);
+            self.activate_region_tool();
             return Outcome::Continue;
         }
         if self.keyboard_enabled && key == Key::H && m.ctrl && !m.shift && !m.alt {
             self.toolbar.hidden = !self.toolbar.hidden;
             self.toolbar.hidden_changed = Some(Instant::now());
+            return Outcome::Continue;
+        }
+        // The text box being typed in has the keys.
+        if let Some(e) = self.editor.as_mut()
+            && e.text_edit().is_some()
+        {
+            if let Some(k) = editor_key(key) {
+                self.escape_to_text |= key == Key::Escape;
+                e.key_down(k, editor_mods(m), &|_, _| None);
+            }
             return Outcome::Continue;
         }
         if !self.keyboard_enabled {
@@ -788,18 +872,19 @@ impl RegionCapture {
             self.update_selection_during_creation(p, Modifiers { shift: true, ..m });
             return Outcome::Continue;
         }
+        let region = self.region_tool_active;
         match key {
             Key::Enter => {
-                if !self.has_valid_selection() && self.hover.is_valid() {
+                if region && !self.has_valid_selection() && self.hover.is_valid() {
                     self.set_selection(self.hover, self.hover_candidate);
                 }
                 if self.has_valid_selection() {
                     return self.complete_selection();
                 }
             }
-            Key::Space => return self.complete(vec![self.bounds()], false),
-            Key::Tilde => return self.complete_active_monitor(),
-            Key::Left | Key::Right | Key::Up | Key::Down => {
+            Key::Space if region => return self.complete(vec![self.bounds()], false),
+            Key::Tilde if region => return self.complete_active_monitor(),
+            Key::Left | Key::Right | Key::Up | Key::Down if region => {
                 let d = if m.shift { limits::MOVE_SPEED_MAXIMUM } else { limits::MOVE_SPEED_MINIMUM };
                 let dx = match key {
                     Key::Left => -d,
@@ -816,15 +901,34 @@ impl RegionCapture {
                     self.screen_bounds.y + self.last_pointer.y.round() as i32,
                 ));
                 set_cursor(x + dx, y + dy);
+                return Outcome::Continue;
             }
-            Key::Delete if self.has_valid_selection() => self.clear_selection(),
+            Key::Delete if region && self.has_valid_selection() => {
+                self.clear_selection();
+                return Outcome::Continue;
+            }
             _ => {}
+        }
+        // `EditorView.OnKeyDown`: the editor's keys and the tools' hotkeys.
+        let Some(k) = editor_key(key) else { return Outcome::Continue };
+        let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
+        let r = e.key_down(k, editor_mods(m), &tool_hotkey);
+        if r.tool.is_some() {
+            self.activate_annotation_tool();
         }
         Outcome::Continue
     }
 
     /// A key came up (`OnKeyUp`): Escape cancels.
     pub fn key_up(&mut self, key: Key, m: Modifiers) -> Outcome {
+        if let Some(e) = self.editor.as_mut()
+            && let Some(k) = editor_key(key)
+        {
+            e.key_up(k, editor_mods(m));
+        }
+        if key == Key::Escape && std::mem::take(&mut self.escape_to_text) {
+            return Outcome::Continue;
+        }
         if matches!(self.interaction, Interaction::Creating | Interaction::PendingHover) && key == Key::Control {
             self.moving_during_creation = false;
             self.ctrl_held_during_creation = false;
@@ -837,7 +941,154 @@ impl RegionCapture {
         if key != Key::Escape || m != Modifiers::default() || self.closing {
             return Outcome::Continue;
         }
+        if !self.region_tool_active && self.editor.as_mut().is_some_and(|e| e.cancel_interaction_or_selection()) {
+            return Outcome::Continue;
+        }
         self.cancel()
+    }
+
+    /// Text typed while the text box is open.
+    pub fn text_input(&mut self, text: &str) {
+        if let Some(e) = self.editor.as_mut()
+            && e.text_edit().is_some()
+        {
+            e.text_input(text);
+        }
+    }
+
+    /// Whether typed text goes to a text box.
+    pub fn wants_text(&self) -> bool {
+        self.editor.as_ref().is_some_and(|e| e.text_edit().is_some())
+    }
+
+    // The annotation tools.
+
+    /// `ActivateAnnotationTool`: the editor gets the input, the region
+    /// overlay shows only a kept selection, the HUD hides.
+    pub(crate) fn activate_annotation_tool(&mut self) {
+        if self.editor.is_none() {
+            return;
+        }
+        self.region_tool_active = false;
+        self.set_interaction(Interaction::None);
+        self.hover = RectF::default();
+        self.hover_candidate = None;
+    }
+
+    /// `ActivateRegionTool`.
+    pub(crate) fn activate_region_tool(&mut self) {
+        self.region_tool_active = true;
+        if let Some(e) = self.editor.as_mut() {
+            e.commit_text();
+            e.cancel_interaction_or_selection();
+        }
+        self.update_hover(self.last_pointer);
+    }
+
+    /// The annotation tool shown active, if one is.
+    pub fn active_annotation_tool(&self) -> Option<EditorTool> {
+        if self.region_tool_active { None } else { self.editor.as_ref().map(|e| e.active_tool()) }
+    }
+
+    /// `OnCaptureHostPointerPressed` and the editor's own press.
+    fn annotation_pressed(&mut self, p: PointF, button: Button, m: Modifiers) -> Outcome {
+        self.last_pointer = self.clamp(p);
+        if button == Button::Middle {
+            return self.run_annotation_action(self.options.RegionCaptureActionMiddleClick.clone(), p);
+        }
+        let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
+        match button {
+            // A second button while drawing cancels the shape.
+            Button::Right if e.is_drawing() => e.cancel_drawing(),
+            Button::Right => self.annotation_right_pressed = true,
+            Button::Left => e.pointer_pressed((p.x, p.y), ed::Button::Left, editor_mods(m)),
+            _ => {}
+        }
+        Outcome::Continue
+    }
+
+    /// `OnCaptureHostPointerReleased` and the editor's own release.
+    fn annotation_released(&mut self, p: PointF, button: Button, m: Modifiers) -> Outcome {
+        self.last_pointer = self.clamp(p);
+        match button {
+            Button::Right if std::mem::take(&mut self.annotation_right_pressed) => {
+                self.run_annotation_action(self.options.RegionCaptureActionRightClick.clone(), p)
+            }
+            Button::Left => {
+                if let Some(e) = self.editor.as_mut() {
+                    e.pointer_released((p.x, p.y), ed::Button::Left, editor_mods(m));
+                }
+                Outcome::Continue
+            }
+            _ => Outcome::Continue,
+        }
+    }
+
+    /// `RunAnnotationCaptureAction`: removing a shape removes an annotation
+    /// of the active tool under the pointer.
+    fn run_annotation_action(&mut self, action: RegionCaptureAction, p: PointF) -> Outcome {
+        let at = (p.x, p.y);
+        match action {
+            RegionCaptureAction::RemoveShapeCancelCapture => {
+                if self.editor.as_mut().is_some_and(|e| e.delete_at(at)) {
+                    Outcome::Continue
+                } else {
+                    self.cancel()
+                }
+            }
+            RegionCaptureAction::RemoveShape => {
+                if let Some(e) = self.editor.as_mut() {
+                    e.delete_at(at);
+                }
+                Outcome::Continue
+            }
+            other => self.run_action(other),
+        }
+    }
+
+    /// A control of the options row was pressed.
+    fn option_pressed(&mut self, item: options_row::OptionItem) {
+        use options_row::OptionItem as O;
+        let Some(e) = self.editor.as_mut() else { return };
+        if item.is_slider() {
+            self.slider_drag = Some(item);
+            return;
+        }
+        e.set_option(|s, t| match item {
+            O::Bold => s.set_text_bold(!s.text_bold, t),
+            O::Italic => s.set_text_italic(!s.text_italic, t),
+            O::EffectEllipse => s.set_effect_ellipse(!s.effect_ellipse, t),
+            O::ArrowRoundedCorners => s.set_arrow_rounded_corners(!s.arrow_rounded_corners, t),
+            O::FreehandArrow => s.set_freehand_arrow(!s.freehand_arrow, t),
+            O::Tail => s.set_speech_balloon_tail(!s.speech_balloon_tail, t),
+            O::AutoSize => s.set_speech_balloon_auto_size(!s.speech_balloon_auto_size, t),
+            O::Shadow => s.set_shadow_enabled(!s.shadow_enabled),
+            _ => {}
+        });
+    }
+
+    /// The options row slider being dragged, if any.
+    pub fn slider_dragging(&self) -> Option<options_row::OptionItem> {
+        self.slider_drag
+    }
+
+    /// Sets a slider of the options row to `t` (0 to 1) of its range.
+    pub fn set_slider_fraction(&mut self, item: options_row::OptionItem, t: f32) {
+        let Some(e) = self.editor.as_mut() else { return };
+        let tool = e.active_tool();
+        e.set_option(|s, target| {
+            if item == options_row::OptionItem::Strength {
+                let max = ed::max_effect_strength(tool);
+                s.set_effect_strength((1.0 + t * (max - 1.0)).round(), target);
+            } else {
+                s.set_spotlight_blur((t * 200.0).round(), target);
+            }
+        });
+    }
+
+    /// The options the annotation tools changed, to keep as ShareX does.
+    pub fn editor_options(&self) -> Option<ImageEditorOptions> {
+        self.editor.as_ref().map(|e| e.tools.options.clone())
     }
 
     /// Closes without capturing.
@@ -865,8 +1116,14 @@ impl RegionCapture {
                 self.try_remove_region_at(self.last_pointer);
                 Outcome::Continue
             }
-            // Switches to the annotation tools, which aren't ported yet.
-            RegionCaptureAction::SwapToolType => Outcome::Continue,
+            RegionCaptureAction::SwapToolType => {
+                if self.region_tool_active {
+                    self.activate_annotation_tool();
+                } else {
+                    self.activate_region_tool();
+                }
+                Outcome::Continue
+            }
             RegionCaptureAction::CaptureFullscreen => self.complete(vec![self.bounds()], false),
             RegionCaptureAction::CaptureActiveMonitor => self.complete_active_monitor(),
             RegionCaptureAction::CaptureLastRegion => self.complete_last_region(),
@@ -933,8 +1190,17 @@ impl RegionCapture {
             })
             .collect();
         let Some(bounds) = regions.iter().copied().reduce(|a, b| a.union(&b)) else { return Outcome::Continue };
-        let image = image::imageops::crop_imm(&self.screenshot, bounds.x as u32, bounds.y as u32, bounds.w as u32, bounds.h as u32)
-            .to_image();
+        // `EditorView.GetSnapshot(Rect)`: with annotations, rendered with them.
+        let annotated = self.editor.as_mut().filter(|e| !e.annotations().is_empty() || e.text_edit().is_some());
+        let image = match annotated {
+            Some(e) => {
+                let pm = e.snapshot(bounds.x as u32, bounds.y as u32, bounds.w as u32, bounds.h as u32);
+                RgbaImage::from_raw(pm.width(), pm.height(), pm.to_rgba()).unwrap_or_default()
+            }
+            None => image::imageops::crop_imm(&self.screenshot, bounds.x as u32, bounds.y as u32, bounds.w as u32, bounds.h as u32)
+                .to_image(),
+        };
+        let image_modified = self.editor.as_ref().is_some_and(|e| e.is_dirty());
         let to_screen = |r: Rect| r.offset(self.screen_bounds.x, self.screen_bounds.y);
         let screen_rectangle = to_screen(bounds);
         let window_info = if include_window_info { self.find_top_level_window_info(screen_rectangle) } else { None };
@@ -947,7 +1213,7 @@ impl RegionCapture {
             image,
             screen_rectangle,
             window_info,
-            image_modified: false,
+            image_modified,
             window_handle,
             regions: regions.into_iter().map(to_screen).collect(),
         }))
@@ -1010,9 +1276,16 @@ impl RegionCapture {
                     self.toolbar.drag = Some((px - ax, py - ay));
                 }
             }
-            toolbar::Part::RegionButton => self.update_hover(self.last_pointer),
-            // The annotation tools aren't ported yet.
-            toolbar::Part::Tool(_) | toolbar::Part::Background => {}
+            toolbar::Part::RegionButton => self.activate_region_tool(),
+            toolbar::Part::Tool(i) => {
+                // `SelectToolCommand`, then `ActivateAnnotationTool`.
+                if let (Some(e), Some(t)) = (self.editor.as_mut(), toolbar::TOOLS.get(i)) {
+                    e.select_tool(t.tool.clone());
+                    self.activate_annotation_tool();
+                }
+            }
+            toolbar::Part::Option(item) => self.option_pressed(item),
+            toolbar::Part::Background => {}
         }
         Outcome::Continue
     }
@@ -1052,6 +1325,11 @@ impl RegionCapture {
         self.toolbar_hover = if self.toolbar.hidden { None } else { part };
     }
 
+    /// The toolbar part under the pointer, as last told.
+    pub fn toolbar_hover(&self) -> Option<toolbar::Part> {
+        self.toolbar_hover
+    }
+
     /// Whether the toolbar is being dragged.
     pub fn dragging_toolbar(&self) -> bool {
         self.toolbar.drag.is_some()
@@ -1068,6 +1346,21 @@ impl RegionCapture {
             Interaction::Creating | Interaction::PendingHover => return CursorKind::Custom(C::Crosshair),
             Interaction::None => {}
         }
+        if self.slider_drag.is_some() {
+            return CursorKind::Arrow;
+        }
+        if !self.region_tool_active
+            && self.toolbar_hover.is_none()
+            && let Some(e) = &self.editor
+        {
+            return match e.cursor() {
+                ed::Cursor::Arrow => CursorKind::Arrow,
+                ed::Cursor::Crosshair => CursorKind::Custom(C::Crosshair),
+                ed::Cursor::OpenHand => CursorKind::Custom(C::OpenHand),
+                ed::Cursor::ClosedHand => CursorKind::Custom(C::ClosedHand),
+                ed::Cursor::IBeam => CursorKind::Text,
+            };
+        }
         match self.toolbar_hover {
             Some(toolbar::Part::DragHandle) => CursorKind::Move,
             Some(_) => CursorKind::Arrow,
@@ -1083,6 +1376,48 @@ impl RegionCapture {
     pub fn into_options(self) -> RegionCaptureOptions {
         self.options
     }
+}
+
+fn editor_mods(m: Modifiers) -> ed::Mods {
+    ed::Mods { shift: m.shift, ctrl: m.ctrl, alt: m.alt }
+}
+
+/// The editor's key for an overlay key.
+fn editor_key(k: Key) -> Option<ed::Key> {
+    Some(match k {
+        Key::Escape => ed::Key::Escape,
+        Key::Enter => ed::Key::Enter,
+        Key::Delete => ed::Key::Delete,
+        Key::Backspace => ed::Key::Backspace,
+        Key::Left => ed::Key::Left,
+        Key::Right => ed::Key::Right,
+        Key::Up => ed::Key::Up,
+        Key::Down => ed::Key::Down,
+        Key::Home => ed::Key::Home,
+        Key::End => ed::Key::End,
+        Key::PageUp => ed::Key::PageUp,
+        Key::PageDown => ed::Key::PageDown,
+        Key::Control => ed::Key::Control,
+        Key::Shift => ed::Key::Shift,
+        Key::H => ed::Key::Letter('H'),
+        Key::Letter(c) => ed::Key::Letter(c),
+        Key::Digit(d) => ed::Key::Digit(d),
+        Key::NumPad0 => ed::Key::NumPad(0),
+        Key::NumPad(n) => ed::Key::NumPad(n),
+        _ => return None,
+    })
+}
+
+/// `TrySelectToolForToolbarHotkey` over the capture toolbar's items
+/// (Avalonia's key names: `R`, `D1`, `NumPad1`).
+fn tool_hotkey(k: ed::Key, m: ed::Mods) -> Option<EditorTool> {
+    let name = match k {
+        ed::Key::Letter(c) => c.to_string(),
+        ed::Key::Digit(d) => format!("D{d}"),
+        ed::Key::NumPad(n) => format!("NumPad{n}"),
+        _ => return None,
+    };
+    toolbar::tool_for_hotkey(&name, m.ctrl, m.shift, m.alt)
 }
 
 /// `CreateSelectionRectangle`: Shift makes it a square, kept on the image.

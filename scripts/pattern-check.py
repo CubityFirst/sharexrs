@@ -5,7 +5,8 @@
 Prints the share of pixels that match the pattern exactly. With --delete,
 removes the file when fewer than --min of them match: a grab that isn't
 mostly the pattern may show other apps, and must not be kept. Dimmed
-pattern pixels (a capture overlay's 20% black) count as matching.
+pattern pixels (a capture overlay's 20% black) count as matching, and with
+--dark A pixels under black at alpha A too (a spotlight's darkening).
 """
 
 import os
@@ -42,6 +43,7 @@ def main():
         ox, oy = map(int, args[args.index("--origin") + 1].split(","))
     if "--min" in args:
         minimum = float(args[args.index("--min") + 1])
+    dark = int(args[args.index("--dark") + 1]) if "--dark" in args else None
     img = Image.open(path).convert("RGB")
     w, h = img.size
     px = img.load()
@@ -53,7 +55,10 @@ def main():
             c = px[x, y]
             p = pattern(x + ox, y + oy)
             q = pattern(x + ox, y + oy, True)
-            if close(c, p) or close(c, dim(p)) or close(c, q) or close(c, dim(q)):
+            ok = close(c, p) or close(c, dim(p)) or close(c, q) or close(c, dim(q))
+            if not ok and dark is not None:
+                ok = close(c, dim(p, dark)) or close(c, dim(q, dark))
+            if ok:
                 match += 1
     share = match / total
     print(f"{path}: {share:.4f} of sampled pixels are the test pattern")

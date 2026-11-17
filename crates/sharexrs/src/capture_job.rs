@@ -59,7 +59,16 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
         cursor,
         last_regions,
         enable_annotations: !task.AdvancedSettings.as_ref().is_some_and(|a| a.RegionCaptureDisableAnnotation),
+        editor_options: image_editor_options(task),
     })
+}
+
+/// `TaskSettings.ToolsSettingsReference.ImageEditorOptions`.
+pub fn image_editor_options(task: &TaskSettings) -> sharex_image_editor::ImageEditorOptions {
+    task.ToolsSettings
+        .as_ref()
+        .map(|t| sharex_image_editor::ImageEditorOptions::from_value(&t.ImageEditorOptions))
+        .unwrap_or_default()
 }
 
 /// `TaskMetadata`.

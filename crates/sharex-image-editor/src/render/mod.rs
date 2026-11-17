@@ -19,30 +19,58 @@ use sharex_skia::Pixmap;
 use crate::model::{Annotation, Kind};
 
 pub use color::parse_color;
+pub use text::step_radius;
 
 /// Renders `annotations` (in z-order, first at the bottom) over `base`.
 pub fn render(base: &Pixmap, annotations: &[Annotation]) -> Pixmap {
+    render_cached(base, annotations, &mut Cache::default())
+}
+
+/// [`render`], keeping what the effects compute from the whole image (the
+/// blurred and pixelated sources, `CreateInteractionCacheBitmap`) in
+/// `cache` for the next render over the same `base`, as the editor keeps
+/// its interaction caches while annotations are drawn and moved.
+pub fn render_cached(base: &Pixmap, annotations: &[Annotation], cache: &mut Cache) -> Pixmap {
     let mut pm = base.clone();
-    effects::draw_spotlights(&mut pm, base, annotations);
+    effects::draw_spotlights(&mut pm, base, annotations, cache);
     for a in annotations {
-        draw(&mut pm, base, a);
+        draw(&mut pm, base, a, cache);
     }
     pm
 }
 
-fn draw(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
+/// The effects' whole-image sources, per effect and strength, for one base
+/// image.
+#[derive(Default)]
+pub struct Cache {
+    base: Option<(usize, u32, u32)>,
+    sources: std::collections::HashMap<(u8, u32), Pixmap>,
+}
+
+impl Cache {
+    fn source(&mut self, base: &Pixmap, kind: u8, amount: f32, make: fn(&Pixmap, f32) -> Pixmap) -> &Pixmap {
+        let key = (base.pixels().as_ptr() as usize, base.width(), base.height());
+        if self.base != Some(key) {
+            self.base = Some(key);
+            self.sources.clear();
+        }
+        self.sources.entry((kind, amount.to_bits())).or_insert_with(|| make(base, amount))
+    }
+}
+
+fn draw(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache) {
     if a.common.shadow_enabled
         && let Some((size, ctm)) = shapes::visual_frame(a)
     {
         shadow::with_shadow(pm, &a.common, size, &ctm, |layer| {
-            draw_visual(layer, base, a)
+            draw_visual(layer, base, a, cache)
         });
         return;
     }
-    draw_visual(pm, base, a);
+    draw_visual(pm, base, a, cache);
 }
 
-fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
+fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache) {
     match &a.kind {
         Kind::Rectangle(p) => {
             shapes::draw_rectangle(pm, &a.common, p.border_style.clone(), p.corner_radius)
@@ -55,7 +83,7 @@ fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
         Kind::Number(p) => text::draw_step(pm, &a.common, p),
         Kind::SpeechBalloon(p) => text::draw_balloon(pm, &a.common, p),
         Kind::Highlight(_) | Kind::Blur(_) | Kind::Pixelate(_) | Kind::Magnify(_) => {
-            effects::draw_effect(pm, base, a)
+            effects::draw_effect(pm, base, a, cache)
         }
         _ => {}
     }

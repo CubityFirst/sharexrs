@@ -84,10 +84,34 @@ fn open_window(event_loop: &ActiveEventLoop, screen: &Screen) -> Result<winit::w
 }
 
 fn key(event: &winit::event::KeyEvent) -> Key {
+    use KeyCode as K;
     match event.physical_key {
-        PhysicalKey::Code(KeyCode::Numpad0) => return Key::NumPad0,
-        PhysicalKey::Code(KeyCode::Backquote) => return Key::Tilde,
-        PhysicalKey::Code(KeyCode::KeyH) => return Key::H,
+        PhysicalKey::Code(K::Numpad0) => return Key::NumPad0,
+        PhysicalKey::Code(K::Backquote) => return Key::Tilde,
+        PhysicalKey::Code(K::KeyH) => return Key::H,
+        PhysicalKey::Code(code) => {
+            let numpad = [K::Numpad1, K::Numpad2, K::Numpad3, K::Numpad4, K::Numpad5, K::Numpad6, K::Numpad7, K::Numpad8, K::Numpad9];
+            if let Some(i) = numpad.iter().position(|c| *c == code) {
+                return Key::NumPad(i as u8 + 1);
+            }
+            let digits = [K::Digit0, K::Digit1, K::Digit2, K::Digit3, K::Digit4, K::Digit5, K::Digit6, K::Digit7, K::Digit8, K::Digit9];
+            if let Some(i) = digits.iter().position(|c| *c == code) {
+                return Key::Digit(i as u8);
+            }
+            // Letters by their place, as Avalonia's `Key` (the virtual key).
+            let name = format!("{code:?}");
+            if let Some(l) = name.strip_prefix("Key")
+                && l.len() == 1
+            {
+                // The layout's letter, when it is one.
+                if let winit::keyboard::Key::Character(c) = &event.logical_key
+                    && let Some(ch) = c.chars().next().filter(|ch| ch.is_ascii_alphabetic())
+                {
+                    return Key::Letter(ch.to_ascii_uppercase());
+                }
+                return Key::Letter(l.chars().next().unwrap_or('?'));
+            }
+        }
         _ => {}
     }
     match &event.logical_key {
@@ -101,6 +125,11 @@ fn key(event: &winit::event::KeyEvent) -> Key {
             NamedKey::ArrowUp => Key::Up,
             NamedKey::ArrowDown => Key::Down,
             NamedKey::Delete => Key::Delete,
+            NamedKey::Backspace => Key::Backspace,
+            NamedKey::Home => Key::Home,
+            NamedKey::End => Key::End,
+            NamedKey::PageUp => Key::PageUp,
+            NamedKey::PageDown => Key::PageDown,
             NamedKey::Shift => Key::Shift,
             NamedKey::Control => Key::Control,
             NamedKey::Alt => Key::Alt,
@@ -135,7 +164,7 @@ impl RegionSession {
         };
         let now = Instant::now();
         for o in &mut me.overlays {
-            let capture = &me.capture;
+            let capture = &mut me.capture;
             let view = &mut o.view;
             o.window.paint(|ui| capture.paint(ui, view, now));
             o.window.window.set_visible(true);
@@ -193,6 +222,7 @@ impl RegionSession {
             match kind {
                 CursorKind::Arrow => o.window.window.set_cursor(CursorIcon::Default),
                 CursorKind::Move => o.window.window.set_cursor(CursorIcon::Move),
+                CursorKind::Text => o.window.window.set_cursor(CursorIcon::Text),
                 CursorKind::Custom(c) => {
                     let cursor = self.cursors.entry((c, scale)).or_insert_with(|| {
                         let b = sharex_capture::region::cursors::cursor(c, o.scale).expect("ShareX's cursors decode");
@@ -209,6 +239,27 @@ impl RegionSession {
         }
     }
 
+    /// The pointer moved over overlay `i`: the toolbar part under it (when
+    /// no button is down), a dragged slider, then the overlay.
+    fn cursor_moved(&mut self, i: usize, position: PhysicalPosition<f64>) -> Outcome {
+        let m = self.modifiers;
+        self.overlays[i].pointer = Some(position);
+        let o = &self.overlays[i];
+        let ppp = o.window.window.scale_factor() as f32;
+        let at = egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp);
+        if self.buttons_down == 0 && !self.capture.dragging_toolbar() {
+            let part = o.view.toolbar_part_at(at);
+            self.capture.set_toolbar_hover(part);
+        }
+        if let Some(item) = self.capture.slider_dragging()
+            && let Some(t) = o.view.slider_fraction(item, at)
+        {
+            self.capture.set_slider_fraction(item, t);
+        }
+        let p = self.image_point(i, position);
+        self.capture.pointer_moved(p, m)
+    }
+
     /// Handles an event of one of the overlay windows.
     pub fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) -> Outcome {
         let Some(i) = self.overlays.iter().position(|o| o.window.window.id() == id) else { return Outcome::Continue };
@@ -216,23 +267,13 @@ impl RegionSession {
         let outcome = match event {
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
-                let capture = &self.capture;
+                let capture = &mut self.capture;
                 let o = &mut self.overlays[i];
                 let view = &mut o.view;
                 o.window.paint(|ui| capture.paint(ui, view, now));
                 return Outcome::Continue;
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.overlays[i].pointer = Some(position);
-                if self.buttons_down == 0 && !self.capture.dragging_toolbar() {
-                    let o = &self.overlays[i];
-                    let ppp = o.window.window.scale_factor() as f32;
-                    let part = o.view.toolbar_part_at(egui::pos2(position.x as f32 / ppp, position.y as f32 / ppp));
-                    self.capture.set_toolbar_hover(part);
-                }
-                let p = self.image_point(i, position);
-                self.capture.pointer_moved(p, m)
-            }
+            WindowEvent::CursorMoved { position, .. } => self.cursor_moved(i, position),
             WindowEvent::CursorLeft { .. } => {
                 if self.buttons_down == 0 {
                     self.capture.pointer_left();
@@ -248,12 +289,41 @@ impl RegionSession {
                     MouseButton::Forward => Button::X2,
                     MouseButton::Other(_) => return Outcome::Continue,
                 };
+                // A button message has its own position (Avalonia's pointer
+                // events do): a move we weren't told of comes first.
+                if state == ElementState::Pressed
+                    && let Some((x, y)) = sharex_capture::screenshot::cursor_position()
+                {
+                    let mon = self.overlays[i].view.monitor;
+                    let pos = PhysicalPosition::new((x - mon.x) as f64, (y - mon.y) as f64);
+                    if mon.contains(x, y) && self.overlays[i].pointer != Some(pos) {
+                        self.cursor_moved(i, pos);
+                    }
+                }
                 let Some(p) = self.last_point(i) else { return Outcome::Continue };
                 let scale = self.overlays[i].scale;
+                if std::env::var_os("SHAREXRS_LOG_INPUT").is_some() {
+                    eprintln!(
+                        "region input: {state:?} {button:?} at {:.0},{:.0}, {} down, toolbar {:?}",
+                        p.x,
+                        p.y,
+                        self.buttons_down,
+                        self.capture.toolbar_hover()
+                    );
+                }
                 match state {
                     ElementState::Pressed => {
                         self.buttons_down += 1;
-                        self.capture.pointer_pressed(p, button, m, scale)
+                        let outcome = self.capture.pointer_pressed(p, button, m, scale);
+                        // A slider of the tool options jumps to the press.
+                        if let (Some(item), Some(pos)) = (self.capture.slider_dragging(), self.overlays[i].pointer) {
+                            let ppp = self.overlays[i].window.window.scale_factor() as f32;
+                            let at = egui::pos2(pos.x as f32 / ppp, pos.y as f32 / ppp);
+                            if let Some(t) = self.overlays[i].view.slider_fraction(item, at) {
+                                self.capture.set_slider_fraction(item, t);
+                            }
+                        }
+                        outcome
                     }
                     ElementState::Released => {
                         self.buttons_down = self.buttons_down.saturating_sub(1);
@@ -276,10 +346,22 @@ impl RegionSession {
             WindowEvent::KeyboardInput { event, .. } => {
                 let k = key(&event);
                 match event.state {
-                    ElementState::Pressed => self.capture.key_down(k, m, &mut platform::set_cursor_position),
+                    ElementState::Pressed => {
+                        // Typed text goes to the text box being edited.
+                        if self.capture.wants_text()
+                            && let Some(text) = event.text.as_ref().filter(|t| t.chars().any(|c| !c.is_control()))
+                            && !m.ctrl
+                        {
+                            self.capture.text_input(text);
+                            Outcome::Continue
+                        } else {
+                            self.capture.key_down(k, m, &mut platform::set_cursor_position)
+                        }
+                    }
                     ElementState::Released => self.capture.key_up(k, m),
                 }
             }
+
             WindowEvent::CloseRequested => self.capture.cancel(),
             other => {
                 self.overlays[i].window.on_event(&other);

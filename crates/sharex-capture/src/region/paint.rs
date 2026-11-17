@@ -9,8 +9,9 @@ use std::time::Instant;
 use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, StrokeKind, TextureHandle, TextureOptions, pos2, vec2};
 use sharex_ui::{Palette, palette, widgets};
 
-use super::{RegionCapture, ResizeNode, toolbar};
+use super::{RegionCapture, ResizeNode, options_row, toolbar};
 use crate::geometry::{PointF, Rect as RectI, RectF};
+use sharex_image_editor::editor::{self as ed, Outline};
 
 /// What the magnifier picture shows: the pixel, size, count and scale.
 type MagnifierKey = (i32, i32, i32, i32, u32);
@@ -21,20 +22,116 @@ pub struct OverlayView {
     /// The desktop pixels the window covers.
     pub monitor: RectI,
     frozen: Option<TextureHandle>,
+    /// The editor's version the frozen texture shows (with annotations).
+    frozen_version: Option<u64>,
     magnifier: Option<(TextureHandle, MagnifierKey)>,
     /// Where the toolbar was drawn, in points.
     toolbar: Option<toolbar::Layout>,
+    /// Where the tool options row was drawn.
+    options: Option<options_row::OptionsLayout>,
 }
 
 impl OverlayView {
     pub fn new(monitor: RectI) -> Self {
-        Self { monitor, frozen: None, magnifier: None, toolbar: None }
+        Self { monitor, frozen: None, frozen_version: None, magnifier: None, toolbar: None, options: None }
     }
 
     /// The toolbar part under `p` (points in this window), as last drawn.
     pub fn toolbar_part_at(&self, p: Pos2) -> Option<toolbar::Part> {
+        if let Some(item) = self.options.as_ref().and_then(|l| l.hit(p)) {
+            return Some(toolbar::Part::Option(item));
+        }
+        if self.options.as_ref().is_some_and(|l| l.rect.contains(p)) {
+            return Some(toolbar::Part::Background);
+        }
         self.toolbar.as_ref().and_then(|l| l.hit(p))
     }
+
+    /// Where `p` (points) falls along an options row slider: 0 to 1.
+    pub fn slider_fraction(&self, item: options_row::OptionItem, p: Pos2) -> Option<f32> {
+        let r = self.options.as_ref()?.item_rect(item)?;
+        let scale = r.height() / 40.0;
+        // The 120px slider 29px in, its thumb's centre 10px from each end.
+        let left = r.min.x + (29.0 + 10.0) * scale;
+        let width = (120.0 - 20.0) * scale;
+        Some(((p.x - left) / width).clamp(0.0, 1.0))
+    }
+}
+
+/// The monitor's part of `pm` as premultiplied RGBA.
+fn crop_premul(pm: &sharex_skia::Pixmap, x: i32, y: i32, w: i32, h: i32) -> Vec<u8> {
+    let mut out = Vec::with_capacity((w * h * 4) as usize);
+    for row in y..y + h {
+        for col in x..x + w {
+            let c = pm.pixel(col, row);
+            out.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]);
+        }
+    }
+    out
+}
+
+/// How much of `[d0, d1]` a `[3, 3]` dash pattern (shifted by `offset`)
+/// covers.
+fn dash_cover(d0: f64, d1: f64, offset: f64) -> f64 {
+    let mut cover = 0.0;
+    let first = ((d0 + offset) / 6.0).floor() as i64 - 1;
+    for k in first..=first + 2 {
+        let (s, e) = (k as f64 * 6.0 - offset, k as f64 * 6.0 + 3.0 - offset);
+        cover += (e.min(d1) - s.max(d0)).max(0.0);
+    }
+    cover.min(d1 - d0)
+}
+
+/// A 1px axis-aligned dashed line (`StrokeDashArray="3,3"`) from `a` to `b`
+/// (image pixels, on the line's centre), black, then white dashes offset
+/// by 3, each pixel as much as the line and its dash cover it. `start` is
+/// the distance along the path at `a`.
+fn dashed_axis_line(painter: &egui::Painter, m: &Mapper, a: (f64, f64), b: (f64, f64), start: f64) {
+    let vertical = (a.0 - b.0).abs() < 1e-9;
+    let len = if vertical { (b.1 - a.1).abs() } else { (b.0 - a.0).abs() };
+    if len <= 0.0 {
+        return;
+    }
+    let dir = if vertical { (b.1 - a.1).signum() } else { (b.0 - a.0).signum() };
+    // Across the line: the pixels the 1px width covers.
+    let across = if vertical { a.0 } else { a.1 };
+    let (lo, hi) = (across - 0.5, across + 0.5);
+    let along0 = if vertical { a.1 } else { a.0 };
+    let (p0, p1) = (along0.min(along0 + dir * len), along0.max(along0 + dir * len));
+    for cross in lo.floor() as i64..hi.ceil() as i64 {
+        let wc = (hi.min(cross as f64 + 1.0) - lo.max(cross as f64)).max(0.0);
+        if wc <= 0.0 {
+            continue;
+        }
+        for px in p0.floor() as i64..p1.ceil() as i64 {
+            let (s, e) = ((px as f64).max(p0), (px as f64 + 1.0).min(p1));
+            if e <= s {
+                continue;
+            }
+            // Distances along the path for this pixel's span.
+            let (d0, d1) = if dir > 0.0 { (s - along0, e - along0) } else { (along0 - e, along0 - s) };
+            let (d0, d1) = (start + d0, start + d1);
+            let black = dash_cover(d0, d1, 0.0) * wc;
+            let white = dash_cover(d0, d1, 3.0) * wc;
+            let r = if vertical { m.rect(cross as f64, px as f64, 1.0, 1.0) } else { m.rect(px as f64, cross as f64, 1.0, 1.0) };
+            if black > 0.0 {
+                pixel_rect(painter, r, Color32::from_black_alpha((black * 255.0).round() as u8));
+            }
+            if white > 0.0 {
+                pixel_rect(painter, r, Color32::from_white_alpha((white * 255.0).round() as u8));
+            }
+        }
+    }
+}
+
+/// `SelectionResizeNode`: a 15px white circle with a soft shadow.
+fn paint_node(painter: &egui::Painter, m: &Mapper, c: (f64, f64)) {
+    let half = super::RESIZE_NODE_SIZE / 2.0;
+    let r = m.rect(c.0 - half, c.1 - half, half * 2.0, half * 2.0);
+    let radius = CornerRadius::same((r.width() / 2.0).round() as u8);
+    let shadow = egui::epaint::Shadow { offset: [0, 0], blur: 8, spread: 0, color: Color32::from_black_alpha(100) };
+    painter.add(shadow.as_shape(r, radius));
+    painter.rect_filled(r, radius, Color32::WHITE);
 }
 
 /// `AccentPalette.GetHaloColor`: black or white, whichever contrasts more
@@ -183,7 +280,7 @@ fn snap(v: f32, ppp: f32) -> f32 {
 
 impl RegionCapture {
     /// Draws the overlay for the window `view` belongs to (its whole area).
-    pub fn paint(&self, ui: &mut egui::Ui, view: &mut OverlayView, now: Instant) {
+    pub fn paint(&mut self, ui: &mut egui::Ui, view: &mut OverlayView, now: Instant) {
         let ctx = ui.ctx().clone();
         let p = palette(&ctx);
         let ppp = ctx.pixels_per_point();
@@ -193,8 +290,24 @@ impl RegionCapture {
         let accent = p.accent_start;
         let halo = halo(accent);
 
-        // The frozen screen: this monitor's part, pixel for pixel.
+        // The frozen screen: this monitor's part, pixel for pixel, with the
+        // annotations (the editor workspace under the region overlay).
         let part = view.monitor.intersect(&sb);
+        if let Some(e) = self.editor.as_mut()
+            && part.is_valid()
+            && view.frozen_version != Some(e.version())
+            && (!e.annotations().is_empty() || e.text_edit().is_some() || view.frozen_version.is_some())
+        {
+            let version = e.version();
+            let pm = e.composite();
+            let rgba = crop_premul(pm, part.x - sb.x, part.y - sb.y, part.w, part.h);
+            let image = egui::ColorImage::from_rgba_premultiplied([part.w as usize, part.h as usize], &rgba);
+            match &mut view.frozen {
+                Some(tex) => tex.set(image, TextureOptions::NEAREST),
+                None => view.frozen = Some(ctx.load_texture("frozen screen", image, TextureOptions::NEAREST)),
+            }
+            view.frozen_version = Some(version);
+        }
         if part.is_valid() {
             let tex = view.frozen.get_or_insert_with(|| {
                 let crop = image::imageops::crop_imm(
@@ -212,10 +325,12 @@ impl RegionCapture {
             painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
 
-        // `RegionSelectionOverlay.Render`.
+        // `RegionSelectionOverlay.Render`; with an annotation tool, only a
+        // selection kept outside quick capture.
+        let show_region = self.region_tool_active || (!self.quick_capture() && self.has_valid_selection());
         let surface = RectF::new(0.0, 0.0, self.width, self.height);
         let active = self.active_rectangle().intersect(&surface);
-        let dim_alpha = dim_alpha(self.options.BackgroundDimStrength);
+        let dim_alpha = if show_region { dim_alpha(self.options.BackgroundDimStrength) } else { 0 };
         if dim_alpha > 0 {
             let dim = Color32::from_rgba_unmultiplied(0, 0, 0, dim_alpha);
             let undimmed = if self.options.DimAllExceptSelection && (self.selection_pending || !self.selection.is_valid()) {
@@ -238,7 +353,7 @@ impl RegionCapture {
                 painter.rect_filled(m.rect(0.0, 0.0, self.width, self.height), 0.0, dim);
             }
         }
-        if active.is_valid() {
+        if show_region && active.is_valid() {
             ant_rectangle(&painter, &m, active, accent, halo);
             if self.options.ShowCenterCrosshair && self.selection.is_valid() {
                 let c = self.selection.center();
@@ -261,8 +376,87 @@ impl RegionCapture {
             }
         }
 
-        self.paint_hud(ui, view, &m, &p, ppp);
+        self.paint_editor_chrome(&painter, &m);
+        if self.region_tool_active {
+            self.paint_hud(ui, view, &m, &p, ppp);
+        }
         self.paint_toolbar(ui, view, &p, ppp, now);
+    }
+
+    /// The editor's selection chrome (`OverlayCanvas`): the hovered shape's
+    /// dashed outline, the selected one's handles and rotation line, the
+    /// text box being typed in.
+    fn paint_editor_chrome(&self, painter: &egui::Painter, m: &Mapper) {
+        let Some(e) = &self.editor else { return };
+        if self.region_tool_active {
+            return;
+        }
+        match e.outline() {
+            Some(Outline::Rectangle { rect: (l, t, w, h), angle: 0.0, center }) => {
+                // `Rectangle` with a 1px stroke: its path half a pixel in,
+                // clockwise from the top-left corner.
+                let (x0, y0, x1, y1) = (l + 0.5, t + 0.5, l + w - 0.5, t + h - 0.5);
+                let mut d = 0.0;
+                for (a, b) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))] {
+                    dashed_axis_line(painter, m, a, b, d);
+                    d += (b.0 - a.0).abs() + (b.1 - a.1).abs();
+                }
+                let _ = center;
+            }
+            Some(Outline::Rectangle { rect: (l, t, w, h), angle, center }) => {
+                let corners = [(l, t), (l + w, t), (l + w, t + h), (l, t + h), (l, t)];
+                let pts: Vec<Pos2> =
+                    corners.iter().map(|c| ed::geometry::rotate_point(*c, center, angle)).map(|c| m.pos(c.0, c.1)).collect();
+                dashed_poly(painter, &pts);
+            }
+            Some(Outline::Ellipse { rect: (l, t, w, h) }) => {
+                let (cx, cy, rx, ry) = (l + w / 2.0, t + h / 2.0, (w - 1.0) / 2.0, (h - 1.0) / 2.0);
+                let pts: Vec<Pos2> = (0..=96)
+                    .map(|i| {
+                        let a = std::f64::consts::TAU * i as f64 / 96.0 - std::f64::consts::FRAC_PI_2;
+                        m.pos(cx + rx * a.cos(), cy + ry * a.sin())
+                    })
+                    .collect();
+                dashed_poly(painter, &pts);
+            }
+            Some(Outline::Polyline(points)) => {
+                let pts: Vec<Pos2> = points.iter().map(|p| m.pos(p.0, p.1)).collect();
+                dashed_poly(painter, &pts);
+            }
+            None => {}
+        }
+        let (handles, line) = e.handles();
+        if let Some((a, b)) = line {
+            if (a.0 - b.0).abs() < 1e-9 || (a.1 - b.1).abs() < 1e-9 {
+                dashed_axis_line(painter, m, a, b, 0.0);
+            } else {
+                dashed_poly(painter, &[m.pos(a.0, a.1), m.pos(b.0, b.1)]);
+            }
+        }
+        for h in handles {
+            paint_node(painter, m, h.at);
+        }
+        if let Some(b) = e.text_edit().and_then(ed::text_box) {
+            // The `TextBox` (ShareX's style): control background, a border,
+            // 4px corners, the text plain in its colour, and the caret.
+            let p = palette(painter.ctx());
+            let (l, t, w, h) = b.rect;
+            let rect = m.rect(l, t, w, h);
+            painter.rect_filled(rect, CornerRadius::same(4), p.control_background);
+            painter.rect_stroke(rect, CornerRadius::same(4), Stroke::new(2.0 / m.ppp, p.border), StrokeKind::Inside);
+            let c = sharex_image_editor::render::parse_color(&b.color);
+            let color = Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
+            let weight = if b.bold { 700 } else { 400 };
+            let font = egui::FontId::new(b.font_size as f32 / m.ppp, sharex_ui::widgets::font(12.0, weight).family);
+            let text = e.text_edit().map(|t| t.text.clone()).unwrap_or_default();
+            for (i, line) in text.split('\n').enumerate() {
+                let g = painter.layout_no_wrap(line.to_string(), font.clone(), color);
+                let at = m.pos(b.text_origin.0, b.text_origin.1 + i as f64 * b.line_height);
+                painter.galley(at, g, color);
+            }
+            let caret_top = b.text_origin.1 + b.caret.1 as f64 * b.line_height;
+            painter.rect_filled(m.rect(b.caret.0, caret_top, 1.0, b.line_height), 0.0, color);
+        }
     }
 
     /// The magnifier with the pointer's position under it, and the
@@ -396,14 +590,42 @@ impl RegionCapture {
         );
         let layout = toolbar::layout(min, scale);
         let window = Rect::from_min_size(Pos2::ZERO, vec2(view.monitor.w as f32, view.monitor.h as f32) / ppp);
+        view.options = None;
         if !layout.rect.intersects(window) || hidden >= 1.0 {
             return;
         }
-        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, true, scale, 1.0 - hidden);
+        let active_tool = self.active_annotation_tool();
+        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, self.region_tool_active, active_tool.as_ref(), scale, 1.0 - hidden);
+        // `ShowToolOptions` while an annotation tool is active.
+        if let (Some(tool), Some(e)) = (&active_tool, &self.editor) {
+            let visible = ed::Visible::of(tool.clone(), e.selected());
+            if let Some(row) = options_row::layout(ui, layout.rect, scale, &visible, &e.tools) {
+                let mut painter = ui.painter().clone();
+                painter.set_opacity(1.0 - hidden);
+                let hovered = match self.toolbar_hover {
+                    Some(toolbar::Part::Option(item)) => Some(item),
+                    _ => None,
+                };
+                options_row::paint(ui, &painter, p, &row, tool, &e.tools, hovered, scale);
+                if hidden <= 0.0 {
+                    view.options = Some(row);
+                }
+            }
+        }
         if hidden <= 0.0 {
             view.toolbar = Some(layout);
         }
     }
+}
+
+/// Black then white 1px dashes, 3 on 3, along `pts` (egui's dashes: for
+/// the outlines Skia would draw anti-aliased off the pixel grid).
+fn dashed_poly(painter: &egui::Painter, pts: &[Pos2]) {
+    if pts.len() < 2 {
+        return;
+    }
+    painter.extend(egui::Shape::dashed_line(pts, Stroke::new(1.0, Color32::BLACK), 3.0, 3.0));
+    painter.extend(egui::Shape::dashed_line_with_offset(pts, Stroke::new(1.0, Color32::WHITE), &[3.0], &[3.0], 3.0));
 }
 
 /// `GetDimAlpha`: `BackgroundDimStrength` percent of 255.

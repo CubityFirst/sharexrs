@@ -679,6 +679,14 @@ impl App {
         let Some(Region { session, task, hidden }) = self.region.take() else { return };
         // The overlay changes its options as ShareX's does (magnifier size,
         // toolbar place), on the settings the task takes them from.
+        // The annotation tools' options too (`ToolsSettingsReference`).
+        if let Some(o) = session.capture.editor_options()
+            && task.UseDefaultToolsSettings
+            && let Some(t) = self.settings.settings.DefaultTaskSettings.ToolsSettings.as_mut()
+            && o != sharex_image_editor::ImageEditorOptions::from_value(&t.ImageEditorOptions)
+        {
+            t.ImageEditorOptions = o.to_value();
+        }
         let options = session.capture.into_options();
         if task.UseDefaultCaptureSettings
             && let Some(c) = self.settings.settings.DefaultTaskSettings.CaptureSettings.as_mut()

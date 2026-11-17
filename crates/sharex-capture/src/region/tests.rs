@@ -15,6 +15,7 @@ fn session(windows: Vec<SimpleWindowInfo>) -> RegionCapture {
         cursor: Some((300, 300)),
         last_regions: Vec::new(),
         enable_annotations: true,
+        editor_options: Default::default(),
     })
 }
 
@@ -157,4 +158,61 @@ fn wheel_resizes_and_hides_the_magnifier() {
     assert!(s.magnifier_hidden_by_wheel);
     s.wheel(1.0, none());
     assert!(!s.magnifier_hidden_by_wheel);
+}
+
+fn click_tool(s: &mut RegionCapture, id: &str) {
+    let i = toolbar::TOOLS.iter().position(|t| t.id == id).unwrap();
+    s.set_toolbar_hover(Some(toolbar::Part::Tool(i)));
+    s.pointer_pressed(PointF::new(0.0, 0.0), Button::Left, none(), 1.0);
+    s.pointer_released(PointF::new(0.0, 0.0), Button::Left, none());
+    s.set_toolbar_hover(None);
+}
+
+#[test]
+fn annotations_are_drawn_and_captured_with_the_region() {
+    let mut s = session(Vec::new());
+    click_tool(&mut s, "Rectangle");
+    assert!(!s.region_tool_active);
+    assert_eq!(s.active_annotation_tool(), Some(EditorTool::Rectangle));
+    // Drawing doesn't capture; it makes an annotation.
+    assert!(matches!(drag(&mut s, (100.0, 100.0), (300.0, 200.0)), Outcome::Continue));
+    let e = s.editor.as_ref().unwrap();
+    assert_eq!(e.annotations().len(), 1);
+    let expected = sharex_image_editor::render(e.source(), e.annotations());
+    // Tab: the region tool, then a region over it.
+    s.tick(Instant::now() + Duration::from_secs(1));
+    s.key_down(Key::Tab, none(), &mut |_, _| {});
+    assert!(s.region_tool_active);
+    let Outcome::Captured(r) = drag(&mut s, (50.0, 50.0), (400.0, 300.0)) else { panic!("not captured") };
+    assert!(r.image_modified);
+    let (w, h) = r.image.dimensions();
+    for (x, y) in [(50, 50), (52, 52), (100 - 50, 100 - 50), (w - 1, h - 1)] {
+        let c = expected.pixel(50 + x as i32, 50 + y as i32);
+        let want = image::Rgba([(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]);
+        assert_eq!(r.image.get_pixel(x, y), &want, "at {x},{y}");
+    }
+}
+
+#[test]
+fn right_click_removes_the_tools_annotation_then_cancels() {
+    let mut s = session(Vec::new());
+    click_tool(&mut s, "Ellipse");
+    drag(&mut s, (100.0, 100.0), (300.0, 200.0));
+    s.pointer_pressed(PointF::new(200.0, 150.0), Button::Right, none(), 1.0);
+    assert!(matches!(s.pointer_released(PointF::new(200.0, 150.0), Button::Right, none()), Outcome::Continue));
+    assert!(s.editor.as_ref().unwrap().annotations().is_empty());
+    s.pointer_pressed(PointF::new(200.0, 150.0), Button::Right, none(), 1.0);
+    assert!(matches!(s.pointer_released(PointF::new(200.0, 150.0), Button::Right, none()), Outcome::Cancelled));
+}
+
+#[test]
+fn tool_hotkeys_switch_to_the_annotation_tools() {
+    let mut s = session(Vec::new());
+    s.tick(Instant::now() + Duration::from_secs(1));
+    s.key_down(Key::Letter('A'), none(), &mut |_, _| {});
+    assert_eq!(s.active_annotation_tool(), Some(EditorTool::Arrow));
+    s.key_down(Key::NumPad(1), none(), &mut |_, _| {});
+    assert_eq!(s.active_annotation_tool(), Some(EditorTool::Rectangle));
+    // Escape with nothing selected cancels.
+    assert!(matches!(s.key_up(Key::Escape, none()), Outcome::Cancelled));
 }

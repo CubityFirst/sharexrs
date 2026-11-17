@@ -239,7 +239,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
-            "--pointer" | "--drag" | "--window" => rest_args.push((a.clone(), val()?)),
+            "--pointer" | "--drag" | "--window" | "--steps" => rest_args.push((a.clone(), val()?)),
             "--out" => out = Some(val()?),
             "--theme" => dark = val()? != "light",
             "--width" => width = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
