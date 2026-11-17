@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference renderer for ShareXrs's image effects: runs ShareX's own
+    ShareX.ImageEffectsLib.dll (from a ShareX build of REFERENCE_COMMIT) over the
+    cases in cases.json and writes the raw premultiplied pixels. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.ImageEffectsLib"><HintPath>$(ShareXBuild)\ShareX.ImageEffectsLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="SkiaSharp"><HintPath>$(ShareXBuild)\SkiaSharp.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
+    <!-- Everything else ShareX's libraries load (Avalonia for the localisation, the native Skia). -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

@@ -2,3 +2,7 @@
 # Screenshots from scripts/winshot.ps1 and `sharexrs --render`, for comparing
 # against ShareX; regenerate rather than commit.
 /shots
+
+# The image effects harness's .NET build output.
+/tools/effects-harness/bin
+/tools/effects-harness/obj
