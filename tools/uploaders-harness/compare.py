@@ -76,6 +76,9 @@ def norm_request(req):
         if m:
             b = m.group(1)
             body = body.replace(b.encode(), b"BOUNDARY")
+    # Immich sends a new GUID and the time with each upload.
+    body = re.sub(rb"ShareX-[0-9a-f]{32}", b"ShareX-GUID", body)
+    body = re.sub(rb"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{7}\+00:00", b"TIMESTAMP", body)
     norm = []
     for k, v in headers:
         v = re.sub(r'boundary="?[^";]+"?', 'boundary="BOUNDARY"', v) if k.lower() == "content-type" else v

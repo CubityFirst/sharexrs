@@ -460,6 +460,22 @@ builtin("imgfish", "file:ImgFish", {"ImgFishSettings": {"APIKey": "made-up", "Fi
 builtin("imgfish-error", "file:ImgFish", {}, image_input(), [resp('{"error":"Too big"}')])
 builtin("imgfish-not-json", "file:ImgFish", {}, image_input(), [text_resp("oops")])
 
+OC = {"OwnCloudHost": "cloud.example.com", "OwnCloudUsername": "someone", "OwnCloudPassword": "made-up", "OwnCloudPath": "/ShareX/shots"}
+OCS_OK = json.dumps({"ocs": {"meta": {"status": "ok", "statuscode": 100, "message": None}, "data": {"id": 7, "url": "https://cloud.example.com/s/AbC", "token": "AbC"}}})
+builtin("owncloud-share-direct", "file:OwnCloud", dict(OC, OwnCloudDirectLink=True, OwnCloudAppendFileNameToURL=True), image_input("my shot.png"),
+        [resp("", 201, []), resp(OCS_OK)])
+builtin("owncloud-preview-expire", "file:OwnCloud", dict(OC, OwnCloudUsePreviewLinks=True, OwnCloudAutoExpire=True, OwnCloudExpiryTime=3,
+        OwnCloud81Compatibility=False), image_input(), [resp("", 201, []), resp(OCS_OK)])
+builtin("owncloud-no-share", "file:OwnCloud", dict(OC, OwnCloudCreateShare=False), image_input(), [text_resp("created", 201)])
+builtin("owncloud-share-error", "file:OwnCloud", OC, image_input(),
+        [resp("", 201, []), resp(json.dumps({"ocs": {"meta": {"status": "failure", "statuscode": 404, "message": "Wrong path"}, "data": []}}))])
+builtin("owncloud-put-error", "file:OwnCloud", OC, image_input(), [text_resp("denied", 401)])
+IM = {"ImmichURL": "https://photos.example.com/api/", "ImmichAPIKey": "made-up"}
+builtin("immich-share", "file:Immich", IM, image_input(), [resp('{"id":"asset-1","status":"created"}', 201), resp('{"key":"ShArE"}', 201)])
+builtin("immich-no-share", "file:Immich", dict(IM, ImmichAutoCreateShareableLink=False, ImmichShowMetadata=True), image_input(),
+        [resp('{"id":"asset-2","status":"duplicate","duplicate":true}')])
+builtin("immich-no-id", "file:Immich", IM, image_input(), [resp('{"status":"created"}')])
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

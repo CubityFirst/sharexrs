@@ -47,7 +47,7 @@ impl OAuth2Token {
     /// `UpdateExpireDate()`: now plus `expires_in` less 10 seconds.
     pub fn update_expire_date(&mut self) {
         let date = Utc::now() + chrono::Duration::seconds(self.expires_in - 10);
-        self.ExpireDate = Value::String(date.format("%Y-%m-%dT%H:%M:%S%.7fZ").to_string());
+        self.ExpireDate = Value::String(crate::json::dotnet_round_trip(date, "Z"));
     }
 
     /// Reads a token response (`JsonConvert.DeserializeObject<OAuth2Token>`).
@@ -141,5 +141,26 @@ settings! {
         given_name: Option<String> = None,
         picture: Option<String> = None,
         locale: Option<String> = None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tokens_expire() {
+        let mut token = OAuth2Token { expires_in: 3600, ..Default::default() };
+        assert!(token.is_expired(), "no expiry date (DateTime.MinValue) is expired");
+        token.update_expire_date();
+        let date = token.ExpireDate.as_str().unwrap().to_owned();
+        assert_eq!(date.len(), "2026-11-17T12:34:56.1234567Z".len(), "{date}");
+        assert!(!token.is_expired());
+        token.expires_in = 0;
+        token.update_expire_date();
+        assert!(token.is_expired());
+        let read = OAuth2Token::from_response(r#"{"access_token":"a","refresh_token":"r","expires_in":60}"#).unwrap();
+        assert_eq!(read.access_token.get(), Some("a"));
+        assert_eq!(read.expires_in, 60);
     }
 }

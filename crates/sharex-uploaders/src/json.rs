@@ -119,6 +119,13 @@ pub fn to_dotnet_string(value: &Value) -> Result<Option<String>, String> {
     }
 }
 
+/// A UTC time as .NET's round-trip format writes it: seconds and 7 digits
+/// of ticks (`yyyy-MM-ddTHH:mm:ss.fffffff`), then `suffix` (`Z`, `+00:00`).
+pub fn dotnet_round_trip(time: chrono::DateTime<Utc>, suffix: &str) -> String {
+    use chrono::Timelike;
+    format!("{}.{:07}{suffix}", time.format("%Y-%m-%dT%H:%M:%S"), time.nanosecond() % 1_000_000_000 / 100)
+}
+
 /// .NET's `double.ToString(CultureInfo.InvariantCulture)`: the shortest
 /// round-tripping digits, in scientific notation (`1E+15`, `1E-05`) when
 /// the exponent is 15 or more or below -4.

@@ -7,6 +7,7 @@ pub mod amazon_s3;
 pub mod file_hosts;
 pub mod files;
 pub mod images;
+pub mod self_hosted;
 pub mod sharing;
 pub mod shorteners;
 pub mod text;

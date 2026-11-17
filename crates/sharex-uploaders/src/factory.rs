@@ -11,6 +11,7 @@ use crate::custom::{CustomFileUploader, CustomTextUploader, CustomUploaderItem, 
 use crate::destinations::file_hosts::{IMGFISH_MAX_FILE_ID_LENGTH, IMGFISH_MIN_FILE_ID_LENGTH, ImgFish, LobFile, Puush, Streamable};
 use crate::destinations::files::{Lambda, Pomf, Sul, Transfersh, Uguu};
 use crate::destinations::images::{Chevereto, Imgur, Vgyme};
+use crate::destinations::self_hosted::{Immich, OwnCloud};
 use crate::destinations::sharing::{SimpleUrlSharer, url_format_string};
 use crate::destinations::shorteners::{Bitly, FirebaseDynamicLinks, Isgd, Kutt, PlainShortener, Polr, QrNet, Turl, Vurl, Yourls, ZeroWidth};
 use crate::destinations::text::{Hastebin, OneTimeSecret, Paste2, PasteEe, Pastebin, Pastie, Slexy, SlexySettings, Upaste};
@@ -171,6 +172,8 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
         FileDestination::Lambda => !config.LambdaSettings.UserAPIKey.is_empty(),
         FileDestination::AmazonS3 => AmazonS3::check_config(&config.AmazonS3Settings),
         FileDestination::Puush => !config.PuushAPIKey.is_empty(),
+        FileDestination::Immich => Immich::check_config(config.ImmichURL.as_deref().unwrap_or(""), config.ImmichAPIKey.as_str()),
+        FileDestination::OwnCloud => ne(&config.OwnCloudHost) && ne(&config.OwnCloudUsername) && !config.OwnCloudPassword.is_empty(),
         FileDestination::Streamable => ne(&config.StreamableUsername) && !config.StreamablePassword.is_empty(),
         FileDestination::Lithiio => !config.LithiioSettings.UserAPIKey.is_empty(),
         FileDestination::ImgFish => (IMGFISH_MIN_FILE_ID_LENGTH..=IMGFISH_MAX_FILE_ID_LENGTH).contains(&config.ImgFishSettings.FileIDLength),
@@ -195,6 +198,25 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
         }
         FileDestination::AmazonS3 => GenericUploader::File(Box::new(AmazonS3::new(config.AmazonS3Settings.clone()))),
         FileDestination::Puush => GenericUploader::File(Box::new(Puush::new(config.PuushAPIKey.as_str()))),
+        FileDestination::Immich => {
+            let mut u = Immich::new(config.ImmichURL.as_deref().unwrap_or(""), config.ImmichAPIKey.as_str());
+            u.auto_create_shareable_link = config.ImmichAutoCreateShareableLink;
+            u.show_metadata = config.ImmichShowMetadata;
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::OwnCloud => {
+            let s = |o: &Option<String>| o.clone().unwrap_or_default();
+            let mut u = OwnCloud::new(&s(&config.OwnCloudHost), &s(&config.OwnCloudUsername), config.OwnCloudPassword.as_str());
+            u.path = s(&config.OwnCloudPath);
+            u.create_share = config.OwnCloudCreateShare;
+            u.direct_link = config.OwnCloudDirectLink;
+            u.preview_link = config.OwnCloudUsePreviewLinks;
+            u.append_file_name_to_url = config.OwnCloudAppendFileNameToURL;
+            u.is_compatibility_81 = config.OwnCloud81Compatibility;
+            u.auto_expire_time = config.OwnCloudExpiryTime;
+            u.auto_expire = config.OwnCloudAutoExpire;
+            GenericUploader::File(Box::new(u))
+        }
         FileDestination::Streamable => {
             let mut u = Streamable::new(config.StreamableUsername.as_deref().unwrap_or(""), config.StreamablePassword.as_str());
             u.use_direct_url = config.StreamableUseDirectURL;
