@@ -1,6 +1,7 @@
 //! The Data, Video and System tools' cases.
 
 use serde_json::Value;
+use sharex_tools::video::{converter, thumbnailer, trimmer};
 use sharex_tools::{hash, imaging, indexer, metadata, qr};
 
 use crate::cases::Ctx;
@@ -10,6 +11,23 @@ use crate::compare::{self, Outcome};
 fn mask_time(s: &str) -> String {
     let re = regex::Regex::new(r"\d{4}-\d{2}-\d{2} at \d{2}:\d{2}:\d{2} UTC").unwrap();
     re.replace_all(s, "<time>").into_owned()
+}
+
+fn read_json(ctx: &Ctx, name: &str) -> Value {
+    serde_json::from_str(&std::fs::read_to_string(ctx.sharex.join(format!("{name}.json"))).unwrap()).unwrap()
+}
+
+/// JSON equality, with numbers compared as numbers.
+fn json_eq(ours: &Value, theirs: &Value) -> Outcome {
+    fn norm(v: &Value) -> Value {
+        match v {
+            Value::Number(n) => Value::from(n.as_f64().unwrap()),
+            Value::Array(a) => Value::Array(a.iter().map(norm).collect()),
+            Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), norm(v))).collect()),
+            other => other.clone(),
+        }
+    }
+    if norm(ours) == norm(theirs) { Outcome::exact() } else { Outcome::fail(format!("{ours} vs ShareX {theirs}")) }
 }
 
 pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
@@ -142,6 +160,88 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
                 (Some("ok"), Err(e)) => out = out.and(Outcome::fail(format!("strip failed: {e}"))),
                 (Some(_), Ok(())) => out = out.and(Outcome::fail(format!("strip succeeded where ShareX threw {}", theirs["strip"]))),
                 _ => {}
+            }
+            out
+        }
+        "video-args" => {
+            let theirs = read_json(ctx, name);
+            let codec_of = |names: &[&str], key: &str| converter::Codec::ALL[names.iter().position(|n| *n == c[key].as_str().unwrap()).unwrap()];
+            let o = converter::VideoConverterOptions {
+                input_file_path: c["input"].as_str().map(str::to_string),
+                output_folder_path: c["folder"].as_str().map(str::to_string),
+                output_file_name: c["outName"].as_str().map(str::to_string),
+                video_codec: codec_of(&converter::Codec::NAMES, "codec"),
+                video_quality: c["quality"].as_i64().unwrap() as i32,
+                video_quality_use_bitrate: c["useBitrate"].as_bool().unwrap(),
+                video_quality_bitrate: c["bitrate"].as_i64().unwrap() as i32,
+                use_custom_arguments: c["custom"].as_bool().unwrap_or(false),
+                custom_arguments: "-i custom".into(),
+                auto_open_folder: true,
+            };
+            let vm_names = ["X264", "X265", "H264Nvenc", "HevcNvenc", "H264Amf", "HevcAmf", "H264Qsv", "HevcQsv", "Vp8", "Vp9", "Av1", "Xvid", "Gif", "Webp", "Apng"];
+            let w = converter::ConverterWindow {
+                input_file_path: c["input"].as_str().unwrap_or("").into(),
+                output_folder_path: c["folder"].as_str().unwrap_or("").into(),
+                output_file_name: c["outName"].as_str().unwrap_or("").into(),
+                codec: codec_of(&vm_names, "vmCodec"),
+                use_bitrate: c["useBitrate"].as_bool().unwrap(),
+                video_quality: c["vmQuality"].as_f64().unwrap(),
+                video_bitrate: c["vmBitrate"].as_f64().unwrap(),
+            };
+            let ours = serde_json::json!({
+                "optionsArgs": o.arguments(),
+                "optionsOutput": o.output_file_path(),
+                "windowArgs": w.build_arguments(),
+                "windowOutput": w.output_file_path(),
+            });
+            json_eq(&ours, &theirs)
+        }
+        "video-trim-args" => {
+            let ours = trimmer::build_trim_arguments(
+                c["input"].as_str().unwrap(),
+                c["output"].as_str().unwrap(),
+                c["start"].as_f64().unwrap(),
+                c["end"].as_f64().unwrap(),
+                c["precise"].as_bool().unwrap(),
+            );
+            json_eq(&serde_json::json!(ours), &read_json(ctx, name))
+        }
+        "video-outputinfo" => {
+            let text = std::fs::read_to_string(ctx.sharex.join(format!("{name}.txt"))).unwrap();
+            let theirs = read_json(ctx, name);
+            let size = theirs["FileSize"].as_u64().unwrap();
+            let i = converter::output_info(&text, size);
+            let ours = serde_json::json!({"FileSize": i.file_size, "Bitrate": i.average_bitrate_kbps, "Width": i.width, "Height": i.height});
+            json_eq(&ours, &theirs)
+        }
+        "video-thumbs" => {
+            let theirs = read_json(ctx, name);
+            let dir = ctx.out.join(name);
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut o = thumbnailer::VideoThumbnailOptions::from_json(&c["options"]);
+            o.default_output_directory = Some(dir.to_string_lossy().into_owned());
+            o.output_location = thumbnailer::OutputLocation::DefaultFolder;
+            let ffmpeg = std::path::Path::new(r"G:\scripts\sharexrs-ref\ShareX-22.4.0-portable\ffmpeg.exe");
+            let media = ctx.inputs.join("meta").join(c["file"].as_str().unwrap()).to_string_lossy().into_owned();
+            let result = thumbnailer::take_thumbnails(ffmpeg, &media, &o, || 0.5, |_, _| {}).unwrap().unwrap_or_default();
+            let mut files: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            files.sort();
+            let info = sharex_screen_recording::cli::FFmpegCliManager::new(ffmpeg).get_video_info(&media).map(|v| thumbnailer::video_info_text(&v));
+            let ours = serde_json::json!({
+                "files": files,
+                "result": result.iter().map(|r| sharex_tools::dotnet::file_name(&r.file_path).to_string()).collect::<Vec<_>>(),
+                "info": info,
+            });
+            let mut out = json_eq(&ours, &theirs);
+            for f in &files {
+                let tol = if f.contains("_Thumbnail") && o.add_video_info | o.add_timestamp { 255 } else { 0 };
+                let r = compare::image_files(f, &dir.join(f), &ctx.sharex.join(name).join(f), tol);
+                out = out.and(if tol > 0 && r.kind != crate::compare::Kind::Differ && r.kind != crate::compare::Kind::Exact {
+                    Outcome { kind: crate::compare::Kind::Close, note: format!("text glyphs: {}", r.note) }
+                } else {
+                    r
+                });
             }
             out
         }

@@ -139,5 +139,37 @@ for f in ["full.jpg", "progressive.jpg", "plain.jpg", "full.png", "full.gif", "b
     add(f"meta-{f.replace('.', '_')}", "metadata", file=f)
 add("meta-icon", "metadata", file="../../sharex/icon-alpha_64x48-Palette8-16_32_48_64_128_256.ico")
 
+# ---------------------------------------------------------------- video
+
+vm_codecs = ["X264", "X265", "H264Nvenc", "HevcNvenc", "H264Amf", "HevcAmf", "H264Qsv", "HevcQsv", "Vp8", "Vp9", "Av1", "Xvid", "Gif",
+             "Webp", "Apng"]
+opt_codecs = ["x264", "x265", "h264_nvenc", "hevc_nvenc", "h264_amf", "hevc_amf", "h264_qsv", "hevc_qsv", "vp8", "vp9", "av1", "xvid",
+              "gif", "webp", "apng"]
+for (vm, opt), use_bitrate, (q, vq), inp, name in itertools.product(
+        zip(vm_codecs, opt_codecs), [False, True], [(23, 22.5), (0, 3.5), (70, 70.0), (-5, -1.0)],
+        ["C:\\videos\\in clip.mov", "C:\\videos\\anim.GIF"], ["out", "out.mkv"]):
+    add(f"vargs-{opt}-{'br' if use_bitrate else 'q'}-{q}-{inp[-3:].lower()}-{name.replace('.', '_')}", "video-args",
+        input=inp, folder="C:\\out dir", outName=name, codec=opt, vmCodec=vm, quality=q, vmQuality=vq, useBitrate=use_bitrate,
+        bitrate=2500, vmBitrate=2500.7)
+add("vargs-custom", "video-args", input="a.mp4", folder="C:\\o", outName="b", codec="x264", vmCodec="X264", quality=23, vmQuality=23.0,
+    useBitrate=False, bitrate=3000, vmBitrate=3000.0, custom=True)
+add("vargs-nofolder", "video-args", input="a.mp4", folder=None, outName="b", codec="vp9", vmCodec="Vp9", quality=30, vmQuality=30.0,
+    useBitrate=False, bitrate=3000, vmBitrate=3000.0)
+for (start, end), precise, (inp, out) in itertools.product([(0, 2), (1.5, 4.25), (0.1234567, 10.0000001), (12.75, 3600.5)], [False, True],
+                                                          [("C:\\v\\in.mkv", "C:\\v\\out.mkv"), ("in clip.mp4", "out clip.mp4")]):
+    add(f"vtrim-{start}-{end}-{'precise' if precise else 'copy'}-{out[-3:]}", "video-trim-args", input=inp, output=out, start=start,
+        end=end, precise=precise)
+for f in ["clip.mp4", "clip.mov", "clip.mkv", "clip.webm", "clip.avi", "clip.wmv"]:
+    add(f"vinfo-{f.replace('.', '_')}", "video-outputinfo", file=f)
+for i, (text, size) in enumerate([("  Duration: 00:01:02.50, start: 0.000000, bitrate: N/A\n    Stream #0:0: Video: gif, bgra, 320x240, 25 fps", 1000000),
+                                  ("  Duration: 01:00:00.00, start: 0.0, bitrate: 1234.5 kb/s", 5), ("nothing", 10),
+                                  ("  Duration: 00:00:00.00, bitrate: N/A\n  Stream #0:1(und): Video: h264 (High), yuv420p, 0x0", 99)]):
+    add(f"vinfo-text-{i}", "video-outputinfo", text=text, size=size)
+for name, opts in [("default", {}), ("jpeg-4", {"ImageFormat": "JPEG", "ThumbnailCount": 4, "ColumnCount": 2, "KeepScreenshots": True}),
+                   ("plain", {"ThumbnailCount": 3, "AddVideoInfo": False, "AddTimestamp": False, "DrawShadow": False, "DrawBorder": False,
+                              "MaxThumbnailWidth": 100, "KeepScreenshots": True}),
+                   ("separate", {"ThumbnailCount": 2, "CombineScreenshots": False})]:
+    add(f"vthumbs-{name}", "video-thumbs", file="long.mp4", options=opts)
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

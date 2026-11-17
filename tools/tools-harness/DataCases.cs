@@ -1,5 +1,6 @@
 // The Data, Video and System tools' cases.
 
+using System.Diagnostics;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
 using ShareX.HelpersLib;
@@ -213,6 +214,71 @@ static partial class Program
                 try { MetadataService.StripMetadataAsync(copy).GetAwaiter().GetResult(); r["strip"] = "ok"; r["stripped"] = MetaJson(copy); }
                 catch (Exception e) { r["strip"] = e.GetBaseException().GetType().Name; }
                 File.WriteAllText(o + ".json", r.ToString());
+                return true;
+            }
+            case "video-args":
+            {
+                JObject r = new();
+                var opt = new VideoConverterOptions
+                {
+                    InputFilePath = (string)c["input"], OutputFolderPath = (string)c["folder"], OutputFileName = (string)c["outName"],
+                    VideoCodec = System.Enum.Parse<ConverterVideoCodecs>((string)c["codec"]), VideoQuality = (int)c["quality"],
+                    VideoQualityUseBitrate = (bool)c["useBitrate"], VideoQualityBitrate = (int)c["bitrate"],
+                    UseCustomArguments = (bool?)c["custom"] ?? false, CustomArguments = "-i custom"
+                };
+                r["optionsArgs"] = opt.Arguments;
+                r["optionsOutput"] = opt.OutputFilePath;
+                VideoConversionHandler handler = (q, p, t) => Task.FromResult(new VideoConversionResult(true, false));
+                VideoConverterViewModel vm = new(new VideoConverterOptions(), handler);
+                vm.InputFilePath = (string)c["input"]; vm.OutputFolderPath = (string)c["folder"] ?? ""; vm.OutputFileName = (string)c["outName"] ?? "";
+                vm.SelectedCodec = VideoConverterViewModel.Codecs.First(x => x.Codec.ToString() == (string)c["vmCodec"]);
+                vm.UseBitrate = (bool)c["useBitrate"]; vm.VideoQuality = (double)c["vmQuality"]; vm.VideoBitrate = (decimal)(double)c["vmBitrate"];
+                MethodInfo build = typeof(VideoConverterViewModel).GetMethod("BuildArguments", BindingFlags.NonPublic | BindingFlags.Instance);
+                r["windowArgs"] = (string)build.Invoke(vm, null);
+                r["windowOutput"] = vm.OutputFilePath;
+                File.WriteAllText(o + ".json", r.ToString());
+                return true;
+            }
+            case "video-trim-args":
+            {
+                Type svc = typeof(VideoConverterOptions).Assembly.GetType("ShareX.Tools.VideoTrimmerService");
+                MethodInfo m = svc.GetMethod("BuildTrimArguments", BindingFlags.NonPublic | BindingFlags.Static);
+                string[] a = (string[])m.Invoke(null, [(string)c["input"], (string)c["output"], (double)c["start"], (double)c["end"], (bool)c["precise"]]);
+                File.WriteAllText(o + ".json", new JArray(a).ToString());
+                return true;
+            }
+            case "video-outputinfo":
+            {
+                string text;
+                long size = (long?)c["size"] ?? 0;
+                if (c["file"] != null)
+                {
+                    string path = Path.Combine(Inputs_, "meta", (string)c["file"]);
+                    using Process p = Process.Start(new ProcessStartInfo(FFmpegPath, $"-hide_banner -i \"{path}\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true });
+                    text = p.StandardError.ReadToEnd(); p.WaitForExit();
+                    size = new FileInfo(path).Length;
+                }
+                else text = (string)c["text"];
+                File.WriteAllText(o + ".txt", text);
+                VideoConversionOutputInfo info = VideoConversionOutputInfo.FromFFmpegOutput(text, size);
+                File.WriteAllText(o + ".json", new JObject { ["FileSize"] = info.FileSize, ["Bitrate"] = info.AverageBitrateKbps, ["Width"] = info.Width, ["Height"] = info.Height }.ToString());
+                return true;
+            }
+            case "video-thumbs":
+            {
+                Directory.CreateDirectory(o);
+                foreach (string f in Directory.GetFiles(o)) File.Delete(f);
+                VideoThumbnailOptions opt = c["options"].ToObject<VideoThumbnailOptions>();
+                opt.DefaultOutputDirectory = o;
+                opt.OutputLocation = ThumbnailLocationType.DefaultFolder;
+                VideoThumbnailer t = new(FFmpegPath, opt);
+                var list = t.TakeThumbnails(Path.Combine(Inputs_, "meta", (string)c["file"]));
+                File.WriteAllText(o + ".json", new JObject
+                {
+                    ["files"] = new JArray(Directory.GetFiles(o).Select(Path.GetFileName).Order(StringComparer.Ordinal)),
+                    ["result"] = new JArray(list.Select(x => Path.GetFileName(x.FilePath))),
+                    ["info"] = t.VideoInfo.ToString(),
+                }.ToString());
                 return true;
             }
             case "indexer":

@@ -251,6 +251,7 @@ static class MetaInputs
             Ffmpeg(ffmpeg, $"{src} -c:v libvpx -b:v 200k -c:a libvorbis -shortest {meta} -y \"{Path.Combine(dir, "clip.mkv")}\"");
             Ffmpeg(ffmpeg, $"{src} -c:v libvpx -b:v 200k -c:a libvorbis -shortest {meta} -y \"{Path.Combine(dir, "clip.webm")}\"");
             Ffmpeg(ffmpeg, $"{src} -c:v mpeg4 -c:a libmp3lame -shortest {meta} -y \"{Path.Combine(dir, "clip.avi")}\"");
+            Ffmpeg(ffmpeg, $"-f lavfi -i testsrc=duration=12:size=320x180:rate=10 -c:v libx264 -pix_fmt yuv420p -y \"{Path.Combine(dir, "long.mp4")}\"");
             Ffmpeg(ffmpeg, $"{src} -c:v wmv2 -c:a wmav2 -shortest {meta} -y \"{Path.Combine(dir, "clip.wmv")}\"");
         }
     }

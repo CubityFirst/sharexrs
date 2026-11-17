@@ -2,4 +2,7 @@
 //! converter, video thumbnailer, video trimmer), parsing what FFmpeg prints,
 //! and the GIF maker (ShareX's own GIF encoder, no FFmpeg).
 
+pub mod converter;
 pub mod gif_maker;
+pub mod thumbnailer;
+pub mod trimmer;
