@@ -27,7 +27,7 @@ impl EguiWindow {
     pub fn new(window: Window, gpu: &Gpu, resize_border: Option<f32>) -> Result<Self, String> {
         let window = Arc::new(window);
         let ctx = egui::Context::default();
-        sharex_ui::install(&ctx, 100.0);
+        sharex_ui::install(&ctx);
         let config = egui_wgpu::WgpuConfiguration { wgpu_setup: gpu.egui_setup(), ..Default::default() };
         let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, false, Default::default()));
         pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window.clone())))

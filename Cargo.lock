@@ -3426,6 +3426,7 @@ dependencies = [
  "sharex-settings",
  "sharex-strings",
  "sharex-ui",
+ "windows",
  "windows-sys 0.61.2",
  "winit",
 ]

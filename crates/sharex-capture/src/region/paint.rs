@@ -261,8 +261,8 @@ impl RegionCapture {
             }
         }
 
-        self.paint_hud(ui, view, &m, p, ppp);
-        self.paint_toolbar(ui, view, p, ppp, now);
+        self.paint_hud(ui, view, &m, &p, ppp);
+        self.paint_toolbar(ui, view, &p, ppp, now);
     }
 
     /// The magnifier with the pointer's position under it, and the

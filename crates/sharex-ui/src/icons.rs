@@ -17,6 +17,10 @@ use include_dir::{Dir, include_dir};
 
 static ICONS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/icons");
 
+/// `ShareX/Resources/Flags`: the 4:3 flag of each language's country
+/// (`LanguageFlags`), named by country code.
+static FLAGS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/flags");
+
 /// Application settings › Icon pack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum IconPack {
@@ -72,19 +76,34 @@ fn rasterize(svg: &str, tinted: bool, side: u32) -> Option<ColorImage> {
     Some(ColorImage::from_rgba_premultiplied([side as usize, side as usize], pixmap.data()))
 }
 
-type Cache = Arc<Mutex<HashMap<(String, u32, IconPack, bool), Option<(TextureHandle, bool)>>>>;
+type Cache = Arc<Mutex<HashMap<(String, u32, IconPack, bool, Option<[u8; 3]>), Option<(TextureHandle, bool)>>>>;
 
 /// The texture for `key` at `side` physical pixels, and whether it's tinted.
-fn texture(ctx: &egui::Context, key: &str, side: u32) -> Option<(TextureHandle, bool)> {
-    let pack = pack();
+fn texture(ctx: &egui::Context, key: &str, side: u32, color: Color32) -> Option<(TextureHandle, bool)> {
+    texture_in(ctx, key, side, pack(), color)
+}
+
+fn texture_in(ctx: &egui::Context, key: &str, side: u32, pack: IconPack, color: Color32) -> Option<(TextureHandle, bool)> {
     let dark = ctx.theme() == egui::Theme::Dark;
+    // Some Legacy icons colour parts in `currentColor` (the foreground, as
+    // an `IconPresenter` draws them) among their own colours: those are
+    // drawn in the colour asked for, so it's part of the key.
+    let (svg, tinted) = source(key, pack, dark)?;
+    let own = (!tinted && svg.contains("currentColor")).then(|| {
+        let [r, g, b, a] = color.to_srgba_unmultiplied();
+        let _ = a;
+        [r, g, b]
+    });
     let cache: Cache = ctx.data_mut(|d| d.get_temp_mut_or_default::<Cache>(egui::Id::new("sharex-icons")).clone());
     let mut cache = cache.lock().unwrap();
     cache
-        .entry((key.to_string(), side, pack, dark))
+        .entry((key.to_string(), side, pack, dark, own))
         .or_insert_with(|| {
-            let (svg, tinted) = source(key, pack, dark)?;
-            let image = rasterize(svg, tinted, side)?;
+            let svg = match own {
+                Some([r, g, b]) => svg.replace("currentColor", &format!("#{r:02X}{g:02X}{b:02X}")),
+                None => svg.to_string(),
+            };
+            let image = rasterize(&svg, tinted, side)?;
             let tex = ctx.load_texture(format!("icon:{key}@{side}"), image, TextureOptions::LINEAR);
             Some((tex, tinted))
         })
@@ -94,12 +113,17 @@ fn texture(ctx: &egui::Context, key: &str, side: u32) -> Option<(TextureHandle, 
 /// Draws icon `key` filling `rect` (square), in `color` if it's a Modern
 /// icon. Missing icons draw nothing.
 pub fn paint(painter: &Painter, rect: Rect, key: &str, color: Color32) {
+    paint_in_pack(painter, rect, key, color, pack());
+}
+
+/// [`paint`] from `pack` whatever the app's pack is (`IconPackScope.Pack`).
+pub fn paint_in_pack(painter: &Painter, rect: Rect, key: &str, color: Color32, pack: IconPack) {
     let ppp = painter.ctx().pixels_per_point();
     let side = (rect.width().max(rect.height()) * ppp).round().max(1.0) as u32;
     // On whole physical pixels, so 1px strokes stay sharp.
     let min = pos2((rect.min.x * ppp).round() / ppp, (rect.min.y * ppp).round() / ppp);
     let rect = Rect::from_min_size(min, Vec2::splat(side as f32 / ppp));
-    if let Some((tex, tinted)) = texture(painter.ctx(), key, side) {
+    if let Some((tex, tinted)) = texture_in(painter.ctx(), key, side, pack, color) {
         let tint = if tinted { color } else { Color32::WHITE.gamma_multiply(color.a() as f32 / 255.0) };
         painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), tint);
     }
@@ -115,7 +139,7 @@ pub fn paint_transformed(painter: &Painter, rect: Rect, key: &str, color: Color3
     let ppp = painter.ctx().pixels_per_point();
     let side = (rect.width().max(rect.height()) * ppp).round().max(1.0) as u32;
     let rect = Rect::from_center_size(rect.center() + offset, Vec2::splat(side as f32 / ppp));
-    if let Some((tex, tinted)) = texture(painter.ctx(), key, side) {
+    if let Some((tex, tinted)) = texture(painter.ctx(), key, side, color) {
         let tint = if tinted { color } else { Color32::WHITE.gamma_multiply(color.a() as f32 / 255.0) };
         let mut mesh = egui::Mesh::with_texture(tex.id());
         mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), tint);
@@ -158,6 +182,61 @@ pub fn paint_svg(painter: &Painter, rect: Rect, key: &str, svg: &str, color: Col
         .clone();
     if let Some(tex) = tex {
         painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+    }
+}
+
+/// The flag for country `code` (`us`, `de`, ...) as a texture of
+/// `w` x `h` points, stretched to fill (`Stretch="Fill"`).
+pub fn flag(ctx: &egui::Context, code: &str, w: f32, h: f32) -> Option<egui::TextureId> {
+    let ppp = ctx.pixels_per_point();
+    let (pw, ph) = ((w * ppp).round().max(1.0) as u32, (h * ppp).round().max(1.0) as u32);
+    type FlagCache = Arc<Mutex<HashMap<(String, u32, u32), Option<TextureHandle>>>>;
+    let cache: FlagCache = ctx.data_mut(|d| d.get_temp_mut_or_default::<FlagCache>(egui::Id::new("sharex-flags")).clone());
+    let tex = cache
+        .lock()
+        .unwrap()
+        .entry((code.to_string(), pw, ph))
+        .or_insert_with(|| {
+            let svg = FLAGS.get_file(format!("{code}.svg"))?.contents_utf8()?;
+            let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default()).ok()?;
+            let mut pixmap = resvg::tiny_skia::Pixmap::new(pw, ph)?;
+            let size = tree.size();
+            let t = resvg::tiny_skia::Transform::from_scale(pw as f32 / size.width(), ph as f32 / size.height());
+            resvg::render(&tree, t, &mut pixmap.as_mut());
+            let image = ColorImage::from_rgba_premultiplied([pw as usize, ph as usize], pixmap.data());
+            Some(ctx.load_texture(format!("flag:{code}@{pw}x{ph}"), image, TextureOptions::LINEAR))
+        })
+        .clone();
+    tex.map(|t| t.id())
+}
+
+/// Draws a full-colour SVG given inline (a picture rather than an icon),
+/// stretched uniformly into `rect`. `key` names it in the texture cache, so
+/// it must change when the SVG does.
+pub fn paint_svg_color(painter: &Painter, rect: Rect, key: &str, svg: &str) {
+    let ctx = painter.ctx();
+    let ppp = ctx.pixels_per_point();
+    let (w, h) = ((rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32);
+    let min = pos2((rect.min.x * ppp).round() / ppp, (rect.min.y * ppp).round() / ppp);
+    let rect = Rect::from_min_size(min, egui::vec2(w as f32 / ppp, h as f32 / ppp));
+    type SvgCache = Arc<Mutex<HashMap<(String, u32, u32), Option<TextureHandle>>>>;
+    let cache: SvgCache = ctx.data_mut(|d| d.get_temp_mut_or_default::<SvgCache>(egui::Id::new("sharex-color-svgs")).clone());
+    let tex = cache
+        .lock()
+        .unwrap()
+        .entry((key.to_string(), w, h))
+        .or_insert_with(|| {
+            let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default()).ok()?;
+            let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+            let size = tree.size();
+            let scale = (w as f32 / size.width()).min(h as f32 / size.height());
+            resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+            let image = ColorImage::from_rgba_premultiplied([w as usize, h as usize], pixmap.data());
+            Some(ctx.load_texture(format!("svgc:{key}@{w}x{h}"), image, TextureOptions::LINEAR))
+        })
+        .clone();
+    if let Some(tex) = tex {
+        painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     }
 }
 
