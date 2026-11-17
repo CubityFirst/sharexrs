@@ -15,6 +15,8 @@ request URL and .sxcu export, exceptions, and error texts up to their
 """
 
 import base64
+import hashlib
+import hmac
 import json
 import re
 import sys
@@ -23,8 +25,51 @@ RESULT_KEYS = ["url", "thumbnail_url", "deletion_url", "shortened_url", "is_succ
                "response", "response_url", "status_code"]
 
 
+S3_SECRET = "made-up-secret-key"  # make_cases.py's
+
+
+def verify_sigv4(req):
+    """Checks an S3 request's AWS Signature V4 against the request as it
+    arrived (the host comes from the rewritten target, as the client signed
+    the real host). Returns an error text, or None."""
+    h = {k.lower(): v for k, v in req["headers"]}
+    m = re.match(r"AWS4-HMAC-SHA256 Credential=([^/]+)/(\d{8})/([^/]+)/s3/aws4_request,SignedHeaders=([^,]+),Signature=([0-9a-f]{64})$",
+                 h.get("authorization", ""))
+    if not m:
+        return f"malformed Authorization {h.get('authorization')!r}"
+    _, date, region, signed, signature = m.groups()
+    target = req["target"]
+    rest = target[len("/__/"):]
+    scheme, rest = rest.split("/", 1)
+    host, _, path_query = rest.partition("/")
+    path, _, query = ("/" + path_query).partition("?")
+    values = []
+    for name in signed.split(";"):
+        values.append(f"{name}:{(host if name == 'host' else h.get(name, '')).strip()}\n")
+    body = base64.b64decode(req["body_base64"])
+    payload = h.get("x-amz-content-sha256", "")
+    if payload != "UNSIGNED-PAYLOAD" and payload != hashlib.sha256(body).hexdigest():
+        return "x-amz-content-sha256 doesn't match the body"
+    canonical = f"{req['method']}\n{path}\n{query}\n{''.join(values)}\n{signed}\n{payload}"
+    amz_date = h.get("x-amz-date", "")
+    scope = f"{date}/{region}/s3/aws4_request"
+    to_sign = f"AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n{hashlib.sha256(canonical.encode()).hexdigest()}"
+    key = ("AWS4" + S3_SECRET).encode()
+    for part in (date, region, "s3", "aws4_request"):
+        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
+    expected = hmac.new(key, to_sign.encode(), hashlib.sha256).hexdigest()
+    return None if expected == signature else f"bad signature (expected {expected})"
+
+
 def norm_request(req):
     headers = [[k, v] for k, v in req["headers"]]
+    if any(k.lower() == "x-amz-date" for k, _ in headers):
+        error = verify_sigv4(req)
+        if error:
+            headers.append(["x-sigv4-check", error])
+        headers = [[k, "DATE" if k.lower() == "x-amz-date" else
+                    re.sub(r"/\d{8}/", "/DATE/", re.sub(r"Signature=[0-9a-f]+", "Signature=SIG", v)) if k.lower() == "authorization" else v]
+                   for k, v in headers]
     body = base64.b64decode(req["body_base64"])
     for k, v in headers:
         m = re.search(r'boundary="?([^";]+)"?', v) if k.lower() == "content-type" else None

@@ -254,6 +254,9 @@ pub struct StreamPart {
     /// The whole stream's length, for the progress total.
     pub total_length: u64,
     pub buffer_size: usize,
+    /// Called with each read's byte count (S3's multipart progress,
+    /// `SharedStreamSegment`'s callback).
+    pub on_read: Option<Arc<dyn Fn(u64) + Send + Sync>>,
 }
 
 /// One part of a multipart body: its headers (in order) and content.
@@ -443,6 +446,9 @@ impl Read for BodyReader {
                         ));
                     }
                     *remaining -= n as u64;
+                    if let Some(on_read) = &part.on_read {
+                        on_read(n as u64);
+                    }
                     if let Some((pm, cb)) = &self.progress {
                         let mut pm = pm.lock().expect("progress");
                         if pm.update_progress(n as u64) {
@@ -1037,6 +1043,7 @@ mod tests {
                         length: 5,
                         total_length: 5,
                         buffer_size: 2,
+                        on_read: None,
                     }),
                 },
             ],

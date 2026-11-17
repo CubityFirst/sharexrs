@@ -24,6 +24,44 @@ pub fn url_encode(text: &str, is_path: bool) -> String {
     out
 }
 
+static IGNORE_EMOJI: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `HelpersOptions.URLEncodeIgnoreEmoji` (`ApplicationConfig.URLEncodeIgnoreEmoji`).
+pub fn set_url_encode_ignore_emoji(value: bool) {
+    IGNORE_EMOJI.store(value, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// `URLHelpers.URLEncode(text, isPath, HelpersOptions.URLEncodeIgnoreEmoji)`.
+pub fn url_encode_with_options(text: &str, is_path: bool) -> String {
+    if IGNORE_EMOJI.load(std::sync::atomic::Ordering::Relaxed) { url_encode_ignore_emoji(text, is_path) } else { url_encode(text, is_path) }
+}
+
+/// `URLHelpers.URLEncodeIgnoreEmoji`: emoji (`Emoji.SearchEmoji`, the
+/// longest known emoji at each position) kept, the rest encoded.
+pub fn url_encode_ignore_emoji(text: &str, is_path: bool) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(c) = rest.chars().next() {
+        let emoji = sharex_helpers::emoji::EMOJIS.iter().filter(|e| rest.starts_with(**e)).max_by_key(|e| e.len());
+        match emoji {
+            Some(e) => {
+                out.push_str(e);
+                rest = &rest[e.len()..];
+            }
+            None => {
+                out.push_str(&url_encode(&rest[..c.len_utf8()], is_path));
+                rest = &rest[c.len_utf8()..];
+            }
+        }
+    }
+    out
+}
+
+/// `URLHelpers.AddSlash(url, SlashType.Prefix)`.
+pub fn add_slash_prefix(url: &str) -> String {
+    format!("/{}", url.strip_prefix('/').unwrap_or(url))
+}
+
 /// .NET's `HttpUtility.UrlEncode`: UTF-8, space as `+`, `A-Za-z0-9` and
 /// `-_.!*()` kept, everything else `%xx` in lower case.
 pub fn http_utility_url_encode(text: &str) -> String {

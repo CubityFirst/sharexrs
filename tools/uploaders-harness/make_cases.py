@@ -417,6 +417,30 @@ builtin("firebase", "shortener:FirebaseDynamicLinks", {"FirebaseWebAPIKey": "mad
 builtin("bitly", "shortener:BITLY", {"BitlyOAuth2Info": oauth2(), "BitlyDomain": "bit.example"}, url_input(),
         [resp('{"created_at":"2024-01-01T00:00:00+0000","id":"bit.example/abc","link":"https://bit.example/abc","long_url":"x"}')])
 
+# Amazon S3 (SigV4). The secret is made up; compare.py checks each side's
+# signature with it, then normalises the timestamps and signatures.
+S3_SECRET = "made-up-secret-key"
+S3 = {"AccessKeyID": "AKIAMADEUPEXAMPLE", "SecretAccessKey": S3_SECRET, "Endpoint": "s3.eu-west-2.amazonaws.com",
+      "Bucket": "made-up-bucket", "ObjectPrefix": "shots/sub"}
+XML = [["Content-Type", "application/xml"]]
+builtin("s3-put", "file:AmazonS3", {"AmazonS3Settings": S3}, image_input("shot 1.png"), [resp("", headers=[])])
+builtin("s3-put-signed-path-style", "file:AmazonS3", {"AmazonS3Settings": dict(S3, Bucket="made.up.bucket", SignedPayload=True,
+        SetPublicACL=False, StorageClass="STANDARD_IA", Region="eu-central-1", Endpoint="https://minio.example.com/")},
+        {"file_name": "notes.txt", "content_base64": FILE_B64}, [resp("", headers=[])])
+builtin("s3-custom-domain-no-extension", "file:AmazonS3", {"AmazonS3Settings": dict(S3, UseCustomCNAME=True, CustomDomain="cdn.example.com/{random:x|x}",
+        RemoveExtensionImage=True, UsePathStyle=True)}, image_input("pic.png"), [resp("", headers=[])])
+builtin("s3-error", "file:AmazonS3", {"AmazonS3Settings": S3}, image_input(),
+        [resp("<?xml version=\"1.0\"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>", 403, XML)])
+builtin("s3-multipart", "file:AmazonS3", {"AmazonS3Settings": dict(S3, UseMultipartUpload=True, SignedPayload=True)}, image_input("big.png"), [
+    resp("<InitiateMultipartUploadResult><Bucket>made-up-bucket</Bucket><Key>k</Key><UploadId>up/load+id=1</UploadId></InitiateMultipartUploadResult>", headers=XML),
+    resp("", headers=[["ETag", "\"etag-part-1\""]]),
+    resp("<CompleteMultipartUploadResult><Location>x</Location></CompleteMultipartUploadResult>", headers=XML)])
+builtin("s3-multipart-complete-error", "file:AmazonS3", {"AmazonS3Settings": dict(S3, UseMultipartUpload=True)}, image_input("big.png"), [
+    resp("<InitiateMultipartUploadResult><UploadId>id2</UploadId></InitiateMultipartUploadResult>", headers=XML),
+    resp("", headers=[["ETag", "\"e2\""]]),
+    resp("<Error><Code>InternalError</Code></Error>", headers=XML),
+    resp("", 204, headers=[])])
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

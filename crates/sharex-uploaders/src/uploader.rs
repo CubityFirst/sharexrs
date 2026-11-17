@@ -194,6 +194,27 @@ impl Uploader {
         self.progress = Some(callback);
     }
 
+    /// The progress callback, for destinations that report progress
+    /// themselves (S3's multipart upload).
+    pub fn progress_callback(&self) -> Option<ProgressCallback> {
+        if self.allow_report_progress { self.progress.clone() } else { None }
+    }
+
+    /// A second uploader for requests that run beside this one's (S3's
+    /// parallel parts): same settings and stop handle, its own errors.
+    pub fn fork(&self) -> Uploader {
+        Uploader {
+            buffer_size: self.buffer_size,
+            request_timeout: self.request_timeout,
+            allow_auto_redirect: self.allow_auto_redirect,
+            allow_report_progress: self.allow_report_progress,
+            return_response_on_error: self.return_response_on_error,
+            cancel: self.cancel.clone(),
+            is_uploading: true,
+            ..Uploader::default()
+        }
+    }
+
     /// `EarlyURLCopyRequested +=`.
     pub fn on_early_url_copy(&mut self, callback: EarlyUrlCallback) {
         self.early_url = Some(callback);
@@ -232,7 +253,7 @@ impl Uploader {
     pub fn stream_content(&self, data: &SharedStream, position: u64, length: u64, content_type: Option<&str>) -> UResult<Content> {
         let total = http::stream_length(data).map_err(|e| UploadError::Exception(e.to_string()))?;
         Ok(Content::Stream {
-            part: StreamPart { source: data.clone(), position, length, total_length: total, buffer_size: self.buffer_size },
+            part: StreamPart { source: data.clone(), position, length, total_length: total, buffer_size: self.buffer_size, on_read: None },
             content_type: content_type.filter(|c| !c.trim().is_empty()).map(str::to_owned),
             headers: Vec::new(),
         })
@@ -272,7 +293,7 @@ impl Uploader {
                     format!("form-data; name={}; filename={}", quote_header_value(file_form_name), quote_header_value(file_name)),
                 ),
             ],
-            body: PartBody::Stream(StreamPart { source: data.clone(), position: 0, length: total, total_length: total, buffer_size: self.buffer_size }),
+            body: PartBody::Stream(StreamPart { source: data.clone(), position: 0, length: total, total_length: total, buffer_size: self.buffer_size, on_read: None }),
         });
         Ok(Content::Multipart { content_type: http::CONTENT_TYPE_MULTIPART_FORM_DATA.into(), boundary: http::create_boundary(), parts, headers: Vec::new() })
     }
@@ -287,7 +308,7 @@ impl Uploader {
             },
             MultipartPart {
                 headers: vec![("Content-Type".into(), mime_types::get_mime_type_from_file_name(file_name))],
-                body: PartBody::Stream(StreamPart { source: data.clone(), position: 0, length: total, total_length: total, buffer_size: self.buffer_size }),
+                body: PartBody::Stream(StreamPart { source: data.clone(), position: 0, length: total, total_length: total, buffer_size: self.buffer_size, on_read: None }),
             },
         ];
         Ok(Content::Multipart { content_type: "multipart/related".into(), boundary: http::create_boundary(), parts, headers: Vec::new() })
