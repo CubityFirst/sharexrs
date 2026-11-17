@@ -16,8 +16,13 @@ mod message_box;
 mod region_render;
 mod region_session;
 mod render;
+mod shell;
 mod sound;
+mod task_actions;
+mod task_view;
+mod tasks;
 mod test_pattern;
+mod thumbnail;
 mod transparent_region;
 mod tray;
 mod tray_menu;
@@ -45,7 +50,7 @@ use sharex_capture::region::Outcome;
 use transparent_region::TransparentRegion;
 use tray::{TrayEvent, TrayMenuEntries};
 use tray_menu::TrayMenu;
-use message_box::{MessageBox, MessageBoxIcon};
+use message_box::{DialogResult, MessageBox, MessageBoxIcon};
 use window::EguiWindow;
 
 /// What other threads tell the event loop.
@@ -55,8 +60,8 @@ pub enum UserEvent {
     Hotkey(u16),
     /// The tray icon was clicked, or its native menu used.
     Tray(TrayEvent),
-    /// An image task's after capture tasks finished.
-    TaskDone,
+    /// A task's thread or a thumbnail decoder finished.
+    Task(tasks::TaskEvent),
 }
 
 fn main() {
@@ -124,8 +129,8 @@ fn main() {
         tray_click_at: None,
         transparent: None,
         transparent_grab: None,
-        working_tasks: 0,
         tray_progress: -1,
+        modifiers: Default::default(),
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -134,6 +139,19 @@ fn main() {
 struct Dialog {
     window: EguiWindow,
     message: MessageBox,
+    /// What the answer is for.
+    purpose: DialogPurpose,
+}
+
+/// Why a message box is open.
+enum DialogPurpose {
+    /// The "Hotkey registration failed" warning at startup.
+    HotkeysFailed,
+    /// `TaskHelpers.ConfirmFileDelete` for these tasks' files.
+    DeleteFiles(Vec<u64>),
+    /// A message that only needs reading (`CaptureCustomWindow`'s window
+    /// not found).
+    Information,
 }
 
 struct App {
@@ -159,6 +177,7 @@ struct App {
     pending_capture: Option<PendingCapture>,
     /// `RegionCaptureIntegration.LastRegionRectangles`.
     last_regions: Vec<sharex_capture::Rect>,
+    /// For tasks' threads and the tray icon to report back to the event loop.
     proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     /// `MainForm.TrayIconService`, while `ShowTray`.
     tray: Option<tray::Tray>,
@@ -174,11 +193,10 @@ struct App {
     /// A transparent region chosen, captured once its windows are gone
     /// (`CaptureRegionTransparent.CaptureDelay`).
     transparent_grab: Option<(Instant, sharex_capture::Rect, TaskSettings, bool)>,
-    /// Image tasks running their after capture tasks (`TaskManager`'s
-    /// working tasks, for the tray icon's progress).
-    working_tasks: usize,
     /// `TaskManager.lastIconStatus`.
     tray_progress: i32,
+    /// The keyboard's modifiers in the main window.
+    modifiers: winit::keyboard::ModifiersState,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -244,6 +262,10 @@ impl App {
     }
 
     fn act(&mut self, event_loop: &ActiveEventLoop, action: Action) {
+        if let Action::Task(action) = action {
+            self.task_action(event_loop, action);
+            return;
+        }
         let Some(w) = &self.main else { return };
         match action {
             Action::DragWindow => {
@@ -282,6 +304,7 @@ impl App {
                 self.menu_command(event_loop, command, false);
                 return;
             }
+            Action::Task(_) => {}
         }
         w.window.request_redraw();
     }
@@ -424,7 +447,7 @@ impl App {
                             sharex_strings::sharex::UnableToFindAWindowWithSpecifiedWindowTitle(),
                             MessageBoxIcon::Information,
                         );
-                        if let Err(e) = self.open_dialog(event_loop, message) {
+                        if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::Information) {
                             eprintln!("couldn't open the message box: {e}");
                         }
                     }
@@ -618,23 +641,17 @@ impl App {
         }
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent);
-        let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
-        self.working_tasks += 1;
+        self.run_image_task(job);
         self.update_progress_ui();
-        let proxy = self.proxy.clone();
-        std::thread::spawn(move || {
-            if let Err(e) = job.run(owner) {
-                eprintln!("after capture tasks: {e}");
-            }
-            let _ = proxy.send_event(UserEvent::TaskDone);
-        });
     }
 
     /// `TaskManager.UpdateProgressUI`, for the tray: while tasks work, the
     /// tray icon shows their progress (0% for captures, which report none)
     /// and its tooltip the window's title.
     fn update_progress_ui(&mut self) {
-        let progress = if self.working_tasks > 0 { 0 } else { -1 };
+        // Capture tasks report no progress: 0% while any works.
+        let working = self.state.tasks.manager.tasks.iter().any(|t| t.is_working());
+        let progress = if working { 0 } else { -1 };
         let title = self.state.title.clone();
         if let Some(tray) = &mut self.tray {
             tray.set_tooltip(&if progress >= 0 { format!("{title} - 0.0%") } else { title });
@@ -680,9 +697,10 @@ impl App {
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         eprintln!("HotkeyManager started.");
         self.refresh_hotkey_tips();
+        self.init_task_view();
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
-            match self.open_dialog(event_loop, message) {
+            match self.open_dialog(event_loop, message, DialogPurpose::HotkeysFailed) {
                 Ok(()) => return,
                 Err(e) => eprintln!("couldn't open the message box: {e}"),
             }
@@ -716,7 +734,7 @@ impl App {
     }
 
     /// `MessageBox.Show` with no owner: centred on the screen, topmost.
-    fn open_dialog(&mut self, event_loop: &ActiveEventLoop, message: MessageBox) -> Result<(), String> {
+    fn open_dialog(&mut self, event_loop: &ActiveEventLoop, message: MessageBox, purpose: DialogPurpose) -> Result<(), String> {
         let theme = self.theme();
         let gpu = match &self.gpu {
             Some(g) => g,
@@ -745,12 +763,15 @@ impl App {
         w.window.set_visible(true);
         w.window.focus_window();
         w.window.request_redraw();
-        self.dialog = Some(Dialog { window: w, message });
+        self.dialog = Some(Dialog { window: w, message, purpose });
         Ok(())
     }
 
-    fn close_dialog(&mut self, event_loop: &ActiveEventLoop) {
-        self.dialog = None;
+    fn close_dialog(&mut self, event_loop: &ActiveEventLoop, result: DialogResult) {
+        let Some(dialog) = self.dialog.take() else { return };
+        if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
+            self.file_delete_answered(ids, result, dialog.message.checked);
+        }
         if self.main.is_none()
             && let Err(e) = self.open_main_window(event_loop)
         {
@@ -762,12 +783,15 @@ impl App {
     fn dialog_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
         let Some(d) = self.dialog.as_mut() else { return };
         match event {
-            // `GetCancelResult(OK)` is OK: closing the window answers it.
-            WindowEvent::CloseRequested => self.close_dialog(event_loop),
+            // Closing the window answers `GetCancelResult`.
+            WindowEvent::CloseRequested => {
+                let result = d.message.cancel_result();
+                self.close_dialog(event_loop, result);
+            }
             WindowEvent::RedrawRequested => {
-                let message = &d.message;
-                if d.window.paint(|ui| message.ui(ui)).is_some() {
-                    self.close_dialog(event_loop);
+                let message = &mut d.message;
+                if let Some(result) = d.window.paint(|ui| message.ui(ui)) {
+                    self.close_dialog(event_loop, result);
                 }
             }
             other => d.window.on_event(&other),
@@ -1037,8 +1061,8 @@ impl ApplicationHandler<UserEvent> for App {
                 self.run_job(event_loop, task.Job.clone(), task);
             }
             UserEvent::Tray(e) => self.tray_event(event_loop, e),
-            UserEvent::TaskDone => {
-                self.working_tasks = self.working_tasks.saturating_sub(1);
+            UserEvent::Task(event) => {
+                self.task_event(event);
                 self.update_progress_ui();
             }
         }
@@ -1109,6 +1133,7 @@ impl ApplicationHandler<UserEvent> for App {
                 for a in actions {
                     self.act(event_loop, a);
                 }
+                self.decode_task_images();
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = w.window.scale_factor();
@@ -1119,12 +1144,22 @@ impl ApplicationHandler<UserEvent> for App {
                 self.cursor = None;
                 w.on_event(&event);
             }
+            WindowEvent::ModifiersChanged(m) => {
+                self.modifiers = m.state();
+                w.on_event(&event);
+            }
+            WindowEvent::KeyboardInput { event: ref key, .. } => {
+                if key.state == ElementState::Pressed
+                    && let Some(k) = task_actions::clipboard_key(&key.logical_key, self.modifiers)
+                {
+                    self.state.tasks.clipboard_keys.push(k);
+                }
+                w.on_event(&event);
+            }
             // Light dismiss: a press outside the open menu closes it, and
             // Avalonia doesn't pass that press on.
-            WindowEvent::MouseInput { state: ElementState::Pressed, .. }
-                if self.state.flyout.as_ref().is_some_and(|f| !self.cursor.is_some_and(|c| f.contains(c))) =>
-            {
-                self.state.flyout = None;
+            WindowEvent::MouseInput { state: ElementState::Pressed, .. } if self.state.menu_at(self.cursor) == Some(false) => {
+                self.state.close_menus();
                 self.swallow_release = true;
                 w.window.request_redraw();
             }
@@ -1133,7 +1168,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Popups close with their window's activation.
             WindowEvent::Focused(false) => {
-                if self.state.flyout.take().is_some() {
+                if self.state.close_menus() {
                     w.window.request_redraw();
                 }
                 w.on_event(&event);

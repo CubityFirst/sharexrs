@@ -511,6 +511,17 @@ fn process_name(pid: u32) -> Option<String> {
 /// `WindowsClipboard.SetImage`: CF_DIB and "PNG", owned by `owner` (a null
 /// owner makes `SetClipboardData` fail after `EmptyClipboard`).
 pub fn set_clipboard_image(owner: isize, png: &[u8], dib: &[u8]) -> Result<(), String> {
+    set_clipboard(owner, &[(ClipboardFormat::Id(8), dib), (ClipboardFormat::Named("PNG"), png)]) // CF_DIB
+}
+
+/// A clipboard format: a standard one (`CF_*`) or a registered name.
+pub enum ClipboardFormat<'a> {
+    Id(u32),
+    Named(&'a str),
+}
+
+/// Empties the clipboard and puts `items` on it, owned by `owner`.
+pub fn set_clipboard(owner: isize, items: &[(ClipboardFormat, &[u8])]) -> Result<(), String> {
     let owner = owner as HWND;
     let mut opened = false;
     // Another process may briefly hold the clipboard (a clipboard manager
@@ -548,18 +559,27 @@ pub fn set_clipboard_image(owner: isize, png: &[u8], dib: &[u8]) -> Result<(), S
         }
         Ok(())
     };
-    let png_format: Vec<u16> = "PNG\0".encode_utf16().collect();
     // SAFETY: the clipboard is open.
     let result = (|| {
         if unsafe { EmptyClipboard() } == 0 {
             return Err("EmptyClipboard failed".to_string());
         }
-        set(8, dib)?; // CF_DIB
-        let png_id = unsafe { RegisterClipboardFormatW(png_format.as_ptr()) };
-        if png_id == 0 {
-            return Err("RegisterClipboardFormat failed".to_string());
+        for (format, data) in items {
+            let id = match format {
+                ClipboardFormat::Id(id) => *id,
+                ClipboardFormat::Named(name) => {
+                    let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
+                    // SAFETY: a NUL-terminated string.
+                    let id = unsafe { RegisterClipboardFormatW(wide.as_ptr()) };
+                    if id == 0 {
+                        return Err("RegisterClipboardFormat failed".to_string());
+                    }
+                    id
+                }
+            };
+            set(id, data)?;
         }
-        set(png_id, png)
+        Ok(())
     })();
     // SAFETY: opened above.
     unsafe { CloseClipboard() };

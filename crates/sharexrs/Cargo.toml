@@ -20,9 +20,11 @@ image.workspace = true
 dirs.workspace = true
 # The progress tray icon's percentage, drawn in Arial (`Helpers.GetProgressIconBytes`).
 ab_glyph = "0.2.32"
+serde_json.workspace = true
+chrono = "0.4.45"
 
 [target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
 
 # Global hotkeys outside Windows, as snapr has them (docs/MACOS-LEARNINGS.md 3.2).
 [target."cfg(not(windows))".dependencies]
