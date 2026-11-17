@@ -41,6 +41,17 @@ taught us about shipping on macOS.
    `.WithInterFont()` makes Inter 3.019 (`fonts::inter`), not Segoe UI; and
    ShareX's global SemiBold `TextBlock` style doesn't reach `TextBlock`s in
    popups (menus, the tool grid), which are Segoe UI Regular.
+   Draw a bordered or rounded shape with `sharex_ui::border` (not egui's
+   `rect_filled` + `rect_stroke`): Avalonia fills a `Border` to the middle
+   of its border and strokes that path centred, and ShareX on Windows
+   renders through Skia's GPU backend, whose rounded-rect and path edges
+   are antialiased by distance (half a pixel minus the signed distance to
+   the edge), not by area. An Avalonia.Headless probe renders on Skia's
+   CPU backend (area coverage): trust its colours and state resolution,
+   but compare edges with screenshots of the real app. Show keyboard
+   focus with `sharex_ui::focus` (Tab/arrows make it visible, a click
+   hides it); `--render controls-gallery` draws every shared control in
+   every state.
 5. **Settings stay compatible.** ShareXrs reads and writes ShareX's JSON
    (`ApplicationConfig.json`, `HotkeysConfig.json`, `UploadersConfig.json`)
    with the same property names, so a user can move between the two. But
