@@ -7,7 +7,7 @@
 
 use image::RgbaImage;
 
-use crate::options::RegionCaptureOptions;
+use sharex_settings::region_capture::limits;
 
 /// `GridBrush`: black at 75/255.
 const GRID: [u8; 4] = [0, 0, 0, 75];
@@ -17,16 +17,16 @@ const GRID: [u8; 4] = [0, 0, 0, 75];
 pub fn normalize_pixel_count(requested: i32, magnifier_size: i32, scale: f64) -> i32 {
     let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
     let size = magnifier_size
-        .clamp(RegionCaptureOptions::MAGNIFIER_SIZE_MINIMUM, RegionCaptureOptions::MAGNIFIER_SIZE_MAXIMUM);
-    let limited = (size as f64 * scale / RegionCaptureOptions::MAGNIFIER_PIXEL_SIZE_MINIMUM as f64).floor() as i32;
+        .clamp(limits::MAGNIFIER_SIZE_MINIMUM, limits::MAGNIFIER_SIZE_MAXIMUM);
+    let limited = (size as f64 * scale / limits::MAGNIFIER_PIXEL_SIZE_MINIMUM as f64).floor() as i32;
     let mut maximum = limited.clamp(
-        RegionCaptureOptions::MAGNIFIER_PIXEL_COUNT_MINIMUM,
-        RegionCaptureOptions::MAGNIFIER_PIXEL_COUNT_MAXIMUM,
+        limits::MAGNIFIER_PIXEL_COUNT_MINIMUM,
+        limits::MAGNIFIER_PIXEL_COUNT_MAXIMUM,
     );
     if maximum & 1 == 0 {
         maximum -= 1;
     }
-    let mut count = requested.clamp(RegionCaptureOptions::MAGNIFIER_PIXEL_COUNT_MINIMUM, maximum);
+    let mut count = requested.clamp(limits::MAGNIFIER_PIXEL_COUNT_MINIMUM, maximum);
     if count & 1 == 0 {
         count = if count < maximum { count + 1 } else { count - 1 };
     }

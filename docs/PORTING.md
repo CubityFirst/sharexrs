@@ -43,7 +43,10 @@ taught us about shipping on macOS.
    popups (menus, the tool grid), which are Segoe UI Regular.
 5. **Settings stay compatible.** ShareXrs reads and writes ShareX's JSON
    (`ApplicationConfig.json`, `HotkeysConfig.json`, `UploadersConfig.json`)
-   with the same property names, so a user can move between the two.
+   with the same property names, so a user can move between the two. But
+   ShareXrs keeps them in its own folder (`Documents/ShareXrs`, portable
+   `ShareXrs/`, registry policy `SOFTWARE\ShareXrs`): it never reads,
+   writes or migrates a real ShareX profile on the same machine.
 
 Known, accepted differences:
 - Text anti-aliasing: Avalonia uses ClearType (subpixel) on Windows, egui
@@ -59,6 +62,8 @@ Known, accepted differences:
 
 ```
 crates/
+  sharex-settings/  ShareX's settings files (ApplicationConfig, HotkeysConfig),
+                    read and written as ShareX does; where they live
   sharex-strings/   ShareX's .resx (29 languages) -> Rust, generated at build
   sharex-ui/        theme, density, fonts, icon packs, shared widgets,
                     wgpu device, offscreen renderer
@@ -83,9 +88,9 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 | Theme colours, density, fonts, icons, strings | ShareX.Avalonia/Theming, ShareX.Icons, */Localization | ✅ |
 | Main window (empty state, sidebar, title bar) | Presentation/MainWindow | 🟨 render <1% pixel diff in both themes; sidebar menus done (below); task list, thumbnails to do |
 | Window chrome: borderless + resize + DWM rounded corners/shadow | MainWindow.axaml | 🟨 |
-| Settings files (read/write ShareX JSON) | ShareX/ApplicationConfig.cs, TaskSettings.cs | ⬜ |
+| Settings files (read/write ShareX JSON) | ShareX/ApplicationConfig.cs, TaskSettings.cs, HotkeysConfig.cs, SettingManager.cs, HelpersLib/Settings, Infrastructure/AppPaths.cs, PersonalPathManager.cs | ✅ `sharex-settings`: ApplicationConfig, TaskSettings, HotkeysConfig typed; the reference build's profile and a fresh ShareX profile round-trip byte for byte, and ShareXrs's new files equal ShareX's fresh ones (HotkeysConfig byte-identical; ApplicationConfig differs only in FirstTimeRunDate, MainFormPosition and the start screen's two flags); unknown properties/enum values kept; backups (`Backup/<file>`, weekly) and load fallbacks as SettingsBase; portable mode, PersonalPath.cfg, registry policy. Loaded at startup, saved on exit and on theme toggle. Not yet: options of unported tools stay JSON (`defaults.json`), UploadersConfig untyped and not loaded, the start screen, language from settings, `SaveSettingsAfterTaskCompleted`/tray saves (no tasks or tray yet) |
 | Tray icon and tray menu | TrayIconService, MainMenuBuilder.BuildTrayMenu | ⬜ |
-| Hotkeys (registration, conflicts, Hotkey settings window) | HotkeyManager, Presentation/HotkeySettings | ⬜ |
+| Hotkeys (registration, conflicts, Hotkey settings window) | HotkeyManager, HelpersLib/Input, Presentation/HotkeySettings | 🟨 registration with status, the "Hotkey registration failed" message box (`--render hotkey-failed`, live: 1.23% = text anti-aliasing only), main window hotkey panel from the real hotkeys (`--render main --unregistered 0,3`: 0.90%), repeat limit, Disable hotkeys (job), `-NoHotkeys`, validated live on Windows (`RegisterHotKey` on its own thread, presses posted to winit). macOS/Linux use livesplit-hotkey: builds, untested. Hotkeys run `App::run_job`, which only logs the job until captures are ported. Not yet: Hotkey settings window, tray's Disable hotkeys entry, Workflows menu from the real hotkeys, Wayland portal (snapr has one) |
 | Packaging: Windows exe icon, macOS .app/.dmg signed, Linux .deb; CI | (snapr) | 🟨 |
 | Context menus / flyouts (`MainMenuEntry`, compact menu style) | MainMenuBuilder, ControlStyles | ✅ sidebar menus: all 8 (`sharex_ui::menu`, `main_menu.rs`), the tool grid, submenus, hover, dark + light, validated against the source build with `scripts/compare-menus.sh` (every state ≤ the main window's own ~0.9% text anti-aliasing baseline); click, hover-to-open (400ms), Escape, arrows/Enter and light dismiss checked live. Not yet: menus as their own OS windows (drawn inside the window, so they can't extend past it), tool grid edit mode, Capture › Window's window list, tray and task context menus |
 

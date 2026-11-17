@@ -1,0 +1,16 @@
+[package]
+name = "sharex-settings"
+description = "ShareX's settings (ApplicationConfig, HotkeysConfig) and the JSON files it keeps them in."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-strings.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+dirs.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Registry"] }

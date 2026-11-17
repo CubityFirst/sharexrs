@@ -8,9 +8,9 @@ license.workspace = true
 [dependencies]
 sharex-ui.workspace = true
 sharex-strings.workspace = true
+sharex-settings.workspace = true
 egui.workspace = true
 image.workspace = true
-serde.workspace = true
 winit.workspace = true
 
 [target."cfg(windows)".dependencies]

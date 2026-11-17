@@ -4,7 +4,6 @@
 //!   grabbing the screen and the mouse pointer.
 //! - [`windows_list`]: `WindowsRectangleList`: windows and controls to snap
 //!   a region to.
-//! - [`options`]: the `RegionCaptureOptions`.
 //! - [`region`]: the region capture overlay (`Presentation/RegionCapture`):
 //!   its state, input handling and drawing, independent of any window so
 //!   it can be rendered offscreen and tested.
@@ -13,14 +12,14 @@
 
 pub mod clipboard;
 pub mod geometry;
-pub mod options;
 pub mod platform;
 pub mod region;
 pub mod screenshot;
 pub mod windows_list;
 
 pub use geometry::{PointF, Rect, RectF};
-pub use options::RegionCaptureOptions;
+/// The overlay's settings come with the task settings (`sharex-settings`).
+pub use sharex_settings::RegionCaptureOptions;
 
 /// A monitor (`DesktopScreen` / Avalonia's `Screen`), in desktop pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]

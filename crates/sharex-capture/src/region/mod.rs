@@ -30,7 +30,9 @@ use std::time::{Duration, Instant};
 use image::RgbaImage;
 
 use crate::geometry::{PointF, Rect, RectF, create_pixel_rectangle};
-use crate::options::{RegionCaptureAction, RegionCaptureMagnifierScrollAction, RegionCaptureOptions};
+use sharex_settings::region_capture::limits;
+use sharex_settings::types::Point;
+use sharex_settings::{RegionCaptureAction, RegionCaptureMagnifierScrollAction, RegionCaptureOptions};
 use crate::{Screen, SimpleWindowInfo, WindowInfo};
 
 pub use paint::OverlayView;
@@ -286,7 +288,7 @@ impl RegionCapture {
             screenshot,
             screen_bounds,
             screens,
-            windows: if options.detect_windows { windows } else { Vec::new() },
+            windows: if options.DetectWindows { windows } else { Vec::new() },
             options,
             last_regions,
             enable_annotations,
@@ -355,7 +357,7 @@ impl RegionCapture {
     /// Keys start working 500 ms after the overlay opens (`InputDelay`).
     /// Returns when to look again, if still waiting.
     pub fn tick(&mut self, now: Instant) -> Option<Instant> {
-        let at = self.opened + Duration::from_millis(RegionCaptureOptions::INPUT_DELAY);
+        let at = self.opened + Duration::from_millis(limits::INPUT_DELAY as u64);
         if now >= at {
             self.keyboard_enabled = true;
         }
@@ -376,12 +378,12 @@ impl RegionCapture {
 
     /// `HasValidSelection`.
     pub(crate) fn has_valid_selection(&self) -> bool {
-        self.selection.w >= RegionCaptureOptions::MINIMUM_SIZE && self.selection.h >= RegionCaptureOptions::MINIMUM_SIZE
+        self.selection.w >= limits::MINIMUM_SIZE as f64 && self.selection.h >= limits::MINIMUM_SIZE as f64
     }
 
     /// `IsQuickCapture` (multi region mode isn't ported, so it's the option).
     fn quick_capture(&self) -> bool {
-        self.options.quick_capture
+        self.options.QuickCapture
     }
 
     /// Whether the resize nodes show (`SetRegionResizeNodesVisible`).
@@ -395,7 +397,7 @@ impl RegionCapture {
     }
 
     pub(crate) fn magnifier_shown(&self) -> bool {
-        self.options.show_magnifier && !self.magnifier_hidden_by_wheel
+        self.options.ShowMagnifier && !self.magnifier_hidden_by_wheel
     }
 
     fn set_selection(&mut self, r: RectF, candidate: Option<usize>) {
@@ -525,7 +527,7 @@ impl RegionCapture {
             return Outcome::Continue;
         }
         if self.toolbar.follows_pointer
-            && self.options.toolbar_position == (0, 0)
+            && self.options.ToolbarPosition == Point::default()
             && !self.toolbar.screen.contains(desktop.0, desktop.1)
         {
             self.update_toolbar_position(desktop);
@@ -582,9 +584,9 @@ impl RegionCapture {
         }
         match button {
             Button::Right => return Outcome::Continue,
-            Button::Middle => return self.run_action(self.options.region_capture_action_middle_click),
-            Button::X1 => return self.run_action(self.options.region_capture_action_x1_click),
-            Button::X2 => return self.run_action(self.options.region_capture_action_x2_click),
+            Button::Middle => return self.run_action(self.options.RegionCaptureActionMiddleClick.clone()),
+            Button::X1 => return self.run_action(self.options.RegionCaptureActionX1Click.clone()),
+            Button::X2 => return self.run_action(self.options.RegionCaptureActionX2Click.clone()),
             Button::Left => {}
         }
         let now = Instant::now();
@@ -627,7 +629,7 @@ impl RegionCapture {
         if button == Button::Left && self.toolbar.drag.take().is_some() {
             // `EndToolbarDrag`: the position is kept for the next capture.
             if let Some((x, y)) = self.toolbar.anchor {
-                self.options.toolbar_position = (x.round() as i32, y.round() as i32);
+                self.options.ToolbarPosition = Point::new(x.round() as i32, y.round() as i32);
             }
             return Outcome::Continue;
         }
@@ -649,7 +651,7 @@ impl RegionCapture {
             if std::mem::take(&mut self.suppress_right_release) {
                 return Outcome::Continue;
             }
-            return self.run_action(self.options.region_capture_action_right_click);
+            return self.run_action(self.options.RegionCaptureActionRightClick.clone());
         }
         if self.interaction == Interaction::None || button != Button::Left {
             if button == Button::Left {
@@ -684,18 +686,18 @@ impl RegionCapture {
         if let Some(_part) = self.toolbar_hover {
             // Ctrl + wheel over the toolbar resizes its buttons.
             if m.ctrl && delta_y != 0.0 {
-                let current = if self.options.use_custom_toolbar_button_size { self.options.toolbar_button_size } else { 40 };
+                let current = if self.options.UseCustomToolbarButtonSize { self.options.ToolbarButtonSize } else { 40 };
                 let step = if delta_y > 0.0 { 4 } else { -4 };
-                self.options.use_custom_toolbar_button_size = true;
-                self.options.toolbar_button_size = (current + step).clamp(
-                    RegionCaptureOptions::TOOLBAR_BUTTON_SIZE_MINIMUM,
-                    RegionCaptureOptions::TOOLBAR_BUTTON_SIZE_MAXIMUM,
+                self.options.UseCustomToolbarButtonSize = true;
+                self.options.ToolbarButtonSize = (current + step).clamp(
+                    limits::TOOLBAR_BUTTON_SIZE_MINIMUM,
+                    limits::TOOLBAR_BUTTON_SIZE_MAXIMUM,
                 );
             }
             return Outcome::Continue;
         }
         let direction = delta_y.signum();
-        if delta_y == 0.0 || !self.options.show_magnifier {
+        if delta_y == 0.0 || !self.options.ShowMagnifier {
             return Outcome::Continue;
         }
         let up = direction > 0.0;
@@ -706,21 +708,24 @@ impl RegionCapture {
             }
             return Outcome::Continue;
         }
-        let mut action = self.options.magnifier_scroll_action;
+        let mut action = self.options.MagnifierScrollAction.clone();
         if m.ctrl {
             action = match action {
                 RegionCaptureMagnifierScrollAction::Zoom => RegionCaptureMagnifierScrollAction::Resize,
-                RegionCaptureMagnifierScrollAction::Resize => RegionCaptureMagnifierScrollAction::Zoom,
+                _ => RegionCaptureMagnifierScrollAction::Zoom,
             };
         }
         let scale = self.monitor_scale_at(self.last_pointer);
         match action {
-            RegionCaptureMagnifierScrollAction::Resize => self.resize_magnifier(up, scale),
+            // A value from a newer ShareX acts as the default.
+            RegionCaptureMagnifierScrollAction::Resize | RegionCaptureMagnifierScrollAction::Unknown(_) => {
+                self.resize_magnifier(up, scale)
+            }
             RegionCaptureMagnifierScrollAction::Zoom => {
-                let count = magnifier::normalize_pixel_count(self.options.magnifier_pixel_count, self.options.magnifier_size, scale);
-                self.options.magnifier_pixel_count = magnifier::normalize_pixel_count(
+                let count = magnifier::normalize_pixel_count(self.options.MagnifierPixelCount, self.options.MagnifierSize, scale);
+                self.options.MagnifierPixelCount = magnifier::normalize_pixel_count(
                     count + if up { -2 } else { 2 },
-                    self.options.magnifier_size,
+                    self.options.MagnifierSize,
                     scale,
                 );
             }
@@ -733,23 +738,23 @@ impl RegionCapture {
     fn resize_magnifier(&mut self, grow: bool, scale: f64) {
         let o = &mut self.options;
         let current = o
-            .magnifier_size
-            .clamp(RegionCaptureOptions::MAGNIFIER_SIZE_MINIMUM, RegionCaptureOptions::MAGNIFIER_SIZE_MAXIMUM);
-        let count = magnifier::normalize_pixel_count(o.magnifier_pixel_count, o.magnifier_size, scale);
+            .MagnifierSize
+            .clamp(limits::MAGNIFIER_SIZE_MINIMUM, limits::MAGNIFIER_SIZE_MAXIMUM);
+        let count = magnifier::normalize_pixel_count(o.MagnifierPixelCount, o.MagnifierSize, scale);
         let next = count + if grow { 2 } else { -2 };
         let size = (current as f64 / count as f64 * next as f64).round() as i32;
-        if size < RegionCaptureOptions::MAGNIFIER_SIZE_MINIMUM && current == RegionCaptureOptions::MAGNIFIER_SIZE_MINIMUM {
+        if size < limits::MAGNIFIER_SIZE_MINIMUM && current == limits::MAGNIFIER_SIZE_MINIMUM {
             self.magnifier_hidden_by_wheel = true;
             return;
         }
-        let size = size.clamp(RegionCaptureOptions::MAGNIFIER_SIZE_MINIMUM, RegionCaptureOptions::MAGNIFIER_SIZE_MAXIMUM);
+        let size = size.clamp(limits::MAGNIFIER_SIZE_MINIMUM, limits::MAGNIFIER_SIZE_MAXIMUM);
         if size == current {
             return;
         }
-        o.magnifier_size = size;
-        o.magnifier_pixel_count = next.clamp(
-            RegionCaptureOptions::MAGNIFIER_PIXEL_COUNT_MINIMUM,
-            RegionCaptureOptions::MAGNIFIER_PIXEL_COUNT_MAXIMUM,
+        o.MagnifierSize = size;
+        o.MagnifierPixelCount = next.clamp(
+            limits::MAGNIFIER_PIXEL_COUNT_MINIMUM,
+            limits::MAGNIFIER_PIXEL_COUNT_MAXIMUM,
         );
     }
 
@@ -795,7 +800,7 @@ impl RegionCapture {
             Key::Space => return self.complete(vec![self.bounds()], false),
             Key::Tilde => return self.complete_active_monitor(),
             Key::Left | Key::Right | Key::Up | Key::Down => {
-                let d = if m.shift { RegionCaptureOptions::MOVE_SPEED_MAXIMUM } else { RegionCaptureOptions::MOVE_SPEED_MINIMUM };
+                let d = if m.shift { limits::MOVE_SPEED_MAXIMUM } else { limits::MOVE_SPEED_MINIMUM };
                 let dx = match key {
                     Key::Left => -d,
                     Key::Right => d,
@@ -847,7 +852,7 @@ impl RegionCapture {
     /// `RunCaptureAction`.
     fn run_action(&mut self, action: RegionCaptureAction) -> Outcome {
         match action {
-            RegionCaptureAction::None => Outcome::Continue,
+            RegionCaptureAction::None | RegionCaptureAction::Unknown(_) => Outcome::Continue,
             RegionCaptureAction::CancelCapture => self.cancel(),
             RegionCaptureAction::RemoveShapeCancelCapture => {
                 if self.try_remove_region_at(self.last_pointer) {
@@ -974,9 +979,9 @@ impl RegionCapture {
     /// `UpdateToolbarPosition`: the top centre of the monitor at `desktop`,
     /// unless a position was saved by dragging it.
     fn update_toolbar_position(&mut self, desktop: (i32, i32)) {
-        let saved = self.options.toolbar_position;
-        if saved != (0, 0) && self.screens.iter().any(|s| s.bounds.contains(saved.0, saved.1)) {
-            self.toolbar.anchor = Some((saved.0 as f64, saved.1 as f64));
+        let saved = self.options.ToolbarPosition;
+        if saved != Point::default() && self.screens.iter().any(|s| s.bounds.contains(saved.x, saved.y)) {
+            self.toolbar.anchor = Some((saved.x as f64, saved.y as f64));
             return;
         }
         let Some(screen) = crate::screenshot::screen_from_point(&self.screens, desktop).copied() else { return };
@@ -995,7 +1000,7 @@ impl RegionCapture {
                 if double {
                     // Back to the monitor's top centre, and forgotten.
                     self.toolbar.drag = None;
-                    self.options.toolbar_position = (0, 0);
+                    self.options.ToolbarPosition = Point::default();
                     let d = (self.screen_bounds.x + p.x.round() as i32, self.screen_bounds.y + p.y.round() as i32);
                     self.update_toolbar_position(d);
                     return Outcome::Continue;
@@ -1020,10 +1025,10 @@ impl RegionCapture {
     /// The toolbar's scale for a custom button size (`ToolbarButtonSize`
     /// over the 40 DIP buttons).
     pub(crate) fn toolbar_scale(&self) -> f32 {
-        if self.options.use_custom_toolbar_button_size {
+        if self.options.UseCustomToolbarButtonSize {
             self.options
-                .toolbar_button_size
-                .clamp(RegionCaptureOptions::TOOLBAR_BUTTON_SIZE_MINIMUM, RegionCaptureOptions::TOOLBAR_BUTTON_SIZE_MAXIMUM)
+                .ToolbarButtonSize
+                .clamp(limits::TOOLBAR_BUTTON_SIZE_MINIMUM, limits::TOOLBAR_BUTTON_SIZE_MAXIMUM)
                 as f32
                 / 40.0
         } else {

@@ -14,39 +14,39 @@ use sharex_capture::screenshot::{self, Screenshot};
 use sharex_capture::{Rect, windows_list};
 use sharex_helpers::file_helpers::unique_file_path;
 use sharex_helpers::{NameParser, NameParserType};
-
-use crate::task_settings::{FileExistAction, TaskSettings, after_capture, screenshots_parent_folder};
+use sharex_settings::{AfterCaptureTasks, ApplicationConfig, FileExistAction, TaskSettings};
 
 /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync` up to the overlay:
 /// the frozen screen (every monitor, or the active one), the pointer drawn
 /// in (`ShowCursor`), the windows to snap to.
-pub fn prepare(settings: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
+pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
     let screens = screenshot::screens();
     if screens.is_empty() {
         return Err("no monitors found".into());
     }
     let cursor = screenshot::cursor_position();
-    let options = settings.region_capture_options.clone();
+    let capture = task.CaptureSettings.clone().unwrap_or_default();
+    let options = capture.RegionCaptureOptions.clone();
     let shot = Screenshot { capture_cursor: false, ..Default::default() };
     let at = cursor.unwrap_or((screens[0].bounds.x, screens[0].bounds.y));
-    let screen_bounds = if options.active_monitor_mode {
+    let screen_bounds = if options.ActiveMonitorMode {
         screenshot::active_screen_bounds(&screens, at)
     } else {
         screenshot::screen_bounds(&screens)
     };
-    let mut frozen = if options.active_monitor_mode {
+    let mut frozen = if options.ActiveMonitorMode {
         shot.capture_active_monitor(&screens, at)
     } else {
         shot.capture_fullscreen(&screens)
     }
     .ok_or("couldn't capture the screen")?;
-    if settings.show_cursor
+    if capture.ShowCursor
         && let Some(c) = screenshot::cursor_image(&frozen, (screen_bounds.x, screen_bounds.y))
     {
         screenshot::draw_cursor(&mut frozen, &c);
     }
-    let windows = if options.detect_windows {
-        windows_list::window_info_list(options.detect_controls, &[])
+    let windows = if options.DetectWindows {
+        windows_list::window_info_list(options.DetectControls, &[])
     } else {
         Vec::new()
     };
@@ -58,7 +58,7 @@ pub fn prepare(settings: &TaskSettings, last_regions: Vec<Rect>) -> Result<Reque
         windows,
         cursor,
         last_regions,
-        enable_annotations: !settings.region_capture_disable_annotation,
+        enable_annotations: !task.AdvancedSettings.as_ref().is_some_and(|a| a.RegionCaptureDisableAnnotation),
     })
 }
 
@@ -82,44 +82,52 @@ impl Metadata {
     }
 }
 
-/// `TaskHelpers.GetFileName`.
-pub fn file_name(settings: &mut TaskSettings, extension: &str, metadata: &Metadata) -> String {
+/// `TaskHelpers.GetFileName`. `auto_increment` is
+/// `ApplicationConfig.NameParserAutoIncrementNumber`, counted up when the
+/// pattern uses it.
+pub fn file_name(task: &TaskSettings, auto_increment: &mut i32, extension: &str, metadata: &Metadata) -> String {
+    let upload = task.UploadSettings.clone().unwrap_or_default();
+    let advanced = task.AdvancedSettings.clone().unwrap_or_default();
     let mut parser = NameParser::new(NameParserType::FileName);
-    parser.auto_increment_number = settings.name_parser_auto_increment_number;
-    parser.max_name_length = settings.name_pattern_max_length;
-    parser.max_title_length = settings.name_pattern_max_title_length;
+    parser.auto_increment_number = *auto_increment as i64;
+    parser.max_name_length = advanced.NamePatternMaxLength.max(0) as usize;
+    parser.max_title_length = advanced.NamePatternMaxTitleLength.max(0) as usize;
     parser.image_width = metadata.image.width();
     parser.image_height = metadata.image.height();
     parser.window_text = metadata.window_title.clone();
     parser.process_name = metadata.process_name.clone();
     let has_title = parser.window_text.as_deref().is_some_and(|t| !t.is_empty());
-    let pattern = if !settings.name_format_pattern_active_window.is_empty() && has_title {
-        settings.name_format_pattern_active_window.clone()
+    let pattern = if !upload.NameFormatPatternActiveWindow.is_empty() && has_title {
+        &upload.NameFormatPatternActiveWindow
     } else {
-        settings.name_format_pattern.clone()
+        &upload.NameFormatPattern
     };
-    let mut name = parser.parse(&pattern);
-    settings.name_parser_auto_increment_number = parser.auto_increment_number;
+    let mut name = parser.parse(pattern);
+    *auto_increment = parser.auto_increment_number as i32;
     if !extension.is_empty() {
         name = format!("{name}.{}", extension.trim_start_matches('.'));
     }
     name
 }
 
-/// `TaskHelpers.GetScreenshotsFolder`.
-pub fn screenshots_folder(settings: &TaskSettings, metadata: &Metadata) -> PathBuf {
+/// `TaskHelpers.GetScreenshotsFolder`: the task's own folder, else
+/// `parent` (`AppPaths.ScreenshotsParentFolder`) and the sub folder pattern.
+pub fn screenshots_folder(task: &TaskSettings, app: &ApplicationConfig, parent: &Path, metadata: &Metadata) -> PathBuf {
     let mut parser = NameParser::new(NameParserType::FilePath);
     parser.image_width = metadata.image.width();
     parser.image_height = metadata.image.height();
     parser.window_text = metadata.window_title.clone();
     parser.process_name = metadata.process_name.clone();
+    if task.OverrideScreenshotsFolder && !task.ScreenshotsFolder.is_empty() {
+        return PathBuf::from(parser.parse(&task.ScreenshotsFolder));
+    }
     let has_title = parser.window_text.as_deref().is_some_and(|t| !t.is_empty());
-    let pattern = if !settings.save_image_sub_folder_pattern_window.is_empty() && has_title {
-        &settings.save_image_sub_folder_pattern_window
+    let pattern = if !app.SaveImageSubFolderPatternWindow.is_empty() && has_title {
+        &app.SaveImageSubFolderPatternWindow
     } else {
-        &settings.save_image_sub_folder_pattern
+        &app.SaveImageSubFolderPattern
     };
-    screenshots_parent_folder().join(parser.parse(pattern))
+    parent.join(parser.parse(pattern))
 }
 
 /// `Path.ChangeExtension`.
@@ -133,10 +141,11 @@ fn change_extension(name: &str, ext: &str) -> String {
 
 /// `TaskHelpers.PrepareImage`: PNG, or JPEG on white when the PNG is over
 /// `ImageAutoUseJPEGSize` KB (`ImageAutoUseJPEG`).
-pub fn prepare_image(image: &RgbaImage, settings: &TaskSettings) -> Result<(Vec<u8>, &'static str), String> {
+pub fn prepare_image(image: &RgbaImage, task: &TaskSettings) -> Result<(Vec<u8>, &'static str), String> {
+    let settings = task.ImageSettings.clone().unwrap_or_default();
     let png = encode_png(image)?;
-    let limit = settings.image_auto_use_jpeg_size * 1000;
-    if settings.image_auto_use_jpeg && png.len() as u64 > limit {
+    let limit = settings.ImageAutoUseJPEGSize.max(0) as u64 * 1000;
+    if settings.ImageAutoUseJPEG && png.len() as u64 > limit {
         // `FillBackground(img, Color.White)` then `SaveJPEG`.
         let rgb = image::RgbImage::from_fn(image.width(), image.height(), |x, y| {
             let p = image.get_pixel(x, y);
@@ -145,7 +154,7 @@ pub fn prepare_image(image: &RgbaImage, settings: &TaskSettings) -> Result<(Vec<
             image::Rgb([c(p[0]), c(p[1]), c(p[2])])
         });
         let mut out = Vec::new();
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, settings.image_jpeg_quality)
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, settings.ImageJPEGQuality.clamp(1, 100) as u8)
             .encode_image(&rgb)
             .map_err(|e| e.to_string())?;
         return Ok((out, "jpg"));
@@ -168,14 +177,14 @@ fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {
 
 /// `TaskHelpers.HandleExistsFile`. Asking (the default) needs ShareX's
 /// file exists window, not ported yet: a unique name is used instead.
-fn handle_exists_file(path: &Path, settings: &TaskSettings) -> Option<PathBuf> {
+fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
     if !path.exists() {
         return Some(path.to_path_buf());
     }
-    match settings.file_exist_action {
-        FileExistAction::Overwrite => Some(path.to_path_buf()),
-        FileExistAction::Cancel => None,
-        FileExistAction::Ask | FileExistAction::UniqueName => Some(unique_file_path(path)),
+    match task.ImageSettings.as_ref().map(|s| &s.FileExistAction) {
+        Some(FileExistAction::Overwrite) => Some(path.to_path_buf()),
+        Some(FileExistAction::Cancel) => None,
+        _ => Some(unique_file_path(path)),
     }
 }
 
@@ -186,33 +195,51 @@ pub struct TaskOutcome {
     pub copied: bool,
 }
 
-/// `WorkerTask.DoAfterCaptureJobs` for the tasks ported: copy the image
-/// to the clipboard (owned by `owner`), then save it.
-pub fn run_image_task(metadata: Metadata, mut settings: TaskSettings, owner: Option<isize>) -> Result<TaskOutcome, String> {
-    let mut outcome = TaskOutcome::default();
-    // `CreateImageUploaderTask`: named with a "bmp" extension first.
-    let mut name = file_name(&mut settings, "bmp", &metadata);
-    if settings.after_capture_job & after_capture::COPY_IMAGE_TO_CLIPBOARD != 0 {
-        match sharex_capture::clipboard::copy_image(&metadata.image, owner) {
-            Ok(()) => {
-                outcome.copied = true;
-                eprintln!("Image copied to clipboard.");
+/// An image task ready to run off the event loop, with what
+/// `WorkerTask.CreateImageUploaderTask` sets up on the UI thread: the file
+/// name (with a "bmp" extension first, as ShareX) and the folder.
+pub struct ImageTask {
+    pub metadata: Metadata,
+    pub task: TaskSettings,
+    pub file_name: String,
+    pub folder: PathBuf,
+}
+
+impl ImageTask {
+    pub fn new(metadata: Metadata, task: TaskSettings, app: &mut ApplicationConfig, screenshots_parent: &Path) -> Self {
+        let mut counter = app.NameParserAutoIncrementNumber;
+        let file_name = file_name(&task, &mut counter, "bmp", &metadata);
+        app.NameParserAutoIncrementNumber = counter;
+        let folder = screenshots_folder(&task, app, screenshots_parent, &metadata);
+        Self { metadata, task, file_name, folder }
+    }
+
+    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: copy
+    /// the image to the clipboard (owned by `owner`), then save it.
+    pub fn run(self, owner: Option<isize>) -> Result<TaskOutcome, String> {
+        let mut outcome = TaskOutcome::default();
+        let job = self.task.AfterCaptureJob;
+        if job.contains(AfterCaptureTasks::CopyImageToClipboard) {
+            match sharex_capture::clipboard::copy_image(&self.metadata.image, owner) {
+                Ok(()) => {
+                    outcome.copied = true;
+                    eprintln!("Image copied to clipboard.");
+                }
+                Err(e) => eprintln!("Clipboard copy image failed: {e}"),
             }
-            Err(e) => eprintln!("Clipboard copy image failed: {e}"),
         }
-    }
-    if settings.after_capture_job & after_capture::SAVE_IMAGE_TO_FILE != 0 {
-        let (data, ext) = prepare_image(&metadata.image, &settings)?;
-        name = change_extension(&name, ext);
-        let folder = screenshots_folder(&settings, &metadata);
-        if let Some(path) = handle_exists_file(&folder.join(&name), &settings) {
-            std::fs::create_dir_all(&folder).map_err(|e| format!("{}: {e}", folder.display()))?;
-            std::fs::write(&path, data).map_err(|e| format!("{}: {e}", path.display()))?;
-            eprintln!("Image saved to file: {}", path.display());
-            outcome.file_path = Some(path);
+        if job.contains(AfterCaptureTasks::SaveImageToFile) {
+            let (data, ext) = prepare_image(&self.metadata.image, &self.task)?;
+            let name = change_extension(&self.file_name, ext);
+            if let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task) {
+                std::fs::create_dir_all(&self.folder).map_err(|e| format!("{}: {e}", self.folder.display()))?;
+                std::fs::write(&path, data).map_err(|e| format!("{}: {e}", path.display()))?;
+                eprintln!("Image saved to file: {}", path.display());
+                outcome.file_path = Some(path);
+            }
         }
+        Ok(outcome)
     }
-    Ok(outcome)
 }
 
 #[cfg(test)]
@@ -229,41 +256,36 @@ mod tests {
 
     #[test]
     fn names_follow_the_default_patterns() {
-        let mut s = TaskSettings::default();
-        let name = file_name(&mut s, "bmp", &metadata(None, None));
+        let task = TaskSettings::default();
+        let mut n = 0;
+        let name = file_name(&task, &mut n, "bmp", &metadata(None, None));
         assert_eq!(name.len(), 10 + 4, "{name}");
         assert!(name.ends_with(".bmp"));
-        let name = file_name(&mut s, "bmp", &metadata(Some("ShareXrs test pattern"), Some("sharexrs")));
+        let name = file_name(&task, &mut n, "bmp", &metadata(Some("ShareXrs test pattern"), Some("sharexrs")));
         assert!(name.starts_with("sharexrs_") && name.len() == "sharexrs_".len() + 10 + 4, "{name}");
         assert_eq!(change_extension(&name, "png"), name.replace(".bmp", ".png"));
     }
 
     #[test]
     fn screenshots_go_in_a_year_month_folder() {
-        let s = TaskSettings::default();
-        let folder = screenshots_folder(&s, &metadata(Some("t"), Some("p")));
-        let now = chrono_like_year_month();
-        assert!(folder.ends_with(now), "{}", folder.display());
-        assert!(folder.parent().unwrap().ends_with("Screenshots"));
-    }
-
-    fn chrono_like_year_month() -> String {
-        NameParser::new(NameParserType::FilePath).parse("%y-%mo")
+        let parent = Path::new("profile").join("Screenshots");
+        let app = ApplicationConfig::default();
+        let folder = screenshots_folder(&TaskSettings::default(), &app, &parent, &metadata(Some("t"), Some("p")));
+        assert_eq!(folder, parent.join(NameParser::new(NameParserType::FilePath).parse("%y-%mo")));
     }
 
     #[test]
-    fn small_images_are_png_and_big_noisy_ones_jpeg() {
-        let s = TaskSettings::default();
-        let (png, ext) = prepare_image(&RgbaImage::from_pixel(10, 10, image::Rgba([9, 9, 9, 255])), &s).unwrap();
+    fn small_images_are_rgba_png_and_big_noisy_ones_jpeg() {
+        let task = TaskSettings::default();
+        let (png, ext) = prepare_image(&RgbaImage::from_pixel(10, 10, image::Rgba([9, 9, 9, 255])), &task).unwrap();
         assert_eq!(ext, "png");
-        let decoded = image::load_from_memory(&png).unwrap();
-        assert_eq!(decoded.color(), image::ColorType::Rgba8);
+        assert_eq!(image::load_from_memory(&png).unwrap().color(), image::ColorType::Rgba8);
         let mut noisy = RgbaImage::new(1400, 1400);
         let mut v = 1u32;
         for p in noisy.pixels_mut() {
             v = v.wrapping_mul(1_103_515_245).wrapping_add(12345);
             *p = image::Rgba([(v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8, 255]);
         }
-        assert_eq!(prepare_image(&noisy, &s).unwrap().1, "jpg");
+        assert_eq!(prepare_image(&noisy, &task).unwrap().1, "jpg");
     }
 }

@@ -206,10 +206,10 @@ impl RegionCapture {
         // `RegionSelectionOverlay.Render`.
         let surface = RectF::new(0.0, 0.0, self.width, self.height);
         let active = self.active_rectangle().intersect(&surface);
-        let dim_alpha = dim_alpha(self.options.background_dim_strength);
+        let dim_alpha = dim_alpha(self.options.BackgroundDimStrength);
         if dim_alpha > 0 {
             let dim = Color32::from_rgba_unmultiplied(0, 0, 0, dim_alpha);
-            let undimmed = if self.options.dim_all_except_selection && (self.selection_pending || !self.selection.is_valid()) {
+            let undimmed = if self.options.DimAllExceptSelection && (self.selection_pending || !self.selection.is_valid()) {
                 RectF::default()
             } else {
                 active
@@ -231,7 +231,7 @@ impl RegionCapture {
         }
         if active.is_valid() {
             ant_rectangle(&painter, &m, active, accent, halo);
-            if self.options.show_center_crosshair && self.selection.is_valid() {
+            if self.options.ShowCenterCrosshair && self.selection.is_valid() {
                 let c = self.selection.center();
                 let (cx, cy) = (c.x.floor(), c.y.floor());
                 pixel_cross(&painter, &m, halo, cx - 1.0, cy - 1.0);
@@ -267,14 +267,14 @@ impl RegionCapture {
         };
         let area = Rect::from_min_size(Pos2::ZERO, vec2(view.monitor.w as f32, view.monitor.h as f32) / ppp);
         let show_magnifier = self.magnifier_shown();
-        let show_info = self.options.show_info;
+        let show_info = self.options.ShowInfo;
         if self.pointer_known && (show_magnifier || show_info) && on_this_monitor(self.last_pointer) {
             let pointer = m.pos(self.last_pointer.x, self.last_pointer.y);
             let ix = (self.last_pointer.x.round() as i32).clamp(0, self.width as i32 - 1);
             let iy = (self.last_pointer.y.round() as i32).clamp(0, self.height as i32 - 1);
             let text = format!("X: {} Y: {}", sb.x + ix, sb.y + iy);
             let info = label_size(ui, &text);
-            let mag_size = (self.options.magnifier_size.clamp(50, 500) + 2) as f32;
+            let mag_size = (self.options.MagnifierSize.clamp(50, 500) + 2) as f32;
             let width = if show_magnifier { mag_size.max(if show_info { info.x } else { 0.0 }) } else { info.x };
             let height = match (show_magnifier, show_info) {
                 (true, true) => mag_size + 10.0 + info.y,
@@ -296,20 +296,20 @@ impl RegionCapture {
             if show_magnifier {
                 let mx = x + ((width - mag_size) / 2.0).round_ties_even();
                 let count = super::magnifier::normalize_pixel_count(
-                    self.options.magnifier_pixel_count,
-                    self.options.magnifier_size,
+                    self.options.MagnifierPixelCount,
+                    self.options.MagnifierSize,
                     ppp as f64,
                 );
-                let key = (ix, iy, self.options.magnifier_size, count, (ppp * 100.0) as u32);
+                let key = (ix, iy, self.options.MagnifierSize, count, (ppp * 100.0) as u32);
                 let stale = view.magnifier.as_ref().is_none_or(|(_, k)| *k != key);
                 if stale {
                     let accent = p.accent_start;
                     let img = super::magnifier::render(
                         &self.screenshot,
                         (ix, iy),
-                        self.options.magnifier_size.clamp(50, 500),
+                        self.options.MagnifierSize.clamp(50, 500),
                         count,
-                        self.options.use_square_magnifier,
+                        self.options.UseSquareMagnifier,
                         ppp as f64,
                         [accent.r(), accent.g(), accent.b()],
                     );

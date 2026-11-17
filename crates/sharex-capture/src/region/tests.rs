@@ -118,7 +118,7 @@ fn x_buttons_capture_fullscreen_and_the_active_monitor() {
 #[test]
 fn moving_a_region_without_quick_capture() {
     let mut s = session(Vec::new());
-    s.options.quick_capture = false;
+    s.options.QuickCapture = false;
     assert!(matches!(drag(&mut s, (100.0, 100.0), (199.0, 149.0)), Outcome::Continue));
     assert_eq!(s.selection, RectF::new(100.0, 100.0, 100.0, 50.0));
     assert!(s.resize_nodes_visible());
@@ -148,11 +148,11 @@ fn toolbar_sits_at_the_top_centre_of_the_pointers_monitor() {
 fn wheel_resizes_and_hides_the_magnifier() {
     let mut s = session(Vec::new());
     s.wheel(1.0, none());
-    assert_eq!((s.options.magnifier_size, s.options.magnifier_pixel_count), (170, 17));
+    assert_eq!((s.options.MagnifierSize, s.options.MagnifierPixelCount), (170, 17));
     s.wheel(1.0, Modifiers { ctrl: true, ..none() });
-    assert_eq!((s.options.magnifier_size, s.options.magnifier_pixel_count), (170, 15));
-    s.options.magnifier_size = 50;
-    s.options.magnifier_pixel_count = 5;
+    assert_eq!((s.options.MagnifierSize, s.options.MagnifierPixelCount), (170, 15));
+    s.options.MagnifierSize = 50;
+    s.options.MagnifierPixelCount = 5;
     s.wheel(-1.0, none());
     assert!(s.magnifier_hidden_by_wheel);
     s.wheel(1.0, none());
