@@ -23,6 +23,18 @@ fn renders_like_sharex() {
         if case.get("pending").is_some() {
             continue;
         }
+        // Cases that need a system font (Segoe UI, on Windows) skip without it.
+        let fonts = case
+            .get("fonts")
+            .and_then(|f| f.as_array())
+            .cloned()
+            .unwrap_or_default();
+        if fonts.iter().any(|f| {
+            sharex_image_editor::render::text::load_face(f.as_str().unwrap_or(""), false, false)
+                .is_none()
+        }) {
+            continue;
+        }
         let Some(expected) = load(&data.join("sharex").join(format!("{name}.png"))) else {
             continue;
         };

@@ -18,7 +18,7 @@ use crate::model::{ArrowProps, ArrowStyle, BorderStyle, Common, FreehandProps, L
 /// A `StreamGeometry` as Avalonia's Skia backend builds it: one path for
 /// the stroke, and one for the fill holding only the filled figures
 /// (the same path while every figure is filled). Both even-odd.
-pub(super) struct StreamGeometry {
+pub(crate) struct StreamGeometry {
     stroke: Path,
     fill: Option<Path>,
     is_filled: bool,
@@ -175,19 +175,33 @@ pub(super) fn draw_geometry(
     pen: Option<&Pen>,
     stroke_path: &Path,
 ) {
+    draw_geometry_clipped(pm, ctm, fill, fill_path, pen, stroke_path, None);
+}
+
+/// [`draw_geometry`] inside a device clip rectangle (a visual with
+/// `ClipToBounds`).
+pub(super) fn draw_geometry_clipped(
+    pm: &mut Pixmap,
+    ctm: &AMatrix,
+    fill: Option<Color>,
+    fill_path: &Path,
+    pen: Option<&Pen>,
+    stroke_path: &Path,
+    clip: Option<sharex_skia::IRect>,
+) {
     let m: Matrix = ctm.to_sk();
     if let Some(c) = fill
         && c.a != 0
         && !fill_path.is_empty()
     {
         let dev = fill_path.transformed(&m);
-        draw::fill_path(pm, &dev, c, None);
+        draw::fill_path(pm, &dev, c, clip);
     }
     if let Some(pen) = pen
         && pen.color.a != 0
         && let Some(stroke) = pen.stroke()
     {
-        draw::stroke_path(pm, stroke_path, &stroke, &m, pen.color, None);
+        draw::stroke_path(pm, stroke_path, &stroke, &m, pen.color, clip);
     }
 }
 

@@ -11,6 +11,7 @@ mod color;
 mod effects;
 mod layout;
 mod shapes;
+pub mod text;
 
 use sharex_skia::Pixmap;
 
@@ -37,6 +38,9 @@ fn draw(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
         Kind::Line(p) => shapes::draw_line(pm, &a.common, p),
         Kind::Arrow(p) => shapes::draw_arrow(pm, &a.common, p),
         Kind::Freehand(p) => shapes::draw_freehand(pm, &a.common, p),
+        Kind::Text(p) => text::draw_text_annotation(pm, &a.common, p),
+        Kind::Number(p) => text::draw_step(pm, &a.common, p),
+        Kind::SpeechBalloon(p) => text::draw_balloon(pm, &a.common, p),
         Kind::Highlight(_) | Kind::Blur(_) | Kind::Pixelate(_) | Kind::Magnify(_) => {
             effects::draw_effect(pm, base, a)
         }

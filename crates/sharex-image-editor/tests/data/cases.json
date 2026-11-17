@@ -1479,7 +1479,7 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   },
   {
    "name": "step-tail",
@@ -1505,7 +1505,7 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "pending": "the tail is a union with the body (CombinedGeometry, Skia PathOps), not ported; also ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   },
   {
    "name": "text",
@@ -1528,7 +1528,9 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "fonts": [
+    "Segoe UI"
+   ]
   },
   {
    "name": "text-plain",
@@ -1548,7 +1550,9 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "fonts": [
+    "Segoe UI"
+   ]
   },
   {
    "name": "balloon",
@@ -1571,7 +1575,7 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "pending": "the tail is a union with the body (CombinedGeometry, Skia PathOps), not ported; also ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   },
   {
    "name": "rect-shadow-thick",
@@ -1660,6 +1664,98 @@
      }
     }
    ]
+  },
+  {
+   "name": "balloon-notail",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "Hi there",
+     "TailEnabled": false,
+     "FillColor": "#FFF23C3C",
+     "TextColor": "#FFFAFAFA",
+     "StrokeWidth": 0,
+     "FontSize": 28,
+     "IsBold": true,
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 150
+     }
+    }
+   ],
+   "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
+  },
+  {
+   "name": "balloon-border",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "TailEnabled": false,
+     "StartPoint": {
+      "X": 40,
+      "Y": 160
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 260
+     }
+    }
+   ],
+   "fonts": [
+    "Segoe UI"
+   ]
+  },
+  {
+   "name": "text-left-wrap",
+   "annotations": [
+    {
+     "$type": "Text",
+     "Text": "Left aligned",
+     "HorizontalAlignment": "Left",
+     "FontSize": 24,
+     "StrokeWidth": 3,
+     "TextColor": "#FF000000",
+     "StrokeColor": "#FFFFFF00",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     }
+    }
+   ],
+   "fonts": [
+    "Segoe UI"
+   ]
+  },
+  {
+   "name": "step-letter",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 3,
+     "StepType": "UppercaseLetter",
+     "FontSize": 30,
+     "FillColor": "#FF2080F0",
+     "StrokeWidth": 2,
+     "StrokeColor": "#FFFFFFFF",
+     "StartPoint": {
+      "X": 200,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 150
+     }
+    }
+   ],
+   "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   }
  ]
 }

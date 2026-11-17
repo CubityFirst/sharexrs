@@ -10,6 +10,8 @@ sharex-settings.workspace = true
 sharex-skia.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ttf-parser = "0.25.1"
+harfrust = "0.12"
 
 [dev-dependencies]
 image.workspace = true
