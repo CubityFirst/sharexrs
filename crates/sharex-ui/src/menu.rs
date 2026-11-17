@@ -1100,14 +1100,23 @@ fn paint_tool<C>(ui: &Ui, cell: Rect, e: &MenuEntry<C>) {
 pub fn paint_accent_gradient(ui: &Ui, rect: Rect, radius: CornerRadius) {
     let ctx = ui.ctx();
     let p = palette(ctx);
-    let key = Id::new(("accent-gradient", p.accent_start, p.accent_end));
+    // `ShareX.Brush.Accent` is a LinearGradientBrush from 0%,0% to
+    // 100%,100%: relative points become the box's corners, and the colour is
+    // constant on lines perpendicular to the diagonal between them, so on a
+    // wide button it changes mostly left to right. Skia interpolates the
+    // sRGB values directly (not in linear light).
+    let (w, h) = (rect.width().round().max(1.0), rect.height().round().max(1.0));
+    let key = Id::new(("accent-gradient", p.accent_start, p.accent_end, w as u32, h as u32));
     let tex = ctx.data_mut(|d| d.get_temp::<egui::TextureHandle>(key)).unwrap_or_else(|| {
         const N: usize = 64;
-        let (a, b) = (egui::Rgba::from(p.accent_start), egui::Rgba::from(p.accent_end));
+        let (a, b) = (p.accent_start, p.accent_end);
+        let (w2, h2) = (w * w, h * h);
         let pixels = (0..N * N)
             .map(|i| {
-                let (x, y) = ((i % N) as f32 / (N - 1) as f32, (i / N) as f32 / (N - 1) as f32);
-                Color32::from(a * (1.0 - (x + y) / 2.0) + b * ((x + y) / 2.0))
+                let (x, y) = (((i % N) as f32 + 0.5) / N as f32, ((i / N) as f32 + 0.5) / N as f32);
+                let t = ((x * w2 + y * h2) / (w2 + h2)).clamp(0.0, 1.0);
+                let mix = |c0: u8, c1: u8| (c0 as f32 + (c1 as f32 - c0 as f32) * t).round() as u8;
+                Color32::from_rgb(mix(a.r(), b.r()), mix(a.g(), b.g()), mix(a.b(), b.b()))
             })
             .collect();
         let image = egui::ColorImage { size: [N, N], pixels, source_size: vec2(N as f32, N as f32) };

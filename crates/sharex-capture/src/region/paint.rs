@@ -109,8 +109,17 @@ fn dashes(painter: &egui::Painter, m: &Mapper, (x0, y0): (f64, f64), len: f64, v
         } else {
             m.rect(x0 + first as f64, y0, n, 1.0)
         };
-        painter.rect_filled(r, 0.0, color);
+        pixel_rect(painter, r, color);
     }
+}
+
+/// Fills `r` exactly, with no anti-aliasing feather: these rects are whole
+/// pixels with their coverage already in the colour, and egui's feathering
+/// would blur 1px rects (a half-covered dash end came out fully covered).
+fn pixel_rect(painter: &egui::Painter, r: Rect, color: Color32) {
+    let mut mesh = egui::Mesh::default();
+    mesh.add_colored_rect(r, color);
+    painter.add(mesh);
 }
 
 /// `DrawAntRectangle` of `GetAntRectangle(r)`: on the region's own edge
@@ -120,14 +129,14 @@ fn ant_rectangle(painter: &egui::Painter, m: &Mapper, r: RectF, accent: Color32,
     let (w, h) = ((r.w - 1.0).max(0.0), (r.h - 1.0).max(0.0));
     let (right, bottom) = (x + w, y + h);
     // The solid 1px outline.
-    painter.rect_filled(m.rect(x, y, w + 1.0, 1.0), 0.0, accent);
+    pixel_rect(painter, m.rect(x, y, w + 1.0, 1.0), accent);
     if h > 0.0 {
-        painter.rect_filled(m.rect(x, bottom, w + 1.0, 1.0), 0.0, accent);
+        pixel_rect(painter, m.rect(x, bottom, w + 1.0, 1.0), accent);
     }
     if h > 1.0 {
-        painter.rect_filled(m.rect(x, y + 1.0, 1.0, h - 1.0), 0.0, accent);
+        pixel_rect(painter, m.rect(x, y + 1.0, 1.0, h - 1.0), accent);
         if w > 0.0 {
-            painter.rect_filled(m.rect(right, y + 1.0, 1.0, h - 1.0), 0.0, accent);
+            pixel_rect(painter, m.rect(right, y + 1.0, 1.0, h - 1.0), accent);
         }
     }
     // Top, left, right and bottom dashed lines, each from its start.
