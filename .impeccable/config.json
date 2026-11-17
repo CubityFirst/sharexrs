@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-11-17T21:47:41.473Z",
+        "reason": "Claude, port-fidelity exception: crates/sharex-tools/src/indexer/IndexerDefault.css is ShareX's own index stylesheet copied verbatim; Index folder output must match ShareX byte for byte (tools harness)"
+      }
+    ]
+  }
+}
