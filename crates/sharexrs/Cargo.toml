@@ -61,3 +61,38 @@ base64 = "0.22"
 
 [build-dependencies]
 embed-resource = "3"
+
+# The .deb (scripts/package-linux.sh, docs/RELEASING.md): the program and the
+# pieces it finds beside itself in /usr/lib/sharexrs, staged into
+# build/linux-package by the script; /usr/bin/sharexrs starts it from there.
+[package.metadata.deb]
+name = "sharexrs"
+maintainer = "ShareXrs developers"
+copyright = "2007-2026 ShareX Team; ShareXrs developers"
+license-file = ["../../LICENSE", "0"]
+section = "graphics"
+priority = "optional"
+depends = "$auto"
+extended-description = """\
+ShareXrs is ShareX, the screen capture, recording and file sharing tool, \
+ported to Rust: capture a region, window or the whole screen, annotate, \
+record video or GIFs with FFmpeg, recognise text, and upload to many \
+services."""
+assets = [
+    ["target/release/sharexrs", "usr/lib/sharexrs/", "755"],
+    ["../../build/linux-package/ffmpeg", "usr/lib/sharexrs/", "755"],
+    ["../../build/linux-package/libonnxruntime.so", "usr/lib/sharexrs/", "644"],
+    ["../../build/linux-package/Models/PP-OCRv6_small_det/inference.onnx", "usr/lib/sharexrs/Models/PP-OCRv6_small_det/", "644"],
+    ["../../build/linux-package/Models/PP-OCRv6_small_det/inference.yml", "usr/lib/sharexrs/Models/PP-OCRv6_small_det/", "644"],
+    ["../../build/linux-package/Models/PP-OCRv6_small_rec/inference.onnx", "usr/lib/sharexrs/Models/PP-OCRv6_small_rec/", "644"],
+    ["../../build/linux-package/Models/PP-OCRv6_small_rec/inference.yml", "usr/lib/sharexrs/Models/PP-OCRv6_small_rec/", "644"],
+    ["../../build/linux-package/Licenses/*", "usr/share/doc/sharexrs/Licenses/", "644"],
+    ["../../packaging/linux/sharexrs", "usr/bin/", "755"],
+    ["../../packaging/linux/sharexrs.desktop", "usr/share/applications/", "644"],
+    ["../../assets/icon.svg", "usr/share/icons/hicolor/scalable/apps/sharexrs.svg", "644"],
+    ["../../assets/ShareXrs.iconset/icon_16x16.png", "usr/share/icons/hicolor/16x16/apps/sharexrs.png", "644"],
+    ["../../assets/ShareXrs.iconset/icon_32x32.png", "usr/share/icons/hicolor/32x32/apps/sharexrs.png", "644"],
+    ["../../assets/ShareXrs.iconset/icon_128x128.png", "usr/share/icons/hicolor/128x128/apps/sharexrs.png", "644"],
+    ["../../assets/ShareXrs.iconset/icon_256x256.png", "usr/share/icons/hicolor/256x256/apps/sharexrs.png", "644"],
+    ["../../assets/ShareXrs.iconset/icon_512x512.png", "usr/share/icons/hicolor/512x512/apps/sharexrs.png", "644"],
+]

@@ -1,0 +1,5 @@
+#!/bin/sh
+# /usr/bin/sharexrs in the .deb: starts ShareXrs from /usr/lib/sharexrs, where
+# FFmpeg, ONNX Runtime and the OCR models sit beside it (the program looks for
+# them beside itself, as ShareX does beside ShareX.exe).
+exec /usr/lib/sharexrs/sharexrs "$@"

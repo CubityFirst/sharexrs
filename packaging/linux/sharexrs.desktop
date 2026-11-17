@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ShareXrs
+GenericName=Screenshot Tool
+Comment=Capture, record and share your screen
+Exec=sharexrs
+Icon=sharexrs
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=screenshot;screen;capture;record;upload;share;
+StartupNotify=false

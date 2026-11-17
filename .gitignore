@@ -14,3 +14,6 @@
 # The OCR harness's .NET build output.
 /tools/ocr-harness/bin
 /tools/ocr-harness/obj
+
+# Staging for the release packages (scripts/package-linux.sh).
+/build
