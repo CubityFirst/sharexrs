@@ -107,7 +107,7 @@ fn page_title(i: usize) -> (&'static str, &'static str) {
 
 /// Fluent's `TreeViewItem` expander: a chevron in its 12x12 box, pointing
 /// down when expanded (measured on ShareX: a 12x6 stroke about 1.4px wide).
-fn paint_tree_chevron(ui: &Ui, rect: Rect, expanded: bool, color: egui::Color32) {
+pub(crate) fn paint_tree_chevron(ui: &Ui, rect: Rect, expanded: bool, color: egui::Color32) {
     let stroke = Stroke::new(1.4, color);
     let c = rect.center();
     let points = if expanded {

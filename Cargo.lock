@@ -4012,6 +4012,7 @@ dependencies = [
  "qrcode",
  "rfd",
  "rqrr",
+ "serde",
  "serde_json",
  "sharex-capture",
  "sharex-helpers",

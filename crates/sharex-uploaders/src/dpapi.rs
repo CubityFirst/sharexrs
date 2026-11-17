@@ -11,7 +11,8 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
-const ENCRYPTED_TAG: &str = "$DPAPIEncrypted$";
+/// What an encrypted value starts with.
+pub const ENCRYPTED_TAG: &str = "$DPAPIEncrypted$";
 
 /// A `[JsonEncrypt] string`.
 #[derive(Clone, Default)]

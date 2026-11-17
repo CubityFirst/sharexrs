@@ -9,7 +9,8 @@
 //!   this window again"),
 //! - `drop-window` (on black, as `PrintWindow` gets it at its opacity),
 //! - `multi-upload` (`--count N`), `large-file`,
-//! - `before-upload`, `after-upload`, `qr-code` (see their modules).
+//! - `before-upload`, `after-upload`, `qr-code` (see their modules),
+//! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...).
 
 use std::path::PathBuf;
 
@@ -181,6 +182,15 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.size = o.count as f64;
             Box::new(w)
         }
+        page if page.starts_with("destination-") => {
+            // `destination-<page id>`: Destination settings on that page.
+            let id = page.trim_start_matches("destination-").trim_start_matches("settings-");
+            let mut w = super::destination_settings::DestinationSettingsWindow::new(None);
+            if !w.select_page(id) {
+                return Err(format!("no destination settings page {id}"));
+            }
+            Box::new(w)
+        }
         other => return Err(format!("no dialog named {other}")),
     })
 }
@@ -201,7 +211,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "qr-code"
             | "response"
             | "custom-uploader"
-    )
+    ) || screen.starts_with("destination-")
 }
 
 /// Draws the dialog `name` at its window's size.

@@ -367,6 +367,11 @@ impl App {
                 self.show_hotkey_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_DestinationSettings`.
+            Action::Nav(10, _) => {
+                self.show_destination_settings(event_loop, None);
+                return;
+            }
             // `MainMenuBuilder_CustomUploaderSettings`.
             Action::Nav(11, _) => {
                 self.show_custom_uploader_settings(event_loop);
@@ -427,6 +432,7 @@ impl App {
             MenuCommand::ApplicationSettings => self.show_application_settings(event_loop),
             MenuCommand::TaskSettings => self.show_task_settings(event_loop, app_windows::TaskTarget::Default),
             MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
+            MenuCommand::DestinationSettings => self.show_destination_settings(event_loop, None),
             MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),

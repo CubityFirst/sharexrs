@@ -134,7 +134,7 @@ impl App {
             TaskEvent::LargeFileWarningOff => self.settings.settings.ShowLargeFileSizeWarning = 0,
             TaskEvent::DestinationSettingsRequested { service } => {
                 // `TaskHelpers.OpenUploadersConfigWindow(service)`.
-                eprintln!("Destination settings window not ported yet ({service}).");
+                self.pending_dialogs.push(Box::new(crate::dialogs::destination_settings::DestinationSettingsWindow::new(Some(service))));
             }
             TaskEvent::Finished { id, report } => {
                 self.state.tasks.task_changed(*id);

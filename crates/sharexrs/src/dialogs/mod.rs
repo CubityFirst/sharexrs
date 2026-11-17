@@ -15,6 +15,7 @@ pub mod before_upload;
 pub mod clipboard_upload;
 pub mod confirm;
 pub mod custom_uploaders;
+pub mod destination_settings;
 pub mod drop_window;
 pub mod layout;
 pub mod qr_code;
@@ -209,6 +210,15 @@ pub trait Dialog {
         None
     }
 
+    /// The service whose page a window opened for shows
+    /// (`DestinationSettingsIntegration.Show(config, service)`).
+    fn service(&self) -> Option<&str> {
+        None
+    }
+
+    /// `NavigateToService` on the open window.
+    fn navigate(&mut self, _service: &str) {}
+
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
     fn position(&self, work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
@@ -227,8 +237,12 @@ impl App {
     /// Opens `dialog` in a window of its own (`Window.Show()`).
     pub(crate) fn open_dialog_window(&mut self, event_loop: &ActiveEventLoop, dialog: Box<dyn Dialog>) {
         if let Some(key) = dialog.single()
-            && let Some(open) = self.dialogs.iter().find(|d| d.dialog.single() == Some(key))
+            && let Some(open) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some(key))
         {
+            if let Some(service) = dialog.service() {
+                open.dialog.navigate(service);
+                open.window.window.request_redraw();
+            }
             open.window.window.set_minimized(false);
             open.window.window.focus_window();
             return;
@@ -410,6 +424,12 @@ impl App {
     pub(crate) fn show_custom_uploader_settings(&mut self, event_loop: &ActiveEventLoop) {
         let w = self.uploads.config.with(|c| custom_uploaders::CustomUploaderSettingsWindow::new(c));
         self.open_dialog_window(event_loop, Box::new(w));
+    }
+
+    /// `TaskHelpers.OpenUploadersConfigWindow(service)`: one window, on
+    /// the service's page when one is given.
+    pub(crate) fn show_destination_settings(&mut self, event_loop: &ActiveEventLoop, service: Option<&str>) {
+        self.open_dialog_window(event_loop, Box::new(destination_settings::DestinationSettingsWindow::new(service)));
     }
 
     /// A window of ours to own the clipboard's data.

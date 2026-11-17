@@ -1,0 +1,3030 @@
+[
+  {
+    "id": "image-uploaders",
+    "title": "Image uploaders",
+    "icon": "app/image",
+    "pages": [
+      {
+        "id": "imgur",
+        "title": "Imgur",
+        "prefixes": [
+          "Imgur"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "special": "imgur-albums"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Account Type",
+                "path": [
+                  "ImgurAccountType"
+                ],
+                "label_key": "DestinationSettings_Field_Account_Type",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Anonymous",
+                    "text": "Anonymous",
+                    "key": "AccountType_Anonymous"
+                  },
+                  {
+                    "name": "User",
+                    "text": "User",
+                    "key": "AccountType_User"
+                  }
+                ]
+              },
+              {
+                "label": "Direct Link",
+                "path": [
+                  "ImgurDirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Thumbnail Type",
+                "path": [
+                  "ImgurThumbnailType"
+                ],
+                "label_key": "DestinationSettings_Field_Thumbnail_Type",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Small_Square",
+                    "text": "Small square",
+                    "key": "ImgurThumbnailType_Small_Square"
+                  },
+                  {
+                    "name": "Big_Square",
+                    "text": "Big square",
+                    "key": "ImgurThumbnailType_Big_Square"
+                  },
+                  {
+                    "name": "Small_Thumbnail",
+                    "text": "Small thumbnail",
+                    "key": "ImgurThumbnailType_Small_Thumbnail"
+                  },
+                  {
+                    "name": "Medium_Thumbnail",
+                    "text": "Medium thumbnail",
+                    "key": "ImgurThumbnailType_Medium_Thumbnail"
+                  },
+                  {
+                    "name": "Large_Thumbnail",
+                    "text": "Large thumbnail",
+                    "key": "ImgurThumbnailType_Large_Thumbnail"
+                  },
+                  {
+                    "name": "Huge_Thumbnail",
+                    "text": "Huge thumbnail",
+                    "key": "ImgurThumbnailType_Huge_Thumbnail"
+                  }
+                ]
+              },
+              {
+                "label": "Use GIFV",
+                "path": [
+                  "ImgurUseGIFV"
+                ],
+                "label_key": "DestinationSettings_Field_Use_GIFV",
+                "kind": "bool"
+              },
+              {
+                "label": "Upload Selected Album",
+                "path": [
+                  "ImgurUploadSelectedAlbum"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_Selected_Album",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "imageshack",
+        "title": "ImageShack",
+        "prefixes": [
+          "ImageShack"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Username",
+                "path": [
+                  "ImageShackSettings",
+                  "Username"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "ImageShackSettings",
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Is Public",
+                "path": [
+                  "ImageShackSettings",
+                  "IsPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Public",
+                "kind": "bool"
+              },
+              {
+                "label": "Thumbnail Width",
+                "path": [
+                  "ImageShackSettings",
+                  "ThumbnailWidth"
+                ],
+                "label_key": "DestinationSettings_Field_Thumbnail_Width",
+                "kind": "number",
+                "type": "Int32"
+              },
+              {
+                "label": "Thumbnail Height",
+                "path": [
+                  "ImageShackSettings",
+                  "ThumbnailHeight"
+                ],
+                "label_key": "DestinationSettings_Field_Thumbnail_Height",
+                "kind": "number",
+                "type": "Int32"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "flickr",
+        "title": "Flickr",
+        "prefixes": [
+          "Flickr"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Direct Link",
+                "path": [
+                  "FlickrSettings",
+                  "DirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Title",
+                "path": [
+                  "FlickrSettings",
+                  "Title"
+                ],
+                "label_key": "DestinationSettings_Field_Title",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "The title of the photo."
+              },
+              {
+                "label": "Description",
+                "path": [
+                  "FlickrSettings",
+                  "Description"
+                ],
+                "label_key": "DestinationSettings_Field_Description",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "A description of the photo. May contain some limited HTML."
+              },
+              {
+                "label": "Tags",
+                "path": [
+                  "FlickrSettings",
+                  "Tags"
+                ],
+                "label_key": "DestinationSettings_Field_Tags",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "A space-seperated list of tags to apply to the photo."
+              },
+              {
+                "label": "Is Public",
+                "path": [
+                  "FlickrSettings",
+                  "IsPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Public",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 0 for no, 1 for yes. Specifies who can view the photo."
+              },
+              {
+                "label": "Is Friend",
+                "path": [
+                  "FlickrSettings",
+                  "IsFriend"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Friend",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 0 for no, 1 for yes. Specifies who can view the photo."
+              },
+              {
+                "label": "Is Family",
+                "path": [
+                  "FlickrSettings",
+                  "IsFamily"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Family",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 0 for no, 1 for yes. Specifies who can view the photo."
+              },
+              {
+                "label": "Safety Level",
+                "path": [
+                  "FlickrSettings",
+                  "SafetyLevel"
+                ],
+                "label_key": "DestinationSettings_Field_Safety_Level",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 1 for Safe, 2 for Moderate, or 3 for Restricted."
+              },
+              {
+                "label": "Content Type",
+                "path": [
+                  "FlickrSettings",
+                  "ContentType"
+                ],
+                "label_key": "DestinationSettings_Field_Content_Type",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 1 for Photo, 2 for Screenshot, or 3 for Other."
+              },
+              {
+                "label": "Hidden",
+                "path": [
+                  "FlickrSettings",
+                  "Hidden"
+                ],
+                "label_key": "DestinationSettings_Field_Hidden",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Set to 1 to keep the photo in global search results, 2 to hide from public searches."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "photobucket",
+        "title": "Photobucket",
+        "prefixes": [
+          "Photobucket"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "special": "photobucket-albums"
+          }
+        ]
+      },
+      {
+        "id": "chevereto",
+        "title": "Chevereto",
+        "prefixes": [
+          "Chevereto"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Upload URL",
+                "path": [
+                  "CheveretoUploader",
+                  "UploadURL"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_URL",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "CheveretoUploader",
+                  "APIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Direct URL",
+                "path": [
+                  "CheveretoDirectURL"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_URL",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "vgyme",
+        "title": "vgy.me",
+        "prefixes": [
+          "Vgyme"
+        ],
+        "aliases": [
+          "vgyme"
+        ],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "User Key",
+                "path": [
+                  "VgymeUserKey"
+                ],
+                "label_key": "DestinationSettings_Field_User_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "text-uploaders",
+    "title": "Text uploaders",
+    "icon": "app/file-text",
+    "pages": [
+      {
+        "id": "pastebin",
+        "title": "Pastebin",
+        "prefixes": [
+          "Pastebin"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Username",
+                "path": [
+                  "PastebinSettings",
+                  "Username"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "PastebinSettings",
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Exposure",
+                "path": [
+                  "PastebinSettings",
+                  "Exposure"
+                ],
+                "label_key": "DestinationSettings_Field_Exposure",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Public",
+                    "text": "Public",
+                    "key": "PastebinPrivacy_Public"
+                  },
+                  {
+                    "name": "Unlisted",
+                    "text": "Unlisted",
+                    "key": "PastebinPrivacy_Unlisted"
+                  },
+                  {
+                    "name": "Private",
+                    "text": "Private",
+                    "key": "PastebinPrivacy_Private"
+                  }
+                ]
+              },
+              {
+                "label": "Expiration",
+                "path": [
+                  "PastebinSettings",
+                  "Expiration"
+                ],
+                "label_key": "DestinationSettings_Field_Expiration",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "N",
+                    "text": "N",
+                    "key": "PastebinExpiration_N"
+                  },
+                  {
+                    "name": "M10",
+                    "text": "M10",
+                    "key": "PastebinExpiration_M10"
+                  },
+                  {
+                    "name": "H1",
+                    "text": "H1",
+                    "key": "PastebinExpiration_H1"
+                  },
+                  {
+                    "name": "D1",
+                    "text": "D1",
+                    "key": "PastebinExpiration_D1"
+                  },
+                  {
+                    "name": "W1",
+                    "text": "W1",
+                    "key": "PastebinExpiration_W1"
+                  },
+                  {
+                    "name": "W2",
+                    "text": "W2",
+                    "key": "PastebinExpiration_W2"
+                  },
+                  {
+                    "name": "M1",
+                    "text": "M1",
+                    "key": "PastebinExpiration_M1"
+                  }
+                ]
+              },
+              {
+                "label": "Title",
+                "path": [
+                  "PastebinSettings",
+                  "Title"
+                ],
+                "label_key": "DestinationSettings_Field_Title",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Text Format",
+                "path": [
+                  "PastebinSettings",
+                  "TextFormat"
+                ],
+                "label_key": "DestinationSettings_Field_Text_Format",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Raw URL",
+                "path": [
+                  "PastebinSettings",
+                  "RawURL"
+                ],
+                "label_key": "DestinationSettings_Field_Raw_URL",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "paste-ee",
+        "title": "Paste.ee",
+        "prefixes": [
+          "Paste_ee"
+        ],
+        "aliases": [
+          "Pasteee"
+        ],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "User Key",
+                "path": [
+                  "Paste_eeUserKey"
+                ],
+                "label_key": "DestinationSettings_Field_User_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Encrypt Paste",
+                "path": [
+                  "Paste_eeEncryptPaste"
+                ],
+                "label_key": "DestinationSettings_Field_Encrypt_Paste",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "gist",
+        "title": "GitHub Gist",
+        "prefixes": [
+          "Gist"
+        ],
+        "aliases": [
+          "GitHubGist"
+        ],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Publish Public",
+                "path": [
+                  "GistPublishPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Publish_Public",
+                "kind": "bool"
+              },
+              {
+                "label": "Raw URL",
+                "path": [
+                  "GistRawURL"
+                ],
+                "label_key": "DestinationSettings_Field_Raw_URL",
+                "kind": "bool"
+              },
+              {
+                "label": "Custom URL",
+                "path": [
+                  "GistCustomURL"
+                ],
+                "label_key": "DestinationSettings_Field_Custom_URL",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "upaste",
+        "title": "uPaste",
+        "prefixes": [
+          "Upaste"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "User Key",
+                "path": [
+                  "UpasteUserKey"
+                ],
+                "label_key": "DestinationSettings_Field_User_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Is Public",
+                "path": [
+                  "UpasteIsPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Public",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "hastebin",
+        "title": "Hastebin",
+        "prefixes": [
+          "Hastebin"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Custom Domain",
+                "path": [
+                  "HastebinCustomDomain"
+                ],
+                "label_key": "DestinationSettings_Field_Custom_Domain",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Syntax Highlighting",
+                "path": [
+                  "HastebinSyntaxHighlighting"
+                ],
+                "label_key": "DestinationSettings_Field_Syntax_Highlighting",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Use File Extension",
+                "path": [
+                  "HastebinUseFileExtension"
+                ],
+                "label_key": "DestinationSettings_Field_Use_File_Extension",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "one-time-secret",
+        "title": "OneTimeSecret",
+        "prefixes": [
+          "OneTimeSecret"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "API Username",
+                "path": [
+                  "OneTimeSecretAPIUsername"
+                ],
+                "label_key": "DestinationSettings_Field_API_Username",
+                "kind": "string",
+                "secret": true
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "OneTimeSecretAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pastie",
+        "title": "Pastie",
+        "prefixes": [
+          "Pastie"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Is Public",
+                "path": [
+                  "PastieIsPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Public",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privatebin",
+        "title": "PrivateBin",
+        "prefixes": [
+          "PrivateBin"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Username",
+                "path": [
+                  "PrivateBinSettings",
+                  "Username"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "PrivateBinSettings",
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Burn After Reading",
+                "path": [
+                  "PrivateBinSettings",
+                  "BurnAfterReading"
+                ],
+                "label_key": "DestinationSettings_Field_Burn_After_Reading",
+                "kind": "bool"
+              },
+              {
+                "label": "Expiration",
+                "path": [
+                  "PrivateBinSettings",
+                  "Expiration"
+                ],
+                "label_key": "DestinationSettings_Field_Expiration",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "M5",
+                    "text": "5min",
+                    "key": "PrivateBinExpiration_M5"
+                  },
+                  {
+                    "name": "M10",
+                    "text": "10min",
+                    "key": "PrivateBinExpiration_M10"
+                  },
+                  {
+                    "name": "H1",
+                    "text": "1hour",
+                    "key": "PrivateBinExpiration_H1"
+                  },
+                  {
+                    "name": "D1",
+                    "text": "1day",
+                    "key": "PrivateBinExpiration_D1"
+                  },
+                  {
+                    "name": "W1",
+                    "text": "1week",
+                    "key": "PrivateBinExpiration_W1"
+                  },
+                  {
+                    "name": "M1",
+                    "text": "1month",
+                    "key": "PrivateBinExpiration_M1"
+                  },
+                  {
+                    "name": "Y1",
+                    "text": "1year",
+                    "key": "PrivateBinExpiration_Y1"
+                  },
+                  {
+                    "name": "N",
+                    "text": "never",
+                    "key": "PrivateBinExpiration_N"
+                  }
+                ]
+              },
+              {
+                "label": "Format",
+                "path": [
+                  "PrivateBinSettings",
+                  "Format"
+                ],
+                "label_key": "DestinationSettings_Field_Format",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "PlainText",
+                    "text": "plaintext",
+                    "key": "PrivateBinFormat_PlainText"
+                  },
+                  {
+                    "name": "SyntaxHighlighting",
+                    "text": "syntaxhighlighting",
+                    "key": "PrivateBinFormat_SyntaxHighlighting"
+                  },
+                  {
+                    "name": "Markdown",
+                    "text": "markdown",
+                    "key": "PrivateBinFormat_Markdown"
+                  }
+                ]
+              },
+              {
+                "label": "Custom Url",
+                "path": [
+                  "PrivateBinSettings",
+                  "CustomUrl"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Paste Password",
+                "path": [
+                  "PrivateBinSettings",
+                  "PastePassword"
+                ],
+                "label_key": "DestinationSettings_Field_Paste_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "file-uploaders",
+    "title": "File uploaders",
+    "icon": "app/file-upload",
+    "pages": [
+      {
+        "id": "ftp",
+        "title": "FTP / FTPS / SFTP",
+        "prefixes": [
+          "FTP"
+        ],
+        "aliases": [
+          "FTP",
+          "FTPS",
+          "SFTP"
+        ],
+        "cards": [
+          {
+            "title": "Account List",
+            "list": "FTPAccountList",
+            "item_type": "FTPAccount",
+            "rows": [
+              {
+                "label": "Name",
+                "path": [
+                  "Name"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Shown in the list as: Name - Server:Port"
+              },
+              {
+                "label": "Protocol",
+                "path": [
+                  "Protocol"
+                ],
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "FTP",
+                    "text": "FTP",
+                    "key": "FTPProtocol_FTP"
+                  },
+                  {
+                    "name": "FTPS",
+                    "text": "FTPS (FTP over SSL)",
+                    "key": "FTPProtocol_FTPS"
+                  },
+                  {
+                    "name": "SFTP",
+                    "text": "SFTP (SSH FTP)",
+                    "key": "FTPProtocol_SFTP"
+                  }
+                ],
+                "tooltip": "Connection protocol"
+              },
+              {
+                "label": "Host",
+                "path": [
+                  "Host"
+                ],
+                "label_key": "DestinationSettings_Field_Host",
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Host, e.g. google.com"
+              },
+              {
+                "label": "Port",
+                "path": [
+                  "Port"
+                ],
+                "kind": "number",
+                "type": "Int32",
+                "tooltip": "Port number"
+              },
+              {
+                "label": "Username",
+                "path": [
+                  "Username"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Is Active",
+                "path": [
+                  "IsActive"
+                ],
+                "kind": "bool",
+                "tooltip": "Set true for active or false for passive"
+              },
+              {
+                "label": "Sub Folder Path",
+                "path": [
+                  "SubFolderPath"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "FTP sub folder path, example: Screenshots.\r\nYou can use name parsing: %y = year, %mo = month."
+              },
+              {
+                "label": "Browser Protocol",
+                "path": [
+                  "BrowserProtocol"
+                ],
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "http",
+                    "text": "http://",
+                    "key": "BrowserProtocol_http"
+                  },
+                  {
+                    "name": "https",
+                    "text": "https://",
+                    "key": "BrowserProtocol_https"
+                  },
+                  {
+                    "name": "ftp",
+                    "text": "ftp://",
+                    "key": "BrowserProtocol_ftp"
+                  },
+                  {
+                    "name": "ftps",
+                    "text": "ftps://",
+                    "key": "BrowserProtocol_ftps"
+                  },
+                  {
+                    "name": "file",
+                    "text": "file://",
+                    "key": "BrowserProtocol_file"
+                  },
+                  {
+                    "name": "sftp",
+                    "text": "sftp://",
+                    "key": "BrowserProtocol_sftp"
+                  }
+                ],
+                "tooltip": "Choose an appropriate protocol to be accessed by the browser"
+              },
+              {
+                "label": "Http Home Path",
+                "path": [
+                  "HttpHomePath"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "URL = HttpHomePath + SubFolderPath + FileName\r\nIf HttpHomePath is empty then URL = Host + SubFolderPath + FileName\r\n%host = Host"
+              },
+              {
+                "label": "Http Home Path Auto Add Sub Folder Path",
+                "path": [
+                  "HttpHomePathAutoAddSubFolderPath"
+                ],
+                "kind": "bool",
+                "tooltip": "Automatically add sub folder path to end of http home path"
+              },
+              {
+                "label": "Http Home Path No Extension",
+                "path": [
+                  "HttpHomePathNoExtension"
+                ],
+                "kind": "bool",
+                "tooltip": "Don't add file extension to URL"
+              },
+              {
+                "label": "FTPS Encryption",
+                "path": [
+                  "FTPSEncryption"
+                ],
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Explicit",
+                    "text": "Explicit"
+                  },
+                  {
+                    "name": "Implicit",
+                    "text": "Implicit"
+                  }
+                ],
+                "tooltip": "Type of SSL to use. Explicit is TLS, Implicit is SSL."
+              },
+              {
+                "label": "FTPS Certificate Location",
+                "path": [
+                  "FTPSCertificateLocation"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Certificate file location. Optional setting."
+              },
+              {
+                "label": "Keypath",
+                "path": [
+                  "Keypath"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Key location"
+              },
+              {
+                "label": "Passphrase",
+                "path": [
+                  "Passphrase"
+                ],
+                "kind": "string",
+                "secret": true,
+                "encrypt": true,
+                "tooltip": "OpenSSH key passphrase"
+              }
+            ],
+            "default_item": {
+              "Name": "New account",
+              "Protocol": 0,
+              "Host": "",
+              "Port": 21,
+              "Username": null,
+              "Password": null,
+              "IsActive": false,
+              "SubFolderPath": "",
+              "BrowserProtocol": 0,
+              "HttpHomePath": "",
+              "HttpHomePathAutoAddSubFolderPath": true,
+              "HttpHomePathNoExtension": false,
+              "FTPAddress": "",
+              "PreviewFtpPath": "",
+              "PreviewHttpPath": "",
+              "FTPSEncryption": 0,
+              "FTPSCertificateLocation": "",
+              "Keypath": null,
+              "Passphrase": null
+            }
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Selected Image",
+                "path": [
+                  "FTPSelectedImage"
+                ],
+                "label_key": "DestinationSettings_Field_Selected_Image",
+                "kind": "selection",
+                "type": "Int32"
+              },
+              {
+                "label": "Selected Text",
+                "path": [
+                  "FTPSelectedText"
+                ],
+                "label_key": "DestinationSettings_Field_Selected_Text",
+                "kind": "selection",
+                "type": "Int32"
+              },
+              {
+                "label": "Selected File",
+                "path": [
+                  "FTPSelectedFile"
+                ],
+                "label_key": "DestinationSettings_Field_Selected_File",
+                "kind": "selection",
+                "type": "Int32"
+              }
+            ]
+          },
+          {
+            "special": "remote-storage-browser"
+          }
+        ]
+      },
+      {
+        "id": "dropbox",
+        "title": "Dropbox",
+        "prefixes": [
+          "Dropbox"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Upload Path",
+                "path": [
+                  "DropboxUploadPath"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Auto Create Shareable Link",
+                "path": [
+                  "DropboxAutoCreateShareableLink"
+                ],
+                "label_key": "DestinationSettings_Field_Auto_Create_Shareable_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Use Direct Link",
+                "path": [
+                  "DropboxUseDirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Direct_Link",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "onedrive",
+        "title": "OneDrive",
+        "prefixes": [
+          "OneDrive"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "special": "onedrive-folder"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Auto Create Shareable Link",
+                "path": [
+                  "OneDriveAutoCreateShareableLink"
+                ],
+                "label_key": "DestinationSettings_Field_Auto_Create_Shareable_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Use Direct Link",
+                "path": [
+                  "OneDriveUseDirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Direct_Link",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "google-drive",
+        "title": "Google Drive",
+        "prefixes": [
+          "GoogleDrive"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Selected Drive",
+            "rows": [
+              {
+                "label": "ID",
+                "path": [
+                  "GoogleDriveSelectedDrive",
+                  "id"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Name",
+                "path": [
+                  "GoogleDriveSelectedDrive",
+                  "name"
+                ],
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Is Public",
+                "path": [
+                  "GoogleDriveIsPublic"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Public",
+                "kind": "bool"
+              },
+              {
+                "label": "Direct Link",
+                "path": [
+                  "GoogleDriveDirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Use Folder",
+                "path": [
+                  "GoogleDriveUseFolder"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Folder",
+                "kind": "bool"
+              },
+              {
+                "label": "Folder ID",
+                "path": [
+                  "GoogleDriveFolderID"
+                ],
+                "label_key": "DestinationSettings_Field_Folder_ID",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "puush",
+        "title": "puush",
+        "prefixes": [
+          "Puush"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          }
+        ]
+      },
+      {
+        "id": "box",
+        "title": "Box",
+        "prefixes": [
+          "Box"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "special": "box-folder"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Share",
+                "path": [
+                  "BoxShare"
+                ],
+                "label_key": "DestinationSettings_Field_Share",
+                "kind": "bool"
+              },
+              {
+                "label": "Share Access Level",
+                "path": [
+                  "BoxShareAccessLevel"
+                ],
+                "label_key": "DestinationSettings_Field_Share_Access_Level",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Open",
+                    "text": "Public - People with the link",
+                    "key": "BoxShareAccessLevel_Open"
+                  },
+                  {
+                    "name": "Company",
+                    "text": "Company - People in your company",
+                    "key": "BoxShareAccessLevel_Company"
+                  },
+                  {
+                    "name": "Collaborators",
+                    "text": "Collaborators - Invited people only",
+                    "key": "BoxShareAccessLevel_Collaborators"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "mega",
+        "title": "MEGA",
+        "prefixes": [
+          "Mega"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "special": "mega-folders"
+          }
+        ]
+      },
+      {
+        "id": "amazon-s3",
+        "title": "Amazon S3",
+        "prefixes": [
+          "AmazonS3"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "amazon-s3"
+          },
+          {
+            "special": "remote-storage-browser"
+          }
+        ]
+      },
+      {
+        "id": "google-cloud-storage",
+        "title": "Google Cloud Storage",
+        "prefixes": [
+          "GoogleCloudStorage"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Bucket",
+                "path": [
+                  "GoogleCloudStorageBucket"
+                ],
+                "label_key": "DestinationSettings_Field_Bucket",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Domain",
+                "path": [
+                  "GoogleCloudStorageDomain"
+                ],
+                "label_key": "DestinationSettings_Field_Domain",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Object Prefix",
+                "path": [
+                  "GoogleCloudStorageObjectPrefix"
+                ],
+                "label_key": "DestinationSettings_Field_Object_Prefix",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Remove Extension Image",
+                "path": [
+                  "GoogleCloudStorageRemoveExtensionImage"
+                ],
+                "label_key": "DestinationSettings_Field_Remove_Extension_Image",
+                "kind": "bool"
+              },
+              {
+                "label": "Remove Extension Video",
+                "path": [
+                  "GoogleCloudStorageRemoveExtensionVideo"
+                ],
+                "label_key": "DestinationSettings_Field_Remove_Extension_Video",
+                "kind": "bool"
+              },
+              {
+                "label": "Remove Extension Text",
+                "path": [
+                  "GoogleCloudStorageRemoveExtensionText"
+                ],
+                "label_key": "DestinationSettings_Field_Remove_Extension_Text",
+                "kind": "bool"
+              },
+              {
+                "label": "Set Public ACL",
+                "path": [
+                  "GoogleCloudStorageSetPublicACL"
+                ],
+                "label_key": "DestinationSettings_Field_Set_Public_ACL",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "azure-storage",
+        "title": "Azure Storage",
+        "prefixes": [
+          "AzureStorage"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Account Name",
+                "path": [
+                  "AzureStorageAccountName"
+                ],
+                "label_key": "DestinationSettings_Field_Account_Name",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Account Access Key",
+                "path": [
+                  "AzureStorageAccountAccessKey"
+                ],
+                "label_key": "DestinationSettings_Field_Account_Access_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Container",
+                "path": [
+                  "AzureStorageContainer"
+                ],
+                "label_key": "DestinationSettings_Field_Container",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Environment",
+                "path": [
+                  "AzureStorageEnvironment"
+                ],
+                "label_key": "DestinationSettings_Field_Environment",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Custom Domain",
+                "path": [
+                  "AzureStorageCustomDomain"
+                ],
+                "label_key": "DestinationSettings_Field_Custom_Domain",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Upload Path",
+                "path": [
+                  "AzureStorageUploadPath"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Cache Control",
+                "path": [
+                  "AzureStorageCacheControl"
+                ],
+                "label_key": "DestinationSettings_Field_Cache_Control",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "backblaze-b2",
+        "title": "Backblaze B2",
+        "prefixes": [
+          "B2"
+        ],
+        "aliases": [
+          "BackblazeB2"
+        ],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Application key ID",
+                "path": [
+                  "B2ApplicationKeyId"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Application Key",
+                "path": [
+                  "B2ApplicationKey"
+                ],
+                "label_key": "DestinationSettings_Field_Application_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Bucket Name",
+                "path": [
+                  "B2BucketName"
+                ],
+                "label_key": "DestinationSettings_Field_Bucket_Name",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Upload Path",
+                "path": [
+                  "B2UploadPath"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Use Custom Url",
+                "path": [
+                  "B2UseCustomUrl"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Custom_Url",
+                "kind": "bool"
+              },
+              {
+                "label": "Custom Url",
+                "path": [
+                  "B2CustomUrl"
+                ],
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "owncloud",
+        "title": "ownCloud / Nextcloud",
+        "prefixes": [
+          "OwnCloud"
+        ],
+        "aliases": [
+          "ownCloud",
+          "Nextcloud"
+        ],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Host",
+                "path": [
+                  "OwnCloudHost"
+                ],
+                "label_key": "DestinationSettings_Field_Host",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Username",
+                "path": [
+                  "OwnCloudUsername"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "OwnCloudPassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Path",
+                "path": [
+                  "OwnCloudPath"
+                ],
+                "label_key": "DestinationSettings_Field_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Expiry Time",
+                "path": [
+                  "OwnCloudExpiryTime"
+                ],
+                "label_key": "DestinationSettings_Field_Expiry_Time",
+                "kind": "number",
+                "type": "Int32"
+              },
+              {
+                "label": "Create Share",
+                "path": [
+                  "OwnCloudCreateShare"
+                ],
+                "label_key": "DestinationSettings_Field_Create_Share",
+                "kind": "bool"
+              },
+              {
+                "label": "Direct Link",
+                "path": [
+                  "OwnCloudDirectLink"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "81 Compatibility",
+                "path": [
+                  "OwnCloud81Compatibility"
+                ],
+                "label_key": "DestinationSettings_Field_81_Compatibility",
+                "kind": "bool"
+              },
+              {
+                "label": "Use Preview Links",
+                "path": [
+                  "OwnCloudUsePreviewLinks"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Preview_Links",
+                "kind": "bool"
+              },
+              {
+                "label": "Append File Name To URL",
+                "path": [
+                  "OwnCloudAppendFileNameToURL"
+                ],
+                "label_key": "DestinationSettings_Field_Append_File_Name_To_URL",
+                "kind": "bool"
+              },
+              {
+                "label": "Auto Expire",
+                "path": [
+                  "OwnCloudAutoExpire"
+                ],
+                "label_key": "DestinationSettings_Field_Auto_Expire",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "immich",
+        "title": "Immich",
+        "prefixes": [
+          "Immich"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "URL",
+                "path": [
+                  "ImmichURL"
+                ],
+                "label_key": "DestinationSettings_Field_URL",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "ImmichAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Auto Create Shareable Link",
+                "path": [
+                  "ImmichAutoCreateShareableLink"
+                ],
+                "label_key": "DestinationSettings_Field_Auto_Create_Shareable_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Show metadata",
+                "path": [
+                  "ImmichShowMetadata"
+                ],
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "mediafire",
+        "title": "MediaFire",
+        "prefixes": [
+          "MediaFire"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Username",
+                "path": [
+                  "MediaFireUsername"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "MediaFirePassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Path",
+                "path": [
+                  "MediaFirePath"
+                ],
+                "label_key": "DestinationSettings_Field_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Use Long Link",
+                "path": [
+                  "MediaFireUseLongLink"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Long_Link",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pushbullet",
+        "title": "Pushbullet",
+        "prefixes": [
+          "Pushbullet"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          }
+        ]
+      },
+      {
+        "id": "sendspace",
+        "title": "SendSpace",
+        "prefixes": [
+          "SendSpace"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Account Type",
+                "path": [
+                  "SendSpaceAccountType"
+                ],
+                "label_key": "DestinationSettings_Field_Account_Type",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Anonymous",
+                    "text": "Anonymous",
+                    "key": "AccountType_Anonymous"
+                  },
+                  {
+                    "name": "User",
+                    "text": "User",
+                    "key": "AccountType_User"
+                  }
+                ]
+              },
+              {
+                "label": "Username",
+                "path": [
+                  "SendSpaceUsername"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "SendSpacePassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "hostr",
+        "title": "Hostr",
+        "prefixes": [
+          "Localhostr"
+        ],
+        "aliases": [
+          "Hostr"
+        ],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Email",
+                "path": [
+                  "LocalhostrEmail"
+                ],
+                "label_key": "DestinationSettings_Field_Email",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "LocalhostrPassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Direct URL",
+                "path": [
+                  "LocalhostrDirectURL"
+                ],
+                "label_key": "DestinationSettings_Field_Direct_URL",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "lambda",
+        "title": "Lambda",
+        "prefixes": [
+          "Lambda"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "User API Key",
+                "path": [
+                  "LambdaSettings",
+                  "UserAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_User_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Upload URL",
+                "path": [
+                  "LambdaSettings",
+                  "UploadURL"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_URL",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "img-fish",
+        "title": "img.fish",
+        "prefixes": [
+          "ImgFish"
+        ],
+        "aliases": [
+          "imgfish"
+        ],
+        "cards": [
+          {
+            "special": "img-fish"
+          }
+        ]
+      },
+      {
+        "id": "lobfile",
+        "title": "LobFile",
+        "prefixes": [
+          "Lithiio"
+        ],
+        "aliases": [
+          "LobFile"
+        ],
+        "cards": [
+          {
+            "special": "account"
+          }
+        ]
+      },
+      {
+        "id": "pomf",
+        "title": "Pomf",
+        "prefixes": [
+          "Pomf"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Upload URL",
+                "path": [
+                  "PomfUploader",
+                  "UploadURL"
+                ],
+                "label_key": "DestinationSettings_Field_Upload_URL",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Result URL",
+                "path": [
+                  "PomfUploader",
+                  "ResultURL"
+                ],
+                "label_key": "DestinationSettings_Field_Result_URL",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "seafile",
+        "title": "Seafile",
+        "prefixes": [
+          "Seafile"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "API URL",
+                "path": [
+                  "SeafileAPIURL"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Auth Token",
+                "path": [
+                  "SeafileAuthToken"
+                ],
+                "label_key": "DestinationSettings_Field_Auth_Token",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Repo ID",
+                "path": [
+                  "SeafileRepoID"
+                ],
+                "label_key": "DestinationSettings_Field_Repo_ID",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Path",
+                "path": [
+                  "SeafilePath"
+                ],
+                "label_key": "DestinationSettings_Field_Path",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Is Library Encrypted",
+                "path": [
+                  "SeafileIsLibraryEncrypted"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Library_Encrypted",
+                "kind": "bool"
+              },
+              {
+                "label": "Encrypted Library Password",
+                "path": [
+                  "SeafileEncryptedLibraryPassword"
+                ],
+                "label_key": "DestinationSettings_Field_Encrypted_Library_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Create Shareable URL",
+                "path": [
+                  "SeafileCreateShareableURL"
+                ],
+                "label_key": "DestinationSettings_Field_Create_Shareable_URL",
+                "kind": "bool"
+              },
+              {
+                "label": "Create Shareable URL Raw",
+                "path": [
+                  "SeafileCreateShareableURLRaw"
+                ],
+                "label_key": "DestinationSettings_Field_Create_Shareable_URL_Raw",
+                "kind": "bool"
+              },
+              {
+                "label": "Share Days To Expire",
+                "path": [
+                  "SeafileShareDaysToExpire"
+                ],
+                "label_key": "DestinationSettings_Field_Share_Days_To_Expire",
+                "kind": "number",
+                "type": "Int32"
+              },
+              {
+                "label": "Share Password",
+                "path": [
+                  "SeafileSharePassword"
+                ],
+                "label_key": "DestinationSettings_Field_Share_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Acc Info Email",
+                "path": [
+                  "SeafileAccInfoEmail"
+                ],
+                "label_key": "DestinationSettings_Field_Acc_Info_Email",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Acc Info Usage",
+                "path": [
+                  "SeafileAccInfoUsage"
+                ],
+                "label_key": "DestinationSettings_Field_Acc_Info_Usage",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sul",
+        "title": "s-ul",
+        "prefixes": [
+          "Sul"
+        ],
+        "aliases": [
+          "sul"
+        ],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "API Key",
+                "path": [
+                  "SulAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "streamable",
+        "title": "Streamable",
+        "prefixes": [
+          "Streamable"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Username",
+                "path": [
+                  "StreamableUsername"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "StreamablePassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Use Direct URL",
+                "path": [
+                  "StreamableUseDirectURL"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Direct_URL",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "plik",
+        "title": "Plik",
+        "prefixes": [
+          "Plik"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "URL",
+                "path": [
+                  "PlikSettings",
+                  "URL"
+                ],
+                "label_key": "DestinationSettings_Field_URL",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "PlikSettings",
+                  "APIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Is Secured",
+                "path": [
+                  "PlikSettings",
+                  "IsSecured"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Secured",
+                "kind": "bool"
+              },
+              {
+                "label": "Login",
+                "path": [
+                  "PlikSettings",
+                  "Login"
+                ],
+                "label_key": "DestinationSettings_Field_Login",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "PlikSettings",
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Removable",
+                "path": [
+                  "PlikSettings",
+                  "Removable"
+                ],
+                "label_key": "DestinationSettings_Field_Removable",
+                "kind": "bool"
+              },
+              {
+                "label": "One Shot",
+                "path": [
+                  "PlikSettings",
+                  "OneShot"
+                ],
+                "label_key": "DestinationSettings_Field_One_Shot",
+                "kind": "bool"
+              },
+              {
+                "label": "TTL Unit",
+                "path": [
+                  "PlikSettings",
+                  "TTLUnit"
+                ],
+                "label_key": "DestinationSettings_Field_TTL_Unit",
+                "kind": "number",
+                "type": "Int32"
+              },
+              {
+                "label": "TTL",
+                "path": [
+                  "PlikSettings",
+                  "TTL"
+                ],
+                "label_key": "DestinationSettings_Field_TTL",
+                "kind": "number",
+                "type": "Decimal"
+              },
+              {
+                "label": "Has Comment",
+                "path": [
+                  "PlikSettings",
+                  "HasComment"
+                ],
+                "label_key": "DestinationSettings_Field_Has_Comment",
+                "kind": "bool"
+              },
+              {
+                "label": "Comment",
+                "path": [
+                  "PlikSettings",
+                  "Comment"
+                ],
+                "label_key": "DestinationSettings_Field_Comment",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "youtube",
+        "title": "YouTube",
+        "prefixes": [
+          "YouTube"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Privacy Type",
+                "path": [
+                  "YouTubePrivacyType"
+                ],
+                "label_key": "DestinationSettings_Field_Privacy_Type",
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "Public",
+                    "text": "Public",
+                    "key": "YouTubeVideoPrivacy_Public"
+                  },
+                  {
+                    "name": "Unlisted",
+                    "text": "Unlisted",
+                    "key": "YouTubeVideoPrivacy_Unlisted"
+                  },
+                  {
+                    "name": "Private",
+                    "text": "Private",
+                    "key": "YouTubeVideoPrivacy_Private"
+                  }
+                ]
+              },
+              {
+                "label": "Use Shortened Link",
+                "path": [
+                  "YouTubeUseShortenedLink"
+                ],
+                "label_key": "DestinationSettings_Field_Use_Shortened_Link",
+                "kind": "bool"
+              },
+              {
+                "label": "Show Dialog",
+                "path": [
+                  "YouTubeShowDialog"
+                ],
+                "label_key": "DestinationSettings_Field_Show_Dialog",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "shared-folder",
+        "title": "Shared folder",
+        "prefixes": [
+          "LocalhostAccount",
+          "LocalhostSelected"
+        ],
+        "aliases": [
+          "SharedFolder"
+        ],
+        "cards": [
+          {
+            "title": "Accounts",
+            "list": "LocalhostAccountList",
+            "item_type": "LocalhostAccount",
+            "rows": [
+              {
+                "label": "Name",
+                "path": [
+                  "Name"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Shown in the list as: Name - LocalhostRoot:Port"
+              },
+              {
+                "label": "Localhost Root",
+                "path": [
+                  "LocalhostRoot"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Root folder, e.g. C:\\Inetpub\\wwwroot"
+              },
+              {
+                "label": "Port",
+                "path": [
+                  "Port"
+                ],
+                "kind": "number",
+                "type": "Int32",
+                "tooltip": "Port Number"
+              },
+              {
+                "label": "User Name",
+                "path": [
+                  "UserName"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Sub Folder Path",
+                "path": [
+                  "SubFolderPath"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "Localhost Sub-folder Path, e.g. screenshots, %y = year, %mo = month. SubFolderPath will be automatically appended to HttpHomePath if HttpHomePath does not start with @"
+              },
+              {
+                "label": "Http Home Path",
+                "path": [
+                  "HttpHomePath"
+                ],
+                "kind": "string",
+                "secret": false,
+                "tooltip": "HTTP Home Path, %host = Host e.g. google.com without http:// because you choose that in Remote Protocol.\nURL = HttpHomePath + SubFolderPath + FileName\nURL = Host + SubFolderPath + FileName (if HttpHomePath is empty)"
+              },
+              {
+                "label": "Http Home Path Auto Add Sub Folder Path",
+                "path": [
+                  "HttpHomePathAutoAddSubFolderPath"
+                ],
+                "kind": "bool",
+                "tooltip": "Automatically add sub folder path to end of http home path"
+              },
+              {
+                "label": "Http Home Path No Extension",
+                "path": [
+                  "HttpHomePathNoExtension"
+                ],
+                "kind": "bool",
+                "tooltip": "Don't add file extension to URL"
+              },
+              {
+                "label": "Remote Protocol",
+                "path": [
+                  "RemoteProtocol"
+                ],
+                "kind": "enum",
+                "values": [
+                  {
+                    "name": "http",
+                    "text": "http://",
+                    "key": "BrowserProtocol_http"
+                  },
+                  {
+                    "name": "https",
+                    "text": "https://",
+                    "key": "BrowserProtocol_https"
+                  },
+                  {
+                    "name": "ftp",
+                    "text": "ftp://",
+                    "key": "BrowserProtocol_ftp"
+                  },
+                  {
+                    "name": "ftps",
+                    "text": "ftps://",
+                    "key": "BrowserProtocol_ftps"
+                  },
+                  {
+                    "name": "file",
+                    "text": "file://",
+                    "key": "BrowserProtocol_file"
+                  },
+                  {
+                    "name": "sftp",
+                    "text": "sftp://",
+                    "key": "BrowserProtocol_sftp"
+                  }
+                ],
+                "tooltip": "Choose an appropriate protocol to be accessed by the browser. Use 'file' for Shared Folders. RemoteProtocol will always be 'file' if HTTP Home Path is empty. "
+              }
+            ],
+            "default_item": {
+              "Name": "New account",
+              "LocalhostRoot": "",
+              "Port": 80,
+              "UserName": null,
+              "Password": null,
+              "SubFolderPath": "",
+              "HttpHomePath": "",
+              "HttpHomePathAutoAddSubFolderPath": true,
+              "HttpHomePathNoExtension": false,
+              "RemoteProtocol": 4,
+              "LocalUri": "",
+              "PreviewLocalPath": "",
+              "PreviewRemotePath": ""
+            }
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Images",
+                "path": [
+                  "LocalhostSelectedImages"
+                ],
+                "label_key": "DestinationSettings_Field_Images",
+                "kind": "selection",
+                "type": "Int32"
+              },
+              {
+                "label": "Text",
+                "path": [
+                  "LocalhostSelectedText"
+                ],
+                "label_key": "DestinationSettings_Field_Text",
+                "kind": "selection",
+                "type": "Int32"
+              },
+              {
+                "label": "Files",
+                "path": [
+                  "LocalhostSelectedFiles"
+                ],
+                "label_key": "DestinationSettings_Field_Files",
+                "kind": "selection",
+                "type": "Int32"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "email",
+        "title": "Email",
+        "prefixes": [
+          "Email"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Smtp Server",
+                "path": [
+                  "EmailSmtpServer"
+                ],
+                "label_key": "DestinationSettings_Field_Smtp_Server",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Smtp Port",
+                "path": [
+                  "EmailSmtpPort"
+                ],
+                "label_key": "DestinationSettings_Field_Smtp_Port",
+                "kind": "number",
+                "type": "Int32"
+              },
+              {
+                "label": "From",
+                "path": [
+                  "EmailFrom"
+                ],
+                "label_key": "DestinationSettings_Field_From",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "EmailPassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Remember Last To",
+                "path": [
+                  "EmailRememberLastTo"
+                ],
+                "label_key": "DestinationSettings_Field_Remember_Last_To",
+                "kind": "bool"
+              },
+              {
+                "label": "Last To",
+                "path": [
+                  "EmailLastTo"
+                ],
+                "label_key": "DestinationSettings_Field_Last_To",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Default Subject",
+                "path": [
+                  "EmailDefaultSubject"
+                ],
+                "label_key": "DestinationSettings_Field_Default_Subject",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Default Body",
+                "path": [
+                  "EmailDefaultBody"
+                ],
+                "label_key": "DestinationSettings_Field_Default_Body",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Automatic Send",
+                "path": [
+                  "EmailAutomaticSend"
+                ],
+                "label_key": "DestinationSettings_Field_Automatic_Send",
+                "kind": "bool"
+              },
+              {
+                "label": "Automatic Send To",
+                "path": [
+                  "EmailAutomaticSendTo"
+                ],
+                "label_key": "DestinationSettings_Field_Automatic_Send_To",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "url-shorteners",
+    "title": "URL shorteners",
+    "icon": "app/short-link",
+    "pages": [
+      {
+        "id": "bitly",
+        "title": "bit.ly",
+        "prefixes": [
+          "Bitly"
+        ],
+        "aliases": [
+          "Bitly"
+        ],
+        "cards": [
+          {
+            "special": "account"
+          },
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Domain",
+                "path": [
+                  "BitlyDomain"
+                ],
+                "label_key": "DestinationSettings_Field_Domain",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "yourls",
+        "title": "YOURLS",
+        "prefixes": [
+          "Yourls"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "API URL",
+                "path": [
+                  "YourlsAPIURL"
+                ],
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Signature",
+                "path": [
+                  "YourlsSignature"
+                ],
+                "label_key": "DestinationSettings_Field_Signature",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Username",
+                "path": [
+                  "YourlsUsername"
+                ],
+                "label_key": "DestinationSettings_Field_Username",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "YourlsPassword"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "polr",
+        "title": "Polr",
+        "prefixes": [
+          "Polr"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "API Hostname",
+                "path": [
+                  "PolrAPIHostname"
+                ],
+                "label_key": "DestinationSettings_Field_API_Hostname",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "PolrAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Is Secret",
+                "path": [
+                  "PolrIsSecret"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Secret",
+                "kind": "bool"
+              },
+              {
+                "label": "Use API v1",
+                "path": [
+                  "PolrUseAPIv1"
+                ],
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "firebase",
+        "title": "Firebase Dynamic Links",
+        "prefixes": [
+          "Firebase"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Web API Key",
+                "path": [
+                  "FirebaseWebAPIKey"
+                ],
+                "label_key": "DestinationSettings_Field_Web_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Dynamic Link Domain",
+                "path": [
+                  "FirebaseDynamicLinkDomain"
+                ],
+                "label_key": "DestinationSettings_Field_Dynamic_Link_Domain",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Is Short",
+                "path": [
+                  "FirebaseIsShort"
+                ],
+                "label_key": "DestinationSettings_Field_Is_Short",
+                "kind": "bool"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kutt",
+        "title": "Kutt",
+        "prefixes": [
+          "Kutt"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "Host",
+                "path": [
+                  "KuttSettings",
+                  "Host"
+                ],
+                "label_key": "DestinationSettings_Field_Host",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "API Key",
+                "path": [
+                  "KuttSettings",
+                  "APIKey"
+                ],
+                "label_key": "DestinationSettings_Field_API_Key",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Password",
+                "path": [
+                  "KuttSettings",
+                  "Password"
+                ],
+                "label_key": "DestinationSettings_Field_Password",
+                "kind": "string",
+                "secret": true,
+                "encrypt": true
+              },
+              {
+                "label": "Reuse",
+                "path": [
+                  "KuttSettings",
+                  "Reuse"
+                ],
+                "label_key": "DestinationSettings_Field_Reuse",
+                "kind": "bool"
+              },
+              {
+                "label": "Domain",
+                "path": [
+                  "KuttSettings",
+                  "Domain"
+                ],
+                "label_key": "DestinationSettings_Field_Domain",
+                "kind": "string",
+                "secret": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "zero-width",
+        "title": "Zero Width Shortener",
+        "prefixes": [
+          "ZeroWidthShortener"
+        ],
+        "aliases": [],
+        "cards": [
+          {
+            "title": "Settings",
+            "rows": [
+              {
+                "label": "URL",
+                "path": [
+                  "ZeroWidthShortenerURL"
+                ],
+                "label_key": "DestinationSettings_Field_URL",
+                "kind": "string",
+                "secret": false
+              },
+              {
+                "label": "Token",
+                "path": [
+                  "ZeroWidthShortenerToken"
+                ],
+                "label_key": "DestinationSettings_Field_Token",
+                "kind": "string",
+                "secret": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
