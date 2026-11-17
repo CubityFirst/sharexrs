@@ -29,7 +29,10 @@ param(
     [switch] $NoStop,
     # ShareX only: start from Capture > Screen recording (GIF) instead of
     # the hotkey (taken by another program), and click Record and Stop.
-    [switch] $Menu
+    [switch] $Menu,
+    # Bar only: click these points on the recorder bar ("x,y;x,y"), grab
+    # after each (-bar-1, -bar-2...), then cancel with Escape (no recording).
+    [string] $BarClicks
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @'
@@ -71,6 +74,22 @@ try {
     & "$PSScriptRoot/input.ps1" -MoveTo 900, 120
     Start-Sleep -Milliseconds 300
     Grab 'bar'
+    if ($BarClicks) {
+        $i = 0
+        foreach ($c in $BarClicks -split ';') {
+            $i++
+            $cx, $cy = ($c -split ',') | ForEach-Object { [int]$_ }
+            & "$PSScriptRoot/input.ps1" -Click $cx, $cy
+            & "$PSScriptRoot/input.ps1" -MoveTo 1000, 740
+            Start-Sleep -Milliseconds 900
+            Grab "bar-$i"
+        }
+        & "$PSScriptRoot/input.ps1" -Key Escape
+        Start-Sleep -Milliseconds 300
+        & "$PSScriptRoot/input.ps1" -Key Escape
+        Start-Sleep -Milliseconds 500
+        return
+    }
     # The compact toolbar (277 wide, timer shown) centred 3px under the frame.
     $frameW = $w + 2
     $content = [math]::Max($frameW, 277)

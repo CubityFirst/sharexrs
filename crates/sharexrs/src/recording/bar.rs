@@ -279,7 +279,10 @@ impl Bar {
                 e
             })
             .collect();
-        self.delay_menu = Some(Flyout::menu(Id::new("start-delay-menu"), entries, anchor, Placement::BottomEdgeAlignedLeft));
+        let mut menu = Flyout::menu(Id::new("start-delay-menu"), entries, anchor, Placement::BottomEdgeAlignedLeft);
+        // A plain `ContextMenu`, not the compact menus.
+        menu.style = sharex_ui::menu::MenuStyle::Standard;
+        self.delay_menu = Some(menu);
     }
 
     fn panel_title(panel: Panel) -> &'static str {
@@ -319,13 +322,13 @@ impl Bar {
         }
     }
 
-    /// `BuildOptionsPanel`: the Recording tab (FPS or GIF FPS, fixed
-    /// duration, its seconds) and the Bar tab (show before recording, timer,
-    /// button labels).
+    /// `BuildOptionsPanel`: a `TabControl` (Fluent: 48px headers in Inter
+    /// 14, a 3px accent pipe 2px above their bottom, 12px content inset)
+    /// with the Recording tab (FPS or GIF FPS, fixed duration and its
+    /// seconds) and the Bar tab (show before recording, timer, button
+    /// labels): `Margin="0,8"`, `Spacing="10"`.
     fn options_size(&self, ui: &Ui) -> (f32, f32) {
-        let tabs = TAB_HEADER;
-        let rows = 3;
-        let body = 8.0 + rows as f32 * 32.0 + (rows - 1) as f32 * 10.0 + 8.0;
+        let body = if self.options_tab == 0 { 40.0 + 10.0 + 32.0 + 10.0 + 40.0 } else { 3.0 * 32.0 + 2.0 * 10.0 };
         let labels = [
             if self.gif { s::TaskSettingsWindow_GIFFPS() } else { s::TaskSettingsWindow_ScreenRecordingFPS() },
             s::TaskSettingsWindow_DurationSeconds(),
@@ -338,10 +341,10 @@ impl Bar {
             s::TaskSettingsWindow_ShowRecordingButtonLabels(),
         ];
         let check_w = checks.iter().map(|c| CheckBox::new(c).width(ui)).fold(0.0, f32::max);
-        let tab_w = text_width(ui, s::TaskSettingsWindow_Recording(), widgets::font(14.0, 600))
-            + text_width(ui, s::ScreenRecorderBar_Bar(), widgets::font(14.0, 600))
-            + 4.0 * 12.0;
-        ((label_w + 12.0 + 150.0).max(check_w).max(tab_w), tabs + body)
+        let tab_font = sharex_ui::controls::content_font(14.0, 400);
+        let tab_w = text_width(ui, s::TaskSettingsWindow_Recording(), tab_font.clone()) + text_width(ui, s::ScreenRecorderBar_Bar(), tab_font) + 4.0 * 12.0;
+        let content = (label_w + 12.0 + 150.0).max(check_w) + 2.0 * TAB_INSET;
+        (content.max(tab_w), TAB_HEADER + 10.0 + body + 8.0)
     }
 
     fn options_ui(&mut self, ui: &mut Ui, rect: Rect) {
@@ -349,16 +352,16 @@ impl Bar {
         let f = fluent(ui.ctx());
         // The tab strip.
         let mut x = rect.min.x;
+        let font = sharex_ui::controls::content_font(14.0, 400);
         for (i, title) in [s::TaskSettingsWindow_Recording(), s::ScreenRecorderBar_Bar()].into_iter().enumerate() {
-            let font = widgets::font(14.0, 600);
-            let w = text_width(ui, title, font.clone()) + 24.0;
-            let r = Rect::from_min_size(pos2(x, rect.min.y), vec2(w, TAB_HEADER));
+            let tw = text_width(ui, title, font.clone());
+            let r = Rect::from_min_size(pos2(x, rect.min.y), vec2(tw + 24.0, TAB_HEADER));
             let resp = ui.interact(r, Id::new(("bar-tab", i)), egui::Sense::click());
             let selected = self.options_tab == i;
             let color = if selected || resp.hovered() { f.base_high } else { f.base_medium };
-            widgets::text_left(ui, r, r.min.x + 12.0, title, font, color);
+            widgets::text_left(ui, r, r.min.x + 12.0, title, font.clone(), color);
             if selected {
-                let pipe = Rect::from_min_size(pos2(r.min.x + 12.0, r.max.y - 6.0), vec2(w - 24.0, 3.0));
+                let pipe = Rect::from_min_size(pos2(r.min.x + 12.0, r.max.y - 2.0 - 3.0), vec2(tw, 3.0));
                 ui.painter().rect_filled(pipe, 1.5, p.accent_icon);
             }
             if resp.clicked() {
@@ -366,12 +369,14 @@ impl Bar {
             }
             x = r.max.x;
         }
-        let mut y = rect.min.y + TAB_HEADER + 8.0;
+        let left = rect.min.x + TAB_INSET;
+        let right = rect.max.x - TAB_INSET;
+        let mut y = rect.min.y + TAB_HEADER + 10.0;
         let c = &mut self.capture;
-        let row = |y: f32| Rect::from_min_size(pos2(rect.min.x, y), vec2(rect.width(), 32.0));
-        let number_rect = |r: Rect| Rect::from_min_size(pos2(r.max.x - 150.0, r.min.y), vec2(150.0, 32.0));
+        let row = |y: f32, h: f32| Rect::from_min_max(pos2(left, y), pos2(right, y + h));
+        let number_rect = |r: Rect| Rect::from_min_size(pos2(r.max.x - 150.0, r.min.y), vec2(150.0, 40.0));
         if self.options_tab == 0 {
-            let r = row(y);
+            let r = row(y, 40.0);
             let (label, value, max) = if self.gif {
                 (s::TaskSettingsWindow_GIFFPS(), &mut c.GIFFPS, 30)
             } else {
@@ -382,16 +387,18 @@ impl Bar {
             if (NumericUpDown { minimum: 1, maximum: max, enabled: true }).show(ui, number_rect(r), Id::new("bar-fps"), &mut v) {
                 *value = v as i32;
             }
-            y += 42.0;
+            y += 40.0 + 10.0;
             let mut fixed = c.ScreenRecordFixedDuration;
-            if CheckBox::new(s::TaskSettingsWindow_UseFixedDuration()).show(ui, row(y), Id::new("bar-fixed"), &mut fixed).changed() {
+            if CheckBox::new(s::TaskSettingsWindow_UseFixedDuration()).show(ui, row(y, 32.0), Id::new("bar-fixed"), &mut fixed).changed() {
                 c.ScreenRecordFixedDuration = fixed;
             }
-            y += 42.0;
-            let r = row(y);
+            y += 32.0 + 10.0;
+            let r = row(y, 40.0);
             widgets::text_left(ui, r, r.min.x, s::TaskSettingsWindow_DurationSeconds(), widgets::font(13.0, 600), p.text_secondary);
             let mut d = c.ScreenRecordDuration as f64;
-            let spinner = DecimalUpDown { minimum: 0.1, maximum: 86400.0, increment: 0.1, decimals: 1, enabled: c.ScreenRecordFixedDuration };
+            // A decimal shows as many places as it has ("3", "2.5").
+            let decimals = usize::from(d.fract().abs() > 1e-6);
+            let spinner = DecimalUpDown { minimum: 0.1, maximum: 86400.0, increment: 0.1, decimals, enabled: c.ScreenRecordFixedDuration };
             if spinner.show(ui, number_rect(r), Id::new("bar-duration"), &mut d) {
                 c.ScreenRecordDuration = d as f32;
             }
@@ -404,8 +411,8 @@ impl Bar {
             .into_iter()
             .enumerate()
             {
-                CheckBox::new(text).show(ui, row(y), Id::new(("bar-check", i)), value);
-                y += 42.0;
+                CheckBox::new(text).show(ui, row(y, 32.0), Id::new(("bar-check", i)), value);
+                y += 32.0 + 10.0;
             }
         }
     }
@@ -486,8 +493,10 @@ enum Kind {
     Close,
 }
 
-/// The settings panel's `TabControl` header height.
-const TAB_HEADER: f32 = 40.0;
+/// Fluent's `TabItem` height (`TabItemMinHeight`).
+const TAB_HEADER: f32 = 48.0;
+/// The `TabControl`'s content inset.
+const TAB_INSET: f32 = 12.0;
 
 fn wrapped_height(ui: &Ui, text: &str, width: f32) -> f32 {
     sharex_ui::controls::wrapped(ui, Pos2::ZERO, width, text, widgets::font(13.0, 600), Color32::TRANSPARENT, false)
