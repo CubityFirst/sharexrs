@@ -90,16 +90,24 @@ impl SettingManager {
             && settings_base::compare_version(self.settings.ApplicationVersion.as_deref().unwrap_or(""), version).is_le()
     }
 
-    /// `ApplicationConfigBackwardCompatibilityTasks` (the FFmpeg ones wait
-    /// for the screen recorder port).
+    /// `ApplicationConfigBackwardCompatibilityTasks`.
     fn application_config_backward_compatibility_tasks(&mut self) {
         if self.system.disable_upload {
             self.settings.DefaultTaskSettings.AfterCaptureJob.remove(AfterCaptureTasks::UploadImageToHost);
+        }
+        if self.is_upgrade_from("14.1.2")
+            && let Some(capture) = self.settings.DefaultTaskSettings.CaptureSettings.as_mut()
+            // `!Environment.Is64BitOperatingSystem`: a 32-bit OS kept its own FFmpeg.
+            && cfg!(not(target_pointer_width = "64"))
+            && !capture.FFmpegOptions.CLIPath.is_empty()
+        {
+            capture.FFmpegOptions.OverrideCLIPath = true;
         }
         if self.is_upgrade_from("15.0.1")
             && let Some(capture) = self.settings.DefaultTaskSettings.CaptureSettings.as_mut()
         {
             capture.ScrollingCaptureOptions = defaults::json("ScrollingCaptureOptions");
+            capture.FFmpegOptions.fix_sources();
         }
         if self.is_upgrade_from("16.0.2") && self.settings.CheckPreReleaseUpdates {
             self.settings.UpdateChannel = UpdateChannel::PreRelease;
@@ -115,6 +123,7 @@ impl SettingManager {
             }
             if upgrade && let Some(capture) = h.TaskSettings.CaptureSettings.as_mut() {
                 capture.ScrollingCaptureOptions = defaults::json("ScrollingCaptureOptions");
+                capture.FFmpegOptions.fix_sources();
             }
         }
     }
