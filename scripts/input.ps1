@@ -11,6 +11,7 @@
   scripts/input.ps1 -MiddleClick 1000,750
   scripts/input.ps1 -DoubleClick 1000,750
   scripts/input.ps1 -Key Escape
+  scripts/input.ps1 -Text 'not a url'
   scripts/input.ps1 -Down 200,150 -DragTo 600,450 -Hold   # press, drag, keep pressed
   scripts/input.ps1 -Up                                   # release the left button
 #>
@@ -29,7 +30,9 @@ param(
     [switch] $Hold,
     # Releases the left button where the cursor is.
     [switch] $Up,
-    [ValidateSet('Escape', 'Enter', 'Up', 'Down', 'Left', 'Right', 'Space', 'Tab')] [string] $Key
+    [ValidateSet('Escape', 'Enter', 'Up', 'Down', 'Left', 'Right', 'Space', 'Tab')] [string] $Key,
+    # Types this text into the focused window (SendKeys, special characters escaped).
+    [string] $Text
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @'
@@ -109,4 +112,9 @@ if ($Key) {
     $vk = @{ Escape = 0x1B; Enter = 0x0D; Left = 0x25; Up = 0x26; Right = 0x27; Down = 0x28; Space = 0x20; Tab = 0x09 }[$Key]
     [Input]::keybd_event([byte]$vk, 0, 0, [IntPtr]::Zero)
     [Input]::keybd_event([byte]$vk, 0, 2, [IntPtr]::Zero)
+}
+if ($Text) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $escaped = [regex]::Replace($Text, '[+^%~(){}\[\]]', '{$0}')
+    [System.Windows.Forms.SendKeys]::SendWait($escaped)
 }

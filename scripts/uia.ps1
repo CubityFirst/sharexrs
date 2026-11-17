@@ -22,6 +22,39 @@ $ids = @(Get-Process -Name $Process | ForEach-Object Id)
 $win = $AE::RootElement.FindAll($scope::Children, [System.Windows.Automation.Condition]::TrueCondition) |
     Where-Object { $ids -contains $_.Current.ProcessId -and $_.Current.Name -match $Window } |
     Select-Object -First 1
+if (-not $win) {
+    # Some windows (topmost dialogs) aren't among the root's children:
+    # find them by enumerating top-level windows instead.
+    Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class UiaWin {
+    public delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    public static List<Tuple<IntPtr,string>> Windows(HashSet<uint> pids) {
+        var list = new List<Tuple<IntPtr,string>>();
+        EnumWindows((h, l) => {
+            uint pid; GetWindowThreadProcessId(h, out pid);
+            if (pids.Contains(pid) && IsWindowVisible(h)) {
+                var sb = new StringBuilder(512); GetWindowTextW(h, sb, 512);
+                list.Add(Tuple.Create(h, sb.ToString()));
+            }
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+}
+'@
+    $pidSet = New-Object 'System.Collections.Generic.HashSet[uint32]'
+    $ids | ForEach-Object { [void]$pidSet.Add([uint32]$_) }
+    $hit = [UiaWin]::Windows($pidSet) | Where-Object { $_.Item2 -match $Window } | Select-Object -First 1
+    if ($hit) { $win = $AE::FromHandle($hit.Item1) }
+}
 if (-not $win) { throw "no window of $Process matching '$Window'" }
 
 if ($Dump) {
