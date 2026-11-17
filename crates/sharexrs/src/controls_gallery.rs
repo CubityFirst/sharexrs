@@ -277,6 +277,10 @@ mod tests {
 mod settings_page_tests {
     //! Sol's review coordinates on Application settings › Theme (950x720,
     //! Dark), against ShareX's screenshot of the same page.
+    //!
+    //! Windows only: the coordinates come from ShareX on Windows, in Segoe
+    //! UI; elsewhere ShareXrs uses Inter, whose widths move the layout.
+    #[cfg(windows)]
     #[test]
     fn theme_page_controls_match_sharex() {
         let out = std::env::temp_dir().join(format!("sharexrs-theme-{}.png", std::process::id()));
