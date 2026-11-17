@@ -10,6 +10,7 @@
 mod color;
 mod effects;
 mod layout;
+mod shadow;
 mod shapes;
 pub mod text;
 
@@ -30,6 +31,18 @@ pub fn render(base: &Pixmap, annotations: &[Annotation]) -> Pixmap {
 }
 
 fn draw(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
+    if a.common.shadow_enabled
+        && let Some((size, ctm)) = shapes::visual_frame(a)
+    {
+        shadow::with_shadow(pm, &a.common, size, &ctm, |layer| {
+            draw_visual(layer, base, a)
+        });
+        return;
+    }
+    draw_visual(pm, base, a);
+}
+
+fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
     match &a.kind {
         Kind::Rectangle(p) => {
             shapes::draw_rectangle(pm, &a.common, p.border_style.clone(), p.corner_radius)

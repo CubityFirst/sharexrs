@@ -73,7 +73,6 @@
   },
   {
    "name": "rect-shadow",
-   "pending": "drop shadows (Skia blur image filter) not ported",
    "annotations": [
     {
      "$type": "Rectangle",
@@ -1594,8 +1593,7 @@
       "Y": 200
      }
     }
-   ],
-   "pending": "drop shadows not ported"
+   ]
   },
   {
    "name": "arrow-shadow",
@@ -1612,8 +1610,7 @@
       "Y": 70
      }
     }
-   ],
-   "pending": "drop shadows not ported"
+   ]
   },
   {
    "name": "stack",

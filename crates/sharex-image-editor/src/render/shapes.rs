@@ -377,7 +377,7 @@ impl Curve {
     }
 }
 
-pub fn draw_line(pm: &mut Pixmap, c: &Common, p: &LineProps) {
+fn line_geometry(c: &Common, p: &LineProps) -> StreamGeometry {
     let curve = Curve {
         start: c.start_point,
         end: c.end_point,
@@ -395,7 +395,11 @@ pub fn draw_line(pm: &mut Pixmap, c: &Common, p: &LineProps) {
         g.line_to(e.x as f64, e.y as f64);
     }
     g.end_figure(false);
-    let (stroke, fill) = g.finish();
+    g
+}
+
+pub fn draw_line(pm: &mut Pixmap, c: &Common, p: &LineProps) {
+    let (stroke, fill) = line_geometry(c, p).finish();
     let pen = Pen {
         color: parse_color(&c.stroke_color),
         thickness: c.stroke_width as f64,
@@ -667,12 +671,12 @@ pub fn draw_arrow(pm: &mut Pixmap, c: &Common, p: &ArrowProps) {
 
 // --- FreehandAnnotation ----------------------------------------------------
 
-pub fn draw_freehand(pm: &mut Pixmap, c: &Common, p: &FreehandProps) {
+fn freehand_geometry(c: &Common, p: &FreehandProps) -> StreamGeometry {
     let pts = &p.points;
-    if pts.len() < 2 {
-        return;
-    }
     let mut g = StreamGeometry::new();
+    if pts.len() < 2 {
+        return g;
+    }
     g.begin_figure(pts[0].x as f64, pts[0].y as f64, false);
     if pts.len() == 2 {
         g.line_to(pts[1].x as f64, pts[1].y as f64);
@@ -715,8 +719,14 @@ pub fn draw_freehand(pm: &mut Pixmap, c: &Common, p: &FreehandProps) {
             append_cap_figure(&mut g, tip, &cap);
         }
     }
+    g
+}
 
-    let (stroke, fill) = g.finish();
+pub fn draw_freehand(pm: &mut Pixmap, c: &Common, p: &FreehandProps) {
+    if p.points.len() < 2 {
+        return;
+    }
+    let (stroke, fill) = freehand_geometry(c, p).finish();
     let color = parse_color(&c.stroke_color);
     let pen = Pen {
         color,
@@ -743,5 +753,35 @@ impl AddSqrt for f64 {
     /// `Math.Sqrt(a + b)`.
     fn add_sqrt(self, other: f64) -> f64 {
         (self + other).sqrt()
+    }
+}
+
+/// The arranged size and transform of an annotation's visual, for the
+/// visuals that can carry a drop shadow.
+pub(super) fn visual_frame(a: &crate::model::Annotation) -> Option<((f64, f64), AMatrix)> {
+    use crate::model::Kind;
+    match &a.kind {
+        Kind::Rectangle(_) | Kind::Ellipse(_) => {
+            let (ar, ctm) = arranged(&a.common);
+            Some(((ar.width, ar.height), ctm))
+        }
+        Kind::Line(_) | Kind::Arrow(_) | Kind::Freehand(_) => {
+            // A Path at (0, 0): its size is its geometry's bottom-right corner.
+            let path = match &a.kind {
+                Kind::Line(p) => line_geometry(&a.common, p).finish().0,
+                Kind::Arrow(p) => arrow_geometry(&a.common, p).finish().0,
+                Kind::Freehand(p) => freehand_geometry(&a.common, p).finish().0,
+                _ => unreachable!(),
+            };
+            let b = path.bounds();
+            Some((
+                (
+                    (b.right.max(0.0) as f64).ceil(),
+                    (b.bottom.max(0.0) as f64).ceil(),
+                ),
+                AMatrix::translation(0.0, 0.0),
+            ))
+        }
+        _ => None,
     }
 }
