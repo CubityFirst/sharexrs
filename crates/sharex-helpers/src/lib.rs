@@ -5,9 +5,11 @@
 //!   `%y-%mo` into names.
 //! - [`file_helpers`]: `FileHelpers`' file name sanitising and unique paths.
 //! - [`random`]: `RandomCrypto` and the `Helpers` character sets.
+//! - [`mime_types`]: `MimeTypes`, the MIME type of a file name.
 
 pub mod emoji;
 pub mod file_helpers;
+pub mod mime_types;
 pub mod name_parser;
 pub mod random;
 

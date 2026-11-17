@@ -72,6 +72,8 @@ crates/
   sharex-settings/  ShareX's settings files (ApplicationConfig, HotkeysConfig),
                     read and written as ShareX does; where they live
   sharex-strings/   ShareX's .resx (29 languages) -> Rust, generated at build
+  sharex-uploaders/ ShareX.UploadersLib: HTTP layer, custom uploaders (.sxcu),
+                    built-in destinations, UploadersConfig (docs/UPLOADERS.md)
   sharex-ui/        theme, density, fonts, icon packs, shared widgets,
                     wgpu device, offscreen renderer
   sharexrs/         the app: winit event loop, one egui context per OS window
@@ -114,8 +116,8 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 ### Phase 2: upload
 | Item | ShareX source | Status |
 |---|---|---|
-| Uploader framework + custom uploaders (.sxcu) | UploadersLib, Presentation/CustomUploaderSettings | ⬜ |
-| Built-in destinations (Imgur, S3, FTP/SFTP, ...) | UploadersLib | ⬜ |
+| Uploader framework + custom uploaders (.sxcu) | UploadersLib, Presentation/CustomUploaderSettings | 🟨 `sharex-uploaders` (map: [UPLOADERS.md](UPLOADERS.md)): HTTP layer sending requests byte for byte as ShareX's `HttpClient` (System.Uri escaping probed and ported), `Uploader` base and kinds, `UploadersConfig` typed (DPAPI secrets; fresh and ShareX-written configs round-trip byte for byte), custom uploaders in full (both JSON shapes, migrations, all 13 syntax functions, request building, response parsing). Validated with `tools/uploaders-harness` (ShareX's own DLL vs ShareXrs against a local mock: 97/97 cases identical). Not yet: the Custom uploader settings window, the dialog functions' windows |
+| Built-in destinations (Imgur, S3, FTP/SFTP, ...) | UploadersLib | 🟨 ported and identical in the harness: Imgur, Chevereto, vgy.me, Pastebin, Paste2, Slexy, Paste.ee, uPaste, Hastebin, OneTimeSecret, Pastie, Pomf, Uguu, transfer.sh, s-ul, Lambda, puush, Streamable, LobFile, img.fish, Immich, ownCloud/Nextcloud, Amazon S3 (SigV4, multipart), all 13 URL shorteners; share-page sharing services unit tested. Not yet: OAuth sign-in flows, FTP/SFTP, Google/OneDrive/Dropbox/Box, the other simple-HTTP services (see UPLOADERS.md) |
 | Upload file/folder/clipboard/text/URL, drag & drop, shorten URL | UploadManager, Presentation/* | ⬜ |
 | After upload tasks, history, image history, stats | HistoryLib, Presentation | ⬜ |
 
