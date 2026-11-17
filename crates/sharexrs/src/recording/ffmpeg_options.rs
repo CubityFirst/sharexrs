@@ -175,14 +175,21 @@ impl FFmpegOptionsWindow {
         }
     }
 
-    /// Shows a page by name.
+    /// Shows a page by name: `sources`, `video`, `audio`, `advanced`, with
+    /// `-<codec>` to pick a video codec (`video-gif`), or `reset` (the
+    /// reset confirmation on Sources).
     pub fn set_page(&mut self, page: &str) {
-        self.tab = match page {
+        let (name, codec) = page.split_once('-').unwrap_or((page, ""));
+        self.tab = match name {
             "video" => 1,
             "audio" => 2,
             "advanced" => 3,
             _ => 0,
         };
+        self.confirm_reset = name == "reset";
+        if let Some(c) = FFmpegVideoCodec::ALL.iter().find(|c| c.name() == codec) {
+            self.options.ffmpeg.VideoCodec = c.clone();
+        }
     }
 
     /// `BrowseForFFmpegAsync`'s result.
@@ -700,7 +707,9 @@ impl FFmpegOptionsWindow {
         let boxr = Rect::from_min_max(pos2(inner.min.x, info.max.y + 10.0), pos2(inner.max.x, info.max.y + 10.0 + 260.0));
         let custom = self.options.ffmpeg.UseCustomCommands;
         let mono = egui::FontId::new(13.0, sharex_ui::fonts::consolas());
-        let tb = TextBox { multiline: true, wrap: true, read_only: !custom, font: Some(mono), ..Default::default() };
+        // `Padding="8,6"`; Consolas' line box puts its first line 2px lower
+        // and 1px further left than the shared box's metrics do.
+        let tb = TextBox { multiline: true, wrap: true, read_only: !custom, font: Some(mono), padding: Thickness::new(7.0, 8.0, 8.0, 6.0), ..Default::default() };
         let mut text = self.command_preview();
         if tb.show(ui, boxr, Id::new("ffmpeg-command"), &mut text).changed() && custom {
             self.options.ffmpeg.CustomCommands = text;

@@ -923,6 +923,9 @@ impl App {
 
     fn close_dialog(&mut self, event_loop: &ActiveEventLoop, result: DialogResult) {
         let Some(dialog) = self.dialog.take() else { return };
+        // Startup waits for the hotkey warning, then opens the main window;
+        // other message boxes leave it as it is (in the tray).
+        let startup = matches!(dialog.purpose, DialogPurpose::HotkeysFailed);
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
         } else if let DialogPurpose::DownloadFFmpeg(path) = &dialog.purpose {
@@ -936,7 +939,8 @@ impl App {
             d.dialog.confirmed();
             d.window.window.request_redraw();
         }
-        if self.main.is_none()
+        if startup
+            && self.main.is_none()
             && let Err(e) = self.open_main_window(event_loop)
         {
             eprintln!("couldn't open the main window: {e}");

@@ -32,7 +32,12 @@ param(
     [switch] $Menu,
     # Bar only: click these points on the recorder bar ("x,y;x,y"), grab
     # after each (-bar-1, -bar-2...), then cancel with Escape (no recording).
-    [string] $BarClicks
+    [string] $BarClicks,
+    # The frame shows button labels (ScreenRecordShowButtonLabels).
+    [switch] $Labels,
+    # Press Abort (with ScreenRecordAskConfirmationOnAbort), grab the
+    # confirmation, then Cancel it.
+    [switch] $AbortConfirm
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @'
@@ -92,11 +97,14 @@ try {
     }
     # The compact toolbar (277 wide, timer shown) centred 3px under the frame.
     $frameW = $w + 2
-    $content = [math]::Max($frameW, 277)
-    $tbLeft = ($x - 1) - [math]::Floor(($content - $frameW) / 2) + [math]::Floor(($content - 277) / 2)
+    $tbW = if ($Labels) { 461 } else { 277 }
+    $bw = if ($Labels) { 86 } else { 40 }
+    $content = [math]::Max($frameW, $tbW)
+    $tbLeft = ($x - 1) - [math]::Floor(($content - $frameW) / 2) + [math]::Floor(($content - $tbW) / 2)
     $tbTop = $y - 1 + $h + 2 + 3
-    $startAt = @(($tbLeft + 1 + 112 + 20), ($tbTop + 21))
-    $pauseAt = @(($tbLeft + 1 + 112 + 41 + 20), ($tbTop + 21))
+    $startAt = @(($tbLeft + 1 + 112 + [math]::Floor($bw / 2)), ($tbTop + 21))
+    $pauseAt = @(($tbLeft + 1 + 112 + $bw + 1 + [math]::Floor($bw / 2)), ($tbTop + 21))
+    $abortAt = @(($tbLeft + 1 + 112 + 3 * ($bw + 1) + [math]::Floor($bw / 2)), ($tbTop + 21))
     if ($Menu) {
         # Record: the bar's red button, found in a grab of the pattern.
         $f = Join-Path ([System.IO.Path]::GetTempPath()) 'record-session-bar.png'
@@ -112,6 +120,18 @@ try {
     }
     Start-Sleep -Milliseconds 1500
     Grab 'frame'
+    if ($AbortConfirm) {
+        & "$PSScriptRoot/input.ps1" -Click $abortAt
+        & "$PSScriptRoot/input.ps1" -MoveTo 900, 120
+        Start-Sleep -Milliseconds 900
+        Grab 'confirm'
+        # The confirmation is 461 wide wherever the toolbar was: Cancel is
+        # the second last 86px button.
+        $cLeft = ($x - 1) - [math]::Floor(([math]::Max($frameW, 461) - $frameW) / 2) + [math]::Floor(([math]::Max($frameW, 461) - 461) / 2)
+        & "$PSScriptRoot/input.ps1" -Click ($cLeft + 461 - 1 - 86 - 1 - 43), ($tbTop + 21)
+        & "$PSScriptRoot/input.ps1" -MoveTo 900, 120
+        Start-Sleep -Milliseconds 700
+    }
     if ($Pause) {
         & "$PSScriptRoot/input.ps1" -Click $pauseAt
         & "$PSScriptRoot/input.ps1" -MoveTo 900, 120
