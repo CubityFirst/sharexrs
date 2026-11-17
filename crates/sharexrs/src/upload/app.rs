@@ -146,6 +146,7 @@ impl App {
     fn task_completed(&mut self, id: u64, report: &TaskReport) {
         if let Some(task) = self.state.tasks.manager.get(id) {
             let info = &task.info;
+            crate::history::task_completed(&self.settings.settings, info, report.history.as_ref());
             let duration =
                 info.end_time.zip(info.start_time).and_then(|(e, s)| e.duration_since(s).ok()).map_or(0, |d| d.as_millis());
             eprintln!("Task status: {:?}", task.status);

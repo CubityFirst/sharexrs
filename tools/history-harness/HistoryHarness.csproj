@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference for ShareXrs's history: runs ShareX's own
+    ShareX.HistoryLib.dll (from a ShareX build of REFERENCE_COMMIT) to write,
+    read, migrate, filter and count history, so crates/sharex-history can be
+    compared with it. No window opens. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ShareX.runtimeconfig.json sets this: culture comparisons go through Windows NLS. -->
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.HistoryLib"><HintPath>$(ShareXBuild)\ShareX.HistoryLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
+    <Reference Include="Microsoft.Data.Sqlite"><HintPath>$(ShareXBuild)\Microsoft.Data.Sqlite.dll</HintPath></Reference>
+    <!-- ShareX's deps.json lets Microsoft.Data.Sqlite find the e_sqlite3 bundle itself; here it is initialised by hand. -->
+    <Reference Include="SQLitePCLRaw.batteries_v2"><HintPath>$(ShareXBuild)\SQLitePCLRaw.batteries_v2.dll</HintPath></Reference>
+    <Reference Include="SQLitePCLRaw.core"><HintPath>$(ShareXBuild)\SQLitePCLRaw.core.dll</HintPath></Reference>
+    <!-- Everything else ShareX's libraries load, e_sqlite3.dll included. -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

@@ -247,6 +247,8 @@ pub struct TaskReport {
     pub show_toast: bool,
     /// `UploadDuration`.
     pub upload_duration: Option<Duration>,
+    /// `TaskInfo.GetHistoryItem` at the task's end.
+    pub history: Option<sharex_history::HistoryItem>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

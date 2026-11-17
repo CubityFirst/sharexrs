@@ -330,6 +330,12 @@ pub fn service_name(enum_name: &str, value: &str) -> String {
     if let Some(s) = sharex_strings::uploaders_lib::lookup(&format!("{enum_name}_{value}")) {
         return s.to_owned();
     }
+    enum_description(enum_name, value)
+}
+
+/// `EnumExtensions.GetDescription` of a destination enum value: its
+/// `[Description]`, else its name.
+pub fn enum_description(enum_name: &str, value: &str) -> String {
     DESCRIPTIONS.iter().find(|(e, v, _)| *e == enum_name && *v == value).map(|(_, _, d)| (*d).to_owned()).unwrap_or_else(|| value.to_owned())
 }
 

@@ -1,0 +1,24 @@
+{
+  "filename": "old1.png",
+  "FILEPATH": "C:\\Old\\old1.png",
+  "DateTime": "/Date(1462880036555)/",
+  "Type": "Image",
+  "Id": 99,
+  "Unknown": [1, 2],
+  "Tags": {"ProcessName": "explorer", "n": 5, "b": true, "z": null}
+},
+{
+  "FileName": "old2.png", "FilePath": "C:\\Old\\old2.png",
+  "DateTime": "/Date(1462880036555+0300)/", "URL": null, "Host": "Imgur"
+},
+{
+  "FileName": "old3.png", "FilePath": "C:\\Old\\old3.png",
+  "DateTime": "2016-05-10T13:33:56.5556426+03:00", "Type": "Image", "Type": "File"
+},
+{
+  "FileName": "old4.png", "FilePath": "C:\\Old\\old4.png",
+  "DateTime": "2016-05-10T13:33:56.123456789Z"
+},
+{
+  "FileName": "old5.png", "URL": "https://x/old5.png"
+}

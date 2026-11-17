@@ -1,0 +1,7990 @@
+{
+ "SqliteVersion": "3.53.4",
+ "AppendedIds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  0,
+  0,
+  0,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  53,
+  54,
+  55,
+  56,
+  57,
+  58,
+  59,
+  60,
+  61,
+  62,
+  63,
+  64,
+  65,
+  66,
+  67,
+  68,
+  69,
+  70,
+  71,
+  72,
+  73,
+  74,
+  75,
+  76,
+  77,
+  78,
+  79,
+  80,
+  81,
+  82
+ ],
+ "Read": [
+  {
+   "Id": 1,
+   "FileName": "ShareX_abc.png",
+   "FilePath": "C:\\Shots\\2026-11\\ShareX_abc.png",
+   "DateTime": {
+    "Ticks": 639184968001234567,
+    "Kind": "Local",
+    "O": "2026-07-01T10:00:00.1234567+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Chrome - Page"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ],
+    [
+     "Tag",
+     "work"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": "work",
+   "TagsWindowTitle": "Chrome - Page",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 2,
+   "FileName": "upload.png",
+   "FilePath": "C:\\Shots\\2026-11\\upload.png",
+   "DateTime": {
+    "Ticks": 639041183999999999,
+    "Kind": "Local",
+    "O": "2026-01-15T23:59:59.9999999+00:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "https://i.imgur.com/upload.png",
+   "ThumbnailURL": "https://i.imgur.com/uploadt.png",
+   "DeletionURL": "https://imgur.com/delete/x",
+   "ShortenedURL": "https://bit.ly/x",
+   "Tags": [
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 3,
+   "FileName": "paste.txt",
+   "FilePath": "",
+   "DateTime": {
+    "Ticks": 639304128000000000,
+    "Kind": "Local",
+    "O": "2026-11-16T08:00:00.0000000+00:00"
+   },
+   "Type": "Text",
+   "Host": "Pastebin",
+   "URL": "https://pastebin.com/x",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "Tag",
+     "first tag"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": "first tag",
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 4,
+   "FileName": "renamed.png",
+   "FilePath": "C:\\Shots\\2026-11\\unspec.png",
+   "DateTime": {
+    "Ticks": 639303714005000000,
+    "Kind": "Unspecified",
+    "O": "2026-11-15T20:30:00.5000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 7,
+   "FileName": "gap.png",
+   "FilePath": "C:\\Shots\\2026-11\\gap.png",
+   "DateTime": {
+    "Ticks": 638788986000000000,
+    "Kind": "Local",
+    "O": "2025-03-30T02:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 8,
+   "FileName": "ambiguous-plain.png",
+   "FilePath": "C:\\Shots\\2026-11\\ambiguous-plain.png",
+   "DateTime": {
+    "Ticks": 638970381000000000,
+    "Kind": "Local",
+    "O": "2025-10-26T01:15:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 9,
+   "FileName": "empty-strings.png",
+   "FilePath": "",
+   "DateTime": {
+    "Ticks": 639305046000000000,
+    "Kind": "Local",
+    "O": "2026-11-17T09:30:00.0000000+00:00"
+   },
+   "Type": "",
+   "Host": "",
+   "URL": "u",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 10,
+   "FileName": "odd-tags.png",
+   "FilePath": "C:\\Shots\\2026-11\\odd-tags.png",
+   "DateTime": {
+    "Ticks": 639305064000000000,
+    "Kind": "Local",
+    "O": "2026-11-17T10:00:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "Odd q\"\\ \u0001\u001f\t\n\r\b\f    é ✓ 😀 <>&' ",
+     "q\"\\ \u0001\u001f\t\n\r\b\f    é ✓ 😀 <>&' "
+    ],
+    [
+     "NullValue",
+     null
+    ],
+    [
+     "Empty",
+     ""
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 11,
+   "FileName": "no-tags-dict.png",
+   "FilePath": "C:\\Shots\\2026-11\\no-tags-dict.png",
+   "DateTime": {
+    "Ticks": 639305067000000000,
+    "Kind": "Local",
+    "O": "2026-11-17T10:05:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 12,
+   "FileName": "スクリーンショット.png",
+   "FilePath": "C:\\Shots\\2026-11\\スクリーンショット.png",
+   "DateTime": {
+    "Ticks": 639304236000000000,
+    "Kind": "Local",
+    "O": "2026-11-16T11:00:00.0000000+00:00"
+   },
+   "Type": "image",
+   "Host": "Amazon S3",
+   "URL": "https://s3.example/スクリーンショット.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "ProcessName",
+     " chrome "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": " chrome "
+  },
+  {
+   "Id": 13,
+   "FileName": "rec.gif",
+   "FilePath": "C:\\Shots\\2026-11\\rec.gif",
+   "DateTime": {
+    "Ticks": 639298298743814847,
+    "Kind": "Local",
+    "O": "2026-11-09T14:04:34.3814847+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 0"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 0",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 14,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639305073944125149,
+    "Kind": "Local",
+    "O": "2026-11-17T10:16:34.4125149+00:00"
+   },
+   "Type": "URL",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 1"
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 1",
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 15,
+   "FileName": "clip.WEBM",
+   "FilePath": "C:\\Shots\\2026-11\\clip.WEBM",
+   "DateTime": {
+    "Ticks": 639298288966337590,
+    "Kind": "Local",
+    "O": "2026-11-09T13:48:16.6337590+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/2/clip.WEBM",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 2"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 2",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 16,
+   "FileName": "no_ext",
+   "FilePath": "C:\\Shots\\2026-11\\no_ext",
+   "DateTime": {
+    "Ticks": 638448243538583227,
+    "Kind": "Local",
+    "O": "2024-02-29T17:25:53.8583227+00:00"
+   },
+   "Type": "Image",
+   "Host": "10host",
+   "URL": "https://10host.example/3/no_ext",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 3"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 3",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 17,
+   "FileName": "rec.mp4",
+   "FilePath": "C:\\Shots\\2026-11\\rec.mp4",
+   "DateTime": {
+    "Ticks": 639304562096740930,
+    "Kind": "Local",
+    "O": "2026-11-16T20:03:29.6740930+00:00"
+   },
+   "Type": "image",
+   "Host": "Amazon-S3",
+   "URL": "https://Amazon-S3.example/4/rec.mp4",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 4"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 4",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 18,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639305675957497041,
+    "Kind": "Local",
+    "O": "2026-11-18T02:59:55.7497041+00:00"
+   },
+   "Type": "Image",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/5/x.Png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 5"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 5",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 19,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639293905057468779,
+    "Kind": "Local",
+    "O": "2026-11-04T12:01:45.7468779+00:00"
+   },
+   "Type": "Image",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/6/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 6"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 6",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 20,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639293215261575388,
+    "Kind": "Local",
+    "O": "2026-11-03T16:52:06.1575388+00:00"
+   },
+   "Type": "File",
+   "Host": "10host",
+   "URL": "https://10host.example/7/x.Png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 7"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": "Window 7",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 21,
+   "FileName": "weird.name)",
+   "FilePath": "C:\\Shots\\2026-11\\weird.name)",
+   "DateTime": {
+    "Ticks": 639293337830653471,
+    "Kind": "Local",
+    "O": "2026-11-03T20:16:23.0653471+00:00"
+   },
+   "Type": "image",
+   "Host": "Ünicode host",
+   "URL": "https://Ünicodehost.example/8/weird.name)",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 8"
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": "Window 8",
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 22,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639301596537268439,
+    "Kind": "Local",
+    "O": "2026-11-13T09:40:53.7268439+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "_underscore",
+   "URL": "https://_underscore.example/9/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "Zeta",
+     "1"
+    ],
+    [
+     "alpha",
+     null
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 23,
+   "FileName": "data.json",
+   "FilePath": "C:\\Shots\\2026-11\\data.json",
+   "DateTime": {
+    "Ticks": 636978041745012078,
+    "Kind": "Local",
+    "O": "2019-07-04T02:29:34.5012078+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 24,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639103545320154968,
+    "Kind": "Local",
+    "O": "2026-03-29T04:15:32.0154968+01:00"
+   },
+   "Type": "URL",
+   "Host": "_underscore",
+   "URL": "https://_underscore.example/11/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 11"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 11",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 25,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 638843838166058449,
+    "Kind": "Local",
+    "O": "2025-06-01T14:10:16.6058449+01:00"
+   },
+   "Type": "IMAGE",
+   "Host": "10host",
+   "URL": "https://10host.example/12/x.Png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 26,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639293949878410072,
+    "Kind": "Local",
+    "O": "2026-11-04T13:16:27.8410072+00:00"
+   },
+   "Type": "Image",
+   "Host": "2host",
+   "URL": "https://2host.example/13/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 13"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 13",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 27,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 639304372611306014,
+    "Kind": "Local",
+    "O": "2026-11-16T14:47:41.1306014+00:00"
+   },
+   "Type": "Text",
+   "Host": "File",
+   "URL": "https://File.example/14/notes.txt",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 14"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 14",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 28,
+   "FileName": "share_me.png",
+   "FilePath": "C:\\Shots\\2026-11\\share_me.png",
+   "DateTime": {
+    "Ticks": 639304490306074298,
+    "Kind": "Local",
+    "O": "2026-11-16T18:03:50.6074298+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 15"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 15",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 29,
+   "FileName": "clip.WEBM",
+   "FilePath": "C:\\Shots\\2026-11\\clip.WEBM",
+   "DateTime": {
+    "Ticks": 639027975545564914,
+    "Kind": "Local",
+    "O": "2025-12-31T17:05:54.5564914+00:00"
+   },
+   "Type": "Text",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/16/clip.WEBM",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 16"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 16",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 30,
+   "FileName": "rec.mp4",
+   "FilePath": "C:\\Shots\\2026-11\\rec.mp4",
+   "DateTime": {
+    "Ticks": 639305608683475980,
+    "Kind": "Local",
+    "O": "2026-11-18T01:07:48.3475980+00:00"
+   },
+   "Type": "Text",
+   "Host": "Ünicode host",
+   "URL": "https://Ünicodehost.example/17/rec.mp4",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 17"
+    ],
+    [
+     "ProcessName",
+     "Ärger"
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": "Window 17",
+   "TagsProcessName": "Ärger"
+  },
+  {
+   "Id": 31,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639301950919554487,
+    "Kind": "Local",
+    "O": "2026-11-13T19:31:31.9554487+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "Amazon-S3",
+   "URL": "https://Amazon-S3.example/18/x.Png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 18"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 18",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 32,
+   "FileName": "share_me.png",
+   "FilePath": "C:\\Shots\\2026-11\\share_me.png",
+   "DateTime": {
+    "Ticks": 639303785792010650,
+    "Kind": "Local",
+    "O": "2026-11-15T22:29:39.2010650+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "2host",
+   "URL": "https://2host.example/19/share_me.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 19"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 19",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 33,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639301802481902777,
+    "Kind": "Local",
+    "O": "2026-11-13T15:24:08.1902777+00:00"
+   },
+   "Type": "URL",
+   "Host": "imgur",
+   "URL": "https://imgur.example/20/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 20"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 20",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 34,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 639344165713265674,
+    "Kind": "Local",
+    "O": "2027-01-01T16:09:31.3265674+00:00"
+   },
+   "Type": "image",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/21/notes.txt",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 21"
+    ],
+    [
+     "ProcessName",
+     "notepad++"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 21",
+   "TagsProcessName": "notepad++"
+  },
+  {
+   "Id": 35,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 639302096904618708,
+    "Kind": "Local",
+    "O": "2026-11-13T23:34:50.4618708+00:00"
+   },
+   "Type": "image",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 22"
+    ],
+    [
+     "ProcessName",
+     "zsh"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 22",
+   "TagsProcessName": "zsh"
+  },
+  {
+   "Id": 36,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639292793990374319,
+    "Kind": "Local",
+    "O": "2026-11-03T05:09:59.0374319+00:00"
+   },
+   "Type": "Image",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/23/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 23"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 23",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 37,
+   "FileName": "share_me.png",
+   "FilePath": "C:\\Shots\\2026-11\\share_me.png",
+   "DateTime": {
+    "Ticks": 638843637276913025,
+    "Kind": "Local",
+    "O": "2025-06-01T08:35:27.6913025+01:00"
+   },
+   "Type": "image",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/24/share_me.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 24"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 24",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 38,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639293079224415787,
+    "Kind": "Local",
+    "O": "2026-11-03T13:05:22.4415787+00:00"
+   },
+   "Type": "URL",
+   "Host": "B host",
+   "URL": "https://Bhost.example/25/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 25"
+    ],
+    [
+     "ProcessName",
+     "Ärger"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 25",
+   "TagsProcessName": "Ärger"
+  },
+  {
+   "Id": 39,
+   "FileName": "shot.png",
+   "FilePath": "C:\\Shots\\2026-11\\shot.png",
+   "DateTime": {
+    "Ticks": 639103500411279116,
+    "Kind": "Local",
+    "O": "2026-03-29T03:00:41.1279116+01:00"
+   },
+   "Type": "Image",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 26"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 26",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 40,
+   "FileName": "clip.WEBM",
+   "FilePath": "C:\\Shots\\2026-11\\clip.WEBM",
+   "DateTime": {
+    "Ticks": 639027642673959875,
+    "Kind": "Local",
+    "O": "2025-12-31T07:51:07.3959875+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "Amazon-S3",
+   "URL": "https://Amazon-S3.example/27/clip.WEBM",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 27"
+    ],
+    [
+     "ProcessName",
+     "Ärger"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 27",
+   "TagsProcessName": "Ärger"
+  },
+  {
+   "Id": 41,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639304977864900222,
+    "Kind": "Local",
+    "O": "2026-11-17T07:36:26.4900222+00:00"
+   },
+   "Type": "image",
+   "Host": "a host",
+   "URL": "https://ahost.example/28/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 28"
+    ],
+    [
+     "ProcessName",
+     "notepad++"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 28",
+   "TagsProcessName": "notepad++"
+  },
+  {
+   "Id": 42,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639027508441081675,
+    "Kind": "Local",
+    "O": "2025-12-31T04:07:24.1081675+00:00"
+   },
+   "Type": "URL",
+   "Host": "a host",
+   "URL": "https://ahost.example/29/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 29"
+    ],
+    [
+     "ProcessName",
+     "zsh"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 29",
+   "TagsProcessName": "zsh"
+  },
+  {
+   "Id": 43,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 638447741413488480,
+    "Kind": "Local",
+    "O": "2024-02-29T03:29:01.3488480+00:00"
+   },
+   "Type": "Text",
+   "Host": "File",
+   "URL": "https://File.example/30/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 30"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 30",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 44,
+   "FileName": "data.json",
+   "FilePath": "C:\\Shots\\2026-11\\data.json",
+   "DateTime": {
+    "Ticks": 639301439954062647,
+    "Kind": "Local",
+    "O": "2026-11-13T05:19:55.4062647+00:00"
+   },
+   "Type": "File",
+   "Host": "File",
+   "URL": "https://File.example/31/data.json",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 31"
+    ],
+    [
+     "ProcessName",
+     "zsh"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 31",
+   "TagsProcessName": "zsh"
+  },
+  {
+   "Id": 45,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639299508757117325,
+    "Kind": "Local",
+    "O": "2026-11-10T23:41:15.7117325+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/32/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 32"
+    ],
+    [
+     "ProcessName",
+     "zsh"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 32",
+   "TagsProcessName": "zsh"
+  },
+  {
+   "Id": 46,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639303220423171900,
+    "Kind": "Local",
+    "O": "2026-11-15T06:47:22.3171900+00:00"
+   },
+   "Type": "URL",
+   "Host": "Amazon-S3",
+   "URL": "https://Amazon-S3.example/33/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 33"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 33",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 47,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639298432655963600,
+    "Kind": "Local",
+    "O": "2026-11-09T17:47:45.5963600+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 34"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 34",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 48,
+   "FileName": "file.é1",
+   "FilePath": "C:\\Shots\\2026-11\\file.é1",
+   "DateTime": {
+    "Ticks": 639300977112934625,
+    "Kind": "Local",
+    "O": "2026-11-12T16:28:31.2934625+00:00"
+   },
+   "Type": "image",
+   "Host": "a host",
+   "URL": "https://ahost.example/35/file.é1",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 35"
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 35",
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 49,
+   "FileName": "data.json",
+   "FilePath": "C:\\Shots\\2026-11\\data.json",
+   "DateTime": {
+    "Ticks": 639298186872938488,
+    "Kind": "Local",
+    "O": "2026-11-09T10:58:07.2938488+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "OCR",
+     "hello world"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 50,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 639344216630018400,
+    "Kind": "Local",
+    "O": "2027-01-01T17:34:23.0018400+00:00"
+   },
+   "Type": "image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 37"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 37",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 51,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639298695643687403,
+    "Kind": "Local",
+    "O": "2026-11-10T01:06:04.3687403+00:00"
+   },
+   "Type": "URL",
+   "Host": "File",
+   "URL": "https://File.example/38/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 38"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 38",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 52,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639027847746136179,
+    "Kind": "Local",
+    "O": "2025-12-31T13:32:54.6136179+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 39"
+    ],
+    [
+     "ProcessName",
+     "notepad++"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 39",
+   "TagsProcessName": "notepad++"
+  },
+  {
+   "Id": 53,
+   "FileName": "clip.WEBM",
+   "FilePath": "C:\\Shots\\2026-11\\clip.WEBM",
+   "DateTime": {
+    "Ticks": 639292807570440471,
+    "Kind": "Local",
+    "O": "2026-11-03T05:32:37.0440471+00:00"
+   },
+   "Type": "File",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 40"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 40",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 54,
+   "FileName": "rec.gif",
+   "FilePath": "C:\\Shots\\2026-11\\rec.gif",
+   "DateTime": {
+    "Ticks": 639294100563571211,
+    "Kind": "Local",
+    "O": "2026-11-04T17:27:36.3571211+00:00"
+   },
+   "Type": "Text",
+   "Host": "_underscore",
+   "URL": "https://_underscore.example/41/rec.gif",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 41"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 41",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 55,
+   "FileName": "dot.at.end.",
+   "FilePath": "C:\\Shots\\2026-11\\dot.at.end.",
+   "DateTime": {
+    "Ticks": 639292959976008276,
+    "Kind": "Local",
+    "O": "2026-11-03T09:46:37.6008276+00:00"
+   },
+   "Type": "Image",
+   "Host": "2host",
+   "URL": "https://2host.example/42/dot.at.end.",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 42"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 42",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 56,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639294165869060398,
+    "Kind": "Local",
+    "O": "2026-11-04T19:16:26.9060398+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "2host",
+   "URL": "https://2host.example/43/x.Png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 43"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 43",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 57,
+   "FileName": "clip.WEBM",
+   "FilePath": "C:\\Shots\\2026-11\\clip.WEBM",
+   "DateTime": {
+    "Ticks": 639103832166153740,
+    "Kind": "Local",
+    "O": "2026-03-29T12:13:36.6153740+01:00"
+   },
+   "Type": "Image",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 44"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 44",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 58,
+   "FileName": "file.abcdefg",
+   "FilePath": "C:\\Shots\\2026-11\\file.abcdefg",
+   "DateTime": {
+    "Ticks": 639290243785610406,
+    "Kind": "Local",
+    "O": "2026-10-31T06:19:38.5610406+00:00"
+   },
+   "Type": "Image",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/45/file.abcdefg",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 45"
+    ],
+    [
+     "ProcessName",
+     "code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 45",
+   "TagsProcessName": "code"
+  },
+  {
+   "Id": 59,
+   "FileName": "dot.at.end.",
+   "FilePath": "C:\\Shots\\2026-11\\dot.at.end.",
+   "DateTime": {
+    "Ticks": 639103722530539943,
+    "Kind": "Local",
+    "O": "2026-03-29T09:10:53.0539943+01:00"
+   },
+   "Type": "Image",
+   "Host": "10host",
+   "URL": "https://10host.example/46/dot.at.end.",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 46"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ],
+    [
+     "OCR",
+     "chrome settings"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 46",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 60,
+   "FileName": "rec.gif",
+   "FilePath": "C:\\Shots\\2026-11\\rec.gif",
+   "DateTime": {
+    "Ticks": 639103582123985054,
+    "Kind": "Local",
+    "O": "2026-03-29T05:16:52.3985054+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 47"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 47",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 61,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639303483012692782,
+    "Kind": "Local",
+    "O": "2026-11-15T14:05:01.2692782+00:00"
+   },
+   "Type": "File",
+   "Host": "imgur",
+   "URL": "https://imgur.example/48/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 48"
+    ],
+    [
+     "ProcessName",
+     "Ärger"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 48",
+   "TagsProcessName": "Ärger"
+  },
+  {
+   "Id": 62,
+   "FileName": "shot.png",
+   "FilePath": "C:\\Shots\\2026-11\\shot.png",
+   "DateTime": {
+    "Ticks": 639298069579412815,
+    "Kind": "Local",
+    "O": "2026-11-09T07:42:37.9412815+00:00"
+   },
+   "Type": "Text",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/49/shot.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 49"
+    ],
+    [
+     "ProcessName",
+     "code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 49",
+   "TagsProcessName": "code"
+  },
+  {
+   "Id": 63,
+   "FileName": "no_ext",
+   "FilePath": "C:\\Shots\\2026-11\\no_ext",
+   "DateTime": {
+    "Ticks": 638448321964510349,
+    "Kind": "Local",
+    "O": "2024-02-29T19:36:36.4510349+00:00"
+   },
+   "Type": "URL",
+   "Host": "imgur",
+   "URL": "https://imgur.example/50/no_ext",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 50"
+    ],
+    [
+     "ProcessName",
+     "zsh"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 50",
+   "TagsProcessName": "zsh"
+  },
+  {
+   "Id": 64,
+   "FileName": "file.abcdefg",
+   "FilePath": "C:\\Shots\\2026-11\\file.abcdefg",
+   "DateTime": {
+    "Ticks": 639302987750873622,
+    "Kind": "Local",
+    "O": "2026-11-15T00:19:35.0873622+00:00"
+   },
+   "Type": "Image",
+   "Host": "amazons3",
+   "URL": "https://amazons3.example/51/file.abcdefg",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 51"
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 51",
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 65,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639028000981060001,
+    "Kind": "Local",
+    "O": "2025-12-31T17:48:18.1060001+00:00"
+   },
+   "Type": "Image",
+   "Host": "10host",
+   "URL": "https://10host.example/52/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 52"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 52",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 66,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 638843957610567072,
+    "Kind": "Local",
+    "O": "2025-06-01T17:29:21.0567072+01:00"
+   },
+   "Type": "Text",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 53"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 53",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 67,
+   "FileName": "rec.gif",
+   "FilePath": "C:\\Shots\\2026-11\\rec.gif",
+   "DateTime": {
+    "Ticks": 639299305073532130,
+    "Kind": "Local",
+    "O": "2026-11-10T18:01:47.3532130+00:00"
+   },
+   "Type": "Image",
+   "Host": "a host",
+   "URL": "https://ahost.example/54/rec.gif",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 54"
+    ],
+    [
+     "ProcessName",
+     "explorer"
+    ],
+    [
+     "OCR",
+     "hello world"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 54",
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 68,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639027428783657359,
+    "Kind": "Local",
+    "O": "2025-12-31T01:54:38.3657359+00:00"
+   },
+   "Type": "Text",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/55/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 55"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 55",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 69,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639306308035413541,
+    "Kind": "Local",
+    "O": "2026-11-18T20:33:23.5413541+00:00"
+   },
+   "Type": "File",
+   "Host": "2host",
+   "URL": "https://2host.example/56/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 56"
+    ],
+    [
+     "ProcessName",
+     "chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 56",
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 70,
+   "FileName": "PIC.JPG",
+   "FilePath": "C:\\Shots\\2026-11\\PIC.JPG",
+   "DateTime": {
+    "Ticks": 639301892759920003,
+    "Kind": "Local",
+    "O": "2026-11-13T17:54:35.9920003+00:00"
+   },
+   "Type": "image",
+   "Host": "2host",
+   "URL": "https://2host.example/57/PIC.JPG",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 71,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 639301610315033706,
+    "Kind": "Local",
+    "O": "2026-11-13T10:03:51.5033706+00:00"
+   },
+   "Type": "image",
+   "Host": "2host",
+   "URL": "https://2host.example/58/notes.txt",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 58"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 58",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 72,
+   "FileName": "weird.name)",
+   "FilePath": "C:\\Shots\\2026-11\\weird.name)",
+   "DateTime": {
+    "Ticks": 639303213691897765,
+    "Kind": "Local",
+    "O": "2026-11-15T06:36:09.1897765+00:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "https://Imgur.example/59/weird.name)",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 59"
+    ],
+    [
+     "ProcessName",
+     "Code"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 59",
+   "TagsProcessName": "Code"
+  },
+  {
+   "Id": 73,
+   "FileName": "x.Png",
+   "FilePath": "C:\\Shots\\2026-11\\x.Png",
+   "DateTime": {
+    "Ticks": 639303950983595668,
+    "Kind": "Local",
+    "O": "2026-11-16T03:04:58.3595668+00:00"
+   },
+   "Type": "File",
+   "Host": "  ",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 60"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 60",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 74,
+   "FileName": "rec.gif",
+   "FilePath": "C:\\Shots\\2026-11\\rec.gif",
+   "DateTime": {
+    "Ticks": 639301172590505789,
+    "Kind": "Local",
+    "O": "2026-11-12T21:54:19.0505789+00:00"
+   },
+   "Type": "Text",
+   "Host": "10host",
+   "URL": "https://10host.example/61/rec.gif",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 75,
+   "FileName": "file.abcdefg",
+   "FilePath": "C:\\Shots\\2026-11\\file.abcdefg",
+   "DateTime": {
+    "Ticks": 639304460666809159,
+    "Kind": "Local",
+    "O": "2026-11-16T17:14:26.6809159+00:00"
+   },
+   "Type": "Text",
+   "Host": "Custom image uploader",
+   "URL": "https://Customimageuploader.example/62/file.abcdefg",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 62"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 62",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 76,
+   "FileName": "a+b(1).png",
+   "FilePath": "C:\\Shots\\2026-11\\a+b(1).png",
+   "DateTime": {
+    "Ticks": 639293059892555506,
+    "Kind": "Local",
+    "O": "2026-11-03T12:33:09.2555506+00:00"
+   },
+   "Type": "image",
+   "Host": "_underscore",
+   "URL": "https://_underscore.example/63/a+b(1).png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 63"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 63",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 77,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639304523511548706,
+    "Kind": "Local",
+    "O": "2026-11-16T18:59:11.1548706+00:00"
+   },
+   "Type": "Text",
+   "Host": "Ünicode host",
+   "URL": "https://Ünicodehost.example/64/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 64"
+    ],
+    [
+     "ProcessName",
+     "ShareX"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 64",
+   "TagsProcessName": "ShareX"
+  },
+  {
+   "Id": 78,
+   "FileName": "archive.tar.gz",
+   "FilePath": "C:\\Shots\\2026-11\\archive.tar.gz",
+   "DateTime": {
+    "Ticks": 639103735779302881,
+    "Kind": "Local",
+    "O": "2026-03-29T09:32:57.9302881+01:00"
+   },
+   "Type": "File",
+   "Host": "_underscore",
+   "URL": "https://_underscore.example/65/archive.tar.gz",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 65"
+    ],
+    [
+     "ProcessName",
+     " firefox "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 65",
+   "TagsProcessName": " firefox "
+  },
+  {
+   "Id": 79,
+   "FileName": "no_ext",
+   "FilePath": "C:\\Shots\\2026-11\\no_ext",
+   "DateTime": {
+    "Ticks": 639027616574386786,
+    "Kind": "Local",
+    "O": "2025-12-31T07:07:37.4386786+00:00"
+   },
+   "Type": "File",
+   "Host": "Ünicode host",
+   "URL": "https://Ünicodehost.example/66/no_ext",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 66"
+    ],
+    [
+     "ProcessName",
+     "notepad++"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 66",
+   "TagsProcessName": "notepad++"
+  },
+  {
+   "Id": 80,
+   "FileName": "file.abcdefg",
+   "FilePath": "C:\\Shots\\2026-11\\file.abcdefg",
+   "DateTime": {
+    "Ticks": 639305849352279662,
+    "Kind": "Local",
+    "O": "2026-11-18T07:48:55.2279662+00:00"
+   },
+   "Type": "URL",
+   "Host": "Imgur",
+   "URL": "https://Imgur.example/67/file.abcdefg",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 81,
+   "FileName": "notes.txt",
+   "FilePath": "C:\\Shots\\2026-11\\notes.txt",
+   "DateTime": {
+    "Ticks": 638843736933294900,
+    "Kind": "Local",
+    "O": "2025-06-01T11:21:33.3294900+01:00"
+   },
+   "Type": "image",
+   "Host": "2host",
+   "URL": "https://2host.example/68/notes.txt",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "WindowTitle",
+     "Window 68"
+    ],
+    [
+     "ProcessName",
+     "Chrome"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": "Window 68",
+   "TagsProcessName": "Chrome"
+  },
+  {
+   "Id": 83,
+   "FileName": "after-delete.png",
+   "FilePath": "C:\\Shots\\2026-11\\after-delete.png",
+   "DateTime": {
+    "Ticks": 639305100000000000,
+    "Kind": "Local",
+    "O": "2026-11-17T11:00:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "ReadRaw": [
+  {
+   "Id": 1,
+   "FileName": "tokyo.png",
+   "FilePath": "C:\\t.png",
+   "DateTime": {
+    "Ticks": 639184752000000000,
+    "Kind": "Local",
+    "O": "2026-07-01T04:00:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 2,
+   "FileName": "zulu.png",
+   "FilePath": "C:\\z.png",
+   "DateTime": {
+    "Ticks": 639032040000000000,
+    "Kind": "Local",
+    "O": "2026-01-05T10:00:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 3,
+   "FileName": "none.png",
+   "FilePath": "C:\\n.png",
+   "DateTime": {
+    "Ticks": 639032040000000000,
+    "Kind": "Unspecified",
+    "O": "2026-01-05T10:00:00.0000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 4,
+   "FileName": "dateonly.png",
+   "FilePath": "C:\\d.png",
+   "DateTime": {
+    "Ticks": 639031680000000000,
+    "Kind": "Unspecified",
+    "O": "2026-01-05T00:00:00.0000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 5,
+   "FileName": "ms.png",
+   "FilePath": "C:\\m.png",
+   "DateTime": {
+    "Ticks": 639188388001230000,
+    "Kind": "Local",
+    "O": "2026-07-05T09:00:00.1230000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 6,
+   "FileName": "eight.png",
+   "FilePath": "C:\\e.png",
+   "DateTime": {
+    "Ticks": 639188424001234568,
+    "Kind": "Unspecified",
+    "O": "2026-07-05T10:00:00.1234568"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 7,
+   "FileName": "eight2.png",
+   "FilePath": "C:\\e2.png",
+   "DateTime": {
+    "Ticks": 639188424001234567,
+    "Kind": "Unspecified",
+    "O": "2026-07-05T10:00:00.1234567"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 8,
+   "FileName": "space.png",
+   "FilePath": "C:\\s.png",
+   "DateTime": {
+    "Ticks": 639188424000000000,
+    "Kind": "Unspecified",
+    "O": "2026-07-05T10:00:00.0000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 9,
+   "FileName": "nocolon.png",
+   "FilePath": "C:\\c.png",
+   "DateTime": {
+    "Ticks": 639188262000000000,
+    "Kind": "Local",
+    "O": "2026-07-05T05:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 10,
+   "FileName": "houronly.png",
+   "FilePath": "C:\\h.png",
+   "DateTime": {
+    "Ticks": 639188640000000000,
+    "Kind": "Local",
+    "O": "2026-07-05T16:00:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 11,
+   "FileName": "minutes.png",
+   "FilePath": "C:\\mi.png",
+   "DateTime": {
+    "Ticks": 639188424000000000,
+    "Kind": "Unspecified",
+    "O": "2026-07-05T10:00:00.0000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 12,
+   "FileName": "ambig.png",
+   "FilePath": "C:\\a.png",
+   "DateTime": {
+    "Ticks": 638970390000000000,
+    "Kind": "Local",
+    "O": "2025-10-26T01:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 13,
+   "FileName": "ambig2.png",
+   "FilePath": "C:\\a2.png",
+   "DateTime": {
+    "Ticks": 638970390000000000,
+    "Kind": "Local",
+    "O": "2025-10-26T01:30:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 14,
+   "FileName": "",
+   "FilePath": "",
+   "DateTime": {
+    "Ticks": 639055945220000000,
+    "Kind": "Local",
+    "O": "2026-02-02T02:02:02.0000000+00:00"
+   },
+   "Type": "",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 15,
+   "FileName": "12345",
+   "FilePath": "1.5",
+   "DateTime": {
+    "Ticks": 639055945220000000,
+    "Kind": "Local",
+    "O": "2026-02-02T02:02:02.0000000+00:00"
+   },
+   "Type": "System.Byte[]",
+   "Host": "1.0e+20",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 16,
+   "FileName": "dup.png",
+   "FilePath": "C:\\dup.png",
+   "DateTime": {
+    "Ticks": 639056736000000000,
+    "Kind": "Local",
+    "O": "2026-02-03T00:00:00.0000000+00:00"
+   },
+   "Type": "IMAGE",
+   "Host": "imgur",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "a",
+     "3"
+    ],
+    [
+     "b",
+     "2"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 17,
+   "FileName": "num.png",
+   "FilePath": "C:\\num.png",
+   "DateTime": {
+    "Ticks": 639056736000000000,
+    "Kind": "Local",
+    "O": "2026-02-03T00:00:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "IMGUR",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "n",
+     "5"
+    ],
+    [
+     "f",
+     "1.5"
+    ],
+    [
+     "t",
+     "true"
+    ],
+    [
+     "z",
+     null
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 18,
+   "FileName": "esc.png",
+   "FilePath": "C:\\esc.png",
+   "DateTime": {
+    "Ticks": 639056736000000000,
+    "Kind": "Local",
+    "O": "2026-02-03T00:00:00.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "k",
+     "é\n\""
+    ],
+    [
+     "ProcessName",
+     "Ärger"
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "Ärger"
+  }
+ ],
+ "RawErrors": {
+  "null-date": {
+   "Error": "FormatException"
+  },
+  "bad-date": {
+   "Error": "FormatException"
+  },
+  "bad-tags": {
+   "Error": "JsonSerializationException"
+  }
+ },
+ "JsonRead": [
+  {
+   "Id": 0,
+   "FileName": "json1.png",
+   "FilePath": "C:\\Shots\\2026-11\\json1.png",
+   "DateTime": {
+    "Ticks": 635984840365556426,
+    "Kind": "Local",
+    "O": "2016-05-10T13:33:56.5556426+01:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "https://i.imgur.com/a.png",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": [
+    [
+     "ProcessName",
+     "chrome"
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 0,
+   "FileName": "json2.txt",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 635985216000000000,
+    "Kind": "Utc",
+    "O": "2016-05-11T00:00:00.0000000Z"
+   },
+   "Type": "Text",
+   "Host": null,
+   "URL": "https://p/x",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json3.png",
+   "FilePath": "C:\\Shots\\2026-11\\json3.png",
+   "DateTime": {
+    "Ticks": 635986117234000000,
+    "Kind": "Unspecified",
+    "O": "2016-05-12T01:02:03.4000000"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": [
+    [
+     "Odd",
+     "q\"\\ \u0001\u001f\t\n\r\b\f    é ✓ 😀 <>&' "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json4.png",
+   "FilePath": "C:\\Shots\\2026-11\\json4.png",
+   "DateTime": {
+    "Ticks": 635813334000000000,
+    "Kind": "Local",
+    "O": "2015-10-25T01:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json5.png",
+   "FilePath": "C:\\Shots\\2026-11\\json5.png",
+   "DateTime": {
+    "Ticks": 636003792000000000,
+    "Kind": "Local",
+    "O": "2016-06-01T12:00:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": [],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "JsonMigrated": [
+  {
+   "Id": 1,
+   "FileName": "json1.png",
+   "FilePath": "C:\\Shots\\2026-11\\json1.png",
+   "DateTime": {
+    "Ticks": 635984840365556426,
+    "Kind": "Local",
+    "O": "2016-05-10T13:33:56.5556426+01:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "https://i.imgur.com/a.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "ProcessName",
+     "chrome"
+    ],
+    [
+     "Favorite",
+     null
+    ]
+   ],
+   "Favorite": true,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "chrome"
+  },
+  {
+   "Id": 2,
+   "FileName": "json2.txt",
+   "FilePath": "",
+   "DateTime": {
+    "Ticks": 635985252000000000,
+    "Kind": "Local",
+    "O": "2016-05-11T01:00:00.0000000+01:00"
+   },
+   "Type": "Text",
+   "Host": "",
+   "URL": "https://p/x",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 3,
+   "FileName": "json3.png",
+   "FilePath": "C:\\Shots\\2026-11\\json3.png",
+   "DateTime": {
+    "Ticks": 635986117234000000,
+    "Kind": "Unspecified",
+    "O": "2016-05-12T01:02:03.4000000"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "Odd",
+     "q\"\\ \u0001\u001f\t\n\r\b\f    é ✓ 😀 <>&' "
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 4,
+   "FileName": "json4.png",
+   "FilePath": "C:\\Shots\\2026-11\\json4.png",
+   "DateTime": {
+    "Ticks": 635813334000000000,
+    "Kind": "Local",
+    "O": "2015-10-25T01:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 5,
+   "FileName": "json5.png",
+   "FilePath": "C:\\Shots\\2026-11\\json5.png",
+   "DateTime": {
+    "Ticks": 636003792000000000,
+    "Kind": "Local",
+    "O": "2016-06-01T12:00:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "JsonRawRead": [
+  {
+   "Id": 0,
+   "FileName": "old1.png",
+   "FilePath": "C:\\Old\\old1.png",
+   "DateTime": {
+    "Ticks": 635984768365550000,
+    "Kind": "Utc",
+    "O": "2016-05-10T11:33:56.5550000Z"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": [
+    [
+     "ProcessName",
+     "explorer"
+    ],
+    [
+     "n",
+     "5"
+    ],
+    [
+     "b",
+     "true"
+    ],
+    [
+     "z",
+     null
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 0,
+   "FileName": "old2.png",
+   "FilePath": "C:\\Old\\old2.png",
+   "DateTime": {
+    "Ticks": 635984804365550000,
+    "Kind": "Local",
+    "O": "2016-05-10T12:33:56.5550000+01:00"
+   },
+   "Type": null,
+   "Host": "Imgur",
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "old3.png",
+   "FilePath": "C:\\Old\\old3.png",
+   "DateTime": {
+    "Ticks": 635984768365556426,
+    "Kind": "Local",
+    "O": "2016-05-10T11:33:56.5556426+01:00"
+   },
+   "Type": "File",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "old4.png",
+   "FilePath": "C:\\Old\\old4.png",
+   "DateTime": {
+    "Ticks": 635984840361234568,
+    "Kind": "Utc",
+    "O": "2016-05-10T13:33:56.1234568Z"
+   },
+   "Type": null,
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "old5.png",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 0,
+    "Kind": "Unspecified",
+    "O": "0001-01-01T00:00:00.0000000"
+   },
+   "Type": null,
+   "Host": null,
+   "URL": "https://x/old5.png",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "JsonRawMigrated": [
+  {
+   "Id": 1,
+   "FileName": "old1.png",
+   "FilePath": "C:\\Old\\old1.png",
+   "DateTime": {
+    "Ticks": 635984804365550000,
+    "Kind": "Local",
+    "O": "2016-05-10T12:33:56.5550000+01:00"
+   },
+   "Type": "Image",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": [
+    [
+     "ProcessName",
+     "explorer"
+    ],
+    [
+     "n",
+     "5"
+    ],
+    [
+     "b",
+     "true"
+    ],
+    [
+     "z",
+     null
+    ]
+   ],
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": "explorer"
+  },
+  {
+   "Id": 2,
+   "FileName": "old2.png",
+   "FilePath": "C:\\Old\\old2.png",
+   "DateTime": {
+    "Ticks": 635984804365550000,
+    "Kind": "Local",
+    "O": "2016-05-10T12:33:56.5550000+01:00"
+   },
+   "Type": "",
+   "Host": "Imgur",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 3,
+   "FileName": "old3.png",
+   "FilePath": "C:\\Old\\old3.png",
+   "DateTime": {
+    "Ticks": 635984768365556426,
+    "Kind": "Local",
+    "O": "2016-05-10T11:33:56.5556426+01:00"
+   },
+   "Type": "File",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 4,
+   "FileName": "old4.png",
+   "FilePath": "C:\\Old\\old4.png",
+   "DateTime": {
+    "Ticks": 635984876361234568,
+    "Kind": "Local",
+    "O": "2016-05-10T14:33:56.1234568+01:00"
+   },
+   "Type": "",
+   "Host": "",
+   "URL": "",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 5,
+   "FileName": "old5.png",
+   "FilePath": "",
+   "DateTime": {
+    "Ticks": 0,
+    "Kind": "Unspecified",
+    "O": "0001-01-01T00:00:00.0000000"
+   },
+   "Type": "",
+   "Host": "",
+   "URL": "https://x/old5.png",
+   "ThumbnailURL": "",
+   "DeletionURL": "",
+   "ShortenedURL": "",
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "XmlRead": [
+  {
+   "Id": 0,
+   "FileName": "json1.png",
+   "FilePath": "C:\\Shots\\2026-11\\json1.png",
+   "DateTime": {
+    "Ticks": 635984840365556426,
+    "Kind": "Local",
+    "O": "2016-05-10T13:33:56.5556426+01:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "https://i.imgur.com/a.png",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json2.txt",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 635985252000000000,
+    "Kind": "Local",
+    "O": "2016-05-11T01:00:00.0000000+01:00"
+   },
+   "Type": "Text",
+   "Host": null,
+   "URL": "https://p/x",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json3.png",
+   "FilePath": "C:\\Shots\\2026-11\\json3.png",
+   "DateTime": {
+    "Ticks": 635986117234000000,
+    "Kind": "Unspecified",
+    "O": "2016-05-12T01:02:03.4000000"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json4.png",
+   "FilePath": "C:\\Shots\\2026-11\\json4.png",
+   "DateTime": {
+    "Ticks": 635813334000000000,
+    "Kind": "Local",
+    "O": "2015-10-25T01:30:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "json5.png",
+   "FilePath": "C:\\Shots\\2026-11\\json5.png",
+   "DateTime": {
+    "Ticks": 636003792000000000,
+    "Kind": "Local",
+    "O": "2016-06-01T12:00:00.0000000+01:00"
+   },
+   "Type": "Image",
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "XmlRawRead": [
+  {
+   "Id": 0,
+   "FileName": "xml1.png",
+   "FilePath": "C:\\Old\\xml1.png",
+   "DateTime": {
+    "Ticks": 634610702450000000,
+    "Kind": "Local",
+    "O": "2012-01-02T03:04:05.0000000+00:00"
+   },
+   "Type": "Image",
+   "Host": "Imgur",
+   "URL": "http://i.imgur.com/a.png",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "b & c é",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 0,
+    "Kind": "Unspecified",
+    "O": "0001-01-01T00:00:00.0000000"
+   },
+   "Type": "File",
+   "Host": "aboldc",
+   "URL": "",
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": "nested.png",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 634767914451234567,
+    "Kind": "Local",
+    "O": "2012-07-02T02:04:05.1234567+01:00"
+   },
+   "Type": null,
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  },
+  {
+   "Id": 0,
+   "FileName": " spaced ",
+   "FilePath": null,
+   "DateTime": {
+    "Ticks": 634767950450000000,
+    "Kind": "Unspecified",
+    "O": "2012-07-02T03:04:05.0000000"
+   },
+   "Type": null,
+   "Host": null,
+   "URL": null,
+   "ThumbnailURL": null,
+   "DeletionURL": null,
+   "ShortenedURL": null,
+   "Tags": null,
+   "Favorite": false,
+   "Tag": null,
+   "TagsWindowTitle": null,
+   "TagsProcessName": null
+  }
+ ],
+ "Stats": [
+  {
+   "Today": 639304704000000000,
+   "Total": {
+    "Images": 53,
+    "Recordings": 12,
+    "Other": 15
+   },
+   "Daily": [
+    [
+     636977952000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638447616000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638788896000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638843328000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638970336000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639027360000000000,
+     {
+      "Images": 4,
+      "Recordings": 2,
+      "Other": 1
+     }
+    ],
+    [
+     639040320000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639103392000000000,
+     {
+      "Images": 2,
+      "Recordings": 2,
+      "Other": 2
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639290016000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639292608000000000,
+     {
+      "Images": 5,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639293472000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639297792000000000,
+     {
+      "Images": 3,
+      "Recordings": 2,
+      "Other": 0
+     }
+    ],
+    [
+     639298656000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639300384000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639301248000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639302976000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639303840000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 4
+     }
+    ],
+    [
+     639304704000000000,
+     {
+      "Images": 5,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639305568000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 2
+     }
+    ],
+    [
+     639343584000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 2,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 5,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 5,
+     "Recordings": 2,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 0,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 13,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 6,
+     "Recordings": 3,
+     "Other": 4
+    },
+    {
+     "Images": 11,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 9,
+     "Recordings": 4,
+     "Other": 3
+    },
+    {
+     "Images": 5,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 8,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 636977952000000000,
+   "Apps": [
+    [
+     "Chrome",
+     13
+    ],
+    [
+     "Code",
+     12
+    ],
+    [
+     "ShareX",
+     11
+    ],
+    [
+     "explorer",
+     9
+    ],
+    [
+     "firefox",
+     7
+    ],
+    [
+     "zsh",
+     5
+    ],
+    [
+     "",
+     8
+    ]
+   ],
+   "Destinations": [
+    [
+     "2host",
+     8
+    ],
+    [
+     "Custom image uploader",
+     7
+    ],
+    [
+     "10host",
+     6
+    ],
+    [
+     "amazons3",
+     6
+    ],
+    [
+     "Imgur",
+     6
+    ],
+    [
+     "_underscore",
+     5
+    ],
+    [
+     "",
+     19
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     28
+    ],
+    [
+     "GZ",
+     11
+    ],
+    [
+     "JPG",
+     7
+    ],
+    [
+     "TXT",
+     7
+    ],
+    [
+     "GIF",
+     5
+    ],
+    [
+     "WEBM",
+     5
+    ],
+    [
+     "",
+     6
+    ]
+   ],
+   "TodayTally": {
+    "Images": 5,
+    "Recordings": 0,
+    "Other": 1
+   },
+   "Past7Days": 31,
+   "Previous7Days": 14,
+   "Streak": 3,
+   "LongestStreak": 4,
+   "LongestStreakEnd": 639305568000000000,
+   "BusiestDay": 639303840000000000,
+   "BusiestDayCount": 8,
+   "DaysCounted": 2694,
+   "PeakHour": [
+    17,
+    10,
+    5
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638990208000000000,
+      639304704000000000,
+      14
+     ]
+    ],
+    [
+     -1,
+     [
+      636977952000000000,
+      639304704000000000,
+      19
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639304704000000000,
+      13
+     ]
+    ],
+    [
+     2025,
+     [
+      638712864000000000,
+      639027360000000000,
+      4
+     ]
+    ],
+    [
+     2024,
+     [
+      638396640000000000,
+      638712000000000000,
+      1
+     ]
+    ],
+    [
+     2023,
+     [
+      638081280000000000,
+      638395776000000000,
+      0
+     ]
+    ],
+    [
+     2022,
+     [
+      637765920000000000,
+      638080416000000000,
+      0
+     ]
+    ],
+    [
+     2021,
+     [
+      637450560000000000,
+      637765056000000000,
+      0
+     ]
+    ],
+    [
+     2020,
+     [
+      637134336000000000,
+      637449696000000000,
+      0
+     ]
+    ],
+    [
+     2019,
+     [
+      636977952000000000,
+      637133472000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639303840000000000
+  },
+  {
+   "Today": 639304704000000000,
+   "Total": {
+    "Images": 53,
+    "Recordings": 12,
+    "Other": 15
+   },
+   "Daily": [
+    [
+     636977952000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638447616000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638788896000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638843328000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638970336000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639027360000000000,
+     {
+      "Images": 4,
+      "Recordings": 2,
+      "Other": 1
+     }
+    ],
+    [
+     639040320000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639103392000000000,
+     {
+      "Images": 2,
+      "Recordings": 2,
+      "Other": 2
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639290016000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639292608000000000,
+     {
+      "Images": 5,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639293472000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639297792000000000,
+     {
+      "Images": 3,
+      "Recordings": 2,
+      "Other": 0
+     }
+    ],
+    [
+     639298656000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639300384000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639301248000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639302976000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639303840000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 4
+     }
+    ],
+    [
+     639304704000000000,
+     {
+      "Images": 5,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639305568000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 2
+     }
+    ],
+    [
+     639343584000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 2,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 5,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 5,
+     "Recordings": 2,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 0,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 13,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 6,
+     "Recordings": 3,
+     "Other": 4
+    },
+    {
+     "Images": 11,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 9,
+     "Recordings": 4,
+     "Other": 3
+    },
+    {
+     "Images": 5,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 8,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 636977952000000000,
+   "Apps": [
+    [
+     "Chrome",
+     13
+    ],
+    [
+     "Code",
+     12
+    ],
+    [
+     "ShareX",
+     11
+    ],
+    [
+     "explorer",
+     9
+    ],
+    [
+     "firefox",
+     7
+    ],
+    [
+     "zsh",
+     5
+    ],
+    [
+     "",
+     8
+    ]
+   ],
+   "Destinations": [
+    [
+     "2host",
+     8
+    ],
+    [
+     "Custom image uploader",
+     7
+    ],
+    [
+     "10host",
+     6
+    ],
+    [
+     "amazons3",
+     6
+    ],
+    [
+     "Imgur",
+     6
+    ],
+    [
+     "_underscore",
+     5
+    ],
+    [
+     "",
+     19
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     28
+    ],
+    [
+     "GZ",
+     11
+    ],
+    [
+     "JPG",
+     7
+    ],
+    [
+     "TXT",
+     7
+    ],
+    [
+     "GIF",
+     5
+    ],
+    [
+     "WEBM",
+     5
+    ],
+    [
+     "",
+     6
+    ]
+   ],
+   "TodayTally": {
+    "Images": 5,
+    "Recordings": 0,
+    "Other": 1
+   },
+   "Past7Days": 31,
+   "Previous7Days": 14,
+   "Streak": 3,
+   "LongestStreak": 4,
+   "LongestStreakEnd": 639305568000000000,
+   "BusiestDay": 639303840000000000,
+   "BusiestDayCount": 8,
+   "DaysCounted": 2694,
+   "PeakHour": [
+    17,
+    10,
+    5
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638990208000000000,
+      639304704000000000,
+      14
+     ]
+    ],
+    [
+     -1,
+     [
+      636977952000000000,
+      639304704000000000,
+      19
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639304704000000000,
+      13
+     ]
+    ],
+    [
+     2025,
+     [
+      638712864000000000,
+      639027360000000000,
+      4
+     ]
+    ],
+    [
+     2024,
+     [
+      638396640000000000,
+      638712000000000000,
+      1
+     ]
+    ],
+    [
+     2023,
+     [
+      638081280000000000,
+      638395776000000000,
+      0
+     ]
+    ],
+    [
+     2022,
+     [
+      637765920000000000,
+      638080416000000000,
+      0
+     ]
+    ],
+    [
+     2021,
+     [
+      637450560000000000,
+      637765056000000000,
+      0
+     ]
+    ],
+    [
+     2020,
+     [
+      637134336000000000,
+      637449696000000000,
+      0
+     ]
+    ],
+    [
+     2019,
+     [
+      636977952000000000,
+      637133472000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639302976000000000
+  },
+  {
+   "Today": 639302112000000000,
+   "Total": {
+    "Images": 53,
+    "Recordings": 12,
+    "Other": 15
+   },
+   "Daily": [
+    [
+     636977952000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638447616000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638788896000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638843328000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638970336000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639027360000000000,
+     {
+      "Images": 4,
+      "Recordings": 2,
+      "Other": 1
+     }
+    ],
+    [
+     639040320000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639103392000000000,
+     {
+      "Images": 2,
+      "Recordings": 2,
+      "Other": 2
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639290016000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639292608000000000,
+     {
+      "Images": 5,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639293472000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639297792000000000,
+     {
+      "Images": 3,
+      "Recordings": 2,
+      "Other": 0
+     }
+    ],
+    [
+     639298656000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639300384000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639301248000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639302976000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639303840000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 4
+     }
+    ],
+    [
+     639304704000000000,
+     {
+      "Images": 5,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639305568000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 2
+     }
+    ],
+    [
+     639343584000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 2,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 5,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 5,
+     "Recordings": 2,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 0,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 13,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 6,
+     "Recordings": 3,
+     "Other": 4
+    },
+    {
+     "Images": 11,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 9,
+     "Recordings": 4,
+     "Other": 3
+    },
+    {
+     "Images": 5,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 8,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 636977952000000000,
+   "Apps": [
+    [
+     "Chrome",
+     13
+    ],
+    [
+     "Code",
+     12
+    ],
+    [
+     "ShareX",
+     11
+    ],
+    [
+     "explorer",
+     9
+    ],
+    [
+     "firefox",
+     7
+    ],
+    [
+     "zsh",
+     5
+    ],
+    [
+     "",
+     8
+    ]
+   ],
+   "Destinations": [
+    [
+     "2host",
+     8
+    ],
+    [
+     "Custom image uploader",
+     7
+    ],
+    [
+     "10host",
+     6
+    ],
+    [
+     "amazons3",
+     6
+    ],
+    [
+     "Imgur",
+     6
+    ],
+    [
+     "_underscore",
+     5
+    ],
+    [
+     "",
+     19
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     28
+    ],
+    [
+     "GZ",
+     11
+    ],
+    [
+     "JPG",
+     7
+    ],
+    [
+     "TXT",
+     7
+    ],
+    [
+     "GIF",
+     5
+    ],
+    [
+     "WEBM",
+     5
+    ],
+    [
+     "",
+     6
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 17,
+   "Previous7Days": 11,
+   "Streak": 2,
+   "LongestStreak": 4,
+   "LongestStreakEnd": 639305568000000000,
+   "BusiestDay": 639303840000000000,
+   "BusiestDayCount": 8,
+   "DaysCounted": 2691,
+   "PeakHour": [
+    17,
+    10,
+    5
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638987616000000000,
+      639302112000000000,
+      11
+     ]
+    ],
+    [
+     -1,
+     [
+      636977952000000000,
+      639302112000000000,
+      16
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639302112000000000,
+      10
+     ]
+    ],
+    [
+     2025,
+     [
+      638712864000000000,
+      639027360000000000,
+      4
+     ]
+    ],
+    [
+     2024,
+     [
+      638396640000000000,
+      638712000000000000,
+      1
+     ]
+    ],
+    [
+     2023,
+     [
+      638081280000000000,
+      638395776000000000,
+      0
+     ]
+    ],
+    [
+     2022,
+     [
+      637765920000000000,
+      638080416000000000,
+      0
+     ]
+    ],
+    [
+     2021,
+     [
+      637450560000000000,
+      637765056000000000,
+      0
+     ]
+    ],
+    [
+     2020,
+     [
+      637134336000000000,
+      637449696000000000,
+      0
+     ]
+    ],
+    [
+     2019,
+     [
+      636977952000000000,
+      637133472000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639302112000000000
+  },
+  {
+   "Today": 640290528000000000,
+   "Total": {
+    "Images": 53,
+    "Recordings": 12,
+    "Other": 15
+   },
+   "Daily": [
+    [
+     636977952000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638447616000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638788896000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638843328000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638970336000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639027360000000000,
+     {
+      "Images": 4,
+      "Recordings": 2,
+      "Other": 1
+     }
+    ],
+    [
+     639040320000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639103392000000000,
+     {
+      "Images": 2,
+      "Recordings": 2,
+      "Other": 2
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639290016000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639292608000000000,
+     {
+      "Images": 5,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639293472000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639297792000000000,
+     {
+      "Images": 3,
+      "Recordings": 2,
+      "Other": 0
+     }
+    ],
+    [
+     639298656000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639300384000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639301248000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639302976000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639303840000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 4
+     }
+    ],
+    [
+     639304704000000000,
+     {
+      "Images": 5,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639305568000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 2
+     }
+    ],
+    [
+     639343584000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 2,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 5,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 5,
+     "Recordings": 2,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 0,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 13,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 6,
+     "Recordings": 3,
+     "Other": 4
+    },
+    {
+     "Images": 11,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 9,
+     "Recordings": 4,
+     "Other": 3
+    },
+    {
+     "Images": 5,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 8,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 636977952000000000,
+   "Apps": [
+    [
+     "Chrome",
+     13
+    ],
+    [
+     "Code",
+     12
+    ],
+    [
+     "ShareX",
+     11
+    ],
+    [
+     "explorer",
+     9
+    ],
+    [
+     "firefox",
+     7
+    ],
+    [
+     "zsh",
+     5
+    ],
+    [
+     "",
+     8
+    ]
+   ],
+   "Destinations": [
+    [
+     "2host",
+     8
+    ],
+    [
+     "Custom image uploader",
+     7
+    ],
+    [
+     "10host",
+     6
+    ],
+    [
+     "amazons3",
+     6
+    ],
+    [
+     "Imgur",
+     6
+    ],
+    [
+     "_underscore",
+     5
+    ],
+    [
+     "",
+     19
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     28
+    ],
+    [
+     "GZ",
+     11
+    ],
+    [
+     "JPG",
+     7
+    ],
+    [
+     "TXT",
+     7
+    ],
+    [
+     "GIF",
+     5
+    ],
+    [
+     "WEBM",
+     5
+    ],
+    [
+     "",
+     6
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 4,
+   "LongestStreakEnd": 639305568000000000,
+   "BusiestDay": 639303840000000000,
+   "BusiestDayCount": 8,
+   "DaysCounted": 3835,
+   "PeakHour": [
+    17,
+    10,
+    5
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      639976032000000000,
+      640290528000000000,
+      0
+     ]
+    ],
+    [
+     -1,
+     [
+      636977952000000000,
+      640290528000000000,
+      21
+     ]
+    ],
+    [
+     2030,
+     [
+      640290528000000000,
+      640290528000000000,
+      0
+     ]
+    ],
+    [
+     2029,
+     [
+      639975168000000000,
+      640289664000000000,
+      0
+     ]
+    ],
+    [
+     2028,
+     [
+      639658944000000000,
+      639974304000000000,
+      0
+     ]
+    ],
+    [
+     2027,
+     [
+      639343584000000000,
+      639658080000000000,
+      1
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639342720000000000,
+      14
+     ]
+    ],
+    [
+     2025,
+     [
+      638712864000000000,
+      639027360000000000,
+      4
+     ]
+    ],
+    [
+     2024,
+     [
+      638396640000000000,
+      638712000000000000,
+      1
+     ]
+    ],
+    [
+     2023,
+     [
+      638081280000000000,
+      638395776000000000,
+      0
+     ]
+    ],
+    [
+     2022,
+     [
+      637765920000000000,
+      638080416000000000,
+      0
+     ]
+    ],
+    [
+     2021,
+     [
+      637450560000000000,
+      637765056000000000,
+      0
+     ]
+    ],
+    [
+     2020,
+     [
+      637134336000000000,
+      637449696000000000,
+      0
+     ]
+    ],
+    [
+     2019,
+     [
+      636977952000000000,
+      637133472000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 640289664000000000
+  },
+  {
+   "Today": 637134336000000000,
+   "Total": {
+    "Images": 53,
+    "Recordings": 12,
+    "Other": 15
+   },
+   "Daily": [
+    [
+     636977952000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638447616000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638788896000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     638843328000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     638970336000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639027360000000000,
+     {
+      "Images": 4,
+      "Recordings": 2,
+      "Other": 1
+     }
+    ],
+    [
+     639040320000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639103392000000000,
+     {
+      "Images": 2,
+      "Recordings": 2,
+      "Other": 2
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639290016000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639292608000000000,
+     {
+      "Images": 5,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639293472000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639297792000000000,
+     {
+      "Images": 3,
+      "Recordings": 2,
+      "Other": 0
+     }
+    ],
+    [
+     639298656000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 1
+     }
+    ],
+    [
+     639300384000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 0
+     }
+    ],
+    [
+     639301248000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639302976000000000,
+     {
+      "Images": 6,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639303840000000000,
+     {
+      "Images": 3,
+      "Recordings": 1,
+      "Other": 4
+     }
+    ],
+    [
+     639304704000000000,
+     {
+      "Images": 5,
+      "Recordings": 0,
+      "Other": 1
+     }
+    ],
+    [
+     639305568000000000,
+     {
+      "Images": 1,
+      "Recordings": 1,
+      "Other": 2
+     }
+    ],
+    [
+     639343584000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 2,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 5,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 5,
+     "Recordings": 2,
+     "Other": 2
+    },
+    {
+     "Images": 1,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 2,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 0,
+     "Recordings": 1,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 13,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 6,
+     "Recordings": 3,
+     "Other": 4
+    },
+    {
+     "Images": 11,
+     "Recordings": 2,
+     "Other": 3
+    },
+    {
+     "Images": 9,
+     "Recordings": 4,
+     "Other": 3
+    },
+    {
+     "Images": 5,
+     "Recordings": 1,
+     "Other": 1
+    },
+    {
+     "Images": 8,
+     "Recordings": 0,
+     "Other": 1
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 636977952000000000,
+   "Apps": [
+    [
+     "Chrome",
+     13
+    ],
+    [
+     "Code",
+     12
+    ],
+    [
+     "ShareX",
+     11
+    ],
+    [
+     "explorer",
+     9
+    ],
+    [
+     "firefox",
+     7
+    ],
+    [
+     "zsh",
+     5
+    ],
+    [
+     "",
+     8
+    ]
+   ],
+   "Destinations": [
+    [
+     "2host",
+     8
+    ],
+    [
+     "Custom image uploader",
+     7
+    ],
+    [
+     "10host",
+     6
+    ],
+    [
+     "amazons3",
+     6
+    ],
+    [
+     "Imgur",
+     6
+    ],
+    [
+     "_underscore",
+     5
+    ],
+    [
+     "",
+     19
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     28
+    ],
+    [
+     "GZ",
+     11
+    ],
+    [
+     "JPG",
+     7
+    ],
+    [
+     "TXT",
+     7
+    ],
+    [
+     "GIF",
+     5
+    ],
+    [
+     "WEBM",
+     5
+    ],
+    [
+     "",
+     6
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 4,
+   "LongestStreakEnd": 639305568000000000,
+   "BusiestDay": 639303840000000000,
+   "BusiestDayCount": 8,
+   "DaysCounted": 182,
+   "PeakHour": [
+    17,
+    10,
+    5
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      636977952000000000,
+      637134336000000000,
+      1
+     ]
+    ],
+    [
+     -1,
+     [
+      636977952000000000,
+      637134336000000000,
+      1
+     ]
+    ],
+    [
+     2020,
+     [
+      637134336000000000,
+      637134336000000000,
+      0
+     ]
+    ],
+    [
+     2019,
+     [
+      636977952000000000,
+      637133472000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 637132608000000000
+  }
+ ],
+ "OutputStats": "History item counts:\r\nTotal: 80\r\nImage: 24 (30%)\r\nimage: 13 (16%)\r\nIMAGE: 13 (16%)\r\nText: 12 (15%)\r\nURL: 9 (11%)\r\nFile: 8 (10%)\r\n: 1 (1%)\r\n\r\nYearly usages:\r\n2027: 2 (2%)\r\n2026: 61 (76%)\r\n2025: 13 (16%)\r\n2024: 3 (4%)\r\n2019: 1 (1%)\r\n\r\nFile extensions:\r\n[21] png\r\n[11] tar.gz\r\n[7] txt\r\n[7] Png\r\n[7] JPG\r\n[5] (empty)\r\n[5] gif\r\n[5] WEBM\r\n[4] abcdefg\r\n[3] json\r\n[2] mp4\r\n[1] é1\r\n\r\nHosts:\r\n[23] (empty)\r\n[8] 2host\r\n[7] Custom image uploader\r\n[6] 10host\r\n[6] amazons3\r\n[5] _underscore\r\n[4] Ünicode host\r\n[4] a host\r\n[4] File\r\n[4] Amazon-S3\r\n[3] Imgur\r\n[3] imgur\r\n[1] B host\r\n[1] Amazon S3\r\n[1] Pastebin\r\n\r\nProcess names:\r\n[15] (empty)\r\n[11] ShareX\r\n[10] Code\r\n[9] explorer\r\n[7]  firefox \r\n[6] Chrome\r\n[6] chrome\r\n[5] zsh\r\n[4] notepad++\r\n[4] Ärger\r\n[2] code\r\n[1]  chrome ",
+ "StatsRaw": [
+  {
+   "Today": 639304704000000000,
+   "Total": {
+    "Images": 16,
+    "Recordings": 0,
+    "Other": 2
+   },
+   "Daily": [
+    [
+     638970336000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639031680000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639055872000000000,
+     {
+      "Images": 0,
+      "Recordings": 0,
+      "Other": 2
+     }
+    ],
+    [
+     639056736000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639188064000000000,
+     {
+      "Images": 7,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 6,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 9,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 638970336000000000,
+   "Apps": [
+    [
+     "Ärger",
+     1
+    ]
+   ],
+   "Destinations": [
+    [
+     "IMGUR",
+     3
+    ],
+    [
+     "1.0e+20",
+     1
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     16
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 2,
+   "LongestStreakEnd": 639056736000000000,
+   "BusiestDay": 639188064000000000,
+   "BusiestDayCount": 7,
+   "DaysCounted": 388,
+   "PeakHour": [
+    10,
+    10,
+    null
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638990208000000000,
+      639304704000000000,
+      5
+     ]
+    ],
+    [
+     -1,
+     [
+      638970336000000000,
+      639304704000000000,
+      6
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639304704000000000,
+      5
+     ]
+    ],
+    [
+     2025,
+     [
+      638970336000000000,
+      639027360000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639303840000000000
+  },
+  {
+   "Today": 639304704000000000,
+   "Total": {
+    "Images": 16,
+    "Recordings": 0,
+    "Other": 2
+   },
+   "Daily": [
+    [
+     638970336000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639031680000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639055872000000000,
+     {
+      "Images": 0,
+      "Recordings": 0,
+      "Other": 2
+     }
+    ],
+    [
+     639056736000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639188064000000000,
+     {
+      "Images": 7,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 6,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 9,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 638970336000000000,
+   "Apps": [
+    [
+     "Ärger",
+     1
+    ]
+   ],
+   "Destinations": [
+    [
+     "IMGUR",
+     3
+    ],
+    [
+     "1.0e+20",
+     1
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     16
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 2,
+   "LongestStreakEnd": 639056736000000000,
+   "BusiestDay": 639188064000000000,
+   "BusiestDayCount": 7,
+   "DaysCounted": 388,
+   "PeakHour": [
+    10,
+    10,
+    null
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638990208000000000,
+      639304704000000000,
+      5
+     ]
+    ],
+    [
+     -1,
+     [
+      638970336000000000,
+      639304704000000000,
+      6
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639304704000000000,
+      5
+     ]
+    ],
+    [
+     2025,
+     [
+      638970336000000000,
+      639027360000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639302976000000000
+  },
+  {
+   "Today": 639302112000000000,
+   "Total": {
+    "Images": 16,
+    "Recordings": 0,
+    "Other": 2
+   },
+   "Daily": [
+    [
+     638970336000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639031680000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639055872000000000,
+     {
+      "Images": 0,
+      "Recordings": 0,
+      "Other": 2
+     }
+    ],
+    [
+     639056736000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639188064000000000,
+     {
+      "Images": 7,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 6,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 9,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 638970336000000000,
+   "Apps": [
+    [
+     "Ärger",
+     1
+    ]
+   ],
+   "Destinations": [
+    [
+     "IMGUR",
+     3
+    ],
+    [
+     "1.0e+20",
+     1
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     16
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 2,
+   "LongestStreakEnd": 639056736000000000,
+   "BusiestDay": 639188064000000000,
+   "BusiestDayCount": 7,
+   "DaysCounted": 385,
+   "PeakHour": [
+    10,
+    10,
+    null
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638987616000000000,
+      639302112000000000,
+      5
+     ]
+    ],
+    [
+     -1,
+     [
+      638970336000000000,
+      639302112000000000,
+      6
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639302112000000000,
+      5
+     ]
+    ],
+    [
+     2025,
+     [
+      638970336000000000,
+      639027360000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 639302112000000000
+  },
+  {
+   "Today": 640290528000000000,
+   "Total": {
+    "Images": 16,
+    "Recordings": 0,
+    "Other": 2
+   },
+   "Daily": [
+    [
+     638970336000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639031680000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639055872000000000,
+     {
+      "Images": 0,
+      "Recordings": 0,
+      "Other": 2
+     }
+    ],
+    [
+     639056736000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639188064000000000,
+     {
+      "Images": 7,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 6,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 9,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 638970336000000000,
+   "Apps": [
+    [
+     "Ärger",
+     1
+    ]
+   ],
+   "Destinations": [
+    [
+     "IMGUR",
+     3
+    ],
+    [
+     "1.0e+20",
+     1
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     16
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 2,
+   "LongestStreakEnd": 639056736000000000,
+   "BusiestDay": 639188064000000000,
+   "BusiestDayCount": 7,
+   "DaysCounted": 1529,
+   "PeakHour": [
+    10,
+    10,
+    null
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      639976032000000000,
+      640290528000000000,
+      0
+     ]
+    ],
+    [
+     -1,
+     [
+      638970336000000000,
+      640290528000000000,
+      6
+     ]
+    ],
+    [
+     2030,
+     [
+      640290528000000000,
+      640290528000000000,
+      0
+     ]
+    ],
+    [
+     2029,
+     [
+      639975168000000000,
+      640289664000000000,
+      0
+     ]
+    ],
+    [
+     2028,
+     [
+      639658944000000000,
+      639974304000000000,
+      0
+     ]
+    ],
+    [
+     2027,
+     [
+      639343584000000000,
+      639658080000000000,
+      0
+     ]
+    ],
+    [
+     2026,
+     [
+      639028224000000000,
+      639342720000000000,
+      5
+     ]
+    ],
+    [
+     2025,
+     [
+      638970336000000000,
+      639027360000000000,
+      1
+     ]
+    ]
+   ],
+   "WeekStart": 640289664000000000
+  },
+  {
+   "Today": 637134336000000000,
+   "Total": {
+    "Images": 16,
+    "Recordings": 0,
+    "Other": 2
+   },
+   "Daily": [
+    [
+     638970336000000000,
+     {
+      "Images": 2,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639031680000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639055872000000000,
+     {
+      "Images": 0,
+      "Recordings": 0,
+      "Other": 2
+     }
+    ],
+    [
+     639056736000000000,
+     {
+      "Images": 3,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639184608000000000,
+     {
+      "Images": 1,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ],
+    [
+     639188064000000000,
+     {
+      "Images": 7,
+      "Recordings": 0,
+      "Other": 0
+     }
+    ]
+   ],
+   "Hours": [
+    {
+     "Images": 4,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 2,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 6,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "Weekdays": [
+    {
+     "Images": 9,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 2
+    },
+    {
+     "Images": 3,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 1,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    },
+    {
+     "Images": 0,
+     "Recordings": 0,
+     "Other": 0
+    }
+   ],
+   "FirstDay": 638970336000000000,
+   "Apps": [
+    [
+     "Ärger",
+     1
+    ]
+   ],
+   "Destinations": [
+    [
+     "IMGUR",
+     3
+    ],
+    [
+     "1.0e+20",
+     1
+    ]
+   ],
+   "FileTypes": [
+    [
+     "PNG",
+     16
+    ]
+   ],
+   "TodayTally": {
+    "Images": 0,
+    "Recordings": 0,
+    "Other": 0
+   },
+   "Past7Days": 0,
+   "Previous7Days": 0,
+   "Streak": 0,
+   "LongestStreak": 2,
+   "LongestStreakEnd": 639056736000000000,
+   "BusiestDay": 639188064000000000,
+   "BusiestDayCount": 7,
+   "DaysCounted": 1,
+   "PeakHour": [
+    10,
+    10,
+    null
+   ],
+   "Ranges": [
+    [
+     0,
+     [
+      638970336000000000,
+      637134336000000000,
+      0
+     ]
+    ]
+   ],
+   "WeekStart": 637132608000000000
+  }
+ ],
+ "Formats": {
+  "Share": [
+   "13%",
+   "2.5%",
+   "38%",
+   "99.9%",
+   "33%",
+   "0%",
+   "100%",
+   "0.5%",
+   "0.1%",
+   "99.5%",
+   "100%",
+   "6.3%",
+   "44%",
+   "99.5%",
+   "0%"
+  ],
+  "Number": [
+   "0",
+   "999",
+   "1,000",
+   "1,234,567",
+   "-1,234"
+  ],
+  "Compact": [
+   "0",
+   "999",
+   "1000",
+   "1k",
+   "1k",
+   "1.1k",
+   "1.3k",
+   "1.3M",
+   "13",
+   "1",
+   "2",
+   "3"
+  ],
+  "Hour": [
+   "00:00–01:00",
+   "01:00–02:00",
+   "02:00–03:00",
+   "03:00–04:00",
+   "04:00–05:00",
+   "05:00–06:00",
+   "06:00–07:00",
+   "07:00–08:00",
+   "08:00–09:00",
+   "09:00–10:00",
+   "10:00–11:00",
+   "11:00–12:00",
+   "12:00–13:00",
+   "13:00–14:00",
+   "14:00–15:00",
+   "15:00–16:00",
+   "16:00–17:00",
+   "17:00–18:00",
+   "18:00–19:00",
+   "19:00–20:00",
+   "20:00–21:00",
+   "21:00–22:00",
+   "22:00–23:00",
+   "23:00–00:00",
+   "00:00–01:00"
+  ],
+  "Rate": [
+   "about 0 a week",
+   "about 1 a day",
+   "about 3 a week",
+   "about 14 a day",
+   "about 0.2 a week",
+   "about 26 a day",
+   "about 10 a day",
+   "about 2.5 a day",
+   "about 1.8 a week",
+   "about 7.5 a day",
+   "about 9.9 a day",
+   "about 10 a day",
+   "about 1.8 a week",
+   "about 1 a day"
+  ],
+  "Scale": [
+   [
+    1.0,
+    1.0
+   ],
+   [
+    1.0,
+    1.0
+   ],
+   [
+    1.0,
+    2.0
+   ],
+   [
+    2.0,
+    4.0
+   ],
+   [
+    2.0,
+    4.0
+   ],
+   [
+    5.0,
+    10.0
+   ],
+   [
+    5.0,
+    10.0
+   ],
+   [
+    10.0,
+    20.0
+   ],
+   [
+    20.0,
+    40.0
+   ],
+   [
+    50.0,
+    100.0
+   ],
+   [
+    100.0,
+    200.0
+   ],
+   [
+    1000.0,
+    2000.0
+   ]
+  ],
+  "Level": [
+   0,
+   1,
+   3,
+   4,
+   4,
+   0
+  ],
+  "WeekChange": [
+   "▲ 25%",
+   "▼ 25%",
+   null,
+   null,
+   "▲ 133%",
+   "▼ 67%",
+   "▼ 38%",
+   "▼ 63%"
+  ]
+ },
+ "Columns": [
+  [
+   {
+    "Name": "Date",
+    "Visible": true,
+    "Width": 105.0
+   },
+   {
+    "Name": "FileName",
+    "Visible": true,
+    "Width": 220.0
+   },
+   {
+    "Name": "FilePath",
+    "Visible": false,
+    "Width": 250.0
+   },
+   {
+    "Name": "Type",
+    "Visible": false,
+    "Width": 60.0
+   },
+   {
+    "Name": "Host",
+    "Visible": false,
+    "Width": 120.0
+   },
+   {
+    "Name": "URL",
+    "Visible": true,
+    "Width": 250.0
+   },
+   {
+    "Name": "ShortenedURL",
+    "Visible": false,
+    "Width": 180.0
+   },
+   {
+    "Name": "ProcessName",
+    "Visible": false,
+    "Width": 110.0
+   },
+   {
+    "Name": "WindowTitle",
+    "Visible": false,
+    "Width": 200.0
+   },
+   {
+    "Name": "Tag",
+    "Visible": false,
+    "Width": 120.0
+   }
+  ],
+  [
+   {
+    "Name": "Date",
+    "Visible": true,
+    "Width": 105.0
+   },
+   {
+    "Name": "FileName",
+    "Visible": true,
+    "Width": 220.0
+   },
+   {
+    "Name": "FilePath",
+    "Visible": false,
+    "Width": 250.0
+   },
+   {
+    "Name": "Type",
+    "Visible": false,
+    "Width": 60.0
+   },
+   {
+    "Name": "Host",
+    "Visible": false,
+    "Width": 120.0
+   },
+   {
+    "Name": "URL",
+    "Visible": true,
+    "Width": 250.0
+   },
+   {
+    "Name": "ShortenedURL",
+    "Visible": false,
+    "Width": 180.0
+   },
+   {
+    "Name": "ProcessName",
+    "Visible": false,
+    "Width": 110.0
+   },
+   {
+    "Name": "WindowTitle",
+    "Visible": false,
+    "Width": 200.0
+   },
+   {
+    "Name": "Tag",
+    "Visible": false,
+    "Width": 120.0
+   }
+  ],
+  [
+   {
+    "Name": "Date",
+    "Visible": false,
+    "Width": 105.0
+   },
+   {
+    "Name": "FileName",
+    "Visible": true,
+    "Width": 220.0
+   },
+   {
+    "Name": "FilePath",
+    "Visible": false,
+    "Width": 250.0
+   },
+   {
+    "Name": "Type",
+    "Visible": false,
+    "Width": 60.0
+   },
+   {
+    "Name": "Host",
+    "Visible": false,
+    "Width": 120.0
+   },
+   {
+    "Name": "URL",
+    "Visible": false,
+    "Width": 250.0
+   },
+   {
+    "Name": "ShortenedURL",
+    "Visible": false,
+    "Width": 180.0
+   },
+   {
+    "Name": "ProcessName",
+    "Visible": false,
+    "Width": 110.0
+   },
+   {
+    "Name": "WindowTitle",
+    "Visible": false,
+    "Width": 200.0
+   },
+   {
+    "Name": "Tag",
+    "Visible": false,
+    "Width": 120.0
+   }
+  ],
+  [
+   {
+    "Name": "Date",
+    "Visible": true,
+    "Width": 40.0
+   },
+   {
+    "Name": "FileName",
+    "Visible": true,
+    "Width": 220.0
+   },
+   {
+    "Name": "FilePath",
+    "Visible": true,
+    "Width": 77.0
+   },
+   {
+    "Name": "Type",
+    "Visible": false,
+    "Width": 60.0
+   },
+   {
+    "Name": "Host",
+    "Visible": true,
+    "Width": 152.0
+   },
+   {
+    "Name": "URL",
+    "Visible": true,
+    "Width": 250.0
+   },
+   {
+    "Name": "ShortenedURL",
+    "Visible": false,
+    "Width": 180.0
+   },
+   {
+    "Name": "ProcessName",
+    "Visible": false,
+    "Width": 110.0
+   },
+   {
+    "Name": "WindowTitle",
+    "Visible": false,
+    "Width": 200.0
+   },
+   {
+    "Name": "Tag",
+    "Visible": true,
+    "Width": 150.0
+   }
+  ]
+ ]
+}

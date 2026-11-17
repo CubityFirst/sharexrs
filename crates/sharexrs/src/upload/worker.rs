@@ -129,12 +129,19 @@ pub(super) struct Worker<'a> {
     /// `EarlyURLCopied`.
     early_url_copied: Arc<AtomicBool>,
     pub(super) task_ref: TaskReferenceHelper,
+    /// `Info.Metadata`'s window title and process name (image tasks), the
+    /// history item's tags.
+    metadata: (Option<String>, Option<String>),
 }
 
 impl<'a> Worker<'a> {
     fn new(t: UploadTask, id: u64, ctx: &'a UploadContext, stop: &'a StopHandle) -> Self {
         let result = UploadResult { url: (!t.url.is_empty()).then(|| t.url.clone()), ..Default::default() };
         let advanced = t.task.AdvancedSettings.clone().unwrap_or_default();
+        let metadata = match &t.source {
+            Source::Image(image) => (image.metadata.window_title.clone(), image.metadata.process_name.clone()),
+            _ => (None, None),
+        };
         // `CreateTaskReferenceHelper`.
         let task_ref = TaskReferenceHelper {
             stop_requested: false,
@@ -161,6 +168,7 @@ impl<'a> Worker<'a> {
             uploader_errors: None,
             early_url_copied: Arc::default(),
             task_ref,
+            metadata,
         }
     }
 
@@ -538,6 +546,16 @@ impl<'a> Worker<'a> {
     fn report(self) -> TaskReport {
         let r = &self.result;
         let general = self.task.GeneralSettings.clone().unwrap_or_default();
+        // `TaskInfo.GetHistoryItem`, for `Task_TaskCompleted` to add to history.
+        let history = crate::history::history_item(&crate::history::TaskEnd {
+            file_name: &self.file_name,
+            file_path: self.file_path.as_deref(),
+            data_type: self.data_type,
+            host: crate::history::uploader_host(self.job, self.data_type, &self.task, self.is_upload_job()),
+            result: r,
+            window_title: self.metadata.0.as_deref(),
+            process_name: self.metadata.1.as_deref(),
+        });
         TaskReport {
             file_name: self.file_name.clone(),
             file_path: self.file_path.clone(),
@@ -557,6 +575,7 @@ impl<'a> Worker<'a> {
             show_after_upload_window: self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow),
             show_toast: general.ShowToastNotificationAfterTaskCompleted,
             upload_duration: self.upload_duration,
+            history: Some(history),
         }
     }
 }

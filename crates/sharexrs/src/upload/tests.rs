@@ -413,6 +413,19 @@ fn a_capture_is_uploaded_then_its_after_upload_tasks_run() {
     assert!(out.info().result.errors.is_empty());
     assert_eq!(out.manager.recent.last().map(|r| r.url.as_str()), Some("https://i.example.com/abc.png"));
 
+    // The history item (`TaskInfo.GetHistoryItem`): the upload's URLs and
+    // host as ShareX records them.
+    let h = out.report.history.clone().expect("history item");
+    assert_eq!(h.file_name.as_deref(), Some(name.as_str()));
+    assert_eq!(h.file_path.as_deref(), Some(saved.to_string_lossy().as_ref()));
+    assert_eq!(h.r#type.as_deref(), Some("Image"));
+    assert_eq!(h.host.as_deref(), sharex_strings::helpers_lib::lookup("ImageDestination_CustomImageUploader"));
+    assert_eq!(h.url.as_deref(), Some("https://i.example.com/abc.png"));
+    assert_eq!(h.thumbnail_url.as_deref(), Some("https://i.example.com/abc_t.png"));
+    assert_eq!(h.deletion_url.as_deref(), Some("https://i.example.com/delete/abc"));
+    assert_eq!(h.shortened_url, None);
+    assert!(h.is_valid());
+
     // Copy (with the clipboard format), open, QR code.
     assert_eq!(
         out.ui,

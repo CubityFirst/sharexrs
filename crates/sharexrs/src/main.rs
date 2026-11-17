@@ -13,6 +13,7 @@ mod appearance;
 mod capture;
 mod capture_job;
 mod controls_gallery;
+mod history;
 mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
@@ -99,6 +100,8 @@ fn main() {
     }
     let settings = SettingManager::load(paths, system);
     settings.paths.create_application_folders(Some(&settings.settings));
+    // `LoadApplicationConfig`'s `MigrateHistoryFile` and `HistoryConnect`.
+    history::connect(&settings.paths);
     // `LanguageHelper.ChangeLanguage(Settings.Language)`.
     appearance::change_language(&settings.settings.Language);
 
@@ -1167,6 +1170,7 @@ impl ApplicationHandler<UserEvent> for App {
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
         eprintln!("ShareX closing.");
+        history::close();
         if let Err(e) = self.settings.save_all() {
             eprintln!("couldn't save the settings: {e}");
         }
