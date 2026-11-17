@@ -4,6 +4,7 @@
 //! `*UploaderService.CreateUploader` does.
 
 pub mod amazon_s3;
+pub mod file_hosts;
 pub mod files;
 pub mod images;
 pub mod sharing;

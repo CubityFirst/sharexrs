@@ -8,6 +8,7 @@
 
 use crate::api_keys;
 use crate::custom::{CustomFileUploader, CustomTextUploader, CustomUploaderItem, CustomUrlSharer, CustomUrlShortener};
+use crate::destinations::file_hosts::{IMGFISH_MAX_FILE_ID_LENGTH, IMGFISH_MIN_FILE_ID_LENGTH, ImgFish, LobFile, Puush, Streamable};
 use crate::destinations::files::{Lambda, Pomf, Sul, Transfersh, Uguu};
 use crate::destinations::images::{Chevereto, Imgur, Vgyme};
 use crate::destinations::sharing::{SimpleUrlSharer, url_format_string};
@@ -169,6 +170,10 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
         FileDestination::Sul => !config.SulAPIKey.is_empty(),
         FileDestination::Lambda => !config.LambdaSettings.UserAPIKey.is_empty(),
         FileDestination::AmazonS3 => AmazonS3::check_config(&config.AmazonS3Settings),
+        FileDestination::Puush => !config.PuushAPIKey.is_empty(),
+        FileDestination::Streamable => ne(&config.StreamableUsername) && !config.StreamablePassword.is_empty(),
+        FileDestination::Lithiio => !config.LithiioSettings.UserAPIKey.is_empty(),
+        FileDestination::ImgFish => (IMGFISH_MIN_FILE_ID_LENGTH..=IMGFISH_MAX_FILE_ID_LENGTH).contains(&config.ImgFishSettings.FileIDLength),
         FileDestination::CustomFileUploader => valid_index(config, config.CustomFileUploaderSelected),
         _ => return Ported::No,
     })
@@ -189,6 +194,14 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
             GenericUploader::File(Box::new(Lambda::new(config.LambdaSettings.clone())))
         }
         FileDestination::AmazonS3 => GenericUploader::File(Box::new(AmazonS3::new(config.AmazonS3Settings.clone()))),
+        FileDestination::Puush => GenericUploader::File(Box::new(Puush::new(config.PuushAPIKey.as_str()))),
+        FileDestination::Streamable => {
+            let mut u = Streamable::new(config.StreamableUsername.as_deref().unwrap_or(""), config.StreamablePassword.as_str());
+            u.use_direct_url = config.StreamableUseDirectURL;
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::Lithiio => GenericUploader::File(Box::new(LobFile::new(config.LithiioSettings.UserAPIKey.as_str()))),
+        FileDestination::ImgFish => GenericUploader::File(Box::new(ImgFish::new(config.ImgFishSettings.clone()))),
         FileDestination::CustomFileUploader => {
             let index = custom_index(config, task, config.CustomFileUploaderSelected);
             GenericUploader::File(Box::new(CustomFileUploader::new(custom_item(config, index)?)))

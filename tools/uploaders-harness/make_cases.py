@@ -441,6 +441,25 @@ builtin("s3-multipart-complete-error", "file:AmazonS3", {"AmazonS3Settings": dic
     resp("<Error><Code>InternalError</Code></Error>", headers=XML),
     resp("", 204, headers=[])])
 
+BIN = {"file_name": "clip.mp4", "content_base64": FILE_B64}
+builtin("puush", "file:Puush", {"PuushAPIKey": "made-up"}, BIN, [text_resp("0,https://puu.sh/abc.mp4,123,456")])
+builtin("puush-auth-error", "file:Puush", {"PuushAPIKey": "made-up"}, BIN, [text_resp("-1")])
+builtin("puush-garbage", "file:Puush", {"PuushAPIKey": "made-up"}, BIN, [text_resp("nope")])
+builtin("streamable", "file:Streamable", {"StreamableUsername": "someone@example.com", "StreamablePassword": "made-up",
+                                         "StreamableUseDirectURL": True}, BIN, [
+    resp('{"shortcode":"abc12","status":1}'),
+    resp('{"status":1,"percent":40}'),
+    resp('{"status":2,"url":"streamable.com/abc12","files":{"mp4":{"url":"//cdn.example.com/abc12.mp4"}}}')])
+builtin("streamable-failed", "file:Streamable", {"StreamableUsername": "u", "StreamablePassword": "p"}, BIN, [
+    resp('{"shortcode":"x"}'), resp('{"status":3,"message":"Transcoding failed"}')])
+builtin("streamable-no-shortcode", "file:Streamable", {"StreamableUsername": "u", "StreamablePassword": "p"}, BIN, [resp('{"status":0}')])
+builtin("lobfile", "file:Lithiio", {"LithiioSettings": {"UserAPIKey": "made-up"}}, BIN, [resp('{"success":true,"url":"https://lobfile.com/f/x"}')])
+builtin("lobfile-error", "file:Lithiio", {"LithiioSettings": {"UserAPIKey": "made-up"}}, BIN, [resp('{"success":false,"error":"Bad key"}')])
+builtin("imgfish", "file:ImgFish", {"ImgFishSettings": {"APIKey": "made-up", "FileIDLength": 12}}, image_input(),
+        [resp('{"link":"https://img.fish/x.png","destroy":"https://img.fish/d/x"}')])
+builtin("imgfish-error", "file:ImgFish", {}, image_input(), [resp('{"error":"Too big"}')])
+builtin("imgfish-not-json", "file:ImgFish", {}, image_input(), [text_resp("oops")])
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

@@ -68,6 +68,11 @@ pub fn default_user_agent() -> String {
     format!("ShareX/{}", env!("CARGO_PKG_VERSION"))
 }
 
+/// The user agent requests send (`ShareXResources.UserAgent`).
+pub fn user_agent() -> String {
+    SETTINGS.read().expect("http settings").user_agent.clone()
+}
+
 /// Changes the user agent every request sends.
 pub fn set_user_agent(user_agent: impl Into<String>) {
     SETTINGS.write().expect("http settings").user_agent = user_agent.into();
