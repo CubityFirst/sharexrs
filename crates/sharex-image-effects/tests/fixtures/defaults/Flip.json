@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Flip, ShareX.ImageEffectsLib",
+      "Horizontally": false,
+      "Vertically": false,
+      "Enabled": true
+    }
+  ]
+}

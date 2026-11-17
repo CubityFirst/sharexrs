@@ -1,0 +1,33 @@
+{
+  "Name": "Named",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawBackground, ShareX.ImageEffectsLib",
+      "Color": "Black",
+      "UseGradient": false,
+      "Gradient": {
+        "Type": "Vertical",
+        "Colors": [
+          {
+            "Color": "68, 120, 194",
+            "Location": 0.0
+          },
+          {
+            "Color": "13, 58, 122",
+            "Location": 50.0
+          },
+          {
+            "Color": "6, 36, 78",
+            "Location": 50.0
+          },
+          {
+            "Color": "23, 89, 174",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Enabled": false,
+      "Name": "My background"
+    }
+  ]
+}

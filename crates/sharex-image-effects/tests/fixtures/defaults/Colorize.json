@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Colorize, ShareX.ImageEffectsLib",
+      "Color": "Red",
+      "Value": 0.0,
+      "Enabled": true
+    }
+  ]
+}

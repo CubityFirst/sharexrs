@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Pixelate, ShareX.ImageEffectsLib",
+      "Size": 10,
+      "BorderSize": 0,
+      "BorderColor": "Black",
+      "Enabled": true
+    }
+  ]
+}

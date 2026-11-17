@@ -1,0 +1,11 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Scale",
+      "WidthPercentage": 100.0,
+      "HeightPercentage": 0.0,
+      "Enabled": true
+    }
+  ]
+}

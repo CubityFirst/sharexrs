@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Grayscale",
+      "Value": 1.0,
+      "Enabled": true
+    }
+  ]
+}

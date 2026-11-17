@@ -1,0 +1,20 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawImage, ShareX.ImageEffectsLib",
+      "ImageLocation": "",
+      "Placement": "TopLeft",
+      "Offset": "0, 0",
+      "SizeMode": "DontResize",
+      "Size": "0, 0",
+      "RotateFlip": "None",
+      "Tile": false,
+      "AutoHide": false,
+      "InterpolationMode": "HighQualityBicubic",
+      "CompositingMode": "SourceOver",
+      "Opacity": 100,
+      "Enabled": true
+    }
+  ]
+}

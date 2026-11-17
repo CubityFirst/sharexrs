@@ -98,6 +98,126 @@ dotnet_enum! {
     }
 }
 
+impl SupportedLanguage {
+    /// `LanguageHelper.GetCultureName`: English (`en-US`) for Automatic too.
+    pub fn culture_name(&self) -> &'static str {
+        use SupportedLanguage::*;
+        match self {
+            Arabic => "ar-YE",
+            Czech => "cs-CZ",
+            Danish => "da-DK",
+            Dutch => "nl-NL",
+            French => "fr-FR",
+            German => "de-DE",
+            Hebrew => "he-IL",
+            Hindi => "hi-IN",
+            Hungarian => "hu-HU",
+            Indonesian => "id-ID",
+            Italian => "it-IT",
+            Japanese => "ja-JP",
+            Korean => "ko-KR",
+            MexicanSpanish => "es-MX",
+            Persian => "fa-IR",
+            Polish => "pl-PL",
+            Portuguese => "pt-PT",
+            PortugueseBrazil => "pt-BR",
+            Romanian => "ro-RO",
+            Russian => "ru-RU",
+            SimplifiedChinese => "zh-CN",
+            Spanish => "es-ES",
+            Swedish => "sv-SE",
+            Thai => "th-TH",
+            TraditionalChinese => "zh-TW",
+            Turkish => "tr-TR",
+            Ukrainian => "uk-UA",
+            Vietnamese => "vi-VN",
+            _ => "en-US",
+        }
+    }
+
+    /// The `[Description]`s in `ShareX/Enums.cs`: each language in itself.
+    fn description(&self) -> &str {
+        use SupportedLanguage::*;
+        match self {
+            Arabic => "العربية (Arabic)",
+            Czech => "Čeština (Czech)",
+            Danish => "Dansk (Danish)",
+            Dutch => "Nederlands (Dutch)",
+            English => "English",
+            French => "Français (French)",
+            German => "Deutsch (German)",
+            Hebrew => "עִברִית (Hebrew)",
+            Hindi => "हिन्दी (Hindi)",
+            Hungarian => "Magyar (Hungarian)",
+            Indonesian => "Bahasa Indonesia (Indonesian)",
+            Italian => "Italiano (Italian)",
+            Japanese => "日本語 (Japanese)",
+            Korean => "한국어 (Korean)",
+            MexicanSpanish => "Español mexicano (Mexican Spanish)",
+            Persian => "فارسی (Persian)",
+            Polish => "Polski (Polish)",
+            Portuguese => "Português (Portuguese)",
+            PortugueseBrazil => "Português-Brasil (Portuguese-Brazil)",
+            Romanian => "Română (Romanian)",
+            Russian => "Русский (Russian)",
+            SimplifiedChinese => "简体中文 (Simplified Chinese)",
+            Spanish => "Español (Spanish)",
+            Swedish => "Svenska (Swedish)",
+            Thai => "ไทย (Thai)",
+            TraditionalChinese => "繁體中文 (Traditional Chinese)",
+            Turkish => "Türkçe (Turkish)",
+            Ukrainian => "Українська (Ukrainian)",
+            Vietnamese => "Tiếng Việt (Vietnamese)",
+            other => other.name(),
+        }
+    }
+
+    /// `GetLocalizedDescription()`: "Automatic" is translated, the others
+    /// name themselves.
+    pub fn localized_description(&self) -> String {
+        localized_description("SupportedLanguage", self.name()).unwrap_or_else(|| self.description().to_owned())
+    }
+
+    /// The flag `LanguageFlags` shows: the culture's country code
+    /// (`us` for English), none for Automatic.
+    pub fn flag_code(&self) -> Option<String> {
+        (*self != SupportedLanguage::Automatic)
+            .then(|| self.culture_name().split('-').nth(1).unwrap_or("us").to_ascii_lowercase())
+    }
+}
+
+/// `EnumExtensions.GetLocalizedDescription`: the `<Type>_<Value>` string in
+/// ShareX.HelpersLib's resources, if there's one.
+pub fn localized_description(type_name: &str, value: &str) -> Option<String> {
+    sharex_strings::helpers_lib::lookup(&format!("{type_name}_{value}")).filter(|s| !s.is_empty()).map(str::to_owned)
+}
+
+/// Enums shown in settings lists by their localized description.
+pub trait Described: Sized + Clone + PartialEq + 'static {
+    const TYPE: &'static str;
+    fn all() -> &'static [Self];
+    fn variant_name(&self) -> &str;
+    fn localized_description(&self) -> String {
+        localized_description(Self::TYPE, self.variant_name()).unwrap_or_else(|| self.variant_name().to_owned())
+    }
+}
+
+macro_rules! described {
+    ($($t:ident),*) => {$(
+        impl Described for $t {
+            const TYPE: &'static str = stringify!($t);
+            fn all() -> &'static [Self] { $t::ALL }
+            fn variant_name(&self) -> &str { self.name() }
+        }
+    )*};
+}
+described!(UpdateChannel, TaskViewMode, ImagePreviewVisibility, ImagePreviewLocation, ThumbnailTitleLocation, ThumbnailViewClickAction, ProxyMethod);
+
+dotnet_enum! {
+    /// `ShareX.HelpersLib.ProxyMethod`.
+    pub enum ProxyMethod { None, Manual, Automatic }
+}
+
 dotnet_enum! {
     /// `ShareX.TaskViewMode`.
     pub enum TaskViewMode { ListView, ThumbnailView }

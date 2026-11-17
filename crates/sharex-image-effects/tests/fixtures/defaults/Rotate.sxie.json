@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Rotate",
+      "Angle": 0.0,
+      "Upsize": true,
+      "Clip": false,
+      "Enabled": true
+    }
+  ]
+}

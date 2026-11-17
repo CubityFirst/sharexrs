@@ -63,6 +63,16 @@ impl App {
 
     /// At startup: the view settings, and `RecentTaskManager.InitItems`
     /// (the saved recent tasks, shown when the settings ask for it).
+    /// The task area's settings from `ApplicationConfig` again (after
+    /// Application settings changed them).
+    pub(super) fn init_task_view_settings(&mut self) {
+        let settings = self.view_settings();
+        self.state.tasks.set_settings(settings);
+        if let Some(w) = &self.main {
+            w.window.request_redraw();
+        }
+    }
+
     pub(super) fn init_task_view(&mut self) {
         let settings = self.view_settings();
         self.state.tasks.set_settings(settings);

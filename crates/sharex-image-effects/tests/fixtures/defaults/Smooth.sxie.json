@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Smooth",
+      "Enabled": true,
+      "Name": null
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Outline, ShareX.ImageEffectsLib",
+      "Size": 1,
+      "Padding": 0,
+      "Color": "Black",
+      "OutlineOnly": false,
+      "Enabled": true
+    }
+  ]
+}

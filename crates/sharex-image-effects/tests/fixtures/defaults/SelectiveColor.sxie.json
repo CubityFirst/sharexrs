@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "SelectiveColor",
+      "LightColor": "White",
+      "DarkColor": "Black",
+      "PaletteSize": 10,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Hue",
+      "Angle": 0.0,
+      "Enabled": true
+    }
+  ]
+}

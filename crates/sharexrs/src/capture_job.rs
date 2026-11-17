@@ -2,9 +2,9 @@
 //! .cs` (freeze the screen, draw the pointer in, list the windows, open the
 //! overlay) and what runs after it with a fresh profile's after capture
 //! tasks (`CaptureBase.AfterCapture`, `UploadManager.RunImageTask`,
-//! `WorkerTask.DoAfterCaptureJobs`): the capture sound, copy the image to
-//! the clipboard, save it to the screenshots folder under ShareX's name
-//! pattern.
+//! `WorkerTask.DoAfterCaptureJobs`): the capture sound, add image effects,
+//! copy the image to the clipboard, save it to the screenshots folder under
+//! ShareX's name pattern.
 
 use std::path::{Path, PathBuf};
 
@@ -203,22 +203,34 @@ pub struct ImageTask {
     pub task: TaskSettings,
     pub file_name: String,
     pub folder: PathBuf,
+    /// `AppPaths.ImageEffectsFolder` (`%ShareXImageEffects%` in effect paths).
+    pub image_effects_folder: PathBuf,
 }
 
 impl ImageTask {
-    pub fn new(metadata: Metadata, task: TaskSettings, app: &mut ApplicationConfig, screenshots_parent: &Path) -> Self {
+    pub fn new(
+        metadata: Metadata,
+        task: TaskSettings,
+        app: &mut ApplicationConfig,
+        screenshots_parent: &Path,
+        image_effects_folder: PathBuf,
+    ) -> Self {
         let mut counter = app.NameParserAutoIncrementNumber;
         let file_name = file_name(&task, &mut counter, "bmp", &metadata);
         app.NameParserAutoIncrementNumber = counter;
         let folder = screenshots_folder(&task, app, screenshots_parent, &metadata);
-        Self { metadata, task, file_name, folder }
+        Self { metadata, task, file_name, folder, image_effects_folder }
     }
 
-    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: copy
-    /// the image to the clipboard (owned by `owner`), then save it.
-    pub fn run(self, owner: Option<isize>) -> Result<TaskOutcome, String> {
+    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: add image
+    /// effects, copy the image to the clipboard (owned by `owner`), then save it.
+    pub fn run(mut self, owner: Option<isize>) -> Result<TaskOutcome, String> {
         let mut outcome = TaskOutcome::default();
         let job = self.task.AfterCaptureJob;
+        if job.contains(AfterCaptureTasks::AddImageEffects) {
+            self.metadata.image =
+                self.apply_image_effects().ok_or("Error: Applying image effects resulted empty image.")?;
+        }
         if job.contains(AfterCaptureTasks::CopyImageToClipboard) {
             match sharex_capture::clipboard::copy_image(&self.metadata.image, owner) {
                 Ok(()) => {
@@ -242,6 +254,38 @@ impl ImageTask {
     }
 }
 
+impl ImageTask {
+    /// `TaskHelpers.ApplyImageEffects`: the selected (or a random) preset of the
+    /// task's image settings; `None` when ShareX's result would be null.
+    fn apply_image_effects(&self) -> Option<RgbaImage> {
+        use sharex_image_effects::{Bitmap, Context, ImageEffectPreset, ImageEffectsSettings};
+        let settings = self.task.ImageSettings.clone().unwrap_or_default();
+        if settings.ShowImageEffectsWindowAfterCapture {
+            // The Image effects window isn't ported yet: the selected preset is applied as is.
+            eprintln!("Image effects window not ported yet; applying the selected preset.");
+        }
+        // One preset per entry, so the selected index stays ShareX's.
+        let presets: Vec<ImageEffectPreset> =
+            settings.ImageEffectPresets.iter().map(|v| ImageEffectPreset::from_json(v).unwrap_or_default()).collect();
+        let effects = ImageEffectsSettings {
+            presets: &presets,
+            selected: settings.SelectedImageEffectPreset,
+            use_random: settings.UseRandomImageEffect,
+        };
+        let mut ctx = Context {
+            special_folders: vec![("ShareXImageEffects".into(), self.image_effects_folder.clone())],
+            ..Default::default()
+        };
+        let image = &self.metadata.image;
+        let bmp = Bitmap::from_straight(image.width(), image.height(), image.as_raw());
+        let out = sharex_image_effects::apply_image_effects(bmp, &effects, &mut ctx)?;
+        if out.is_empty() {
+            return None;
+        }
+        RgbaImage::from_raw(out.width(), out.height(), out.to_straight())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +296,24 @@ mod tests {
             window_title: title.map(str::to_string),
             process_name: process.map(str::to_string),
         }
+    }
+
+    #[test]
+    fn add_image_effects_applies_the_selected_preset() {
+        let mut task = TaskSettings::default();
+        let s = task.ImageSettings.get_or_insert_with(Default::default);
+        let inverse = serde_json::json!({ "Name": "", "Effects": [{ "$type": "ShareX.ImageEffectsLib.Inverse, ShareX.ImageEffectsLib", "Enabled": true }] });
+        s.ImageEffectPresets = vec![serde_json::json!({ "Name": "", "Effects": [] }), inverse];
+        s.SelectedImageEffectPreset = 1;
+        let job = ImageTask {
+            metadata: metadata(None, None),
+            task,
+            file_name: String::new(),
+            folder: PathBuf::new(),
+            image_effects_folder: PathBuf::new(),
+        };
+        let out = job.apply_image_effects().unwrap();
+        assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
     }
 
     #[test]

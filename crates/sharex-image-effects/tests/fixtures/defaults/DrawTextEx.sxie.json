@@ -1,0 +1,64 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "DrawTextEx",
+      "Text": "Text",
+      "Placement": "TopLeft",
+      "Offset": "0, 0",
+      "Angle": 0,
+      "AutoHide": false,
+      "Font": "Arial, 36pt",
+      "Color": "235, 235, 235",
+      "UseGradient": false,
+      "Gradient": {
+        "Type": "Horizontal",
+        "Colors": [
+          {
+            "Color": "0, 187, 138",
+            "Location": 0.0
+          },
+          {
+            "Color": "0, 105, 163",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Outline": false,
+      "OutlineSize": 5,
+      "OutlineColor": "235, 0, 0",
+      "OutlineUseGradient": false,
+      "OutlineGradient": {
+        "Type": "Horizontal",
+        "Colors": [
+          {
+            "Color": "0, 187, 138",
+            "Location": 0.0
+          },
+          {
+            "Color": "0, 105, 163",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Shadow": false,
+      "ShadowOffset": "0, 5",
+      "ShadowColor": "125, 0, 0, 0",
+      "ShadowUseGradient": false,
+      "ShadowGradient": {
+        "Type": "Horizontal",
+        "Colors": [
+          {
+            "Color": "255, 3, 135",
+            "Location": 0.0
+          },
+          {
+            "Color": "255, 143, 3",
+            "Location": 100.0
+          }
+        ]
+      },
+      "Enabled": true
+    }
+  ]
+}

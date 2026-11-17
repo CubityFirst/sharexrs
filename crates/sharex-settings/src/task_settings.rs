@@ -225,7 +225,8 @@ settings! {
         ImageAutoUseJPEGSize: i32 = 2048,
         ImageAutoJPEGQuality: bool = false,
         FileExistAction: FileExistAction = FileExistAction::Ask,
-        /// `List<ImageEffectPreset>` (not ported yet).
+        /// `List<ImageEffectPreset>`, kept as ShareX wrote it; read with
+        /// `sharex_image_effects::ImageEffectPreset::from_json`.
         ImageEffectPresets: Vec<Value> = vec![defaults::json("ImageEffectPreset.GetDefaultPreset")],
         SelectedImageEffectPreset: i32 = 0,
         ShowImageEffectsWindowAfterCapture: bool = false,

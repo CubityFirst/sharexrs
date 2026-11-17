@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "RoundedCorners",
+      "CornerRadius": 20,
+      "Enabled": true
+    }
+  ]
+}

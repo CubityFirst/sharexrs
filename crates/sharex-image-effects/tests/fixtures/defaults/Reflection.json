@@ -1,0 +1,15 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Reflection, ShareX.ImageEffectsLib",
+      "Percentage": 20,
+      "MaxAlpha": 255,
+      "MinAlpha": 0,
+      "Offset": 0,
+      "Skew": false,
+      "SkewSize": 25,
+      "Enabled": true
+    }
+  ]
+}

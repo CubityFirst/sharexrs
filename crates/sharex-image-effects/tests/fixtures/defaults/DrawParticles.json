@@ -1,0 +1,24 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.DrawParticles, ShareX.ImageEffectsLib",
+      "ImageFolder": "",
+      "ImageCount": 1,
+      "Background": false,
+      "RandomSize": false,
+      "RandomSizeMin": 64,
+      "RandomSizeMax": 128,
+      "RandomAngle": false,
+      "RandomAngleMin": 0,
+      "RandomAngleMax": 360,
+      "RandomOpacity": false,
+      "RandomOpacityMin": 0,
+      "RandomOpacityMax": 100,
+      "NoOverlap": false,
+      "NoOverlapOffset": 0,
+      "EdgeOverlap": false,
+      "Enabled": true
+    }
+  ]
+}

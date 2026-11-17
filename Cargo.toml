@@ -18,6 +18,7 @@ sharex-capture = { path = "crates/sharex-capture" }
 sharex-settings = { path = "crates/sharex-settings" }
 sharex-skia = { path = "crates/sharex-skia" }
 sharex-image-editor = { path = "crates/sharex-image-editor" }
+sharex-image-effects = { path = "crates/sharex-image-effects" }
 
 egui = "0.36"
 egui-wgpu = { version = "0.36", features = ["winit"] }

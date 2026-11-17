@@ -1,0 +1,12 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "Canvas",
+      "Margin": "0, 0, 0, 0",
+      "MarginMode": "AbsoluteSize",
+      "Color": "Transparent",
+      "Enabled": true
+    }
+  ]
+}

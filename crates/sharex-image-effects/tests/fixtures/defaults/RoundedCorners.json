@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.RoundedCorners, ShareX.ImageEffectsLib",
+      "CornerRadius": 20,
+      "Enabled": true
+    }
+  ]
+}

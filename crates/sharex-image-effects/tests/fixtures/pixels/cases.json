@@ -1,0 +1,75 @@
+[
+ {
+  "name": "gamma-clamped",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "Gamma",
+    "Value": 9.0
+   }
+  ]
+ },
+ {
+  "name": "inverse-tiny",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "Inverse"
+   }
+  ]
+ },
+ {
+  "name": "blur-tiny",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "Blur",
+    "Radius": 5
+   }
+  ]
+ },
+ {
+  "name": "flip-both",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "Flip",
+    "Horizontally": true,
+    "Vertically": true
+   }
+  ]
+ },
+ {
+  "name": "rotate-minus-15",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "Rotate",
+    "Angle": -15
+   }
+  ]
+ },
+ {
+  "name": "background-gradient-diag",
+  "input": "tiny",
+  "effects": [
+   {
+    "$type": "DrawBackground",
+    "UseGradient": true,
+    "Gradient": {
+     "Type": "BackwardDiagonal",
+     "Colors": [
+      {
+       "Color": "Yellow",
+       "Location": 10.0
+      },
+      {
+       "Color": "128, 0, 0, 255",
+       "Location": 80.0
+      }
+     ]
+    }
+   }
+  ]
+ }
+]

@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Blur, ShareX.ImageEffectsLib",
+      "Radius": 15,
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "Name": "",
+  "Effects": [
+    {
+      "$type": "ShareX.ImageEffectsLib.Hue, ShareX.ImageEffectsLib",
+      "Angle": 0.0,
+      "Enabled": true
+    }
+  ]
+}
