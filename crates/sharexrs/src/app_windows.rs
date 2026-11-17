@@ -153,7 +153,7 @@ impl App {
     pub(crate) fn apply_settings(&mut self) {
         let s = &self.settings.settings;
         self.hotkeys.repeat_limit = std::time::Duration::from_millis(s.hotkey_repeat_limit() as u64);
-        if let Some(tray) = &self.tray {
+        if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }
         self.init_task_view_settings();
@@ -175,7 +175,7 @@ impl App {
                     }
                 }
                 Effect::ShowTray(v) => {
-                    if let Some(tray) = &self.tray {
+                    if let Some(tray) = &mut self.tray {
                         tray.set_visible(v);
                     }
                 }

@@ -21,3 +21,7 @@ first: it has the rules, the architecture and the tracker.
 - macOS packaging and runtime: follow `docs/MACOS-LEARNINGS.md`.
 - Licence: GPL-3.0-or-later (it's a port of ShareX).
 - Build: `cargo build`; render a screen: `target/debug/sharexrs --render main --out shots/x.png`.
+- Before committing, also lint macOS from Windows:
+  `cargo clippy --workspace --all-targets --target aarch64-apple-darwin -- -D warnings`
+  (`rustup target add aarch64-apple-darwin` once). Linux can't be checked on
+  Windows (system libraries); CI covers it, so check CI after every push.
