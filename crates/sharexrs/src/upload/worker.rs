@@ -132,6 +132,10 @@ pub(super) struct Worker<'a> {
     /// `Info.Metadata`'s window title and process name (image tasks), the
     /// history item's tags.
     metadata: (Option<String>, Option<String>),
+    /// `Image`: the capture after the after capture tasks.
+    image: Option<image::RgbaImage>,
+    /// `Info.HistoryOCRTask`.
+    history_ocr: Option<crate::ocr::PendingText>,
 }
 
 impl<'a> Worker<'a> {
@@ -169,6 +173,8 @@ impl<'a> Worker<'a> {
             early_url_copied: Arc::default(),
             task_ref,
             metadata,
+            image: None,
+            history_ocr: None,
         }
     }
 
@@ -263,7 +269,8 @@ impl<'a> Worker<'a> {
             Some(Source::Image(image)) if self.job == TaskJob::Job => {
                 // `DoAfterCaptureJobs` (ported in `capture_job`).
                 match image.run(self.ctx.owner) {
-                    Ok(outcome) => {
+                    Ok(mut outcome) => {
+                        self.image = outcome.image.take();
                         if let Some(name) = outcome.file_name {
                             self.file_name = name;
                         }
@@ -280,6 +287,7 @@ impl<'a> Worker<'a> {
                         return Next::Fail;
                     }
                 }
+                self.start_history_ocr();
                 // `DoFileJobs` (actions, copy file/path, show in Explorer) isn't ported yet.
             }
             Some(Source::Text(text)) => {
@@ -294,9 +302,26 @@ impl<'a> Worker<'a> {
             other => self.source = other,
         }
         if self.task.AfterCaptureJob.contains(AfterCaptureTasks::DoOCR) {
-            eprintln!("OCR isn't ported yet.");
+            self.do_ocr();
         }
         Next::Continue
+    }
+
+    /// `DoOCR`.
+    fn do_ocr(&self) {
+        if let Some(image) = self.image.as_ref().filter(|_| self.data_type == EDataType::Image) {
+            crate::ocr::ocr_image(image, &self.task, self.ctx.ui.as_ref());
+        }
+    }
+
+    /// `StartHistoryOCR`: beside saving and uploading, on a copy of the final image.
+    fn start_history_ocr(&mut self) {
+        if let Some(image) = self.image.as_ref().filter(|_| self.data_type == EDataType::Image)
+            && self.ctx.app.HistorySaveTasks
+            && self.ctx.app.HistorySaveOCRText
+        {
+            self.history_ocr = Some(crate::ocr::recognize_text_for_history(image.clone()));
+        }
     }
 
     fn set_data(&mut self, data: Vec<u8>) {
@@ -576,6 +601,7 @@ impl<'a> Worker<'a> {
             show_toast: general.ShowToastNotificationAfterTaskCompleted,
             upload_duration: self.upload_duration,
             history: Some(history),
+            history_ocr: self.history_ocr.clone(),
         }
     }
 }

@@ -19,6 +19,7 @@ mod hotkeys;
 mod main_menu;
 mod main_window;
 mod message_box;
+mod ocr;
 mod region_render;
 mod region_session;
 mod render;

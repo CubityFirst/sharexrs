@@ -206,6 +206,8 @@ pub struct TaskOutcome {
     /// prepared for saving or uploading.
     pub data: Option<Vec<u8>>,
     pub file_name: Option<String>,
+    /// The image after the after capture tasks (`WorkerTask.Image`), for OCR.
+    pub image: Option<RgbaImage>,
 }
 
 /// An image task ready to run off the event loop, with what
@@ -267,6 +269,7 @@ impl ImageTask {
             outcome.data = Some(data);
             outcome.file_name = Some(name);
         }
+        outcome.image = Some(self.metadata.image);
         Ok(outcome)
     }
 }
