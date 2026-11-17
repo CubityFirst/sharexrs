@@ -41,6 +41,8 @@
 //! `--legacy` (icon pack) and `--compact`, and `--click X,Y[;X,Y]` (clicks
 //! before drawing, to open a dropdown).
 //!
+//! `controls-gallery` is every shared control in every state (see
+//! `controls_gallery`), for comparing with the Avalonia.Headless probe's.
 //! `hotkeys` is Hotkey settings with ShareX's default hotkeys
 //! (`--unregistered 0,3` failed, `--select N`, `--recording N` recording
 //! hotkey N, `--none 1` hotkey 1 cleared, `--disabled` with hotkeys disabled, `--reset` the reset
@@ -478,6 +480,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 state.ui(ui, &mut settings);
             })
         }
+        "controls-gallery" => crate::controls_gallery::render(dark)?,
         "hotkeys" => {
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             settings.DisableHotkeys = hk_disabled;

@@ -7,7 +7,7 @@
 //! `TaskSettingsPageBuilder` builds them, and bound straight to the
 //! `TaskSettings` they edit, so a change applies to the next task at once.
 
-use egui::{CornerRadius, Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 use serde_json::Value;
 use sharex_settings::{AfterCaptureTasks, AfterUploadTasks, Described, HotkeyType, TaskSettings};
 use sharex_strings::sharex as s;
@@ -15,7 +15,7 @@ use sharex_ui::controls::{self, Button, ColorButton, ComboItem, TextBox};
 use sharex_ui::icons;
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::menu::{Flyout, MenuEntry, MenuStyle, Placement, Toggle};
-use sharex_ui::theme::{density, fluent, palette};
+use sharex_ui::theme::{density, palette};
 use sharex_ui::widgets::{center_y, font, line_height, text_width};
 
 use crate::main_menu::{AFTER_CAPTURE_TASKS, AFTER_UPLOAD_TASKS, find_menu_icon, task_menu};
@@ -327,7 +327,6 @@ impl TaskSettingsWindow {
     /// children indented 16).
     fn navigation(&mut self, ui: &mut Ui, full: Rect, visible: &[bool; 20]) {
         let p = palette(ui.ctx());
-        let f = fluent(ui.ctx());
         let d = density(ui.ctx());
         let nav = Rect::from_min_size(full.min, vec2(NAV_WIDTH, full.height()));
         ui.painter().rect_filled(nav, 0.0, p.background_toolbar);
@@ -390,22 +389,7 @@ impl TaskSettingsWindow {
             }
             let resp = child.interact(r, Id::new(("task-nav", i)), egui::Sense::click());
             let selected = i == self.page;
-            let radius = CornerRadius::same(4);
-            if selected {
-                let fill = if resp.is_pointer_button_down_on() {
-                    p.accent_fill_dark[0]
-                } else if resp.hovered() {
-                    p.accent_fill_light[0]
-                } else {
-                    p.accent_start
-                };
-                child.painter().rect_filled(r, radius, fill);
-                child.painter().rect_stroke(r, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
-            } else if resp.is_pointer_button_down_on() {
-                child.painter().rect_filled(r, radius, f.list_medium);
-            } else if resp.hovered() {
-                child.painter().rect_filled(r, radius, f.list_low);
-            }
+            settings_form::nav_item_background(child.painter(), r, &resp, selected);
             let indent = if PAGES[i].parent.is_some() { 16.0 } else { 0.0 };
             let has_children = PAGES.iter().any(|c| c.parent == Some(i));
             let fg = if selected { p.accent_foreground } else { p.text };
@@ -426,6 +410,7 @@ impl TaskSettingsWindow {
             let icon_color = if selected { p.accent_foreground } else { p.accent_icon };
             icons::paint(child.painter(), Rect::from_min_size(pos2(content.min.x + 2.0, center_y(r, 16.0)), Vec2::splat(16.0)), key, icon_color);
             controls::label(&child, Rect::from_min_max(pos2(content.min.x + 26.0, r.min.y), pos2(content.max.x, r.max.y)), title, font(13.0, 400), fg);
+            settings_form::nav_item_focus(child.painter(), r, &resp);
             if resp.clicked() && !toggled && !selected {
                 self.select_page(i);
             }
@@ -1569,7 +1554,7 @@ fn mh_check(f: &mut Form, text: &str, value: &mut bool, enabled: bool) -> bool {
         return false;
     }
     let r = f.slot(32.0);
-    let cb = controls::CheckBox { min_height: 32.0, enabled: enabled && f.enabled, text_font: font(13.0, 400), ..controls::CheckBox::new(text) };
+    let cb = controls::CheckBox { min_height: 32.0, enabled: enabled && f.enabled, text_font: font(13.0, 400), text_color: Some(palette(f.ui.ctx()).text), ..controls::CheckBox::new(text) };
     let w = cb.width(f.ui);
     let id = f.id(text);
     cb.show(f.ui, Rect::from_min_size(r.min, vec2(w, 32.0)), id, value).changed()
@@ -1622,7 +1607,7 @@ fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, color: &str) -
     let mut changed = false;
     let enabled = match on {
         Some(on) => {
-            let cb = controls::CheckBox { min_height: 32.0, enabled: f.enabled, text_font: font(13.0, 400), ..controls::CheckBox::new(label) };
+            let cb = controls::CheckBox { min_height: 32.0, enabled: f.enabled, text_font: font(13.0, 400), text_color: Some(palette(f.ui.ctx()).text), ..controls::CheckBox::new(label) };
             let w = cb.width(f.ui);
             let id = f.id(label);
             changed = cb.show(f.ui, Rect::from_min_size(pos2(r.min.x, center_y(r, 32.0)), vec2(w, 32.0)), id, on).changed();
