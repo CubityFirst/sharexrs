@@ -21,6 +21,11 @@ pub struct EguiWindow {
     /// What the window is cleared to before egui draws (premultiplied
     /// RGBA); the theme's panel colour when unset.
     pub clear_color: Option<[f32; 4]>,
+    /// Where the pointer last moved in the window: winit doesn't repeat a
+    /// `CursorMoved` at the same spot after the pointer left and came back
+    /// (a click at the same place twice, the window cut to a region),
+    /// while egui forgets the pointer when it leaves.
+    last_cursor: Option<winit::dpi::PhysicalPosition<f64>>,
 }
 
 impl EguiWindow {
@@ -54,7 +59,7 @@ impl EguiWindow {
             window.theme(),
             painter.max_texture_side(),
         );
-        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None })
+        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None })
     }
 
     pub fn ctx(&self) -> &egui::Context {
@@ -72,7 +77,17 @@ impl EguiWindow {
                     self.painter.on_window_resized(egui::ViewportId::ROOT, w, h);
                 }
             }
+            WindowEvent::CursorEntered { device_id } => {
+                let _ = self.state.on_window_event(&self.window, event);
+                if let Some(position) = self.last_cursor {
+                    let moved = WindowEvent::CursorMoved { device_id: *device_id, position };
+                    let _ = self.state.on_window_event(&self.window, &moved);
+                }
+                self.window.request_redraw();
+                return;
+            }
             WindowEvent::CursorMoved { position, .. } => {
+                self.last_cursor = Some(*position);
                 let dir = self.resize_direction(position.x, position.y);
                 if dir != self.resize_hover {
                     self.resize_hover = dir;

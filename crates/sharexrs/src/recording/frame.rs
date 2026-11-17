@@ -604,7 +604,6 @@ pub fn border_pixels(width: i32, height: i32, accent: Color32) -> Vec<(i32, i32,
         return Vec::new();
     }
     let (l1, l2) = (w - 1.0, h - 1.0);
-    let perimeter = 2.0 * (l1 + l2);
     let on = |d: f32, offset: f32| (d + offset).rem_euclid(10.0) < 5.0;
     // Whether the sample at (x, y) is inside the dashes with this offset.
     let inside = |x: f32, y: f32, offset: f32| -> bool {
@@ -623,18 +622,8 @@ pub fn border_pixels(width: i32, height: i32, accent: Color32) -> Vec<(i32, i32,
         if x < 1.0 && in_y {
             hit |= on(2.0 * l1 + l2 + (h - 0.5 - y), offset);
         }
-        // The miter squares outside the corners: filled where the dash runs
-        // on round the corner.
-        let corner = |d_in: f32, d_out: f32| on(d_in, offset) && on(d_out, offset);
-        if x < 0.5 && y < 0.5 {
-            hit |= corner(perimeter - 0.001, 0.0);
-        } else if x > w - 0.5 && y < 0.5 {
-            hit |= corner(l1 - 0.001, l1);
-        } else if x > w - 0.5 && y > h - 0.5 {
-            hit |= corner(l1 + l2 - 0.001, l1 + l2);
-        } else if x < 0.5 && y > h - 0.5 {
-            hit |= corner(2.0 * l1 + l2 - 0.001, 2.0 * l1 + l2);
-        }
+        // The quarter outside each corner stays empty: ShareX's corner
+        // pixels are three quarters covered.
         hit
     };
     const N: usize = 4;
