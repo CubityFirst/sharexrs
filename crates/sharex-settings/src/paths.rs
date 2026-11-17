@@ -432,8 +432,10 @@ mod tests {
         }
         assert_eq!(expand_folder_variables("%NO_SUCH_VAR_X%/a"), "%NO_SUCH_VAR_X%/a");
         assert_eq!(expand_folder_variables("100% done"), "100% done");
-        let docs = dirs::document_dir().unwrap();
-        assert_eq!(expand_folder_variables("%mydocuments%"), docs.to_string_lossy());
+        // Headless Linux (CI) has no XDG Documents folder.
+        if let Some(docs) = dirs::document_dir() {
+            assert_eq!(expand_folder_variables("%mydocuments%"), docs.to_string_lossy());
+        }
     }
 
     #[test]
