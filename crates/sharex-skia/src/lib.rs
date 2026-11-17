@@ -44,6 +44,7 @@ pub mod cubics;
 pub mod draw;
 pub mod fixed;
 pub mod geom;
+pub mod hair;
 pub mod path;
 pub mod pixmap;
 pub mod raster;

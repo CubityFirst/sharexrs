@@ -81,7 +81,7 @@ fn hline(blitter: &mut dyn Blitter, mut x: i32, y: i32, mut count: i32, alpha: i
     const HLINE_STACK_BUFFER: i32 = 100;
     while count > 0 {
         let n = count.min(HLINE_STACK_BUFFER);
-        blitter.blit_anti_h(x, y, &[alpha as u8], &[n as i16, 0]);
+        crate::hair::blit_run(blitter, x, y, n, alpha as u8);
         x += n;
         count -= n;
     }

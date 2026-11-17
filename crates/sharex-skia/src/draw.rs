@@ -115,8 +115,32 @@ pub fn from_tiny_skia(p: &tiny_skia::Path) -> Path {
     out
 }
 
+/// The path a dash effect leaves to stroke (the path itself without one).
+pub fn dash_path(path: &Path, stroke: &Stroke) -> Option<Path> {
+    match &stroke.dash {
+        Some((intervals, phase)) => {
+            let dash = tiny_skia::StrokeDash::new(intervals.clone(), *phase)?;
+            Some(from_tiny_skia(&path.to_tiny_skia()?.dash(&dash, 1.0)?))
+        }
+        None => Some(path.clone()),
+    }
+}
+
+/// Draws `path` (device space) as an anti-aliased hairline
+/// (`SkScan::AntiHairPath` and its square and round cap variants).
+pub fn hair_path(pm: &mut Pixmap, path: &Path, cap: Cap, color: Color, clip: Option<IRect>) {
+    let full = IRect::from_ltrb(0, 0, pm.width() as i32, pm.height() as i32);
+    let mut c = clip.unwrap_or(full);
+    if !c.intersect(&full) {
+        return;
+    }
+    let mut blitter = ColorBlitter::new(pm, color.a, color.r, color.g, color.b, Some(c));
+    crate::hair::anti_hair_path(path, cap, c, &mut blitter);
+}
+
 /// `SkCanvas::drawPath` with a stroke paint: strokes in local space, maps
-/// to device space with `ctm`, fills.
+/// to device space with `ctm`, fills. A stroke no wider than a device
+/// pixel is drawn as a hairline instead (`SkDrawTreatAsHairline`).
 pub fn stroke_path(
     pm: &mut Pixmap,
     path: &Path,
@@ -125,6 +149,16 @@ pub fn stroke_path(
     color: Color,
     clip: Option<IRect>,
 ) {
+    if let Some(coverage) = crate::hair::hairline_coverage(stroke.width, ctm) {
+        let color = Color {
+            a: crate::hair::hairline_alpha(color.a, coverage),
+            ..color
+        };
+        if let Some(src) = dash_path(path, stroke) {
+            hair_path(pm, &src.transformed(ctm), stroke.cap, color, clip);
+        }
+        return;
+    }
     if let Some(mut fill) = stroke_to_path(path, stroke) {
         fill.fill_type = FillType::Winding;
         let dev = fill.transformed(ctm);

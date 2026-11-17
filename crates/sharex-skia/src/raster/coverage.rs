@@ -23,6 +23,77 @@ pub(crate) enum Coverage {
     /// Per pixel of the destination: the call that covered it (`None`: untouched)
     /// and its coverage.
     Mask(Vec<Option<(Call, u8)>>),
+    /// Each blit in order, for scan converters that can cover a pixel more
+    /// than once (hairlines): x, y, call, coverage.
+    Hits(Vec<(i32, i32, Call, u8)>),
+}
+
+/// An anti-aliased hairline of `path` (device space) with `cap`
+/// (`SkScan::AntiHairPath` and its cap variants).
+pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {
+    let mut rec = HitRecorder {
+        width: width as i32,
+        height: height as i32,
+        hits: Vec::new(),
+    };
+    let clip = IRect::from_ltrb(0, 0, width as i32, height as i32);
+    crate::hair::anti_hair_path(path, cap, clip, &mut rec);
+    Coverage::Hits(rec.hits)
+}
+
+/// A blitter that records every blit in order, clipped to the destination.
+struct HitRecorder {
+    width: i32,
+    height: i32,
+    hits: Vec<(i32, i32, Call, u8)>,
+}
+
+impl HitRecorder {
+    fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8) {
+        if x >= 0 && y >= 0 && x < self.width && y < self.height {
+            self.hits.push((x, y, call, alpha));
+        }
+    }
+}
+
+impl Blitter for HitRecorder {
+    fn blit_h(&mut self, x: i32, y: i32, width: i32) {
+        for i in 0..width {
+            self.put(x + i, y, Call::H, 255);
+        }
+    }
+
+    fn blit_anti_h(&mut self, x: i32, y: i32, aa: &[u8], runs: &[i16]) {
+        let mut px = x;
+        let mut i = 0usize;
+        loop {
+            let count = runs[i] as i32;
+            if count <= 0 {
+                return;
+            }
+            for k in 0..count {
+                self.put(px + k, y, Call::AntiH, aa[i]);
+            }
+            px += count;
+            i += count as usize;
+        }
+    }
+
+    fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
+        for i in 0..height {
+            self.put(x, y + i, Call::V, alpha);
+        }
+    }
+
+    fn blit_anti_h2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x + 1, y, Call::AntiH2, a1);
+    }
+
+    fn blit_anti_v2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x, y + 1, Call::AntiH2, a1);
+    }
 }
 
 /// `SkScan::FillRect` (non-AA): edges rounded to the nearest pixel.
@@ -150,6 +221,11 @@ impl Blitter for Recorder {
         // Kept even at 0: the translucent legacy blitter still changes the pixel.
         self.put(x, y, Call::AntiH2, a0);
         self.put(x + 1, y, Call::AntiH2, a1);
+    }
+
+    fn blit_anti_v2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x, y + 1, Call::AntiH2, a1);
     }
 
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {

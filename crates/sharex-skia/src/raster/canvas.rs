@@ -409,6 +409,43 @@ impl<'a> Canvas<'a> {
         self.blit(&cov, paint);
     }
 
+    /// `SkCanvas::drawPath` with an anti-aliased stroke paint of `width` when
+    /// Skia draws it as a hairline (`SkDrawTreatAsHairline`): `path` is
+    /// dashed already, `cap` is the paint's. False (nothing drawn) when the
+    /// stroke is wider than a device pixel.
+    pub fn stroke_hairline(
+        &mut self,
+        path: &crate::Path,
+        width: f32,
+        cap: crate::Cap,
+        paint: &Paint,
+    ) -> bool {
+        let m = &self.matrix;
+        let ctm = crate::Matrix {
+            sx: m.sx(),
+            kx: m.kx(),
+            tx: m.tx(),
+            ky: m.ky(),
+            sy: m.sy(),
+            ty: m.ty(),
+        };
+        let Some(coverage) = crate::hair::hairline_coverage(width, &ctm) else {
+            return false;
+        };
+        if self.dst.is_empty() {
+            return true;
+        }
+        let mut paint = paint.clone();
+        match &mut paint.shader {
+            Shader::Color(c) => c[3] = crate::hair::hairline_alpha(c[3], coverage),
+            _ => paint.alpha = crate::hair::hairline_alpha(paint.alpha, coverage),
+        }
+        let device = path.transformed(&ctm);
+        let cov = coverage::anti_hair_path(&device, cap, self.width(), self.height());
+        self.blit(&cov, &paint);
+        true
+    }
+
     /// The sprite blitter (`SkBlitter::ChooseSprite`).
     fn sprite(&mut self, image: &Bitmap, ix: i32, iy: i32, paint: &Paint) {
         let (w, h) = (self.width() as i32, self.height() as i32);
@@ -531,6 +568,11 @@ impl<'a> Canvas<'a> {
                     if let Some((call, c)) = *cell {
                         pixel(self, (i % w) as i32, (i / w) as i32, call, c);
                     }
+                }
+            }
+            Coverage::Hits(hits) => {
+                for &(x, y, call, c) in hits {
+                    pixel(self, x, y, call, c);
                 }
             }
         }

@@ -71,6 +71,56 @@ fn sect_clamp_with_vertical(src: &[Point; 2], x: f32) -> f32 {
     pin_unsorted_f(y, src[0].y, src[1].y)
 }
 
+/// `SkLineClipper::IntersectLine`: the part of the line inside `clip`
+/// (edges included), or `None`.
+pub fn intersect_line(src: &[Point; 2], clip: &Rect) -> Option<[Point; 2]> {
+    let nested_lt = |a: f32, b: f32, dim: f32| a <= b && (a < b || dim > 0.0);
+    let bounds = Rect::from_ltrb(
+        src[0].x.min(src[1].x),
+        src[0].y.min(src[1].y),
+        src[0].x.max(src[1].x),
+        src[0].y.max(src[1].y),
+    );
+    // containsNoEmptyCheck
+    if clip.left <= bounds.left
+        && clip.top <= bounds.top
+        && clip.right >= bounds.right
+        && clip.bottom >= bounds.bottom
+    {
+        return Some(*src);
+    }
+    if nested_lt(bounds.right, clip.left, bounds.width())
+        || nested_lt(clip.right, bounds.left, bounds.width())
+        || nested_lt(bounds.bottom, clip.top, bounds.height())
+        || nested_lt(clip.bottom, bounds.top, bounds.height())
+    {
+        return None;
+    }
+    let (i0, i1) = if src[0].y < src[1].y { (0, 1) } else { (1, 0) };
+    let mut tmp = *src;
+    if tmp[i0].y < clip.top {
+        tmp[i0] = Point::new(sect_with_horizontal(src, clip.top), clip.top);
+    }
+    if tmp[i1].y > clip.bottom {
+        tmp[i1] = Point::new(sect_with_horizontal(src, clip.bottom), clip.bottom);
+    }
+    let (i0, i1) = if tmp[0].x < tmp[1].x { (0, 1) } else { (1, 0) };
+    if tmp[i1].x <= clip.left || tmp[i0].x >= clip.right {
+        // usually we will return false, but we don't if the line is vertical and coincident
+        // with the clip.
+        if tmp[0].x != tmp[1].x || tmp[0].x < clip.left || tmp[0].x > clip.right {
+            return None;
+        }
+    }
+    if tmp[i0].x < clip.left {
+        tmp[i0] = Point::new(clip.left, sect_with_vertical(&tmp, clip.left));
+    }
+    if tmp[i1].x > clip.right {
+        tmp[i1] = Point::new(clip.right, sect_with_vertical(&tmp, clip.right));
+    }
+    Some(tmp)
+}
+
 /// `SkLineClipper::ClipLine`: the polyline of the clipped line (0 to 3
 /// segments).
 pub fn clip_line(pts: &[Point; 2], clip: &Rect, can_cull_to_the_right: bool) -> Vec<Point> {

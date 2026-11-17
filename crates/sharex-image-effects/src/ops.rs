@@ -641,6 +641,12 @@ pub fn stroke_sk_path(canvas: &mut Canvas, path: &sharex_skia::Path, stroke: &St
         miter_limit: 4.0,
         dash: stroke.dash.clone().map(|d| (d, 0.0)),
     };
+    if stroke.paint.anti_alias
+        && let Some(src) = sharex_skia::draw::dash_path(path, &s)
+        && canvas.stroke_hairline(&src, s.width, s.cap, &stroke.paint)
+    {
+        return;
+    }
     if let Some(outline) = sharex_skia::draw::stroke_to_path(path, &s) {
         canvas.fill_sk_path(&outline, &stroke.paint);
     }

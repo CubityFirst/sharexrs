@@ -387,8 +387,7 @@
       "Y": 280
      }
     }
-   ],
-   "pending": "1px strokes are hairlines in Skia (SkScan_Antihair) not ported"
+   ]
   },
   {
    "name": "line-2px-dash",
