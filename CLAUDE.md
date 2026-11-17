@@ -25,3 +25,7 @@ first: it has the rules, the architecture and the tracker.
   `cargo clippy --workspace --all-targets --target aarch64-apple-darwin -- -D warnings`
   (`rustup target add aarch64-apple-darwin` once). Linux can't be checked on
   Windows (system libraries); CI covers it, so check CI after every push.
+- Tests that compare against ShareX's Windows screenshots or depend on
+  Windows fonts, folders or environment (Segoe UI layout, `Documents`,
+  case-insensitive env vars) must be `#[cfg(windows)]` or skip themselves
+  elsewhere: CI runs every test on macOS and Linux too.
