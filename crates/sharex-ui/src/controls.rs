@@ -167,11 +167,8 @@ impl<'a> CheckBox<'a> {
         let radius = CornerRadius::same(3);
         let painter = ui.painter();
         if !self.enabled {
-            if *checked {
-                painter.rect_filled(b, radius, f.base_low);
-            } else {
-                bordered(ui, b, 3.0, p.control_background_disabled, p.border);
-            }
+            // `:disabled /template/ Border#NormalRectangle`, checked or not.
+            bordered(ui, b, 3.0, p.control_background_disabled, p.border);
         } else if *checked {
             paint_accent_gradient(ui, b, radius);
             painter.rect_stroke(b, radius, Stroke::new(1.0, p.accent_border), StrokeKind::Inside);
@@ -188,10 +185,14 @@ impl<'a> CheckBox<'a> {
             bordered(ui, b, 3.0, fill, p.border);
         }
         if *checked {
-            let glyph = if self.enabled { p.accent_foreground } else { f.base_medium_low };
+            // Disabled: white on the disabled fill, as ShareX draws it in
+            // both themes.
+            let glyph = if self.enabled { p.accent_foreground } else { Color32::WHITE };
             paint_check_glyph(ui, b, glyph);
         }
-        let color = if self.enabled { self.text_color.unwrap_or(p.text) } else { p.text_secondary };
+        // Disabled: Fluent's `ContentPresenter` foreground
+        // (`CheckBoxForegroundUncheckedDisabled`) wins over ShareX's.
+        let color = if self.enabled { self.text_color.unwrap_or(p.text) } else { f.base_medium_low };
         let text_rect = Rect::from_min_max(pos2(b.max.x + 8.0, rect.min.y), pos2(rect.max.x.max(b.max.x + 8.0), rect.min.y + self.min_height));
         text_at(ui, text_rect, text_rect.min.x, self.text, self.text_font.clone(), color);
         if r.clicked() {
@@ -513,9 +514,11 @@ impl Default for TextBox<'_> {
 }
 
 impl TextBox<'_> {
-    /// A `TextPresenter` takes the control's font: Inter, Normal.
+    /// A `TextPresenter` takes the control's font: Inter, Normal, at
+    /// Fluent's `ControlContentThemeFontSize` (14; ShareX's `TextBox` style
+    /// doesn't set one).
     pub fn font() -> FontId {
-        content_font(13.0, 400)
+        content_font(14.0, 400)
     }
 
     /// Draws the text box in `rect`, editing `text`.
@@ -580,6 +583,39 @@ pub struct NumericUpDown {
 
 impl NumericUpDown {
     pub fn show(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut i64) -> bool {
+        let spinner = DecimalUpDown {
+            minimum: self.minimum as f64,
+            maximum: self.maximum as f64,
+            increment: 1.0,
+            decimals: 0,
+            enabled: self.enabled,
+        };
+        let mut v = *value as f64;
+        if spinner.show(ui, rect, id, &mut v) {
+            *value = v.round() as i64;
+            return true;
+        }
+        false
+    }
+}
+
+/// A `NumericUpDown` over a `decimal` (`Increment` 0.1 and the like): the
+/// value shown with `decimals` places, as .NET prints a decimal of that
+/// scale.
+pub struct DecimalUpDown {
+    pub minimum: f64,
+    pub maximum: f64,
+    pub increment: f64,
+    pub decimals: usize,
+    pub enabled: bool,
+}
+
+impl DecimalUpDown {
+    fn format(&self, v: f64) -> String {
+        format!("{v:.prec$}", prec = self.decimals)
+    }
+
+    pub fn show(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut f64) -> bool {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let mut changed = false;
@@ -595,20 +631,33 @@ impl NumericUpDown {
         let up = Rect::from_min_max(pos2(rect.max.x - 69.0, rect.min.y + 1.0), pos2(rect.max.x - 35.0, rect.max.y - 1.0));
         let down = Rect::from_min_max(pos2(rect.max.x - 35.0, rect.min.y + 1.0), pos2(rect.max.x - 1.0, rect.max.y - 1.0));
         let now = ui.input(|i| i.time);
-        for (i, (b, step)) in [(up, 1i64), (down, -1)].into_iter().enumerate() {
-            let r = interact(ui, b, id.with(("spin", i)), self.enabled);
-            let (over, pressed) = states(&r, self.enabled);
+        let scale = 10f64.powi(self.decimals as i32);
+        for (i, (b, step)) in [(up, 1.0f64), (down, -1.0)].into_iter().enumerate() {
+            // `ValidSpinDirections`: no increase at the maximum, no
+            // decrease at the minimum.
+            let valid = if step > 0.0 { *value < self.maximum } else { *value > self.minimum };
+            let enabled = self.enabled && valid;
+            let r = interact(ui, b, id.with(("spin", i)), enabled);
+            let (over, pressed) = states(&r, enabled);
             let cell = Rect::from_min_max(pos2(b.min.x + 1.0, b.min.y), b.max);
-            // `RepeatButtonBackgroundPointerOver` / `Pressed`.
-            let bg = if pressed { Some(f.base_medium_low) } else if over { Some(f.base_high.gamma_multiply(0.1)) } else { None };
+            // `RepeatButtonBackgroundPointerOver` / `Pressed` / `Disabled`.
+            let bg = if !enabled {
+                Some(f.base_low)
+            } else if pressed {
+                Some(f.base_medium_low)
+            } else if over {
+                Some(f.base_high.gamma_multiply(0.1))
+            } else {
+                None
+            };
             if let Some(bg) = bg {
                 let radius = if i == 1 { CornerRadius { ne: 3, se: 3, ..Default::default() } } else { CornerRadius::ZERO };
                 ui.painter().rect_filled(cell, radius, bg);
             }
             ui.painter().rect_filled(Rect::from_min_size(b.min, vec2(1.0, b.height())), 0.0, p.border);
             let glyph = Rect::from_center_size(cell.center(), vec2(16.0, 8.0));
-            let color = if self.enabled { p.text } else { p.text_secondary };
-            paint_spinner_chevron(ui, glyph, step > 0, color);
+            let color = if enabled { p.text } else { p.text_secondary };
+            paint_spinner_chevron(ui, glyph, step > 0.0, color);
             // `RepeatButton`: once on press, then every 33ms after 300ms.
             let key = id.with(("repeat", i));
             let mut fire = false;
@@ -630,7 +679,9 @@ impl NumericUpDown {
                 ui.ctx().data_mut(|d| d.remove::<f64>(key));
             }
             if fire {
-                let v = (*value + step).clamp(self.minimum, self.maximum);
+                // Decimal arithmetic: round to the shown places.
+                let v = ((*value + step * self.increment) * scale).round() / scale;
+                let v = v.clamp(self.minimum, self.maximum);
                 if v != *value {
                     *value = v;
                     changed = true;
@@ -642,9 +693,9 @@ impl NumericUpDown {
         let buf_id = id.with("text");
         let focused = ui.ctx().memory(|m| m.has_focus(buf_id));
         let mut text = if focused {
-            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| value.to_string())
+            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| self.format(*value))
         } else {
-            value.to_string()
+            self.format(*value)
         };
         let font = TextBox::font();
         let lh = line_height(ui, &font);
@@ -665,8 +716,8 @@ impl NumericUpDown {
             ui.ctx().data_mut(|d| d.insert_temp(buf_id, text.clone()));
         }
         if r.lost_focus() {
-            if let Ok(v) = text.trim().parse::<i64>() {
-                let v = v.clamp(self.minimum, self.maximum);
+            if let Ok(v) = text.trim().parse::<f64>() {
+                let v = ((v * scale).round() / scale).clamp(self.minimum, self.maximum);
                 if v != *value {
                     *value = v;
                     changed = true;
