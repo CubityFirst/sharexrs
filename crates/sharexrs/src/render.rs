@@ -41,6 +41,14 @@
 //! `--legacy` (icon pack) and `--compact`, and `--click X,Y[;X,Y]` (clicks
 //! before drawing, to open a dropdown).
 //!
+//! `hotkeys` is Hotkey settings with ShareX's default hotkeys
+//! (`--unregistered 0,3` failed, `--select N`, `--recording N` recording
+//! hotkey N, `--none 1` hotkey 1 cleared, `--disabled` with hotkeys disabled, `--reset` the reset
+//! confirmation, `--empty` without hotkeys; `--click`/`--hover` as above).
+//! `task-settings-<page>` is Task settings on a page by its id (`task`,
+//! `general`, `general-notifications`, `image`, `capture-region`, ...): the
+//! default task settings, or `--hotkey` the first default hotkey's.
+//!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
 //! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
 //! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
@@ -221,6 +229,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut legacy = false;
     let mut compact = false;
     let mut click: Vec<egui::Pos2> = Vec::new();
+    // Hotkey and Task settings.
+    let mut recording = None;
+    let mut cleared: Vec<usize> = Vec::new();
+    let (mut hk_disabled, mut hk_reset, mut hk_empty, mut for_hotkey) = (false, false, false, false);
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -280,6 +292,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     click.push(egui::pos2(x.parse().map_err(|_| "--click X,Y")?, y.parse().map_err(|_| "--click X,Y")?));
                 }
             }
+            "--recording" => recording = Some(val()?.parse::<usize>().map_err(|_| "--recording N")?),
+            "--disabled" => hk_disabled = true,
+            "--none" => cleared = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect(),
+            "--reset" => hk_reset = true,
+            "--empty" => hk_empty = true,
+            "--hotkey" => for_hotkey = true,
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -458,6 +476,57 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let mut screen = Offscreen::new([w, h], scale, dark)?;
             render_frames(&mut screen, hover, &click, &mut |ui| {
                 state.ui(ui, &mut settings);
+            })
+        }
+        "hotkeys" => {
+            let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
+            settings.DisableHotkeys = hk_disabled;
+            let mut hotkeys = if hk_empty { Vec::new() } else { default_hotkeys(&unregistered) };
+            for &i in &cleared {
+                hotkeys[i].HotkeyInfo = sharex_settings::HotkeyInfo::default();
+            }
+            let mut state = crate::hotkey_settings::HotkeySettingsWindow::default();
+            state.selected = select.first().copied();
+            state.reset_confirmation = hk_reset;
+            if let Some(i) = recording {
+                let mut svc = crate::hotkey_settings::Service { hotkeys: &mut hotkeys, manager: None, settings: &mut settings };
+                state.toggle_capture(&mut svc, i);
+                svc.hotkeys[i].HotkeyInfo.status = HotkeyStatus::NotConfigured;
+            }
+            let w = width.unwrap_or((crate::hotkey_settings::WIDTH * scale) as u32);
+            let h = height.unwrap_or((crate::hotkey_settings::HEIGHT * scale) as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            render_frames(&mut screen, hover, &click, &mut |ui| {
+                if !open.is_empty() {
+                    state.open_menu_path(&open);
+                }
+                let mut svc = crate::hotkey_settings::Service { hotkeys: &mut hotkeys, manager: None, settings: &mut settings };
+                state.ui(ui, &mut svc);
+            })
+        }
+        s if s.starts_with("task-settings-") => {
+            let name = &s["task-settings-".len()..];
+            let page = crate::task_settings_window::page_index(name).ok_or(format!("no task settings page {name}"))?;
+            let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
+            let defaults = settings.DefaultTaskSettings.clone();
+            let mut hotkeys = default_hotkeys(&[]);
+            let mut state = if for_hotkey {
+                crate::task_settings_window::TaskSettingsWindow::new(&mut hotkeys[0].TaskSettings, Some(&defaults))
+            } else {
+                crate::task_settings_window::TaskSettingsWindow::new(&mut settings.DefaultTaskSettings, None)
+            };
+            state.page = page;
+            let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
+            let h = height.unwrap_or((crate::task_settings_window::HEIGHT * scale) as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            render_frames(&mut screen, hover, &click, &mut |ui| {
+                let s = &mut settings;
+                let mut ctx = if for_hotkey {
+                    crate::task_settings_window::TaskCtx { task: &mut hotkeys[0].TaskSettings, auto_increment: &mut s.NameParserAutoIncrementNumber }
+                } else {
+                    crate::task_settings_window::TaskCtx { task: &mut s.DefaultTaskSettings, auto_increment: &mut s.NameParserAutoIncrementNumber }
+                };
+                state.ui(ui, &mut ctx);
             })
         }
         "app-icon" => {
