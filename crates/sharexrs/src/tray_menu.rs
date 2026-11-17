@@ -25,21 +25,26 @@ use crate::window::EguiWindow;
 /// placed against.
 const ANCHOR_SIZE: (f32, f32) = (32.0, 39.0);
 
-pub struct TrayMenu {
+pub struct TrayMenu<C: Clone = MenuCommand> {
     window: EguiWindow,
-    flyout: Flyout<MenuCommand>,
+    flyout: Flyout<C>,
     /// The levels the window region was last cut to.
     shown: Vec<egui::Rect>,
 }
 
 /// What the menu did.
-#[derive(Default)]
-pub struct Output {
-    pub command: Option<MenuCommand>,
+pub struct Output<C = MenuCommand> {
+    pub command: Option<C>,
     pub closed: bool,
 }
 
-impl TrayMenu {
+impl<C> Default for Output<C> {
+    fn default() -> Self {
+        Self { command: None, closed: false }
+    }
+}
+
+impl<C: Clone> TrayMenu<C> {
     /// Opens `entries` at `cursor` (desktop pixels) on its monitor's work
     /// area; `open` is a submenu path to open at once
     /// (`TrayAutoExpandCaptureMenu` opens Capture).
@@ -48,7 +53,7 @@ impl TrayMenu {
         gpu: &Gpu,
         screens: &[Screen],
         cursor: (i32, i32),
-        entries: Vec<MenuEntry<MenuCommand>>,
+        entries: Vec<MenuEntry<C>>,
         theme: egui::Theme,
         open: &[usize],
     ) -> Result<Self, String> {
@@ -107,7 +112,7 @@ impl TrayMenu {
         }
     }
 
-    fn paint(&mut self) -> Output {
+    fn paint(&mut self) -> Output<C> {
         let flyout = &mut self.flyout;
         let FlyoutOutput { command, closed } = self.window.paint(|ui| {
             let bounds = ui.max_rect();
@@ -121,7 +126,7 @@ impl TrayMenu {
         Output { command, closed }
     }
 
-    pub fn window_event(&mut self, event: WindowEvent) -> Output {
+    pub fn window_event(&mut self, event: WindowEvent) -> Output<C> {
         match event {
             WindowEvent::RedrawRequested => self.paint(),
             // `OnTrayMenuAnchorDeactivated`.
