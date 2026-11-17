@@ -21,7 +21,7 @@ fn effect_pixel_bounds(a: &Annotation) -> (i32, i32, i32, i32) {
     )
 }
 
-pub fn draw_effect(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
+pub fn draw_effect(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut super::Cache) {
     if a.common.rotation_angle != 0.0 {
         // Rotated effects (UpdateEffectFromProcessedSource) aren't ported.
         return;
@@ -29,12 +29,12 @@ pub fn draw_effect(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
     match &a.kind {
         Kind::Highlight(_) => draw_highlight(pm, base, a),
         Kind::Blur(p) => {
-            let cache = blurred_source(base, p.amount);
-            draw_aligned_cache(pm, &cache, a);
+            let source = cache.source(base, 0, p.amount, blurred_source);
+            draw_aligned_cache(pm, source, a);
         }
         Kind::Pixelate(p) => {
-            let cache = pixelated_source(base, p.amount);
-            draw_aligned_cache(pm, &cache, a);
+            let source = cache.source(base, 1, p.amount, pixelated_source);
+            draw_aligned_cache(pm, source, a);
         }
         Kind::Magnify(p) => draw_magnify(pm, base, a, p),
         _ => {}
@@ -244,7 +244,7 @@ pub(super) fn src_over(src: u32, dst: u32) -> u32 {
 /// The shared spotlight overlay (`SpotlightOverlayControl.UpdateSpotlights`),
 /// drawn over the image below every annotation: the (optionally blurred)
 /// image darkened, with each spotlight cleared out of it.
-pub fn draw_spotlights(pm: &mut Pixmap, base: &Pixmap, annotations: &[Annotation]) {
+pub fn draw_spotlights(pm: &mut Pixmap, base: &Pixmap, annotations: &[Annotation], cache: &mut super::Cache) {
     let spots: Vec<(&Annotation, &crate::model::SpotlightProps)> = annotations
         .iter()
         .filter_map(|a| match &a.kind {
@@ -262,7 +262,7 @@ pub fn draw_spotlights(pm: &mut Pixmap, base: &Pixmap, annotations: &[Annotation
         .map(|s| s.1.blur_amount)
         .fold(f32::MIN, f32::max);
     let mut overlay = if blur > 0.0 {
-        blurred_source(base, blur)
+        cache.source(base, 0, blur, blurred_source).clone()
     } else {
         Pixmap::new(w, h)
     };
