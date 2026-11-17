@@ -80,6 +80,10 @@ pub fn load<T: SettingsFile>(path: Option<&Path>, backup_folder: Option<&Path>, 
         }
     }
     for candidate in candidates {
+        if !candidate.is_file() {
+            log::write(&format!("{} file does not exist: {}", type_name::<T>(), candidate.display()));
+            continue;
+        }
         match load_file::<T>(&candidate) {
             Ok(settings) => {
                 let version = settings.application_version().unwrap_or("");
