@@ -152,21 +152,23 @@ blitter).
 **Runtime**: the `ort` crate (2.0.0-rc.15) with `load-dynamic`: nothing is downloaded
 or linked at build time; the library is loaded on first use from `ORT_DYLIB_PATH`, else
 beside the executable (`onnxruntime.dll`, `libonnxruntime.dylib`,
-`libonnxruntime.so[.1]`; on macOS also `../Frameworks`). Built **without** `ort`'s
+`libonnxruntime.so[.1]`; in a macOS bundle also `Contents/Frameworks`). Built **without** `ort`'s
 `api-22`+ features on purpose: with them, `ort` sets an automatic EP selection policy
 (`MaxEfficiency`) on every session, which ShareX doesn't and which could pick DirectML
 or an NPU. Sessions get `GraphOptimizationLevel::All` (`ORT_ENABLE_ALL`; `ort`'s
 `Level3` is `ORT_ENABLE_LAYOUT`) and nothing else, like ShareX's.
 
-**Models**: looked for as ShareX does, in `Models/` beside the executable (macOS also
-`../Resources/Models`); `SHAREXRS_OCR_MODELS` overrides the folder for development
+**Models**: looked for as ShareX does, in `Models/` beside the executable (in a macOS
+bundle also `Contents/Resources/Models`); `SHAREXRS_OCR_MODELS` overrides the folder for development
 builds. No download, as ShareX.
 
-**Packaging (not done yet)**: a release needs ShareX's two model folders (31 MB,
-Apache-2.0) and ONNX Runtime 1.24.x beside the executable. Neither is in this repo.
-Copy them from a ShareX build (`ShareX-build/Models`, `ShareX-build/onnxruntime.dll`)
-for a local run. Without them OCR returns an error that the callers log (as ShareX
-logs its exceptions).
+**Packaging**: the release packages bundle ShareX's two model folders (31 MB,
+Apache-2.0, from ShareX's repo) and Microsoft's CPU ONNX Runtime 1.24.4 (NuGet
+`Microsoft.ML.OnnxRuntime`) where the lookups above find them, pinned by SHA256
+([RELEASING.md](RELEASING.md)). Neither is in this repo: for a local run,
+`python scripts/fetch-bundled.py --platform windows-x64 --out <dir>` lays them out (or
+copy `ShareX-build/Models` and `ShareX-build/onnxruntime.dll`). Without them OCR
+returns an error that the callers log (as ShareX logs its exceptions).
 
 ### In the app
 
@@ -248,9 +250,9 @@ x64 only).
 ## Platforms
 
 - **Windows x64**: validated as above with ShareX's own `onnxruntime.dll` (the
-  DirectML package's build, CPU provider). The plain CPU package of the same version
-  (what a ShareXrs release would ship) is expected to run the same CPU kernels but
-  wasn't compared: there's no copy here, and only the model files could be fetched.
+  DirectML package's build, CPU provider). The plain CPU package of the same version,
+  which the ShareXrs release ships, passes `engine_matches_sharex` too: the same boxes
+  and score bits as ShareX on all 8 fixtures.
 - **macOS / Linux**: the crate builds there (clippy for aarch64-apple-darwin is
   clean; Linux through CI) and the CI tests run there; the engine itself is untested.
   ONNX Runtime picks CPU kernels by instruction set (AVX2/AVX-512 on x64, NEON on
@@ -300,7 +302,6 @@ x64 only).
 
 ### Other gaps
 
-- Model and ONNX Runtime packaging for releases (above).
 - `.txt` beside the file for the file-based callers (only reached from the entry
   points above).
-- macOS/Linux engine runs (untested), the plain CPU ONNX Runtime build (not compared).
+- macOS/Linux engine runs (untested).

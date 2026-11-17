@@ -58,16 +58,32 @@ pub struct PaddleOcrEngine {
 /// macOS bundle's `Resources`, and `SHAREXRS_OCR_MODELS` overrides both (for
 /// development builds, which have no models beside them).
 pub fn default_models_folder() -> PathBuf {
-    if let Some(p) = std::env::var_os("SHAREXRS_OCR_MODELS").filter(|p| !p.is_empty()) {
-        return PathBuf::from(p);
-    }
     let dir = std::env::current_exe()
         .ok()
         .and_then(|e| e.parent().map(Path::to_path_buf))
         .unwrap_or_default();
-    let beside = dir.join("Models");
-    if cfg!(target_os = "macos") && !beside.is_dir() {
-        let resources = dir.join("../Resources/Models");
+    models_folder_for(
+        std::env::consts::OS,
+        std::env::var_os("SHAREXRS_OCR_MODELS"),
+        &dir,
+    )
+}
+
+/// [`default_models_folder`] for a platform (`std::env::consts::OS`), a
+/// `SHAREXRS_OCR_MODELS` value and the executable's folder: the override, else
+/// `Models` beside the executable, else (macOS, in `X.app/Contents/MacOS`, when that
+/// isn't there) `X.app/Contents/Resources/Models` if it is.
+pub fn models_folder_for(
+    os: &str,
+    override_folder: Option<std::ffi::OsString>,
+    exe_dir: &Path,
+) -> PathBuf {
+    if let Some(p) = override_folder.filter(|p| !p.is_empty()) {
+        return PathBuf::from(p);
+    }
+    let beside = exe_dir.join("Models");
+    if os == "macos" && !beside.is_dir() && exe_dir.file_name().is_some_and(|n| n == "MacOS") {
+        let resources = exe_dir.with_file_name("Resources").join("Models");
         if resources.is_dir() {
             return resources;
         }
@@ -180,5 +196,82 @@ impl PaddleOcrEngine {
             t.texts = texts;
         }
         Ok(OcrResult::new(regions))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dirs(name: &str, dirs: &[&str]) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("sxr-models-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for d in dirs {
+            std::fs::create_dir_all(root.join(d)).unwrap();
+        }
+        root
+    }
+
+    #[test]
+    fn windows_and_linux_beside_the_exe() {
+        // Portable zip / install folder, and /usr/lib/sharexrs: Models beside the exe.
+        let root = dirs("beside", &["Models/PP-OCRv6_small_det"]);
+        for os in ["windows", "linux"] {
+            assert_eq!(models_folder_for(os, None, &root), root.join("Models"));
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn macos_bundle_resources() {
+        let root = dirs(
+            "mac",
+            &[
+                "ShareXrs.app/Contents/MacOS",
+                "ShareXrs.app/Contents/Resources/Models",
+            ],
+        );
+        let exe_dir = root.join("ShareXrs.app/Contents/MacOS");
+        assert_eq!(
+            models_folder_for("macos", None, &exe_dir),
+            root.join("ShareXrs.app/Contents/Resources/Models")
+        );
+        // Only macOS looks in Resources.
+        assert_eq!(
+            models_folder_for("linux", None, &exe_dir),
+            exe_dir.join("Models")
+        );
+        // Models beside the executable win.
+        std::fs::create_dir_all(exe_dir.join("Models")).unwrap();
+        assert_eq!(
+            models_folder_for("macos", None, &exe_dir),
+            exe_dir.join("Models")
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn missing_is_beside_the_exe() {
+        // Nothing anywhere: the folder ShareX would report missing.
+        let root = dirs("missing", &["ShareXrs.app/Contents/MacOS"]);
+        let exe_dir = root.join("ShareXrs.app/Contents/MacOS");
+        assert_eq!(
+            models_folder_for("macos", None, &exe_dir),
+            exe_dir.join("Models")
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn override_wins() {
+        let exe_dir = Path::new("/opt/sharexrs");
+        assert_eq!(
+            models_folder_for("linux", Some("/tmp/models".into()), exe_dir),
+            PathBuf::from("/tmp/models")
+        );
+        assert_eq!(
+            models_folder_for("linux", Some("".into()), exe_dir),
+            exe_dir.join("Models")
+        );
     }
 }

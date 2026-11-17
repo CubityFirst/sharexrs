@@ -71,26 +71,39 @@ pub fn resolve_ffmpeg(options: &FFmpegOptions) -> Result<PathBuf, FFmpegCheckErr
     }
 }
 
+/// The FFmpeg program's file name on `os` (`std::env::consts::OS`).
+pub fn ffmpeg_file_name(os: &str) -> &'static str {
+    if os == "windows" { "ffmpeg.exe" } else { "ffmpeg" }
+}
+
 /// The places [`resolve_ffmpeg`] tries after ShareX's, in order, for a
 /// `PATH` value.
 pub fn fallback_locations(path_var: &std::ffi::OsStr) -> Vec<PathBuf> {
+    fallback_locations_for(std::env::consts::OS, &sharex_settings::paths::base_directory(), path_var)
+}
+
+/// [`fallback_locations`] for a platform (`std::env::consts::OS`), the
+/// executable's folder and a `PATH` value. On macOS the release's bundle
+/// has FFmpeg beside the executable (`Contents/MacOS`, ShareX's rule); an
+/// older or hand-made one may have it in `Contents/Resources`.
+pub fn fallback_locations_for(os: &str, exe_dir: &Path, path_var: &std::ffi::OsStr) -> Vec<PathBuf> {
+    let name = ffmpeg_file_name(os);
     let mut v = Vec::new();
-    #[cfg(target_os = "macos")]
-    {
-        let exe_dir = sharex_settings::paths::base_directory();
-        v.push(exe_dir.join(FFMPEG_FILE_NAME));
+    if os == "macos" {
+        v.push(exe_dir.join(name));
         // X.app/Contents/MacOS/X -> X.app/Contents/Resources/ffmpeg
         if exe_dir.file_name().is_some_and(|n| n == "MacOS") {
-            v.push(exe_dir.with_file_name("Resources").join(FFMPEG_FILE_NAME));
+            v.push(exe_dir.with_file_name("Resources").join(name));
         }
         for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"] {
-            v.push(Path::new(dir).join(FFMPEG_FILE_NAME));
+            v.push(Path::new(dir).join(name));
         }
     }
-    v.extend(std::env::split_paths(path_var).filter(|d| !d.as_os_str().is_empty()).map(|d| d.join(FFMPEG_FILE_NAME)));
-    #[cfg(all(unix, not(target_os = "macos")))]
-    for dir in ["/usr/bin", "/usr/local/bin"] {
-        v.push(Path::new(dir).join(FFMPEG_FILE_NAME));
+    v.extend(std::env::split_paths(path_var).filter(|d| !d.as_os_str().is_empty()).map(|d| d.join(name)));
+    if os != "windows" && os != "macos" {
+        for dir in ["/usr/bin", "/usr/local/bin"] {
+            v.push(Path::new(dir).join(name));
+        }
     }
     v
 }
@@ -137,5 +150,38 @@ mod tests {
         let path = std::env::join_paths([dir.clone()]).unwrap();
         assert!(fallback_locations(&path).contains(&exe));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_name_per_platform() {
+        // ShareX's rule is this name beside the executable: where the
+        // Windows zip and installer, the .app (Contents/MacOS) and the Linux
+        // packages (/usr/lib/sharexrs) put it.
+        assert_eq!(ffmpeg_file_name("windows"), "ffmpeg.exe");
+        assert_eq!(ffmpeg_file_name("macos"), "ffmpeg");
+        assert_eq!(ffmpeg_file_name("linux"), "ffmpeg");
+        assert_eq!(FFMPEG_FILE_NAME, ffmpeg_file_name(std::env::consts::OS));
+    }
+
+    #[test]
+    fn macos_bundle_locations() {
+        let exe_dir = Path::new("/Applications/ShareXrs.app/Contents/MacOS");
+        let v = fallback_locations_for("macos", exe_dir, std::ffi::OsStr::new(""));
+        assert_eq!(v[0], exe_dir.join("ffmpeg"));
+        assert_eq!(v[1], Path::new("/Applications/ShareXrs.app/Contents/Resources/ffmpeg"));
+        assert!(v.contains(&PathBuf::from("/opt/homebrew/bin/ffmpeg")));
+        // Outside a bundle there's no Resources.
+        let v = fallback_locations_for("macos", Path::new("/usr/local/bin"), std::ffi::OsStr::new(""));
+        assert!(!v.iter().any(|p| p.ends_with("Resources/ffmpeg")));
+    }
+
+    #[test]
+    fn linux_and_windows_locations() {
+        let exe_dir = Path::new("/usr/lib/sharexrs");
+        let v = fallback_locations_for("linux", exe_dir, std::ffi::OsStr::new(""));
+        assert_eq!(v, vec![PathBuf::from("/usr/bin/ffmpeg"), PathBuf::from("/usr/local/bin/ffmpeg")]);
+        // Windows: PATH only (ShareX's rule already looked beside the exe).
+        let v = fallback_locations_for("windows", Path::new("C:/ShareXrs"), std::ffi::OsStr::new(""));
+        assert!(v.is_empty());
     }
 }
