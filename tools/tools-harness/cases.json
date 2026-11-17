@@ -8776,5 +8776,90 @@
   "tool": "qr-scan",
   "file": "../opaque_97x61.png",
   "qrOnly": false
+ },
+ {
+  "name": "meta-full_jpg",
+  "tool": "metadata",
+  "file": "full.jpg"
+ },
+ {
+  "name": "meta-progressive_jpg",
+  "tool": "metadata",
+  "file": "progressive.jpg"
+ },
+ {
+  "name": "meta-plain_jpg",
+  "tool": "metadata",
+  "file": "plain.jpg"
+ },
+ {
+  "name": "meta-full_png",
+  "tool": "metadata",
+  "file": "full.png"
+ },
+ {
+  "name": "meta-full_gif",
+  "tool": "metadata",
+  "file": "full.gif"
+ },
+ {
+  "name": "meta-be_tif",
+  "tool": "metadata",
+  "file": "be.tif"
+ },
+ {
+  "name": "meta-le_tif",
+  "tool": "metadata",
+  "file": "le.tif"
+ },
+ {
+  "name": "meta-image_bmp",
+  "tool": "metadata",
+  "file": "image.bmp"
+ },
+ {
+  "name": "meta-full_webp",
+  "tool": "metadata",
+  "file": "full.webp"
+ },
+ {
+  "name": "meta-lossy_webp",
+  "tool": "metadata",
+  "file": "lossy.webp"
+ },
+ {
+  "name": "meta-clip_mp4",
+  "tool": "metadata",
+  "file": "clip.mp4"
+ },
+ {
+  "name": "meta-clip_mov",
+  "tool": "metadata",
+  "file": "clip.mov"
+ },
+ {
+  "name": "meta-clip_mkv",
+  "tool": "metadata",
+  "file": "clip.mkv"
+ },
+ {
+  "name": "meta-clip_webm",
+  "tool": "metadata",
+  "file": "clip.webm"
+ },
+ {
+  "name": "meta-clip_avi",
+  "tool": "metadata",
+  "file": "clip.avi"
+ },
+ {
+  "name": "meta-clip_wmv",
+  "tool": "metadata",
+  "file": "clip.wmv"
+ },
+ {
+  "name": "meta-icon",
+  "tool": "metadata",
+  "file": "../../sharex/icon-alpha_64x48-Palette8-16_32_48_64_128_256.ico"
  }
 ]

@@ -1,7 +1,7 @@
 //! The Data, Video and System tools' cases.
 
 use serde_json::Value;
-use sharex_tools::{hash, imaging, indexer, qr};
+use sharex_tools::{hash, imaging, indexer, metadata, qr};
 
 use crate::cases::Ctx;
 use crate::compare::{self, Outcome};
@@ -84,6 +84,66 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             };
             let theirs: Value = serde_json::from_str(&std::fs::read_to_string(ctx.sharex.join(format!("{name}.json"))).unwrap()).unwrap();
             if ours == theirs { Outcome::exact() } else { Outcome::fail(format!("{ours} vs ShareX {theirs}")) }
+        }
+        "metadata" => {
+            let src = ctx.inputs.join("meta").join(c["file"].as_str().unwrap());
+            let src_s = src.to_string_lossy().into_owned();
+            let theirs: Value = serde_json::from_str(&std::fs::read_to_string(ctx.sharex.join(format!("{name}.json"))).unwrap()).unwrap();
+            let as_json = |r: Result<Vec<metadata::MetadataValue>, String>, mask_fs: bool| -> Value {
+                match r {
+                    Ok(items) => Value::Array(
+                        items
+                            .iter()
+                            .filter(|m| !(mask_fs && m.group == "File System"))
+                            .map(|m| Value::Array(vec![m.group.clone().into(), m.tag.clone().into(), m.value.clone().into()]))
+                            .collect(),
+                    ),
+                    Err(_) => Value::String("error".into()),
+                }
+            };
+            let strip_fs = |v: &Value| -> Value {
+                match v.as_array() {
+                    Some(a) => Value::Array(a.iter().filter(|x| x[0] != "File System").cloned().collect()),
+                    None => Value::String(if v.as_str().is_some_and(|s| s.starts_with("error")) { "error".into() } else { v.to_string() }),
+                }
+            };
+            let mut out = Outcome::exact();
+            let ours = as_json(metadata::read(&src_s), false);
+            let expected = if theirs["read"].is_array() { theirs["read"].clone() } else { Value::String("error".into()) };
+            if ours != expected {
+                let (a, b) = (ours.as_array().cloned().unwrap_or_default(), expected.as_array().cloned().unwrap_or_default());
+                let first = a.iter().zip(&b).position(|(x, y)| x != y);
+                out = out.and(Outcome::fail(match first {
+                    Some(i) => format!("read #{i}: {} vs ShareX {}", a[i], b[i]),
+                    None => format!("read: {} entries vs ShareX {} (next: {:?} / {:?})", a.len(), b.len(), a.get(b.len()), b.get(a.len())),
+                }));
+            }
+            if let Ok(items) = metadata::read(&src_s) {
+                let text = metadata::build_text(&items);
+                if theirs["text"] != text.as_str() {
+                    out = out.and(Outcome::fail("copy-all text differs"));
+                }
+            }
+            if theirs["canStrip"] != metadata::can_strip(&src_s) {
+                out = out.and(Outcome::fail("CanStripMetadata differs"));
+            }
+            let ext = sharex_tools::dotnet::extension(&src_s).to_string();
+            let copy = ctx.out.join(format!("{name}{ext}"));
+            std::fs::copy(&src, &copy).unwrap();
+            let r = metadata::strip(&copy.to_string_lossy());
+            match (theirs["strip"].as_str(), r) {
+                (Some("ok"), Ok(())) => {
+                    out = out.and(compare::bytes("stripped", &std::fs::read(&copy).unwrap(), &ctx.sharex.join(format!("{name}{ext}"))));
+                    let after = as_json(metadata::read(&copy.to_string_lossy()), true);
+                    if after != strip_fs(&theirs["stripped"]) {
+                        out = out.and(Outcome::fail("metadata after stripping differs"));
+                    }
+                }
+                (Some("ok"), Err(e)) => out = out.and(Outcome::fail(format!("strip failed: {e}"))),
+                (Some(_), Ok(())) => out = out.and(Outcome::fail(format!("strip succeeded where ShareX threw {}", theirs["strip"]))),
+                _ => {}
+            }
+            out
         }
         _ => Outcome::skip(format!("no validator for {tool}")),
     }

@@ -4020,6 +4020,7 @@ dependencies = [
  "md-5",
  "png 0.18.1",
  "regex",
+ "roxmltree",
  "rxing",
  "serde",
  "serde_json",

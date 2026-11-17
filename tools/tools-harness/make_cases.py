@@ -134,5 +134,10 @@ for f, qr_only in itertools.product(["plain.png", "rotated90.png", "inverted.png
     add(f"qrscan-{f.split('.')[0]}-{'qr' if qr_only else 'all'}", "qr-scan", file=f, qrOnly=qr_only)
 add("qrscan-none-all", "qr-scan", file="../opaque_97x61.png", qrOnly=False)
 
+for f in ["full.jpg", "progressive.jpg", "plain.jpg", "full.png", "full.gif", "be.tif", "le.tif", "image.bmp", "full.webp",
+          "lossy.webp", "clip.mp4", "clip.mov", "clip.mkv", "clip.webm", "clip.avi", "clip.wmv"]:
+    add(f"meta-{f.replace('.', '_')}", "metadata", file=f)
+add("meta-icon", "metadata", file="../../sharex/icon-alpha_64x48-Palette8-16_32_48_64_128_256.ico")
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

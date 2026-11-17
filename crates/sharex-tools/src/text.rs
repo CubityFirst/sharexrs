@@ -172,6 +172,12 @@ fn round_digits(v: f64, places: usize) -> (bool, String, String) {
 /// The numeric format strings the tools use: `N<n>`/`n<n>`, `F<n>`, and custom
 /// `0`, `0.0`, `0.00`, `0.##`, `0.######`, `#,0`.
 pub fn format_number(v: f64, spec: &str, _integer: bool) -> String {
+    if v.is_nan() {
+        return "NaN".into();
+    }
+    if v.is_infinite() {
+        return if v > 0.0 { "∞".into() } else { "-∞".into() };
+    }
     let upper = spec.to_ascii_uppercase();
     if let Some(rest) = upper.strip_prefix('N') {
         let places: usize = rest.parse().unwrap_or(2);
@@ -195,7 +201,8 @@ pub fn format_number(v: f64, spec: &str, _integer: bool) -> String {
     }
     // Custom: zeros are required digits, '#' optional ones.
     let grouped = spec.contains(',');
-    let (_, frac_spec) = spec.split_once('.').unwrap_or((spec, ""));
+    let (int_spec, frac_spec) = spec.split_once('.').unwrap_or((spec, ""));
+    let min_int = int_spec.chars().filter(|&c| c == '0').count();
     let required = frac_spec.chars().filter(|&c| c == '0').count();
     let optional = frac_spec.chars().filter(|&c| c == '#').count();
     let (neg, int, frac) = round_digits(v, required + optional);
@@ -203,6 +210,8 @@ pub fn format_number(v: f64, spec: &str, _integer: bool) -> String {
     while frac.len() > required && frac.ends_with('0') {
         frac.pop();
     }
+    let int = if int.len() < min_int { format!("{}{int}", "0".repeat(min_int - int.len())) } else { int };
+    let int = if min_int == 0 && int == "0" { String::new() } else { int };
     let mut s = if grouped { group(&int) } else { int };
     if !frac.is_empty() {
         s.push('.');
@@ -312,6 +321,8 @@ mod tests {
         assert_eq!(format_number(0.125, "0.00", false), "0.13");
         assert_eq!(format_number(3.0, "0.######", false), "3");
         assert_eq!(format_number(1.5, "0.######", false), "1.5");
+        assert_eq!(format_number(7.0, "00", false), "07");
+        assert_eq!(format_number(5.25, "00.###", false), "05.25");
     }
 
     #[test]

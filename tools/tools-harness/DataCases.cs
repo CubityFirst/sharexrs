@@ -11,6 +11,7 @@ using ZXing.Common;
 static partial class Program
 {
     static string Work;
+    public const string FFmpegPath = @"G:\scripts\sharexrs-ref\ShareX-22.4.0-portable\ffmpeg.exe";
 
     static readonly int[] HashFileSizes = [0, 1, 3, 8191, 8192, 8193, 65543, 1048579];
 
@@ -28,6 +29,7 @@ static partial class Program
         }
         MakeFolders(Path.Combine(Inputs_, "folders"));
         MakeQRInputs(Path.Combine(Inputs_, "qr"));
+        MetaInputs.Generate(Path.Combine(Inputs_, "meta"), Inputs_, FFmpegPath);
         File.WriteAllText(Path.Combine(Inputs_, "custom.css"), "body { color: #123456; }\r\nh1 { color: red; }\n", new System.Text.UTF8Encoding(true));
     }
 
@@ -128,6 +130,25 @@ static partial class Program
         using (SKBitmap small = SkiaImageHelpers.ResizeImage(q.Copy(), 45, 45)) SavePng(small, Path.Combine(dir, "small.png"));
     }
 
+    static JToken MetaJson(string path)
+    {
+        try
+        {
+            var items = MetadataService.ReadMetadataAsync(path).GetAwaiter().GetResult();
+            // File System times differ between the original and a copy: kept, compared as read.
+            return new JArray(items.Select(x => new JArray(x.Group, x.Tag, x.Value)));
+        }
+        catch (Exception e) { return "error: " + e.GetBaseException().GetType().Name; }
+    }
+
+    static string MetaText(string path)
+    {
+        var items = MetadataService.ReadMetadataAsync(path).GetAwaiter().GetResult();
+        var entries = items.Select(x => new MetadataEntry(x.Group, x.Tag, x.Value, null)).ToArray();
+        MethodInfo m = typeof(MetadataViewModel).GetMethod("BuildMetadataText", BindingFlags.NonPublic | BindingFlags.Static);
+        return (string)m.Invoke(null, [entries]);
+    }
+
     static IndexerSettings IndexerSettingsFrom(JObject c)
     {
         IndexerSettings s = new();
@@ -179,6 +200,19 @@ static partial class Program
                 using SKBitmap bmp = SkiaImageHelpers.LoadImage(Path.Combine(Inputs_, "qr", (string)c["file"]));
                 string[] r = ShareX.TaskHelpers.BarcodeScan(bmp, (bool)c["qrOnly"]);
                 File.WriteAllText(o + ".json", r == null ? "null" : new JArray(r).ToString());
+                return true;
+            }
+            case "metadata":
+            {
+                string src = Path.Combine(Inputs_, "meta", (string)c["file"]);
+                JObject r = new() { ["read"] = MetaJson(src) };
+                try { r["text"] = MetaText(src); } catch (Exception e) { r["text"] = "error: " + e.GetBaseException().Message; }
+                r["canStrip"] = MetadataService.CanStripMetadata(src);
+                string copy = o + Path.GetExtension(src);
+                File.Copy(src, copy, true);
+                try { MetadataService.StripMetadataAsync(copy).GetAwaiter().GetResult(); r["strip"] = "ok"; r["stripped"] = MetaJson(copy); }
+                catch (Exception e) { r["strip"] = e.GetBaseException().GetType().Name; }
+                File.WriteAllText(o + ".json", r.ToString());
                 return true;
             }
             case "indexer":

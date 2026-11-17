@@ -23,6 +23,7 @@ sha2 = "0.10"
 rxing = { version = "0.9", default-features = false, features = ["encoding_rs", "encoders", "decoders", "full_barcode_format_support", "multi_barcode_readers"] }
 chrono = "0.4.45"
 regex = "1"
+roxmltree = "0.20"
 tiny-skia = "0.11.4"
 
 [target."cfg(windows)".dependencies]
