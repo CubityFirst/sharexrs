@@ -8,11 +8,21 @@
   scripts/input.ps1 -MoveTo 300,120           # hover a menu entry
   scripts/input.ps1 -Click 300,120
   scripts/input.ps1 -Key Escape
+  scripts/input.ps1 -Down 200,150 -DragTo 600,450 -Hold   # press, drag, keep pressed
+  scripts/input.ps1 -Up                                   # release the left button
 #>
 param(
     [int[]] $MoveTo,
     [int[]] $Click,
-    [ValidateSet('Escape', 'Enter', 'Up', 'Down', 'Left', 'Right')] [string] $Key
+    # Presses the left button there (after moving to it).
+    [int[]] $Down,
+    # Moves there in small steps (dragging, when the button is down).
+    [int[]] $DragTo,
+    # With -Down/-DragTo: keeps the button pressed (for a mid-drag shot).
+    [switch] $Hold,
+    # Releases the left button where the cursor is.
+    [switch] $Up,
+    [ValidateSet('Escape', 'Enter', 'Up', 'Down', 'Left', 'Right', 'Space', 'Tab')] [string] $Key
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @'
@@ -46,8 +56,32 @@ if ($Click) {
     [Input]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero)
     [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
 }
+if ($Down) {
+    Move-To $Down[0] $Down[1]
+    [Input]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+}
+if ($DragTo) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $from = [System.Windows.Forms.Cursor]::Position
+    $steps = 12
+    for ($i = 1; $i -le $steps; $i++) {
+        $x = [int]($from.X + ($DragTo[0] - $from.X) * $i / $steps)
+        $y = [int]($from.Y + ($DragTo[1] - $from.Y) * $i / $steps)
+        [void][Input]::SetCursorPos($x, $y)
+        [Input]::mouse_event(0x1, 0, 0, 0, [IntPtr]::Zero)
+        Start-Sleep -Milliseconds 25
+    }
+    Start-Sleep -Milliseconds 80
+}
+if (($Down -or $DragTo) -and -not $Hold) {
+    [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($Up) {
+    [Input]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero)
+}
 if ($Key) {
-    $vk = @{ Escape = 0x1B; Enter = 0x0D; Left = 0x25; Up = 0x26; Right = 0x27; Down = 0x28 }[$Key]
+    $vk = @{ Escape = 0x1B; Enter = 0x0D; Left = 0x25; Up = 0x26; Right = 0x27; Down = 0x28; Space = 0x20; Tab = 0x09 }[$Key]
     [Input]::keybd_event([byte]$vk, 0, 0, [IntPtr]::Zero)
     [Input]::keybd_event([byte]$vk, 0, 2, [IntPtr]::Zero)
 }

@@ -18,6 +18,12 @@
 //! window: for ShareX at 62,5 on a 1024x720 work area, `-62,-5,962,715`).
 //! `--hover` moves the pointer there and lets 0.7s pass, so submenus open
 //! as they do after `MenuShowDelay`.
+//!
+//! `region-rest`, `region-drag` and `region-hover` draw the region capture
+//! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
+//! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
+//! a selection being drawn, `--window X,Y,W,H` a window on top of the
+//! pattern to snap to (as `--test-pattern --window` shows it).
 
 use sharex_ui::offscreen::Offscreen;
 
@@ -47,10 +53,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut open: Vec<usize> = Vec::new();
     let mut work_area = None;
     let mut monitors: Vec<(i32, i32, u32, u32)> = Vec::new();
+    let mut rest_args: Vec<(String, String)> = Vec::new();
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
+            "--pointer" | "--drag" | "--window" => rest_args.push((a.clone(), val()?)),
             "--out" => out = Some(val()?),
             "--theme" => dark = val()? != "light",
             "--width" => width = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
@@ -135,6 +143,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             screen.draw()
         }
+        s if s.starts_with("region-") => crate::region_render::render(&rest_args, width, height, scale, dark)?,
         "hotkey-failed" => {
             // The message box ShareX shows when hotkeys fail to register
             // (`--unregistered`, default 0,3: Ctrl/Shift + Print Screen).

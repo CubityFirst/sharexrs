@@ -7,11 +7,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_icon;
+mod capture_job;
 mod hotkeys;
 mod main_menu;
 mod main_window;
 mod message_box;
+mod region_render;
+mod region_session;
 mod render;
+mod sound;
+mod test_pattern;
 mod window;
 
 use std::sync::Arc;
@@ -28,7 +33,10 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Icon, WindowAttributes, WindowButtons, WindowId, WindowLevel};
 
 use hotkeys::HotkeyManager;
+use main_menu::MenuCommand;
 use main_window::{Action, MainWindow};
+use region_session::RegionSession;
+use sharex_capture::region::Outcome;
 use message_box::{MessageBox, MessageBoxIcon};
 use window::EguiWindow;
 
@@ -48,6 +56,13 @@ fn main() {
         }
         return;
     }
+    if args.first().map(String::as_str) == Some("--test-pattern") {
+        if let Err(e) = test_pattern::run(&args[1..]) {
+            eprintln!("sharexrs --test-pattern: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
     // `Program.Run`: where the profile is, then the settings
     // (`SettingManager.LoadInitialSettings`), before any window.
     let system = SystemOptions::read();
@@ -58,6 +73,8 @@ fn main() {
     let settings = SettingManager::load(paths, system);
     settings.paths.create_application_folders(Some(&settings.settings));
 
+    #[cfg(target_os = "macos")]
+    sharex_capture::platform::macos::ask_for_screen_recording();
     let event_loop = EventLoop::<UserEvent>::with_user_event().build().expect("event loop");
     let proxy = event_loop.create_proxy();
     let host = hotkeys::platform_host(Arc::new(move |id| {
@@ -75,6 +92,9 @@ fn main() {
         started: false,
         // `-NoHotkeys`: `StartupOptions.IgnoreHotkeyWarning`.
         ignore_hotkey_warning: is_command_present(&args, &["NoHotkeys"]),
+        region: None,
+        pending_capture: None,
+        last_regions: Vec::new(),
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -101,6 +121,30 @@ struct App {
     dialog: Option<Dialog>,
     started: bool,
     ignore_hotkey_warning: bool,
+    /// The region capture overlay, while it's open.
+    region: Option<Region>,
+    /// A capture waiting for its screenshot delay or for the main window to
+    /// hide.
+    pending_capture: Option<PendingCapture>,
+    /// `RegionCaptureIntegration.LastRegionRectangles`.
+    last_regions: Vec<sharex_capture::Rect>,
+}
+
+/// `CaptureBase.CaptureAsync` between the request and the capture: the
+/// screenshot delay, then (from the main window's menu) hiding it for 250 ms.
+struct PendingCapture {
+    at: Instant,
+    task: TaskSettings,
+    auto_hide: bool,
+    /// The main window was hidden for it (`showMainForm`).
+    hidden: bool,
+}
+
+/// An open region capture and the task it runs for.
+struct Region {
+    session: RegionSession,
+    task: TaskSettings,
+    hidden: bool,
 }
 
 impl App {
@@ -170,9 +214,109 @@ impl App {
                 let _ = self.settings.save_application_config(false);
             }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
+            Action::Menu(MenuCommand::CaptureRegion) => {
+                // `new CaptureRegion().Capture(autoHide)` with the default
+                // task settings.
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.capture_region(task, true);
+                return;
+            }
             Action::Menu(command) => eprintln!("menu: {command:?}: not ported yet"),
         }
         w.window.request_redraw();
+    }
+}
+
+impl App {
+    /// `CaptureBase.Capture`: waits for the screenshot delay, hides the
+    /// main window when asked (`autoHideForm`, from the main window's
+    /// menus), then captures.
+    fn capture_region(&mut self, task: TaskSettings, auto_hide: bool) {
+        if self.region.is_some() || self.pending_capture.is_some() {
+            return;
+        }
+        let delay = task.CaptureSettings.as_ref().map_or(0.0, |c| c.ScreenshotDelay).max(0.0);
+        let at = Instant::now() + Duration::from_secs_f64(delay);
+        self.pending_capture = Some(PendingCapture { at, task, auto_hide, hidden: false });
+    }
+
+    /// Moves a pending capture on when it's due.
+    fn advance_pending_capture(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(pending) = self.pending_capture.as_mut().filter(|p| p.at <= Instant::now()) else { return };
+        if pending.auto_hide
+            && !pending.hidden
+            && let Some(w) = self.main.as_ref().filter(|w| w.window.is_visible() != Some(false))
+        {
+            w.window.set_visible(false);
+            pending.hidden = true;
+            pending.at = Instant::now() + Duration::from_millis(250);
+            return;
+        }
+        let Some(pending) = self.pending_capture.take() else { return };
+        self.start_region_capture(event_loop, pending.task, pending.hidden);
+    }
+
+    /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync`: freezes the
+    /// screen and opens the overlay.
+    fn start_region_capture(&mut self, event_loop: &ActiveEventLoop, task: TaskSettings, hidden: bool) {
+        let dark = self.theme() == egui::Theme::Dark;
+        let opened = capture_job::prepare(&task, self.last_regions.clone()).and_then(|request| {
+            let gpu = match &self.gpu {
+                Some(g) => g,
+                None => self.gpu.insert(Gpu::new()?),
+            };
+            RegionSession::open(event_loop, gpu, request, dark)
+        });
+        match opened {
+            Ok(session) => self.region = Some(Region { session, task, hidden }),
+            Err(e) => {
+                eprintln!("region capture: {e}");
+                if hidden {
+                    self.show_main_window();
+                }
+            }
+        }
+    }
+
+    /// `MainWindowIntegration.Activate`.
+    fn show_main_window(&self) {
+        if let Some(w) = &self.main {
+            w.window.set_visible(true);
+            w.window.focus_window();
+            w.window.request_redraw();
+        }
+    }
+
+    /// The overlay closed: the main window comes back if it was hidden, and
+    /// a capture goes through the after capture tasks
+    /// (`CaptureBase.AfterCapture`, `UploadManager.RunImageTask`).
+    fn finish_region_capture(&mut self, outcome: Outcome) {
+        let Some(Region { session, task, hidden }) = self.region.take() else { return };
+        // The overlay changes its options as ShareX's does (magnifier size,
+        // toolbar place), on the settings the task takes them from.
+        let options = session.capture.into_options();
+        if task.UseDefaultCaptureSettings
+            && let Some(c) = self.settings.settings.DefaultTaskSettings.CaptureSettings.as_mut()
+        {
+            c.RegionCaptureOptions = options;
+        }
+        if hidden {
+            self.show_main_window();
+        }
+        let Outcome::Captured(result) = outcome else { return };
+        self.last_regions = result.regions.clone();
+        if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterCapture) {
+            sound::play_capture();
+        }
+        let metadata = capture_job::Metadata::from_result(&result);
+        let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
+        let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent);
+        let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
+        std::thread::spawn(move || {
+            if let Err(e) = job.run(owner) {
+                eprintln!("after capture tasks: {e}");
+            }
+        });
     }
 }
 
@@ -332,6 +476,7 @@ impl App {
     fn run_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType, task: TaskSettings) {
         eprintln!("job: {} ({})", job.name(), task.display_name());
         match job {
+            HotkeyType::RectangleRegion => self.capture_region(task, false),
             HotkeyType::DisableHotkeys => self.toggle_hotkeys(),
             HotkeyType::OpenMainWindow => {
                 if let Some(w) = &self.main {
@@ -452,6 +597,13 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
+            let outcome = region.session.window_event(event_loop, id, event);
+            if !matches!(outcome, Outcome::Continue) {
+                self.finish_region_capture(outcome);
+            }
+            return;
+        }
         if self.dialog.as_ref().is_some_and(|d| d.window.window.id() == id) {
             self.dialog_event(event_loop, event);
             return;
@@ -513,7 +665,10 @@ impl ApplicationHandler<UserEvent> for App {
         {
             d.window.window.request_redraw();
         }
-        let next = self.main.as_ref().and_then(|w| w.repaint_at);
+        self.advance_pending_capture(event_loop);
+        let region = self.region.as_mut().and_then(|r| r.session.wake_at());
+        let pending = self.pending_capture.as_ref().map(|p| p.at);
+        let next = [self.main.as_ref().and_then(|w| w.repaint_at), region, pending].into_iter().flatten().min();
         match next {
             Some(at) if at <= Instant::now() => {
                 if let Some(w) = &self.main {

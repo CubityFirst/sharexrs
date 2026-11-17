@@ -13,6 +13,8 @@ repository = "https://github.com/CubityFirst/sharexrs"
 [workspace.dependencies]
 sharex-ui = { path = "crates/sharex-ui" }
 sharex-strings = { path = "crates/sharex-strings" }
+sharex-helpers = { path = "crates/sharex-helpers" }
+sharex-capture = { path = "crates/sharex-capture" }
 sharex-settings = { path = "crates/sharex-settings" }
 
 egui = "0.36"

@@ -1,0 +1,39 @@
+[package]
+name = "sharex-capture"
+description = "ShareX.ScreenCaptureLib, ported: grabbing the screen, windows and the cursor, and the region capture overlay."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-ui.workspace = true
+sharex-strings.workspace = true
+sharex-settings.workspace = true
+egui.workspace = true
+image.workspace = true
+winit.workspace = true
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target."cfg(not(windows))".dependencies]
+xcap = "0.9.8"
+arboard = { version = "3.6", default-features = false, features = ["image-data"] }
+
+[target."cfg(target_os = \"macos\")".dependencies]
+objc2 = "0.6.4"
+objc2-app-kit = "0.3.2"
+objc2-foundation = "0.3.2"
+objc2-core-foundation = "0.3.2"
