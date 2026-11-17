@@ -14,6 +14,23 @@ use crate::task_view::{TaskAction, TaskCommand, ViewSettings};
 use crate::tasks::{RecentTask, TaskEvent, TaskInfo, TaskStatus, UploadInfoStatus};
 use crate::{App, DialogPurpose, UserEvent, capture_job, shell, sound};
 
+/// A key press egui-winit would turn into a clipboard event (Ctrl+C,
+/// Ctrl+V, Shift+Delete), as the task area's shortcut with its modifiers.
+pub(super) fn clipboard_key(
+    key: &winit::keyboard::Key,
+    m: winit::keyboard::ModifiersState,
+) -> Option<(egui::Key, egui::Modifiers)> {
+    use winit::keyboard::{Key, NamedKey};
+    let modifiers = egui::Modifiers { alt: m.alt_key(), ctrl: m.control_key(), shift: m.shift_key(), mac_cmd: false, command: m.control_key() };
+    let k = match key {
+        Key::Named(NamedKey::Delete) if m.shift_key() && !m.control_key() => egui::Key::Delete,
+        Key::Character(c) if m.control_key() && c.eq_ignore_ascii_case("c") => egui::Key::C,
+        Key::Character(c) if m.control_key() && c.eq_ignore_ascii_case("v") => egui::Key::V,
+        _ => return None,
+    };
+    Some((k, modifiers))
+}
+
 impl App {
     /// The task area's settings, from `ApplicationConfig`.
     fn view_settings(&self) -> ViewSettings {

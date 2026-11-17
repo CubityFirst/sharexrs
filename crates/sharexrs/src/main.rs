@@ -104,6 +104,7 @@ fn main() {
         pending_capture: None,
         last_regions: Vec::new(),
         proxy: task_proxy,
+        modifiers: Default::default(),
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -149,6 +150,8 @@ struct App {
     last_regions: Vec<sharex_capture::Rect>,
     /// For tasks' threads to report back to the event loop.
     proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    /// The keyboard's modifiers in the main window.
+    modifiers: winit::keyboard::ModifiersState,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -664,6 +667,18 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::CursorLeft { .. } => {
                 self.cursor = None;
+                w.on_event(&event);
+            }
+            WindowEvent::ModifiersChanged(m) => {
+                self.modifiers = m.state();
+                w.on_event(&event);
+            }
+            WindowEvent::KeyboardInput { event: ref key, .. } => {
+                if key.state == ElementState::Pressed
+                    && let Some(k) = task_actions::clipboard_key(&key.logical_key, self.modifiers)
+                {
+                    self.state.tasks.clipboard_keys.push(k);
+                }
                 w.on_event(&event);
             }
             // Light dismiss: a press outside the open menu closes it, and

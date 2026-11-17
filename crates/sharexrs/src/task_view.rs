@@ -227,6 +227,9 @@ pub struct TaskView {
     right_pressed: Option<Option<u64>>,
     /// Pictures to decode, taken by the app.
     pub requests: Vec<ImageRequest>,
+    /// Key presses egui turns into clipboard events (C and V with Ctrl,
+    /// Delete with Shift), with their modifiers, given by the app.
+    pub clipboard_keys: Vec<(Key, Modifiers)>,
     next_version: u64,
     /// Rects laid out last frame, for hit testing.
     layout: Layout,
@@ -287,6 +290,7 @@ impl TaskView {
             last_press: None,
             right_pressed: None,
             requests: Vec::new(),
+            clipboard_keys: Vec::new(),
             next_version: 0,
             layout: Layout::default(),
         }
@@ -442,6 +446,9 @@ impl TaskView {
         if !flyout_open {
             self.pointer_input(ui, &mut actions);
             self.keyboard_input(ui, &mut actions);
+        } else {
+            // A menu has the keyboard.
+            self.clipboard_keys.clear();
         }
 
         let painter = ui.painter().with_clip_rect(area);
@@ -1156,7 +1163,10 @@ impl TaskView {
     }
 
     fn keyboard_input(&mut self, ui: &Ui, actions: &mut Vec<TaskAction>) {
-        let keys: Vec<(Key, Modifiers)> = ui.input(|i| {
+        // egui-winit turns Ctrl+C, Shift+Delete and Ctrl+V into clipboard
+        // events without their modifiers, so the app hands those keys over
+        // itself ([`Self::clipboard_keys`]).
+        let mut keys: Vec<(Key, Modifiers)> = ui.input(|i| {
             i.events
                 .iter()
                 .filter_map(|e| match e {
@@ -1165,6 +1175,7 @@ impl TaskView {
                 })
                 .collect()
         });
+        keys.append(&mut self.clipboard_keys);
         for (key, m) in keys {
             // `OnWindowKeyDown`.
             if key == Key::Escape {
