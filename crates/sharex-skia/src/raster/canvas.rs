@@ -16,6 +16,16 @@ pub enum Sampling {
     Linear,
     /// `SKCubicResampler.Mitchell` (B = C = 1/3), ShareX's `HighQualitySampling`.
     Mitchell,
+    /// `SKCubicResampler.CatmullRom` (B = 0, C = 1/2), what ShareX's icon and image
+    /// converters draw with.
+    CatmullRom,
+}
+
+impl Sampling {
+    /// A cubic resampler (`bicubic_clamp_8888`, highp only).
+    pub fn is_cubic(self) -> bool {
+        matches!(self, Sampling::Mitchell | Sampling::CatmullRom)
+    }
 }
 
 /// `SKShaderTileMode`.
@@ -314,7 +324,7 @@ impl<'a> Canvas<'a> {
         paint: &Paint,
     ) {
         let total = Matrix::concat(&self.matrix, &prematrix);
-        if sampling != Sampling::Mitchell && total.is_translate() {
+        if !sampling.is_cubic() && total.is_translate() {
             let ix = (total.tx() + 0.5).floor() as i32;
             let iy = (total.ty() + 0.5).floor() as i32;
             self.sprite(image, ix, iy, paint);
@@ -847,7 +857,7 @@ impl<'a> Sampler<'a> {
                 {
                     sampling = Sampling::Nearest;
                 }
-                let lowp = sampling != Sampling::Mitchell
+                let lowp = !sampling.is_cubic()
                     && *tile_x == TileMode::Clamp
                     && *tile_y == TileMode::Clamp;
                 (
@@ -1039,9 +1049,13 @@ impl ImageSampler<'_> {
                 }
                 acc
             }
-            Sampling::Mitchell => {
-                // bicubic_clamp_8888 with CubicResamplerMatrix(1/3, 1/3), then clamp_gamut.
-                let w = mitchell_weights();
+            Sampling::Mitchell | Sampling::CatmullRom => {
+                // bicubic_clamp_8888 with CubicResamplerMatrix(B, C), then clamp_gamut.
+                let w = if self.sampling == Sampling::Mitchell {
+                    cubic_weights(1.0 / 3.0, 1.0 / 3.0)
+                } else {
+                    cubic_weights(0.0, 0.5)
+                };
                 let frac = |v: f32| v - v.floor();
                 let (tx, ty) = (frac(fx + 0.5), frac(fy + 0.5));
                 let wts =
@@ -1185,9 +1199,8 @@ impl RoundLike for f32 {
 }
 
 /// `SkImageShader::CubicResamplerMatrix(1/3, 1/3).getColMajor()`.
-fn mitchell_weights() -> [f32; 16] {
-    let b = 1.0f32 / 3.0;
-    let c = 1.0f32 / 3.0;
+/// `CubicResamplerMatrix(B, C)`.
+fn cubic_weights(b: f32, c: f32) -> [f32; 16] {
     // SkM44 rows as written (row-major), stored column-major.
     let rows = [
         [
