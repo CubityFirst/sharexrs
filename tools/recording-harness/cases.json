@@ -1,0 +1,3859 @@
+[
+ {
+  "name": "gdigrab-libx264",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libx264"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libx264-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libx264",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libx265",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libx265"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libx265-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libx265",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libvpx",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libvpx-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libvpx_vp9",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx_vp9"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libvpx_vp9-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx_vp9",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libxvid",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libxvid"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libxvid-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libxvid",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_nvenc",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_nvenc"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_nvenc-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_nvenc",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_nvenc",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_nvenc-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_amf",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_amf-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_amf",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_amf-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_qsv",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_qsv"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-h264_qsv-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_qsv",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_qsv",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_qsv"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-hevc_qsv-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_qsv",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-gif",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "gif"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-gif-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "gif",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libwebp",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libwebp"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-libwebp-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libwebp",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-apng",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "apng"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-apng-aac",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "apng",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-x264-libvoaacenc",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libvoaacenc"
+   }
+  }
+ },
+ {
+  "name": "audio-only-libvoaacenc",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libvoaacenc"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-x264-libopus",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libopus"
+   }
+  }
+ },
+ {
+  "name": "audio-only-libopus",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libopus"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-x264-libvorbis",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libvorbis"
+   }
+  }
+ },
+ {
+  "name": "audio-only-libvorbis",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libvorbis"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-x264-libmp3lame",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libmp3lame"
+   }
+  }
+ },
+ {
+  "name": "audio-only-libmp3lame",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libmp3lame"
+   }
+  }
+ },
+ {
+  "name": "no-source",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": ""
+   }
+  }
+ },
+ {
+  "name": "no-source-gif-audio",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "",
+    "VideoCodec": "gif"
+   }
+  }
+ },
+ {
+  "name": "x264-bitrate",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "x264_Use_Bitrate": true,
+    "x264_Bitrate": 4500,
+    "x264_Preset": "veryslow"
+   }
+  }
+ },
+ {
+  "name": "x264-crf",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "x264_CRF": 17,
+    "x264_Preset": "medium"
+   }
+  }
+ },
+ {
+  "name": "x265-preset",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libx265",
+    "x264_Preset": "placebo",
+    "x264_CRF": 51
+   }
+  }
+ },
+ {
+  "name": "vp9-bitrate",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx_vp9",
+    "VPx_Bitrate": 12345
+   }
+  }
+ },
+ {
+  "name": "xvid-qscale",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libxvid",
+    "XviD_QScale": 31
+   }
+  }
+ },
+ {
+  "name": "nvenc-p1-hq",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p1",
+    "NVENC_Tune": "hq",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p1-ll",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p1",
+    "NVENC_Tune": "ll",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p1-ull",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p1",
+    "NVENC_Tune": "ull",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p1-lossless",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p1",
+    "NVENC_Tune": "lossless",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p7-hq",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p7",
+    "NVENC_Tune": "hq",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p7-ll",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p7",
+    "NVENC_Tune": "ll",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p7-ull",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p7",
+    "NVENC_Tune": "ull",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "nvenc-p7-lossless",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "NVENC_Preset": "p7",
+    "NVENC_Tune": "lossless",
+    "NVENC_Bitrate": 9000
+   }
+  }
+ },
+ {
+  "name": "amf-transcoding",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "transcoding",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-ultralowlatency",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "ultralowlatency",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-lowlatency",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "lowlatency",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-webcam",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "webcam",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-high_quality",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "high_quality",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-lowlatency_high_quality",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AMF_Usage": "lowlatency_high_quality",
+    "AMF_Quality": "quality",
+    "AMF_Bitrate": 7000
+   }
+  }
+ },
+ {
+  "name": "amf-quality-speed",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf",
+    "AMF_Quality": "speed"
+   }
+  }
+ },
+ {
+  "name": "amf-quality-balanced",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf",
+    "AMF_Quality": "balanced"
+   }
+  }
+ },
+ {
+  "name": "amf-quality-quality",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf",
+    "AMF_Quality": "quality"
+   }
+  }
+ },
+ {
+  "name": "qsv-veryfast",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_qsv",
+    "QSV_Preset": "veryfast",
+    "QSV_Bitrate": 2500
+   }
+  }
+ },
+ {
+  "name": "qsv-veryslow",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "h264_qsv",
+    "QSV_Preset": "veryslow",
+    "QSV_Bitrate": 2500
+   }
+  }
+ },
+ {
+  "name": "aac-bitrate",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AAC_Bitrate": 320
+   }
+  }
+ },
+ {
+  "name": "opus-bitrate",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libopus",
+    "Opus_Bitrate": 512
+   }
+  }
+ },
+ {
+  "name": "vorbis-q",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libvorbis",
+    "Vorbis_QScale": 10
+   }
+  }
+ },
+ {
+  "name": "mp3-q",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "AudioCodec": "libmp3lame",
+    "MP3_QScale": 0
+   }
+  }
+ },
+ {
+  "name": "fps-60",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 60,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "fps-1",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 1,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "negative-offset",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    -1920,
+    -200,
+    1921,
+    1081
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "no-cursor",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": false,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-3.0",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 3.0,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-2.25",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 2.25,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-0.05",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 0.05,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-0.04",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 0.04,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-10.05",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 10.05,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-1.45",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 1.45,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-0.35",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 0.35,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-99.95",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 99.95,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-123.456",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 123.456,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "duration-negative",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": -1.0,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "ddagrab-one",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-odd",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    11,
+    21,
+    641,
+    481
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-odd-gif",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    11,
+    21,
+    641,
+    481
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab",
+    "VideoCodec": "gif"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-left",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    -1500,
+    100,
+    1200,
+    500
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-span",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    -100,
+    100,
+    1200,
+    500
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-right",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    2500,
+    -150,
+    900,
+    700
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-outside",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    9000,
+    9000,
+    100,
+    100
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-nvenc",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab",
+    "VideoCodec": "h264_nvenc"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-hevc-nvenc-audio",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab",
+    "VideoCodec": "hevc_nvenc",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-no-cursor",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": false,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "ddagrab-upper",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "DDAGRAB"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "primary": true
+   }
+  ]
+ },
+ {
+  "name": "dshow-camera",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "Integrated Camera"
+   }
+  }
+ },
+ {
+  "name": "dshow-camera-audio",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "Integrated Camera",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "dshow-quotes",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "Cam \"1\" \\ x",
+    "AudioSource": "Mic \\\"2\\\""
+   }
+  }
+ },
+ {
+  "name": "screen-capture-recorder",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "screen-capture-recorder",
+    "AudioSource": "virtual-audio-capturer"
+   }
+  }
+ },
+ {
+  "name": "screen-capture-recorder-upper",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": false,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "Screen-Capture-Recorder"
+   }
+  }
+ },
+ {
+  "name": "gdigrab-upper",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "GDIGrab"
+   }
+  }
+ },
+ {
+  "name": "legacy-gdi-grab",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoSource": "GDI grab"
+   }
+  }
+ },
+ {
+  "name": "user-args",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "UserArgs": "-loglevel warning -vf \"scale=iw/2:-2\""
+   }
+  }
+ },
+ {
+  "name": "custom",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 2.25,
+   "ffmpeg": {
+    "UseCustomCommands": true,
+    "CustomCommands": "  -f gdigrab -framerate $FPS$ -offset_x $area_x$ -offset_y $Area_Y$ -video_size $area_width$x$AREA_HEIGHT$ -draw_mouse $cursor$ -i desktop -t $duration$ -y \"$output$\" $fps$$fps  \t",
+    "VideoCodec": "libvpx"
+   }
+  }
+ },
+ {
+  "name": "custom-off",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "UseCustomCommands": false,
+    "CustomCommands": "  -f gdigrab -framerate $FPS$ -offset_x $area_x$ -offset_y $Area_Y$ -video_size $area_width$x$AREA_HEIGHT$ -draw_mouse $cursor$ -i desktop -t $duration$ -y \"$output$\" $fps$$fps  \t"
+   }
+  }
+ },
+ {
+  "name": "custom-empty",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "UseCustomCommands": true,
+    "CustomCommands": ""
+   }
+  }
+ },
+ {
+  "name": "custom-lossless",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "UseCustomCommands": true,
+    "CustomCommands": "  -f gdigrab -framerate $FPS$ -offset_x $area_x$ -offset_y $Area_Y$ -video_size $area_width$x$AREA_HEIGHT$ -draw_mouse $cursor$ -i desktop -t $duration$ -y \"$output$\" $fps$$fps  \t"
+   }
+  }
+ },
+ {
+  "name": "custom-no-output",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": null,
+   "ffmpeg": {
+    "UseCustomCommands": true,
+    "CustomCommands": "-i x $output$ é$duration$é"
+   }
+  }
+ },
+ {
+  "name": "custom-args-default",
+  "kind": "custom_args",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 5.0,
+   "ffmpeg": {}
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "custom-args-ddagrab",
+  "kind": "custom_args",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 5.0,
+   "ffmpeg": {
+    "VideoSource": "ddagrab"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "custom-args-dshow",
+  "kind": "custom_args",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 5.0,
+   "ffmpeg": {
+    "VideoSource": "Cam",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "custom-args-gdigrab-audio-gif",
+  "kind": "custom_args",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 5.0,
+   "ffmpeg": {
+    "AudioSource": "Microphone (Realtek(R) Audio)",
+    "VideoCodec": "gif"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "custom-args-audio-only",
+  "kind": "custom_args",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 5.0,
+   "ffmpeg": {
+    "VideoSource": "",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "screens": [
+   {
+    "bounds": [
+     -1920,
+     0,
+     1920,
+     1080
+    ],
+    "primary": false
+   },
+   {
+    "bounds": [
+     0,
+     0,
+     2560,
+     1440
+    ],
+    "primary": true
+   },
+   {
+    "bounds": [
+     2560,
+     -200,
+     1080,
+     1920
+    ],
+    "primary": false
+   }
+  ]
+ },
+ {
+  "name": "lossless-libx264",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "VideoCodec": "libx264",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "lossless-libvpx_vp9",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "VideoCodec": "libvpx_vp9",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "lossless-gif",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "VideoCodec": "gif",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "lossless-apng",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "VideoCodec": "apng",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "lossless-libwebp",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "is_lossless": true,
+   "ffmpeg": {
+    "VideoCodec": "libwebp",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "encode-libx264",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libx264",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-libx265",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libx265",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-libvpx",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libvpx",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-libvpx_vp9",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libvpx_vp9",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-libxvid",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libxvid",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-h264_nvenc",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "h264_nvenc",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-hevc_nvenc",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "hevc_nvenc",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-h264_amf",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "h264_amf",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-hevc_amf",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "hevc_amf",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-h264_qsv",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "h264_qsv",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-hevc_qsv",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "hevc_qsv",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-gif",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "gif",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-libwebp",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "libwebp",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-apng",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "duration": 4.0,
+   "ffmpeg": {
+    "VideoCodec": "apng",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_out.webm"
+ },
+ {
+  "name": "encode-custom",
+  "kind": "encode_video",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "UseCustomCommands": true,
+    "CustomCommands": "-i in -c:v libx264 $output$"
+   }
+  },
+  "input": "C:\\tmp\\a.mp4",
+  "output": "C:\\tmp\\b.mp4"
+ },
+ {
+  "name": "gif-full-none",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "none",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-bayer",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "bayer",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-heckbert",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "heckbert",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-floyd_steinberg",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "floyd_steinberg",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-sierra2",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "sierra2",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-sierra2_4a",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "sierra2_4a",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-sierra3",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "sierra3",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-burkes",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "burkes",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-full-atkinson",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "full",
+    "GIFDither": "atkinson",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-none",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "none",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-bayer",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "bayer",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-heckbert",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "heckbert",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-floyd_steinberg",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "floyd_steinberg",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-sierra2",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "sierra2",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-sierra2_4a",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "sierra2_4a",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-sierra3",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "sierra3",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-burkes",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "burkes",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-diff-atkinson",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "diff",
+    "GIFDither": "atkinson",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-none",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "none",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-bayer",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "bayer",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-heckbert",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "heckbert",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-floyd_steinberg",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "floyd_steinberg",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-sierra2",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "sierra2",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-sierra2_4a",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "sierra2_4a",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-sierra3",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "sierra3",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-burkes",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "burkes",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "gif-single-atkinson",
+  "kind": "encode_gif",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "GIFStatsMode": "single",
+    "GIFDither": "atkinson",
+    "GIFBayerScale": 4
+   }
+  },
+  "input": "C:\\tmp\\ShareX_rec.mp4",
+  "output": "C:\\tmp\\ShareX_rec.gif"
+ },
+ {
+  "name": "output-no-extension",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\tmp\\rec",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "output-dotted-folder",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\tmp.d\\rec",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "output-trailing-dot",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\tmp\\rec.",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "output-null",
+  "kind": "commands",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": null,
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "output-webm",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\tmp\\rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "libvpx"
+   }
+  }
+ },
+ {
+  "name": "input-null",
+  "kind": "commands",
+  "options": {
+   "is_recording": false,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  }
+ },
+ {
+  "name": "unknown-codec",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": "av1_nvenc",
+    "AudioCodec": "flac",
+    "x264_Preset": "ludicrous",
+    "AudioSource": "Microphone (Realtek(R) Audio)"
+   }
+  }
+ },
+ {
+  "name": "numeric-codec",
+  "kind": "record",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {
+    "VideoCodec": 3,
+    "NVENC_Tune": 2
+   }
+  }
+ },
+ {
+  "name": "concat",
+  "kind": "concat",
+  "inputs": [
+   "C:\\tmp\\rec-concat.mp4",
+   "C:\\tmp\\rec.mp4"
+  ],
+  "output": "rec-temp.mp4"
+ },
+ {
+  "name": "concat-quote",
+  "kind": "concat",
+  "inputs": [
+   "C:\\tmp\\it's.mp4"
+  ],
+  "output": "o.mp4"
+ },
+ {
+  "name": "dshow-new",
+  "kind": "dshow",
+  "output": "[in#0 @ 000001f2] \"Integrated Camera\" (video)\r\n[in#0 @ 000001f2]   Alternative name \"@device_pnp_\\\\?\\usb#vid\"\r\n[in#0 @ 000001f2] \"OBS Virtual Camera\" (none)\r\n[in#0 @ 000001f2] \"Microphone (Realtek(R) Audio)\" (audio)\r\n[in#0 @ 000001f2]   Alternative name \"@device_cm_{33D9}\"\r\n[in#0 @ 000001f2] \"virtual-audio-capturer\" (audio)\r\n"
+ },
+ {
+  "name": "dshow-old",
+  "kind": "dshow",
+  "output": "[dshow @ 0abc] DirectShow video devices (some may be both video and audio devices)\n[dshow @ 0abc]  \"screen-capture-recorder\"\n[dshow @ 0abc]     Alternative name \"@device_sw_{860BB310}\"\n[dshow @ 0abc] DirectShow audio devices\n[dshow @ 0abc]  \"Mikrofon (Pro \"X\")\"\n[dshow @ 0abc]  \"virtual-audio-capturer\"\n"
+ },
+ {
+  "name": "dshow-none",
+  "kind": "dshow",
+  "output": "dummy: Immediate exit requested\r\n"
+ },
+ {
+  "name": "progress-tracked",
+  "kind": "progress",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  },
+  "lines": [
+   "ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+   "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'in.mp4':",
+   "  Duration: 00:00:15.32, start: 0.000000, bitrate: 1095 kb/s",
+   "",
+   "Press [q] to stop, [?] for help",
+   "frame=   10 fps=0.0 q=0.0 size=       0KiB time=00:00:00.33 bitrate=   0.0kbits/s speed=   0x",
+   "frame=  100 fps=0.0 q=0.0 size=     256KiB time=00:00:03.33 bitrate= 629.1kbits/s speed=6.6x",
+   "frame=  101 fps=0.0 q=0.0 size=     256KiB time=00:00:03.36 bitrate= 629.1kbits/s speed=6.6x",
+   "PRESS [Q] TO STOP",
+   "frame=  459 fps=187 q=35.0 size=    3072kB TIME=00:00:15.32 BITRATE= 660.5kbits/s speed=7.55x",
+   "frame=  500 time=00:00:20.00 bitrate=1.0",
+   "time=N/A bitrate=N/A"
+  ],
+  "track": true
+ },
+ {
+  "name": "progress-untracked",
+  "kind": "progress",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  },
+  "lines": [
+   "ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+   "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'in.mp4':",
+   "  Duration: 00:00:15.32, start: 0.000000, bitrate: 1095 kb/s",
+   "",
+   "Press [q] to stop, [?] for help",
+   "frame=   10 fps=0.0 q=0.0 size=       0KiB time=00:00:00.33 bitrate=   0.0kbits/s speed=   0x",
+   "frame=  100 fps=0.0 q=0.0 size=     256KiB time=00:00:03.33 bitrate= 629.1kbits/s speed=6.6x",
+   "frame=  101 fps=0.0 q=0.0 size=     256KiB time=00:00:03.36 bitrate= 629.1kbits/s speed=6.6x",
+   "PRESS [Q] TO STOP",
+   "frame=  459 fps=187 q=35.0 size=    3072kB TIME=00:00:15.32 BITRATE= 660.5kbits/s speed=7.55x",
+   "frame=  500 time=00:00:20.00 bitrate=1.0",
+   "time=N/A bitrate=N/A"
+  ],
+  "track": false
+ },
+ {
+  "name": "progress-recording",
+  "kind": "progress",
+  "options": {
+   "is_recording": true,
+   "fps": 30,
+   "area": [
+    10,
+    20,
+    640,
+    480
+   ],
+   "draw_cursor": true,
+   "output_path": "C:\\Users\\me\\Videos\\ShareX\\Screenshots\\2026-11\\ShareX_rec.mp4",
+   "ffmpeg": {}
+  },
+  "lines": [
+   "[gdigrab @ 0x1] Capturing whole desktop",
+   "Press [q] to stop, [?] for help",
+   "frame= 1 time=00:00:00.03 bitrate=N/A"
+  ],
+  "track": false
+ }
+]
