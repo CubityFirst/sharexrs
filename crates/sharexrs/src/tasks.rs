@@ -59,6 +59,9 @@ pub struct TaskInfo {
     pub start_time: Option<SystemTime>,
     pub end_time: Option<SystemTime>,
     pub result: UploadResult,
+    /// `Metadata.WindowTitle` / `ProcessName`: the history item's tags.
+    pub window_title: Option<String>,
+    pub process_name: Option<String>,
 }
 
 impl TaskInfo {

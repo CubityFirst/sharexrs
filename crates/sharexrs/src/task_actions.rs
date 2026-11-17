@@ -118,6 +118,10 @@ impl App {
     pub(super) fn run_image_task(&mut self, job: capture_job::ImageTask) {
         let play_sound = job.task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterUpload);
         let id = self.state.tasks.manager.start_image_task(job.file_name.clone());
+        if let Some(t) = self.state.tasks.manager.tasks.iter_mut().find(|t| t.id == id) {
+            t.info.window_title = job.metadata.window_title.clone();
+            t.info.process_name = job.metadata.process_name.clone();
+        }
         self.state.tasks.add_task(id);
         eprintln!("Task status: Preparing");
         let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
@@ -150,6 +154,7 @@ impl App {
                 self.state.tasks.task_changed(id);
                 if let Some(task) = self.state.tasks.manager.get(id) {
                     let info = &task.info;
+                    crate::history::task_completed(&self.settings.settings, info);
                     let duration = info
                         .end_time
                         .zip(info.start_time)

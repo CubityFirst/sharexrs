@@ -86,6 +86,10 @@ crates/
   sharex-screen-recording/ ShareX's FFmpeg recorder: command lines, running
                     FFmpeg, pause by segments, two-pass/GIF, FFmpeg discovery,
                     devices, macOS/Linux inputs (docs/SCREEN-RECORDING.md)
+  sharex-history/   ShareX.HistoryLib as data: History.db (ShareX's schema and
+                    values), the legacy JSON/XML files and their migration,
+                    the history windows' queries and actions, the stats
+                    (docs/HISTORY.md)
   sharex-ui/        theme, density, fonts, icon packs, shared widgets,
                     wgpu device, offscreen renderer
   sharexrs/         the app: winit event loop, one egui context per OS window
@@ -131,7 +135,8 @@ Status: ⬜ not started · 🟨 in progress · ✅ matches ShareX (validated)
 | Uploader framework + custom uploaders (.sxcu) | UploadersLib, Presentation/CustomUploaderSettings | 🟨 `sharex-uploaders` (map: [UPLOADERS.md](UPLOADERS.md)): HTTP layer sending requests byte for byte as ShareX's `HttpClient` (System.Uri escaping probed and ported), `Uploader` base and kinds, `UploadersConfig` typed (DPAPI secrets; fresh and ShareX-written configs round-trip byte for byte), custom uploaders in full (both JSON shapes, migrations, all 13 syntax functions, request building, response parsing). Validated with `tools/uploaders-harness` (ShareX's own DLL vs ShareXrs against a local mock: 97/97 cases identical). Not yet: the Custom uploader settings window, the dialog functions' windows |
 | Built-in destinations (Imgur, S3, FTP/SFTP, ...) | UploadersLib | 🟨 ported and identical in the harness: Imgur, Chevereto, vgy.me, Pastebin, Paste2, Slexy, Paste.ee, uPaste, Hastebin, OneTimeSecret, Pastie, Pomf, Uguu, transfer.sh, s-ul, Lambda, puush, Streamable, LobFile, img.fish, Immich, ownCloud/Nextcloud, Amazon S3 (SigV4, multipart), all 13 URL shorteners; share-page sharing services unit tested. Not yet: OAuth sign-in flows, FTP/SFTP, Google/OneDrive/Dropbox/Box, the other simple-HTTP services (see UPLOADERS.md) |
 | Upload file/folder/clipboard/text/URL, drag & drop, shorten URL | UploadManager, Presentation/* | ⬜ |
-| After upload tasks, history, image history, stats | HistoryLib, Presentation | ⬜ |
+| After upload tasks | Presentation, UploadManager | ⬜ |
+| History, image history, stats | HistoryLib, SettingManager (history), TaskManager.Task_TaskCompleted, TaskInfo.GetHistoryItem | 🟨 map: [HISTORY.md](HISTORY.md). Data side (`sharex-history`, no UI): History.db read and written with ShareX's schema text and values (dates as `ToString("o")` read back as local time, .NET `Dictionary` tag order, Json.NET's tag JSON, nulls vs empty strings), `BEGIN IMMEDIATE` and ShareX's busy waits, History.json/History.xml readers and the startup migration (History.json into History.db, then into `Backup/`), both windows' filters and lists (NLS comparisons on Windows), paging, context menu rules, copy formats, import, column layout and settings, `HistoryStats` and `OutputStats` with the Stats window's formats. Against ShareX's own DLL headlessly (`tools/history-harness`): 44/44 checks identical (reads both ways, stored values and schema byte for byte, migrations, 26 filters, 8 image filters, 5 stats, formats, concurrent appends both ways, the reference build's History.db); ShareX's files are also `cargo test` fixtures. The app opens History.db at startup (after the migration) and adds each finished task as ShareX does (`HistorySaveTasks`, `HistoryCheckURL`, window title and process name tags); not checked live (no captures run). Not yet: the History, Image history and Stats windows (plan in HISTORY.md) and their menu/tray/hotkey entries, `HistorySaveOCRText`, `Host` for uploads, settings export/import, NLS behaviour off Windows |
 
 ### Phase 3: tools (`MainMenuBuilder.BuildToolCategories`)
 | Category | Tools | Status |
