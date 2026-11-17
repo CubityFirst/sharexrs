@@ -102,7 +102,7 @@ impl ConicCoeff {
 }
 
 /// `SkConic::evalAt(t)`.
-fn conic_eval_at(c: &Conic, t: f32) -> Point {
+pub(crate) fn conic_eval_at(c: &Conic, t: f32) -> Point {
     ConicCoeff::new(c).eval(t)
 }
 

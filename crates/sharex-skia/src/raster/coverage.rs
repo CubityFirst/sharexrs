@@ -28,6 +28,33 @@ pub(crate) enum Coverage {
     Hits(Vec<(i32, i32, Call, u8)>),
 }
 
+/// An anti-aliased fill of `path` (device space) through an anti-aliased
+/// clip: `SkScan::AntiFillPath` with an `SkAAClipBlitter` (forceRLE) over
+/// the clip's bounds.
+pub(crate) fn fill_path_aa_clip(
+    path: &crate::Path,
+    clip: &crate::aaclip::AAClip,
+    width: u32,
+    height: u32,
+) -> Coverage {
+    let mut rec = Recorder::new(width, height);
+    if clip.is_empty() {
+        return Coverage::Mask(rec.cells);
+    }
+    let mut bounds = clip.bounds();
+    if !bounds.intersect(&rec.clip()) {
+        return Coverage::Mask(rec.cells);
+    }
+    {
+        let mut blitter = crate::aaclip::AAClipBlitter {
+            inner: &mut rec,
+            clip,
+        };
+        crate::scan::anti_fill_path_rle(path, bounds, &mut blitter, true);
+    }
+    Coverage::Mask(rec.cells)
+}
+
 /// An anti-aliased hairline of `path` (device space) with `cap`
 /// (`SkScan::AntiHairPath` and its cap variants).
 pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {

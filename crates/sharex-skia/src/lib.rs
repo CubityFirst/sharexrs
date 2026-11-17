@@ -37,6 +37,7 @@
 )]
 
 pub mod aaa;
+pub mod aaclip;
 pub mod blitter;
 pub mod blur;
 pub mod clip;

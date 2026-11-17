@@ -2748,9 +2748,15 @@ fn can_handle_rect(bounds: &IRect) -> bool {
 }
 
 /// `SkScan::AAAFillPath`.
-pub fn aaa_fill_path_entry(path: &Path, blitter: &mut dyn Blitter, ir: IRect, clip_bounds: IRect) {
+pub fn aaa_fill_path_entry(
+    path: &Path,
+    blitter: &mut dyn Blitter,
+    ir: IRect,
+    clip_bounds: IRect,
+    force_rle: bool,
+) {
     let contained_in_clip = clip_bounds.contains(&ir);
-    if can_handle_rect(&ir) {
+    if can_handle_rect(&ir) && !force_rle {
         if let Some(rect) = path.is_rect() {
             let mut r = rect;
             if !r.intersect(&clip_bounds.to_rect()) {
@@ -2771,7 +2777,7 @@ pub fn aaa_fill_path_entry(path: &Path, blitter: &mut dyn Blitter, ir: IRect, cl
             ir.bottom,
             contained_in_clip,
             true,
-            false,
+            force_rle,
         );
         add.finish();
     } else if path.is_convex() {
@@ -2784,7 +2790,7 @@ pub fn aaa_fill_path_entry(path: &Path, blitter: &mut dyn Blitter, ir: IRect, cl
             ir.bottom,
             contained_in_clip,
             false,
-            false,
+            force_rle,
         );
         add.finish();
     } else {
@@ -2797,7 +2803,7 @@ pub fn aaa_fill_path_entry(path: &Path, blitter: &mut dyn Blitter, ir: IRect, cl
             ir.bottom,
             contained_in_clip,
             false,
-            false,
+            force_rle,
         );
         add.finish();
     }

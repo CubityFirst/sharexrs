@@ -17,6 +17,13 @@ pub fn should_use_aaa(path: &Path) -> bool {
 
 /// `SkScan::AntiFillPath` into `blitter`, clipped to `clip`.
 pub fn anti_fill_path(path: &Path, clip: IRect, blitter: &mut dyn Blitter) {
+    anti_fill_path_rle(path, clip, blitter, false);
+}
+
+/// `SkScan::AntiFillPath(path, region, blitter, forceRLE)`: `force_rle`
+/// keeps the scan converters off their mask blitters (an `SkAAClip` being
+/// built, or a draw through one).
+pub fn anti_fill_path_rle(path: &Path, clip: IRect, blitter: &mut dyn Blitter, force_rle: bool) {
     let ir = path.bounds().round_out();
     if ir.is_empty() {
         return;
@@ -37,9 +44,9 @@ pub fn anti_fill_path(path: &Path, clip: IRect, blitter: &mut dyn Blitter) {
             &mut rect_clip
         };
     if should_use_aaa(path) {
-        aaa::aaa_fill_path_entry(path, blitter, ir, clip);
+        aaa::aaa_fill_path_entry(path, blitter, ir, clip, force_rle);
     } else {
-        crate::saa::saa_fill_path(path, blitter, ir, clip);
+        crate::saa::saa_fill_path(path, blitter, ir, clip, force_rle);
     }
 }
 
