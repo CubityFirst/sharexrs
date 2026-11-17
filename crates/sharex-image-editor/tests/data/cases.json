@@ -1324,8 +1324,7 @@
       "Y": 200
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "blur-strong",
@@ -1342,8 +1341,7 @@
       "Y": 290
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "blur-small",
@@ -1360,8 +1358,7 @@
       "Y": 120
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "pixelate",
@@ -1377,8 +1374,7 @@
       "Y": 200
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "pixelate-20",
@@ -1395,8 +1391,7 @@
       "Y": 293
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "magnify",
@@ -1412,8 +1407,7 @@
       "Y": 130
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "magnify-ellipse-border",
@@ -1434,7 +1428,7 @@
      }
     }
    ],
-   "pending": "not ported yet"
+   "pending": "the elliptical magnifier is an anti-aliased clip (SkAAClip), not ported"
   },
   {
    "name": "spotlight",
@@ -1450,8 +1444,7 @@
       "Y": 200
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "spotlight-ellipse-blur",
@@ -1469,8 +1462,7 @@
       "Y": 240
      }
     }
-   ],
-   "pending": "not ported yet"
+   ]
   },
   {
    "name": "step",

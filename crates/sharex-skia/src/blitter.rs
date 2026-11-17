@@ -424,3 +424,72 @@ impl Blitter for ColorBlitter<'_> {
         }
     }
 }
+
+/// The raster pipeline blitter for a `kClear` paint (`SkBlitter::Choose`
+/// turns it into `kSrc` with a transparent colour): coverage `c` scales
+/// the destination by `1 - c` (lowp `lerp` with `div255` = `(v+255)/256`).
+pub struct ClearBlitter<'a> {
+    pm: &'a mut Pixmap,
+}
+
+impl<'a> ClearBlitter<'a> {
+    pub fn new(pm: &'a mut Pixmap) -> Self {
+        Self { pm }
+    }
+
+    fn lerp(&mut self, x: i32, y: i32, c: u32) {
+        if x < 0 || y < 0 || x >= self.pm.width() as i32 || y >= self.pm.height() as i32 {
+            return;
+        }
+        let d = self.pm.pixel_mut(x, y);
+        if c == 255 {
+            *d = 0;
+            return;
+        }
+        *d = per_channel(*d, |dc, _| (dc * (255 - c) + 255) / 256);
+    }
+}
+
+impl Blitter for ClearBlitter<'_> {
+    fn blit_h(&mut self, x: i32, y: i32, width: i32) {
+        for i in 0..width {
+            self.lerp(x + i, y, 255);
+        }
+    }
+
+    fn blit_anti_h(&mut self, x: i32, y: i32, aa: &[u8], runs: &[i16]) {
+        let mut px = x;
+        let mut i = 0usize;
+        loop {
+            let count = runs[i] as i32;
+            if count <= 0 {
+                return;
+            }
+            let a = aa[i] as u32;
+            if a != 0 {
+                for k in 0..count {
+                    self.lerp(px + k, y, a);
+                }
+            }
+            px += count;
+            i += count as usize;
+        }
+    }
+
+    fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
+        for i in 0..height {
+            self.lerp(x, y + i, alpha as u32);
+        }
+    }
+
+    fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
+        for y in clip.top..clip.bottom {
+            for x in clip.left..clip.right {
+                let a = mask[((y - bounds.top) * row_bytes + (x - bounds.left)) as usize] as u32;
+                if a != 0 {
+                    self.lerp(x, y, a);
+                }
+            }
+        }
+    }
+}

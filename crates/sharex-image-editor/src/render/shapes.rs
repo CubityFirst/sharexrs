@@ -130,7 +130,7 @@ pub(super) fn line_cap(style: &BorderStyle) -> Cap {
 
 /// An Avalonia pen, as `DrawingContextImpl.TryCreatePaint` turns it into
 /// a Skia stroke (dashes scaled by the thickness).
-pub(super) struct Pen {
+pub(crate) struct Pen {
     pub color: Color,
     pub thickness: f64,
     pub dashes: Vec<f64>,

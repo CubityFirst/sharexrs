@@ -25,17 +25,20 @@
     clippy::excessive_precision,
     clippy::too_many_arguments,
     clippy::collapsible_else_if,
-    clippy::needless_range_loop
+    clippy::needless_range_loop,
+    clippy::manual_div_ceil
 )]
 
 pub mod aaa;
 pub mod blitter;
+pub mod blur;
 pub mod clip;
 pub mod draw;
 pub mod fixed;
 pub mod geom;
 pub mod path;
 pub mod pixmap;
+pub mod resample;
 pub mod saa;
 pub mod scan;
 pub mod stroke;
