@@ -13,6 +13,7 @@ pub mod canvas;
 mod coverage;
 pub mod gradient;
 pub mod matrix;
+pub mod mipmap;
 
 pub use bitmap::Bitmap;
 pub use canvas::{Blend, Canvas, Paint, Sampling, Shader, TileMode};
