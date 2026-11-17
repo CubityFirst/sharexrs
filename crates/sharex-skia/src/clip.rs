@@ -299,12 +299,167 @@ impl EdgeClipper {
         }
     }
 
-    /// Cubics: clipped only against the top and bottom here (by their
-    /// end points' Y range), else kept whole; the blitter clips the rest.
+    fn append_cubic(&mut self, pts: &[Point], reverse: bool) {
+        if reverse {
+            self.out.push(Seg::Cubic([pts[3], pts[2], pts[1], pts[0]]));
+        } else {
+            self.out.push(Seg::Cubic([pts[0], pts[1], pts[2], pts[3]]));
+        }
+    }
+
+    /// `SkEdgeClipper::clipMonoCubic` (`src` monotonic in X and Y).
+    fn clip_mono_cubic(&mut self, src: &[Point; 4], clip: &Rect) {
+        let (mut pts, mut reverse) = sort_increasing_y(src);
+        if pts[3].y <= clip.top || pts[0].y >= clip.bottom {
+            return;
+        }
+        chop_cubic_in_y(&mut pts, clip);
+        if pts[0].x > pts[3].x {
+            pts.swap(0, 3);
+            pts.swap(1, 2);
+            reverse = !reverse;
+        }
+        if pts[3].x <= clip.left {
+            self.append_vline(clip.left, pts[0].y, pts[3].y, reverse);
+            return;
+        }
+        if pts[0].x >= clip.right {
+            if !self.can_cull_to_the_right {
+                self.append_vline(clip.right, pts[0].y, pts[3].y, reverse);
+            }
+            return;
+        }
+        if pts[0].x < clip.left {
+            let mut tmp = [Point::default(); 7];
+            chop_mono_cubic_at_axis(&pts, false, clip.left, &mut tmp);
+            self.append_vline(clip.left, tmp[0].y, tmp[3].y, reverse);
+            tmp[3].x = clip.left;
+            if tmp[4].x < clip.left {
+                tmp[4].x = clip.left;
+            }
+            pts[0] = tmp[3];
+            pts[1] = tmp[4];
+            pts[2] = tmp[5];
+        }
+        if pts[3].x > clip.right {
+            let mut tmp = [Point::default(); 7];
+            chop_mono_cubic_at_axis(&pts, false, clip.right, &mut tmp);
+            tmp[3].x = clip.right;
+            if tmp[2].x > clip.right {
+                tmp[2].x = clip.right;
+            }
+            self.append_cubic(&tmp[0..4], reverse);
+            self.append_vline(clip.right, tmp[3].y, tmp[6].y, reverse);
+        } else {
+            self.append_cubic(&pts, reverse);
+        }
+    }
+
+    /// `SkEdgeClipper::clipCubic`.
     pub fn clip_cubic(&mut self, src: &[Point; 4], clip: &Rect) {
         let (b, _) = Rect::bounds_of(src);
         if b.bottom > clip.top && b.top < clip.bottom {
-            self.out.push(Seg::Cubic(*src));
+            // too_big_for_reliable_float_math: draw a line, which clips safely.
+            let limit = (1 << 22) as f32;
+            if b.left < -limit || b.top < -limit || b.right > limit || b.bottom > limit {
+                self.clip_line(src[0], src[3], clip);
+                return;
+            }
+            let mut mono_y = [Point::default(); 10];
+            let count_y = geom::chop_cubic_at_y_extrema(src, &mut mono_y);
+            for y in 0..=count_y {
+                let c = [
+                    mono_y[y * 3],
+                    mono_y[y * 3 + 1],
+                    mono_y[y * 3 + 2],
+                    mono_y[y * 3 + 3],
+                ];
+                let mut mono_x = [Point::default(); 10];
+                let count_x = geom::chop_cubic_at_x_extrema(&c, &mut mono_x);
+                for x in 0..=count_x {
+                    self.clip_mono_cubic(
+                        &[
+                            mono_x[x * 3],
+                            mono_x[x * 3 + 1],
+                            mono_x[x * 3 + 2],
+                            mono_x[x * 3 + 3],
+                        ],
+                        clip,
+                    );
+                }
+            }
         }
+    }
+}
+
+/// `mono_cubic_closestT`.
+fn mono_cubic_closest_t(src: [f32; 4], mut x: f32) -> f32 {
+    let mut t = 0.5f32;
+    let mut best_t = 0.0f32;
+    let mut step = 0.25f32;
+    let d = src[0];
+    let a = src[3] + 3.0 * (src[1] - src[2]) - d;
+    let b = 3.0 * (src[2] - src[1] - src[1] + d);
+    let c = 3.0 * (src[1] - d);
+    x -= d;
+    let mut closest = f32::MAX;
+    loop {
+        let loc = ((a * t + b) * t + c) * t;
+        let dist = (loc - x).abs();
+        if closest > dist {
+            closest = dist;
+            best_t = t;
+        }
+        let last_t = t;
+        t += if loc < x { step } else { -step };
+        step *= 0.5;
+        if !(closest > 0.25 && last_t != t) {
+            break;
+        }
+    }
+    best_t
+}
+
+/// `chop_mono_cubic_at_y` / `chop_mono_cubic_at_x`.
+fn chop_mono_cubic_at_axis(src: &[Point; 4], y: bool, v: f32, dst: &mut [Point; 7]) {
+    if crate::cubics::chop_mono_cubic_at(src, y, v, dst) {
+        return;
+    }
+    let coords = if y {
+        [src[0].y, src[1].y, src[2].y, src[3].y]
+    } else {
+        [src[0].x, src[1].x, src[2].x, src[3].x]
+    };
+    geom::chop_cubic_at(src, dst, mono_cubic_closest_t(coords, v));
+}
+
+/// `chop_cubic_in_Y`: clips `pts` to the clip's top and bottom.
+fn chop_cubic_in_y(pts: &mut [Point; 4], clip: &Rect) {
+    if pts[0].y < clip.top {
+        let mut tmp = [Point::default(); 7];
+        chop_mono_cubic_at_axis(pts, true, clip.top, &mut tmp);
+        // A poor chop can leave the lower cubic partly above: chop it again.
+        if tmp[3].y < clip.top && tmp[4].y < clip.top && tmp[5].y < clip.top {
+            let tmp2 = [tmp[3], tmp[4], tmp[5], tmp[6]];
+            chop_mono_cubic_at_axis(&tmp2, true, clip.top, &mut tmp);
+        }
+        tmp[3].y = clip.top;
+        if tmp[4].y < clip.top {
+            tmp[4].y = clip.top;
+        }
+        pts[0] = tmp[3];
+        pts[1] = tmp[4];
+        pts[2] = tmp[5];
+    }
+    if pts[3].y > clip.bottom {
+        let mut tmp = [Point::default(); 7];
+        chop_mono_cubic_at_axis(pts, true, clip.bottom, &mut tmp);
+        tmp[3].y = clip.bottom;
+        if tmp[2].y > clip.bottom {
+            tmp[2].y = clip.bottom;
+        }
+        pts[1] = tmp[1];
+        pts[2] = tmp[2];
+        pts[3] = tmp[3];
     }
 }

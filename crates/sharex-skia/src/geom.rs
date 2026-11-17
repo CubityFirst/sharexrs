@@ -529,6 +529,23 @@ pub fn chop_cubic_at_y_extrema(src: &[Point; 4], dst: &mut [Point; 10]) -> usize
     roots
 }
 
+/// `SkChopCubicAtXExtrema`.
+pub fn chop_cubic_at_x_extrema(src: &[Point; 4], dst: &mut [Point; 10]) -> usize {
+    let mut t = [0.0f32; 2];
+    let roots = find_cubic_extrema(src[0].x, src[1].x, src[2].x, src[3].x, &mut t);
+    chop_cubic_at_ts(src, dst, &t[..roots]);
+    if roots > 0 {
+        // flatten_double_cubic_extrema
+        dst[2].x = dst[3].x;
+        dst[4].x = dst[3].x;
+        if roots == 2 {
+            dst[5].x = dst[6].x;
+            dst[7].x = dst[6].x;
+        }
+    }
+    roots
+}
+
 // --- conics -----------------------------------------------------------------
 
 /// `SkConic`.

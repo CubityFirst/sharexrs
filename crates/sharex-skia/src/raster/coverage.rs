@@ -1,12 +1,17 @@
-//! Which pixels a draw touches and how much: Skia's scan conversion. Rects are exact
-//! (`SkScan::FillRect` rounds, `AntiFillRect` covers fractional edges); paths go through
-//! tiny-skia, a port of Skia's scan converter: non-anti-aliased paths match Skia, but
-//! anti-aliased ones use Skia's older supersampler (4x vertical, 16 levels per pixel)
-//! where Skia m119 uses analytic AA, so their edge pixels can differ slightly.
+//! Which pixels a draw touches, how much, and through which blitter call: Skia's scan
+//! conversion. Rects: `SkScan::FillRect` (rounded edges) and `SkScan::AntiFillRect`
+//! (fractional edges); anti-aliased paths: `SkScan::AntiFillPath` (analytic AA or the
+//! supersampler, [`crate::scan`]); aliased paths: tiny-skia, whose non-AA scan
+//! converter is Skia's.
+//!
+//! The call matters: Skia's legacy blitters blend the same coverage differently in
+//! `blitAntiH`, `blitV`, `blitAntiH2` and `blitMask`.
 
 use super::Rect;
+use crate::blitter::{Blitter, Call};
+use crate::geom::IRect;
 
-/// Coverage over the destination: full rows of spans, or a per-pixel mask.
+/// Coverage over the destination: full rows of spans, or a per-pixel record.
 pub(crate) enum Coverage {
     /// Every pixel of `[left, right) x [top, bottom)` fully covered (clipped).
     Rect {
@@ -15,8 +20,9 @@ pub(crate) enum Coverage {
         right: i32,
         bottom: i32,
     },
-    /// Per-pixel coverage for the whole destination (0 = untouched).
-    Mask(Vec<u8>),
+    /// Per pixel of the destination: the call that covered it (`None`: untouched)
+    /// and its coverage.
+    Mask(Vec<Option<(Call, u8)>>),
 }
 
 /// `SkScan::FillRect` (non-AA): edges rounded to the nearest pixel.
@@ -30,54 +36,130 @@ pub(crate) fn fill_rect(r: Rect, width: u32, height: u32) -> Coverage {
     }
 }
 
-/// An anti-aliased rect: `SkScan::AntiFillRect`, exact when the edges are whole pixels.
+/// An anti-aliased rect: `SkScan::AntiFillRect`.
 pub(crate) fn anti_fill_rect(r: Rect, width: u32, height: u32) -> Coverage {
     let whole = |v: f32| v == v.floor();
     if whole(r.left) && whole(r.top) && whole(r.right) && whole(r.bottom) {
         return fill_rect(r, width, height);
     }
-    match tiny_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom) {
-        Some(rect) => mask_from(width, height, |pm, paint| {
-            pm.fill_rect(rect, paint, tiny_skia::Transform::identity(), None);
-        }),
-        None => Coverage::Mask(vec![0; width as usize * height as usize]),
-    }
+    let mut rec = Recorder::new(width, height);
+    crate::scan::anti_fill_rect(
+        crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        rec.clip(),
+        &mut rec,
+    );
+    Coverage::Mask(rec.cells)
 }
 
 /// A filled path (already in device space), anti-aliased or not.
-pub(crate) fn fill_path(
-    path: &tiny_skia::Path,
-    anti_alias: bool,
-    width: u32,
-    height: u32,
-) -> Coverage {
-    mask_from(width, height, |pm, paint| {
-        let mut paint = paint.clone();
-        paint.anti_alias = anti_alias;
-        pm.fill_path(
-            path,
-            &paint,
-            tiny_skia::FillRule::Winding,
-            tiny_skia::Transform::identity(),
-            None,
-        );
-    })
-}
-
-fn mask_from(
-    width: u32,
-    height: u32,
-    draw: impl FnOnce(&mut tiny_skia::Pixmap, &tiny_skia::Paint),
-) -> Coverage {
+pub(crate) fn fill_path(path: &crate::Path, anti_alias: bool, width: u32, height: u32) -> Coverage {
+    if anti_alias {
+        let mut rec = Recorder::new(width, height);
+        let clip = rec.clip();
+        crate::scan::anti_fill_path(path, clip, &mut rec);
+        return Coverage::Mask(rec.cells);
+    }
+    let Some(path) = path.to_tiny_skia() else {
+        return Coverage::Mask(vec![None; width as usize * height as usize]);
+    };
     let Some(mut pm) = tiny_skia::Pixmap::new(width.max(1), height.max(1)) else {
         return Coverage::Mask(Vec::new());
     };
     let mut paint = tiny_skia::Paint::default();
     paint.set_color_rgba8(255, 255, 255, 255);
     paint.blend_mode = tiny_skia::BlendMode::Source;
-    paint.anti_alias = true;
-    draw(&mut pm, &paint);
-    // Opaque white with "source" blending leaves the coverage in alpha, exactly
-    // (lowp `lerp(0, 255, c)` = `div255(255 * c)` = c).
-    Coverage::Mask(pm.data().chunks_exact(4).map(|p| p[3]).collect())
+    paint.anti_alias = false;
+    pm.fill_path(
+        &path,
+        &paint,
+        tiny_skia::FillRule::Winding,
+        tiny_skia::Transform::identity(),
+        None,
+    );
+    // Aliased scan conversion only blits whole spans (`blitH`).
+    Coverage::Mask(
+        pm.data()
+            .chunks_exact(4)
+            .map(|p| (p[3] != 0).then_some((Call::H, 255)))
+            .collect(),
+    )
+}
+
+/// A blitter that records each covered pixel's call and coverage, clipped to the
+/// destination.
+struct Recorder {
+    width: i32,
+    height: i32,
+    cells: Vec<Option<(Call, u8)>>,
+}
+
+impl Recorder {
+    fn new(width: u32, height: u32) -> Self {
+        Self {
+            width: width as i32,
+            height: height as i32,
+            cells: vec![None; width as usize * height as usize],
+        }
+    }
+
+    fn clip(&self) -> IRect {
+        IRect::from_ltrb(0, 0, self.width, self.height)
+    }
+
+    fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8) {
+        if x >= 0 && y >= 0 && x < self.width && y < self.height {
+            self.cells[(y * self.width + x) as usize] = Some((call, alpha));
+        }
+    }
+}
+
+impl Blitter for Recorder {
+    fn blit_h(&mut self, x: i32, y: i32, width: i32) {
+        for i in 0..width {
+            self.put(x + i, y, Call::H, 255);
+        }
+    }
+
+    fn blit_anti_h(&mut self, x: i32, y: i32, aa: &[u8], runs: &[i16]) {
+        let mut px = x;
+        let mut i = 0usize;
+        loop {
+            let count = runs[i] as i32;
+            if count <= 0 {
+                return;
+            }
+            if aa[i] != 0 {
+                for k in 0..count {
+                    self.put(px + k, y, Call::AntiH, aa[i]);
+                }
+            }
+            px += count;
+            i += count as usize;
+        }
+    }
+
+    fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
+        if alpha != 0 {
+            for i in 0..height {
+                self.put(x, y + i, Call::V, alpha);
+            }
+        }
+    }
+
+    fn blit_anti_h2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
+        // Kept even at 0: the translucent legacy blitter still changes the pixel.
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x + 1, y, Call::AntiH2, a1);
+    }
+
+    fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
+        for y in clip.top..clip.bottom {
+            for x in clip.left..clip.right {
+                let a = mask[((y - bounds.top) * row_bytes + (x - bounds.left)) as usize];
+                if a != 0 {
+                    self.put(x, y, Call::Mask, a);
+                }
+            }
+        }
+    }
 }

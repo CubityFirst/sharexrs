@@ -5,12 +5,7 @@
 
 use crate::pixmap::Pixmap;
 
-/// Lowp `mad` (`f*m+a`): fused, as clang contracts it in the HSW build of
-/// the raster pipeline SkiaSharp runs on x64.
-#[inline]
-fn mad(f: f32, m: f32, a: f32) -> f32 {
-    f.mul_add(m, a)
-}
+use crate::raster::mad;
 
 /// The inverse of `SkMatrix::RectToRect(src, dst)`'s scale, as
 /// `SkMatrix::invert` computes it.
@@ -151,11 +146,7 @@ fn cubic_weights(b: f32, c: f32) -> [f32; 16] {
     w
 }
 
-/// Highp `mad` on HSW: fused.
-#[inline]
-fn hmad(f: f32, m: f32, a: f32) -> f32 {
-    f.mul_add(m, a)
-}
+use crate::raster::mad as hmad;
 
 fn bicubic_wts(t: f32, a: f32, b: f32, c: f32, d: f32) -> f32 {
     hmad(t, hmad(t, hmad(t, d, c), b), a)

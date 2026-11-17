@@ -1452,14 +1452,14 @@ impl Effect for DrawText {
                     size.height,
                 ));
                 p.anti_alias = true;
-                g.fill_path(path, &p);
+                g.fill_sk_path(path, &p);
             }
             if self.DrawBorder {
                 let stroke = ops::stroke_paint(
                     Shader::Color(self.BorderColor.rgba()),
                     self.BorderSize.max(1) as f32,
                 );
-                ops::stroke_path(&mut g, path, &stroke);
+                ops::stroke_sk_path(&mut g, path, &stroke);
             }
         }
         let tx = (pos.x + self.Padding.left) as f32;

@@ -248,7 +248,7 @@ fn blit_mask_d32_a8(dst: &mut u32, aa: u32, color_argb: (u32, u32, u32, u32)) {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Kind {
     /// `SkARGB32_Blitter`: a translucent colour.
     Translucent,
@@ -258,20 +258,34 @@ enum Kind {
     Black,
 }
 
-/// The legacy N32 blitter for a solid colour (an unpremultiplied
-/// `SkColor`, as `SkPaint::getColor`), clipped to the pixmap and `clip`.
-pub struct ColorBlitter<'a> {
-    pm: &'a mut Pixmap,
-    clip: IRect,
+/// Which `SkBlitter` call covered a pixel: Skia's blitters blend the same
+/// coverage differently per call.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Call {
+    /// `blitH`/`blitRect`: full coverage.
+    H,
+    AntiH,
+    V,
+    AntiH2,
+    /// `blitMask` with an A8 mask.
+    Mask,
+}
+
+/// The legacy N32 blitters for a solid colour (`SkARGB32_Blitter`,
+/// `SkARGB32_Opaque_Blitter`, `SkARGB32_Black_Blitter`), one pixel at a time.
+#[derive(Clone, Copy, Debug)]
+pub struct LegacyColor {
     kind: Kind,
     /// `fColor`: a, r, g, b unpremultiplied.
     color: (u32, u32, u32, u32),
+    /// `fPMColor`: `SkAlphaMul(c, SkAlpha255To256(a))` with alpha `a`.
     pm_color: u32,
     src_a: u32,
 }
 
-impl<'a> ColorBlitter<'a> {
-    pub fn new(pm: &'a mut Pixmap, a: u8, r: u8, g: u8, b: u8, clip: Option<IRect>) -> Self {
+impl LegacyColor {
+    /// For an unpremultiplied `SkColor` (as `SkPaint::getColor`).
+    pub fn new(a: u8, r: u8, g: u8, b: u8) -> Self {
         let (a, r, g, b) = (a as u32, r as u32, g as u32, b as u32);
         let scale = a + 1;
         let pm_color =
@@ -283,6 +297,82 @@ impl<'a> ColorBlitter<'a> {
         } else {
             Kind::Translucent
         };
+        Self {
+            kind,
+            color: (a, r, g, b),
+            pm_color,
+            src_a: a,
+        }
+    }
+
+    /// The pixel `d` (premultiplied `a << 24 | r << 16 | g << 8 | b`) after
+    /// `call` covers it with `alpha`.
+    pub fn blend(&self, d: u32, call: Call, alpha: u8) -> u32 {
+        let a = alpha as u32;
+        let color = self.pm_color;
+        match call {
+            Call::H => {
+                let mut px = [d];
+                color32(&mut px, color);
+                px[0]
+            }
+            Call::AntiH => {
+                if (self.kind == Kind::Translucent && self.src_a == 0) || a == 0 {
+                    return d;
+                }
+                match self.kind {
+                    Kind::Black => {
+                        if a == 255 {
+                            color
+                        } else {
+                            (a << 24).wrapping_add(alpha_mul_q(d, 256 - a))
+                        }
+                    }
+                    _ => {
+                        if (self.src_a & a) == 255 {
+                            color
+                        } else {
+                            let mut px = [d];
+                            color32(&mut px, alpha_mul_q(color, a + 1));
+                            px[0]
+                        }
+                    }
+                }
+            }
+            Call::V => {
+                if a == 0 || self.src_a == 0 {
+                    return d;
+                }
+                let c = if a != 255 { alpha_mul_q(color, a + 1) } else { color };
+                c.wrapping_add(alpha_mul_q(d, 256 - get_a(c)))
+            }
+            Call::AntiH2 => match self.kind {
+                Kind::Black => (a << 24).wrapping_add(alpha_mul_q(d, 256 - a)),
+                Kind::Opaque => fast_four_byte_interp(color, d, a),
+                Kind::Translucent => blend_argb32(color, d, a),
+            },
+            Call::Mask => {
+                if self.kind == Kind::Translucent && self.src_a == 0 {
+                    return d;
+                }
+                let mut px = d;
+                blit_mask_d32_a8(&mut px, a, self.color);
+                px
+            }
+        }
+    }
+}
+
+/// The legacy N32 blitter for a solid colour, clipped to the pixmap and `clip`.
+pub struct ColorBlitter<'a> {
+    pm: &'a mut Pixmap,
+    clip: IRect,
+    color: LegacyColor,
+}
+
+impl<'a> ColorBlitter<'a> {
+    /// For an unpremultiplied `SkColor` (as `SkPaint::getColor`).
+    pub fn new(pm: &'a mut Pixmap, a: u8, r: u8, g: u8, b: u8, clip: Option<IRect>) -> Self {
         let full = IRect::from_ltrb(0, 0, pm.width() as i32, pm.height() as i32);
         let mut c = clip.unwrap_or(full);
         if !c.intersect(&full) {
@@ -291,10 +381,7 @@ impl<'a> ColorBlitter<'a> {
         Self {
             pm,
             clip: c,
-            kind,
-            color: (a, r, g, b),
-            pm_color,
-            src_a: a,
+            color: LegacyColor::new(a, r, g, b),
         }
     }
 
@@ -302,29 +389,22 @@ impl<'a> ColorBlitter<'a> {
         x >= self.clip.left && x < self.clip.right && y >= self.clip.top && y < self.clip.bottom
     }
 
-    /// Clips a horizontal span to the clip: (x0, x1) or None.
-    fn span(&self, x: i32, y: i32, w: i32) -> Option<(i32, i32)> {
-        if y < self.clip.top || y >= self.clip.bottom {
-            return None;
+    fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8) {
+        if self.inside(x, y) {
+            let d = self.pm.pixel_mut(x, y);
+            *d = self.color.blend(*d, call, alpha);
         }
-        let x0 = x.max(self.clip.left);
-        let x1 = (x + w).min(self.clip.right);
-        if x0 < x1 { Some((x0, x1)) } else { None }
     }
 }
 
 impl Blitter for ColorBlitter<'_> {
     fn blit_h(&mut self, x: i32, y: i32, width: i32) {
-        if let Some((x0, x1)) = self.span(x, y, width) {
-            let color = self.pm_color;
-            color32(self.pm.row_span(y, x0, x1), color);
+        for i in 0..width {
+            self.put(x + i, y, Call::H, 255);
         }
     }
 
     fn blit_anti_h(&mut self, x: i32, y: i32, aa: &[u8], runs: &[i16]) {
-        if self.kind == Kind::Translucent && self.src_a == 0 {
-            return;
-        }
         let mut px = x;
         let mut i = 0usize;
         loop {
@@ -332,33 +412,8 @@ impl Blitter for ColorBlitter<'_> {
             if count <= 0 {
                 return;
             }
-            let a = aa[i] as u32;
-            if a != 0
-                && let Some((x0, x1)) = self.span(px, y, count)
-            {
-                let color = self.pm_color;
-                let row = self.pm.row_span(y, x0, x1);
-                match self.kind {
-                    Kind::Black => {
-                        if a == 255 {
-                            row.fill(color);
-                        } else {
-                            let src = a << 24;
-                            let dst_scale = 256 - a;
-                            for d in row.iter_mut() {
-                                *d = src.wrapping_add(alpha_mul_q(*d, dst_scale));
-                            }
-                        }
-                    }
-                    _ => {
-                        if (self.src_a & a) == 255 {
-                            row.fill(color);
-                        } else {
-                            let sc = alpha_mul_q(color, a + 1);
-                            color32(row, sc);
-                        }
-                    }
-                }
+            for k in 0..count {
+                self.put(px + k, y, Call::AntiH, aa[i]);
             }
             px += count;
             i += count as usize;
@@ -366,60 +421,27 @@ impl Blitter for ColorBlitter<'_> {
     }
 
     fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
-        if alpha == 0 || self.src_a == 0 {
-            return;
-        }
-        let mut color = self.pm_color;
-        if alpha != 255 {
-            color = alpha_mul_q(color, alpha as u32 + 1);
-        }
-        let dst_scale = 256 - get_a(color);
         for i in 0..height {
-            if self.inside(x, y + i) {
-                let d = self.pm.pixel_mut(x, y + i);
-                *d = color.wrapping_add(alpha_mul_q(*d, dst_scale));
-            }
+            self.put(x, y + i, Call::V, alpha);
         }
     }
 
     fn blit_rect(&mut self, x: i32, y: i32, width: i32, height: i32) {
-        if self.src_a == 0 {
-            return;
-        }
         for j in 0..height {
             self.blit_h(x, y + j, width);
         }
     }
 
     fn blit_anti_h2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
-        for (i, a) in [a0, a1].into_iter().enumerate() {
-            let px = x + i as i32;
-            if !self.inside(px, y) {
-                continue;
-            }
-            let color = self.pm_color;
-            let d = self.pm.pixel_mut(px, y);
-            *d = match self.kind {
-                Kind::Black => ((a as u32) << 24).wrapping_add(alpha_mul_q(*d, 256 - a as u32)),
-                Kind::Opaque => fast_four_byte_interp(color, *d, a as u32),
-                Kind::Translucent => blend_argb32(color, *d, a as u32),
-            };
-        }
+        self.put(x, y, Call::AntiH2, a0);
+        self.put(x + 1, y, Call::AntiH2, a1);
     }
 
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
-        if self.kind == Kind::Translucent && self.src_a == 0 {
-            return;
-        }
-        let mut c = clip;
-        if !c.intersect(&self.clip) {
-            return;
-        }
-        for y in c.top..c.bottom {
-            for x in c.left..c.right {
-                let aa = mask[((y - bounds.top) * row_bytes + (x - bounds.left)) as usize] as u32;
-                let color = self.color;
-                blit_mask_d32_a8(self.pm.pixel_mut(x, y), aa, color);
+        for y in clip.top..clip.bottom {
+            for x in clip.left..clip.right {
+                let aa = mask[((y - bounds.top) * row_bytes + (x - bounds.left)) as usize];
+                self.put(x, y, Call::Mask, aa);
             }
         }
     }

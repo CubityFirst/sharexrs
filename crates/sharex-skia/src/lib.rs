@@ -40,6 +40,7 @@ pub mod aaa;
 pub mod blitter;
 pub mod blur;
 pub mod clip;
+pub mod cubics;
 pub mod draw;
 pub mod fixed;
 pub mod geom;

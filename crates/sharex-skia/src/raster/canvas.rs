@@ -7,6 +7,7 @@ use super::coverage::{self, Coverage};
 use super::gradient::LinearGradient;
 use super::*;
 use super::Bitmap;
+use crate::blitter::{Call, LegacyColor};
 
 /// `SKSamplingOptions` as ShareX uses them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -326,10 +327,8 @@ impl<'a> Canvas<'a> {
             self.blit(&cov, &p);
         } else {
             let path = rect_path(bounds, &total);
-            if let Some(path) = path {
-                let cov = coverage::fill_path(&path, p.anti_alias, self.width(), self.height());
-                self.blit(&cov, &p);
-            }
+            let cov = coverage::fill_path(&path, p.anti_alias, self.width(), self.height());
+            self.blit(&cov, &p);
         }
     }
 
@@ -375,7 +374,8 @@ impl<'a> Canvas<'a> {
                 coverage::fill_rect(device, self.width(), self.height())
             };
             self.blit(&cov, paint);
-        } else if let Some(path) = rect_path(r, &self.matrix) {
+        } else {
+            let path = rect_path(r, &self.matrix);
             let cov = coverage::fill_path(&path, paint.anti_alias, self.width(), self.height());
             self.blit(&cov, paint);
         }
@@ -383,26 +383,30 @@ impl<'a> Canvas<'a> {
 
     /// `SkCanvas::drawPath` for a fill (strokes are turned into fills by the caller).
     pub fn fill_path(&mut self, path: &tiny_skia::Path, paint: &Paint) {
+        self.fill_sk_path(&crate::draw::from_tiny_skia(path), paint);
+    }
+
+    /// `SkCanvas::drawPath` for a fill of an `SkPath` (conics kept, as Skia counts
+    /// points when it picks a scan converter).
+    pub fn fill_sk_path(&mut self, path: &crate::Path, paint: &Paint) {
         if self.dst.is_empty() {
             return;
         }
         let device = if self.matrix.is_identity() {
-            Some(path.clone())
+            path.clone()
         } else {
             let m = &self.matrix;
-            path.clone().transform(tiny_skia::Transform::from_row(
-                m.sx(),
-                m.ky(),
-                m.kx(),
-                m.sy(),
-                m.tx(),
-                m.ty(),
-            ))
+            path.transformed(&crate::Matrix {
+                sx: m.sx(),
+                kx: m.kx(),
+                tx: m.tx(),
+                ky: m.ky(),
+                sy: m.sy(),
+                ty: m.ty(),
+            })
         };
-        if let Some(device) = device {
-            let cov = coverage::fill_path(&device, paint.anti_alias, self.width(), self.height());
-            self.blit(&cov, paint);
-        }
+        let cov = coverage::fill_path(&device, paint.anti_alias, self.width(), self.height());
+        self.blit(&cov, paint);
     }
 
     /// The sprite blitter (`SkBlitter::ChooseSprite`).
@@ -470,25 +474,37 @@ impl<'a> Canvas<'a> {
             (_, b) => b,
         };
         let legacy = use_legacy_blitter(paint, &sampler);
-        let pixel = |this: &mut Self, x: i32, y: i32, c: u8| {
+        let pixel = |this: &mut Self, x: i32, y: i32, call: Call, c: u8| {
             let di = y as usize * w + x as usize;
+            let d = this.dst.px(di);
             let out = match &legacy {
-                Some(Legacy::Color(pm)) => legacy_color(this.dst.px(di), *pm, c),
+                Some(Legacy::Color(lc)) => from_argb(lc.blend(to_argb(d), call, c)),
                 Some(Legacy::Image) => {
+                    // SkARGB32_Shader_Blitter: blitAntiH2 goes through blitAntiH, blitV
+                    // blends as blitAntiH, blitMask through `blend_row_A8`.
+                    if c == 0 {
+                        return;
+                    }
                     let SamplerKind::Image(img) = &sampler.kind else {
                         unreachable!()
                     };
                     let s = img.gather_nearest(x, y);
-                    let d = this.dst.px(di);
-                    if c == 255 {
+                    if call == Call::Mask {
+                        blend_row_a8(s, d, c)
+                    } else if c == 255 {
                         s32a_opaque(s, d)
                     } else {
                         blend_argb32(s, d, c)
                     }
                 }
                 None => {
+                    // SkRasterPipelineBlitter: blitAntiH at full coverage is blitRect;
+                    // blitV and blitAntiH2 are blitMask, which always lerps.
+                    if c == 0 {
+                        return;
+                    }
                     let s = sampler.shade(x, y);
-                    if c == 255 {
+                    if c == 255 && matches!(call, Call::H | Call::AntiH) {
                         this.blend_full(di, s, blend)
                     } else {
                         this.blend_partial(di, s, blend, c, lowp)
@@ -506,14 +522,14 @@ impl<'a> Canvas<'a> {
             } => {
                 for y in *top..*bottom {
                     for x in *left..*right {
-                        pixel(self, x, y, 255);
+                        pixel(self, x, y, Call::H, 255);
                     }
                 }
             }
-            Coverage::Mask(mask) => {
-                for (i, &c) in mask.iter().enumerate() {
-                    if c != 0 {
-                        pixel(self, (i % w) as i32, (i / w) as i32, c);
+            Coverage::Mask(cells) => {
+                for (i, cell) in cells.iter().enumerate() {
+                    if let Some((call, c)) = *cell {
+                        pixel(self, (i % w) as i32, (i / w) as i32, call, c);
                     }
                 }
             }
@@ -572,7 +588,7 @@ impl<'a> Canvas<'a> {
 /// N32 without a colour filter, for a solid colour (`SkARGB32_Blitter` and friends) or
 /// an image shader that has a legacy context (`SkBitmapProcLegacyShader`, nearest here).
 enum Legacy {
-    Color([u8; 4]),
+    Color(LegacyColor),
     Image,
 }
 
@@ -581,22 +597,7 @@ fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
         return None;
     }
     match (&paint.shader, &sampler.kind) {
-        (Shader::Color(c), _) => {
-            let a = c[3] as u32;
-            // SkARGB32_Blitter: SkAlphaMul(c, SkAlpha255To256(a)).
-            let pm = if a == 255 {
-                *c
-            } else {
-                [
-                    (c[0] as u32 * (a + 1)) >> 8,
-                    (c[1] as u32 * (a + 1)) >> 8,
-                    (c[2] as u32 * (a + 1)) >> 8,
-                    a,
-                ]
-                .map(|v| v as u8)
-            };
-            Some(Legacy::Color(pm))
-        }
+        (Shader::Color(c), _) => Some(Legacy::Color(LegacyColor::new(c[3], c[0], c[1], c[2]))),
         (Shader::Image { .. }, SamplerKind::Image(img))
             if img.sampling == Sampling::Nearest && paint.alpha == 255 =>
         {
@@ -606,31 +607,23 @@ fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
     }
 }
 
-/// `SkAlphaMulQ(c, scale)`.
-fn alpha_mul_q(c: [u8; 4], scale: u32) -> [u8; 4] {
-    c.map(|v| ((v as u32 * scale) >> 8) as u8)
+/// RGBA bytes as Skia's packed `SkPMColor` (`a << 24 | r << 16 | g << 8 | b`; the
+/// legacy blitters treat the colour channels alike, so the order doesn't matter).
+fn to_argb(p: [u8; 4]) -> u32 {
+    (p[3] as u32) << 24 | (p[0] as u32) << 16 | (p[1] as u32) << 8 | p[2] as u32
 }
 
-/// `SkBlitRow::Color32` (`blit_row_color32`): `(d * invA + (c << 8) + 128) >> 8`.
-fn color32(d: [u8; 4], c: [u8; 4]) -> [u8; 4] {
-    match c[3] {
-        0 => d,
-        255 => c,
-        a => {
-            let mut inv = 255 - a as u32;
-            inv += inv >> 7;
-            [0, 1, 2, 3].map(|i| ((d[i] as u32 * inv + ((c[i] as u32) << 8) + 128) >> 8) as u8)
-        }
-    }
+fn from_argb(c: u32) -> [u8; 4] {
+    [(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]
 }
 
-/// `SkARGB32_Blitter::blitRect`/`blitAntiH` for one pixel.
-fn legacy_color(d: [u8; 4], pm: [u8; 4], cov: u8) -> [u8; 4] {
-    if cov == 255 {
-        color32(d, pm)
-    } else {
-        color32(d, alpha_mul_q(pm, cov as u32 + 1))
-    }
+/// `blend_row_A8` (`SkARGB32_Shader_Blitter::blitMask`, a shader that isn't opaque):
+/// `s' = approx_scale(s, c)`, `s' + approx_scale(d, 255 - s'.a)`.
+fn blend_row_a8(s: [u8; 4], d: [u8; 4], c: u8) -> [u8; 4] {
+    let approx = |x: u32, y: u32| (x * y + x) / 256;
+    let s = s.map(|v| approx(v as u32, c as u32));
+    let inv = 255 - s[3];
+    [0, 1, 2, 3].map(|i| (s[i] + approx(d[i] as u32, inv)) as u8)
 }
 
 /// `S32A_Opaque_BlitRow32`: `s + (d * (256 - sa) >> 8)`.
@@ -678,20 +671,20 @@ fn extract_subset(image: &Bitmap, ir: (i32, i32, i32, i32)) -> Bitmap {
     out
 }
 
-fn rect_path(r: Rect, m: &Matrix) -> Option<tiny_skia::Path> {
-    let mut pb = tiny_skia::PathBuilder::new();
+fn rect_path(r: Rect, m: &Matrix) -> crate::Path {
+    let mut path = crate::Path::new();
     let p = [
         m.map(r.left, r.top),
         m.map(r.right, r.top),
         m.map(r.right, r.bottom),
         m.map(r.left, r.bottom),
     ];
-    pb.move_to(p[0].0, p[0].1);
+    path.move_to(p[0].0, p[0].1);
     for q in &p[1..] {
-        pb.line_to(q.0, q.1);
+        path.line_to(q.0, q.1);
     }
-    pb.close();
-    pb.finish()
+    path.close();
+    path
 }
 
 /// `append_constant_color` for lowp: premultiplied in float, `* 255 + 0.5`, truncated.
