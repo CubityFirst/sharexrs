@@ -16,6 +16,7 @@ sharex-strings = { path = "crates/sharex-strings" }
 sharex-helpers = { path = "crates/sharex-helpers" }
 sharex-capture = { path = "crates/sharex-capture" }
 sharex-settings = { path = "crates/sharex-settings" }
+sharex-uploaders = { path = "crates/sharex-uploaders" }
 
 egui = "0.36"
 egui-wgpu = { version = "0.36", features = ["winit"] }

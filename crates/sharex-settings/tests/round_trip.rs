@@ -56,7 +56,6 @@ fn fresh_profile_round_trips_byte_for_byte() {
     round_trip::<ApplicationConfig>("sharex-fresh/ApplicationConfig.json");
     round_trip::<ApplicationConfig>("sharex-fresh/Backup/ApplicationConfig.json");
     round_trip::<HotkeysConfig>("sharex-fresh/HotkeysConfig.json");
-    round_trip::<UploadersConfig>("sharex-fresh/UploadersConfig.json");
 }
 
 #[test]

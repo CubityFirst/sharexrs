@@ -4,8 +4,8 @@
 //! - [`ApplicationConfig`] (`ApplicationConfig.json`), with the task
 //!   settings ([`TaskSettings`]) every capture runs with,
 //! - [`HotkeysConfig`] (`HotkeysConfig.json`): the hotkeys and their tasks,
-//! - [`UploadersConfig`] (`UploadersConfig.json`): a placeholder until the
-//!   uploaders are ported,
+//! - `UploadersConfig.json` is typed in `sharex-uploaders`, with the
+//!   uploaders; [`paths`] says where it is,
 //! - [`settings_base`]: loading (with ShareX's fallbacks) and saving (with
 //!   its backups), [`paths`]: where the files live (portable mode included),
 //!   [`SettingManager`]: when ShareX loads and saves them.
@@ -26,7 +26,6 @@ pub mod region_capture;
 pub mod settings_base;
 pub mod task_settings;
 pub mod types;
-pub mod uploaders_config;
 
 pub use application_config::{ApplicationConfig, ApplicationThemeOptions, QuickTaskInfo};
 pub use enums::*;
@@ -39,4 +38,3 @@ pub use task_settings::{
     TaskSettings, TaskSettingsAdvanced, TaskSettingsCapture, TaskSettingsGeneral, TaskSettingsImage, TaskSettingsTools,
     TaskSettingsUpload,
 };
-pub use uploaders_config::UploadersConfig;

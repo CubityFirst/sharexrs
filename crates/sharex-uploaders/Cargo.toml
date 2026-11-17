@@ -1,0 +1,30 @@
+[package]
+name = "sharex-uploaders"
+description = "ShareX.UploadersLib: the upload destinations, custom uploaders (.sxcu), URL shorteners and sharing services, and UploadersConfig."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sharex-settings.workspace = true
+sharex-helpers.workspace = true
+sharex-strings.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Blocking HTTP on rustls, with the OS's certificate store as .NET uses it.
+ureq = { version = "3.4", default-features = false, features = ["rustls", "platform-verifier", "socks-proxy"] }
+encoding_rs = "0.8"
+# .NET regexes have lookaround and named groups; `regex` has neither.
+fancy-regex = "0.11"
+# XPath 1.0 for {xml:...}, as XPathNavigator.SelectSingleNode.
+sxd-document = "0.3"
+sxd-xpath = "0.4"
+base64 = "0.22"
+getrandom = "0.3"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
