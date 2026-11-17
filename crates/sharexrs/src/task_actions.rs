@@ -11,7 +11,7 @@ use sharex_strings::sharex as s;
 
 use crate::message_box::{DialogResult, MessageBox};
 use crate::task_view::{TaskAction, TaskCommand, ViewSettings};
-use crate::tasks::{RecentTask, TaskEvent, TaskInfo, TaskStatus, UploadInfoStatus};
+use crate::tasks::{RecentTask, TaskEvent, TaskInfo, UploadInfoStatus};
 use crate::{App, DialogPurpose, UserEvent, capture_job, shell, sound};
 
 /// A key press egui-winit would turn into a clipboard event (Ctrl+C,
@@ -107,32 +107,18 @@ impl App {
         }
     }
 
-    fn store_recent_tasks(&mut self) {
+    pub(crate) fn store_recent_tasks(&mut self) {
         let c = &mut self.settings.settings;
         let recent = &self.state.tasks.manager.recent;
         c.RecentTasks = (c.RecentTasksSave && !recent.is_empty()).then(|| recent.iter().map(RecentTask::to_json).collect());
     }
 
     /// `UploadManager.RunImageTask`: the task shows in the main window at
-    /// once (preparing), and its after capture tasks run on a thread.
+    /// once (preparing), and its after capture tasks (and upload) run on a
+    /// thread (`crate::upload`).
     pub(super) fn run_image_task(&mut self, job: capture_job::ImageTask) {
-        let play_sound = job.task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterUpload);
-        let id = self.state.tasks.manager.start_image_task(job.file_name.clone());
-        self.state.tasks.add_task(id);
-        eprintln!("Task status: Preparing");
-        let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
-        let proxy = self.proxy.clone();
-        std::thread::spawn(move || {
-            let (file_path, error) = match job.run(owner) {
-                Ok(outcome) => (outcome.file_path, None),
-                Err(e) => {
-                    eprintln!("after capture tasks: {e}");
-                    (None, Some(e))
-                }
-            };
-            let _ = proxy.send_event(UserEvent::Task(TaskEvent::Completed { id, file_path, error, play_sound }));
-        });
-        self.redraw_main();
+        let task = crate::upload::manager::create_image_uploader_task(job);
+        self.start_upload_tasks(vec![task]);
     }
 
     fn redraw_main(&self) {
@@ -144,45 +130,14 @@ impl App {
     /// A task's thread or a picture decoder reported back.
     pub(super) fn task_event(&mut self, event: TaskEvent) {
         match event {
-            TaskEvent::Completed { id, file_path, error, play_sound } => {
-                let max = self.settings.settings.RecentTasksMaxCount.clamp(1, 100) as usize;
-                self.state.tasks.manager.complete(id, file_path, error, max);
-                self.state.tasks.task_changed(id);
-                if let Some(task) = self.state.tasks.manager.get(id) {
-                    let info = &task.info;
-                    let duration = info
-                        .end_time
-                        .zip(info.start_time)
-                        .and_then(|(e, s)| e.duration_since(s).ok())
-                        .map_or(0, |d| d.as_millis());
-                    eprintln!("Task status: {:?}", task.status);
-                    if task.status == TaskStatus::Failed {
-                        eprintln!("Task failed. File name: {}, Errors:\n{}", info.file_name, info.result.errors.join("\n"));
-                        if play_sound {
-                            sound::play_error();
-                        }
-                    } else {
-                        eprintln!("Task completed. File name: {}, Duration: {duration} ms", info.file_name);
-                        if play_sound && !info.text().is_empty() {
-                            sound::play_task_completed();
-                        }
-                    }
-                }
-                self.store_recent_tasks();
-                let busy = self.state.tasks.manager.tasks.iter().any(|t| t.is_busy());
-                if self.settings.settings.SaveSettingsAfterTaskCompleted
-                    && !busy
-                    && let Err(e) = self.settings.save_all()
-                {
-                    eprintln!("couldn't save the settings: {e}");
-                }
-                self.redraw_main();
-            }
             TaskEvent::Image { id, version, kind, image } => {
                 if let Some(w) = &self.main {
                     self.state.tasks.image_ready(w.ctx(), id, version, kind, image);
                     w.window.request_redraw();
                 }
+            }
+            event => {
+                self.upload_task_event(&event);
             }
         }
     }
@@ -318,6 +273,7 @@ impl App {
                 }
             }
             TaskCommand::DeleteSelectedFiles => self.delete_selected_files(event_loop, ids),
+            TaskCommand::StopUpload => self.stop_tasks(&ids),
             TaskCommand::NotPorted(name) => eprintln!("{name}: not ported yet"),
             // Carried out by the task area itself, or not applicable.
             _ => {}

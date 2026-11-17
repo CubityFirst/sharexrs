@@ -1,19 +1,18 @@
 //! What runs behind the main window's task area: `ShareX/WorkerTask.cs`,
 //! `TaskInfo.cs`, `TaskManager.cs`, `RecentTaskManager.cs` and
-//! `UploadInfoStatus.cs`, for the tasks ShareXrs runs so far (image tasks
-//! from a capture: after capture tasks, no upload).
+//! `UploadInfoStatus.cs`: image tasks from a capture (after capture tasks)
+//! and upload tasks (`crate::upload`).
 //!
 //! A task's work runs on its own thread, as ShareX's `ThreadWorker`; what
 //! it reports comes back to the event loop as a [`TaskEvent`].
 
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use sharex_helpers::file_helpers::{is_image_file, is_text_file, is_video_file};
 use sharex_strings::sharex as s;
 
-/// `ShareX.TaskStatus`. `Working` and `Stopping` come with uploads.
-#[allow(dead_code)]
+/// `ShareX.TaskStatus`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TaskStatus {
     InQueue,
@@ -26,8 +25,54 @@ pub enum TaskStatus {
     History,
 }
 
-/// `UploadResult`: what an upload returned. Nothing uploads yet, so only
-/// the URLs a recent task brings back and the errors.
+/// `ShareX.TaskJob`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TaskJob {
+    #[default]
+    Job,
+    /// `CreateDataUploaderTask` (the browser extension's image uploads).
+    #[allow(dead_code)]
+    DataUpload,
+    FileUpload,
+    TextUpload,
+    ShortenURL,
+    ShareURL,
+    Download,
+    DownloadUpload,
+}
+
+/// `ShareX.HelpersLib.EDataType`.
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EDataType {
+    #[default]
+    Default,
+    File,
+    Image,
+    Text,
+    URL,
+}
+
+/// What `ProgressManager` says at a report (`TaskInfo.Progress`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct UploadProgress {
+    pub position: u64,
+    pub length: u64,
+    /// Bytes per second.
+    pub speed: f64,
+    pub elapsed: Duration,
+    pub remaining: Duration,
+}
+
+impl UploadProgress {
+    /// `Percentage`.
+    pub fn percentage(&self) -> f64 {
+        self.position as f64 / self.length as f64 * 100.0
+    }
+}
+
+/// `UploadResult`: what an upload returned (or what a recent task brings
+/// back), with its errors' texts.
 #[derive(Clone, Debug, Default)]
 pub struct UploadResult {
     pub url: String,
@@ -36,11 +81,17 @@ pub struct UploadResult {
     pub shortened_url: String,
     pub response: String,
     pub errors: Vec<String>,
+    /// The first error's title (`UploaderErrorInfo.Title`: "<service> error").
+    pub error_title: String,
+    /// `IsURLExpected`: false for tasks that don't upload (ShareX sets it so
+    /// in `ThreadDoWork`), so their errors fail them whatever their URL.
+    pub url_expected: bool,
 }
 
 impl UploadResult {
+    /// `IsError`.
     pub fn is_error(&self) -> bool {
-        !self.errors.is_empty()
+        !self.errors.is_empty() && (!self.url_expected || self.url.is_empty())
     }
 
     /// `UploadResult.ToString`: the shortened URL, else the URL.
@@ -59,6 +110,9 @@ pub struct TaskInfo {
     pub start_time: Option<SystemTime>,
     pub end_time: Option<SystemTime>,
     pub result: UploadResult,
+    pub job: TaskJob,
+    /// `Progress`: the last report of an upload.
+    pub progress: Option<UploadProgress>,
 }
 
 impl TaskInfo {
@@ -90,6 +144,12 @@ pub struct WorkerTask {
     pub status: TaskStatus,
     pub info: TaskInfo,
     pub stop_requested: bool,
+    /// Stops the task's thread (`WorkerTask.Stop` reaching its uploader).
+    pub stop: Option<crate::upload::StopHandle>,
+    /// The list view's transfer columns (progress, speed, elapsed,
+    /// remaining), which keep their last values once a task finishes
+    /// (`ThumbnailItemViewModel.RefreshListColumns`).
+    pub transfer: [String; 4],
 }
 
 impl WorkerTask {
@@ -151,11 +211,42 @@ pub fn now_json() -> String {
 /// What a task's thread (or the thumbnail loader) tells the event loop.
 #[derive(Debug)]
 pub enum TaskEvent {
-    /// `OnTaskCompleted`: the after capture tasks ran (or failed).
-    /// `play_sound`: the task's `PlaySoundAfterUpload`.
-    Completed { id: u64, file_path: Option<PathBuf>, error: Option<String>, play_sound: bool },
+    /// `StatusChanged`: preparing, uploading, ...
+    Status { id: u64, status: TaskStatus, text: String },
+    /// The task's file changed (`Info.FileName`/`FilePath`: the image was
+    /// encoded and saved, the text saved, the file downloaded).
+    File { id: u64, file_name: String, file_path: Option<PathBuf> },
+    /// `UploadStarted`.
+    UploadStarted { id: u64 },
+    /// `UploadProgressChanged`.
+    Progress { id: u64, progress: UploadProgress },
+    /// `TaskCompleted` of a task run by `crate::upload`.
+    Finished { id: u64, report: Box<TaskReport> },
+    /// `UploadersConfigWindowRequested`: a destination's settings are
+    /// missing (its service name).
+    DestinationSettingsRequested { service: String },
     /// A thumbnail or preview was decoded (`RefreshThumbnailAsync`).
     Image { id: u64, version: u64, kind: ImageKind, image: Option<image::RgbaImage> },
+}
+
+/// What a finished task hands back to its `WorkerTask` on the UI thread.
+#[derive(Debug, Clone, Default)]
+pub struct TaskReport {
+    pub file_name: String,
+    pub file_path: Option<PathBuf>,
+    pub result: UploadResult,
+    /// `StopRequested`.
+    pub stop_requested: bool,
+    /// `IsUploadJob`.
+    pub is_upload_job: bool,
+    /// The task's `TaskSettings` as `Task_TaskCompleted` reads them.
+    pub play_sound: bool,
+    /// `AfterUploadJob` has `ShowAfterUploadWindow`.
+    pub show_after_upload_window: bool,
+    /// `ShowToastNotificationAfterTaskCompleted`.
+    pub show_toast: bool,
+    /// `UploadDuration`.
+    pub upload_duration: Option<Duration>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,8 +277,146 @@ impl TaskManager {
             start_time: Some(SystemTime::now()),
             ..Default::default()
         };
-        self.tasks.push(WorkerTask { id, status: TaskStatus::Preparing, info, stop_requested: false });
+        self.tasks.push(WorkerTask { id, status: TaskStatus::Preparing, info, stop_requested: false, stop: None, transfer: Default::default() });
         id
+    }
+
+    /// `TaskManager.Start` of a new task: in the queue until
+    /// [`Self::prepare`] starts it.
+    pub fn add_task(&mut self, info: TaskInfo, stop: crate::upload::StopHandle) -> u64 {
+        self.next_id += 1;
+        let id = self.next_id;
+        self.tasks.push(WorkerTask {
+            id,
+            status: TaskStatus::InQueue,
+            info,
+            stop_requested: false,
+            stop: Some(stop),
+            transfer: Default::default(),
+        });
+        id
+    }
+
+    /// `TaskManager.StartTasks`: the queued tasks that may start now, oldest
+    /// first (all of them with no `UploadLimit`).
+    pub fn startable(&self, upload_limit: i32) -> Vec<u64> {
+        let queued = self.tasks.iter().filter(|t| t.status == TaskStatus::InQueue && !t.stop_requested).map(|t| t.id);
+        if upload_limit <= 0 {
+            return queued.collect();
+        }
+        let working = self.tasks.iter().filter(|t| t.is_working()).count() as i32;
+        queued.take((upload_limit - working).max(0) as usize).collect()
+    }
+
+    /// `WorkerTask.Start` + `Prepare`: preparing (images and text) or
+    /// starting (the rest).
+    pub fn prepare(&mut self, id: u64) {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return };
+        task.status = TaskStatus::Preparing;
+        task.info.start_time = Some(SystemTime::now());
+        task.info.status = match task.info.job {
+            TaskJob::Job | TaskJob::TextUpload => s::UploadTask_Prepare_Preparing(),
+            _ => s::UploadTask_Prepare_Starting(),
+        }
+        .to_string();
+    }
+
+    /// `StatusChanged` from the task's thread. A stop asked for meanwhile
+    /// keeps "Stopping...".
+    pub fn set_status(&mut self, id: u64, status: TaskStatus, text: String) {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return };
+        if task.stop_requested || !task.is_working() {
+            return;
+        }
+        task.status = status;
+        task.info.status = text;
+    }
+
+    /// The task's file changed on its thread.
+    pub fn set_file(&mut self, id: u64, file_name: String, file_path: Option<PathBuf>) {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return };
+        if file_path.is_some() {
+            task.info.set_file_path(file_path);
+        }
+        if !file_name.is_empty() {
+            task.info.file_name = file_name;
+        }
+    }
+
+    /// `uploader_ProgressChanged` (`Info.Progress`) and, while working, the
+    /// list view's transfer columns (`RefreshListColumns`).
+    pub fn set_progress(&mut self, id: u64, progress: UploadProgress, binary_units: bool) {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return };
+        task.info.progress = Some(progress);
+        if task.status == TaskStatus::Working && progress.length > 0 {
+            task.transfer[0] =
+                format!("{} / {}", size_string(progress.position, binary_units), size_string(progress.length, binary_units));
+            if progress.speed > 0.0 {
+                task.transfer[1] = format!("{}/s", size_string(progress.speed as u64, binary_units));
+            }
+            task.transfer[2] = proper_time_span(progress.elapsed);
+            task.transfer[3] = proper_time_span(progress.remaining);
+        }
+    }
+
+    /// `WorkerTask.Stop`: a queued task stops at once (`OnTaskCompleted`);
+    /// a preparing or working one is told to stop and shows "Stopping...".
+    /// Returns whether a queued task completed.
+    pub fn stop(&mut self, id: u64, max_recent: usize) -> bool {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return false };
+        task.stop_requested = true;
+        if let Some(stop) = &task.stop {
+            stop.stop();
+        }
+        match task.status {
+            TaskStatus::InQueue => {
+                self.complete(id, None, None, max_recent);
+                true
+            }
+            TaskStatus::Preparing | TaskStatus::Working => {
+                task.status = TaskStatus::Stopping;
+                task.info.status = s::UploadTask_Stop_Stopping().to_string();
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// A task thread's event on the task it's about (`Task_StatusChanged`,
+    /// `Task_UploadProgressChanged`, `OnTaskCompleted`, ...). Returns that
+    /// task's id, or `None` for events about no task.
+    pub fn apply_event(&mut self, event: &TaskEvent, binary_units: bool, max_recent: usize) -> Option<u64> {
+        match event {
+            TaskEvent::Status { id, status, text } => {
+                self.set_status(*id, *status, text.clone());
+                Some(*id)
+            }
+            TaskEvent::File { id, file_name, file_path } => {
+                self.set_file(*id, file_name.clone(), file_path.clone());
+                Some(*id)
+            }
+            TaskEvent::UploadStarted { id } => Some(*id),
+            TaskEvent::Progress { id, progress } => {
+                self.set_progress(*id, *progress, binary_units);
+                Some(*id)
+            }
+            TaskEvent::Finished { id, report } => {
+                self.finish(*id, report, max_recent);
+                Some(*id)
+            }
+            TaskEvent::DestinationSettingsRequested { .. } | TaskEvent::Image { .. } => None,
+        }
+    }
+
+    /// `OnTaskCompleted` of a task `crate::upload` ran: its file, result and
+    /// stop, then the bookkeeping of [`Self::complete`].
+    pub fn finish(&mut self, id: u64, report: &TaskReport, max_recent: usize) -> bool {
+        let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return false };
+        task.info.file_name = report.file_name.clone();
+        task.info.file_path = report.file_path.clone();
+        task.info.result = report.result.clone();
+        task.stop_requested |= report.stop_requested;
+        self.complete(id, None, None, max_recent)
     }
 
     /// `WorkerTask.CreateHistoryTask`, started (`AddRecentTasksToMainWindow`).
@@ -203,7 +432,7 @@ impl TaskManager {
             shortened_url: recent.shortened_url.clone(),
             ..Default::default()
         };
-        self.tasks.push(WorkerTask { id, status: TaskStatus::History, info, stop_requested: false });
+        self.tasks.push(WorkerTask { id, status: TaskStatus::History, info, stop_requested: false, stop: None, transfer: Default::default() });
         id
     }
 
@@ -255,6 +484,10 @@ impl TaskManager {
     pub fn remove(&mut self, id: u64) {
         if let Some(i) = self.tasks.iter().position(|t| t.id == id) {
             let task = self.tasks.remove(i);
+            // `task.Stop()` first: a removed task's upload doesn't go on.
+            if let Some(stop) = &task.stop {
+                stop.stop();
+            }
             let (path, url) = (task.info.file_path_str(), task.info.result.url.clone());
             self.recent.retain(|r| r.file_path != path || r.url != url);
         }
@@ -310,6 +543,28 @@ impl UploadInfoStatus {
     }
 }
 
+/// `NumberExtensions.ToSizeString(size, binary)` (2 decimal places).
+pub fn size_string(size: u64, binary: bool) -> String {
+    let base: f64 = if binary { 1024.0 } else { 1000.0 };
+    let suffixes = if binary { ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"] } else { ["B", "KB", "MB", "GB", "TB", "PB", "EB"] };
+    if (size as f64) < base {
+        return format!("{size} B");
+    }
+    let place = ((size as f64).ln() / base.ln()).floor() as i32;
+    let num = size as f64 / base.powi(place);
+    // `ToString("0.00")` rounds half away from zero.
+    let rounded = (num * 100.0).round() / 100.0;
+    format!("{rounded:.2} {}", suffixes[place.clamp(0, 6) as usize])
+}
+
+/// `Helpers.ProperTimeSpan`: `mm:ss`, with the hours in front when there are any.
+pub fn proper_time_span(ts: Duration) -> String {
+    let total = ts.as_secs();
+    let time = format!("{:02}:{:02}", (total / 60) % 60, total % 60);
+    let hours = total / 3600;
+    if hours > 0 { format!("{hours}:{time}") } else { time }
+}
+
 /// `URLHelpers.IsFileURL`: a URL whose last path segment has an extension.
 fn is_file_url(url: &str) -> bool {
     let path = url.split(['?', '#']).next().unwrap_or_default();
@@ -353,6 +608,47 @@ mod tests {
             m.complete(id, Some(PathBuf::from(format!("{i}.png"))), None, 2);
         }
         assert_eq!(m.recent.iter().map(|r| r.file_path.as_str()).collect::<Vec<_>>(), ["2.png", "3.png"]);
+    }
+
+    #[test]
+    fn sizes_and_times_as_dotnet_formats_them() {
+        assert_eq!(size_string(999, false), "999 B");
+        assert_eq!(size_string(1500, false), "1.50 KB");
+        assert_eq!(size_string(1536, true), "1.50 KiB");
+        assert_eq!(size_string(5_000_000, false), "5.00 MB");
+        assert_eq!(proper_time_span(Duration::from_secs(65)), "01:05");
+        assert_eq!(proper_time_span(Duration::from_secs(3 * 3600 + 7)), "3:00:07");
+    }
+
+    #[test]
+    fn upload_errors_fail_only_without_a_url() {
+        let mut r = UploadResult {
+            errors: vec!["shortener failed".into()],
+            url: "https://x/a".into(),
+            url_expected: true,
+            ..Default::default()
+        };
+        assert!(!r.is_error());
+        r.url.clear();
+        assert!(r.is_error());
+    }
+
+    #[test]
+    fn stopping_a_queued_task_completes_it() {
+        let mut m = TaskManager::default();
+        let id = m.add_task(TaskInfo { job: TaskJob::TextUpload, ..Default::default() }, crate::upload::StopHandle::default());
+        assert!(m.stop(id, 10));
+        assert_eq!(m.get(id).unwrap().status, TaskStatus::Stopped);
+    }
+
+    #[test]
+    fn the_upload_limit_queues_tasks() {
+        let mut m = TaskManager::default();
+        let ids: Vec<u64> = (0..3).map(|_| m.add_task(TaskInfo::default(), crate::upload::StopHandle::default())).collect();
+        assert_eq!(m.startable(0), ids);
+        assert_eq!(m.startable(2), &ids[..2]);
+        m.prepare(ids[0]);
+        assert_eq!(m.startable(2), &ids[1..2]);
     }
 
     #[test]
