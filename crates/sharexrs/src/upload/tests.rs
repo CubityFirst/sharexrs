@@ -498,7 +498,11 @@ fn a_file_upload_reports_progress_into_the_task_list() {
     assert_eq!(name, "made-up archive.zip");
     assert_eq!(body, &data[..]);
     let progress = out.progress();
-    assert!(progress.len() >= 2, "progress reported {} times", progress.len());
+    // Several reports while the mock reads slowly, on Windows. Linux's
+    // socket buffers can take the whole file in one write, so there the
+    // upload may report just once; the rest still holds.
+    let min_reports = if cfg!(windows) { 2 } else { 1 };
+    assert!(progress.len() >= min_reports, "progress reported {} times", progress.len());
     assert!(progress.windows(2).all(|w| w[0].0 <= w[1].0), "progress goes forward: {progress:?}");
     let total = progress[0].1;
     assert_eq!(total, data.len() as u64, "progress counts the file's bytes");
