@@ -154,19 +154,15 @@ pub fn prepare_image(image: &RgbaImage, settings: &TaskSettings) -> Result<(Vec<
 }
 
 /// `SkiaImageHelpers.SavePNG` with ShareX's encoder options (compression
-/// level 1, all filters), opaque images as RGB.
+/// level 1, all filters) and the default bit depth: the bitmap as it is,
+/// which for screenshots is 32 bpp RGBA even when opaque.
 fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {
     use image::ImageEncoder;
     use image::codecs::png::{CompressionType, FilterType, PngEncoder};
     let mut out = Vec::new();
-    let encoder = PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive);
-    if image.pixels().all(|p| p[3] == 255) {
-        let rgb: Vec<u8> = image.pixels().flat_map(|p| [p[0], p[1], p[2]]).collect();
-        encoder.write_image(&rgb, image.width(), image.height(), image::ExtendedColorType::Rgb8)
-    } else {
-        encoder.write_image(image.as_raw(), image.width(), image.height(), image::ExtendedColorType::Rgba8)
-    }
-    .map_err(|e| e.to_string())?;
+    PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive)
+        .write_image(image.as_raw(), image.width(), image.height(), image::ExtendedColorType::Rgba8)
+        .map_err(|e| e.to_string())?;
     Ok(out)
 }
 
@@ -261,7 +257,7 @@ mod tests {
         let (png, ext) = prepare_image(&RgbaImage::from_pixel(10, 10, image::Rgba([9, 9, 9, 255])), &s).unwrap();
         assert_eq!(ext, "png");
         let decoded = image::load_from_memory(&png).unwrap();
-        assert_eq!(decoded.color(), image::ColorType::Rgb8);
+        assert_eq!(decoded.color(), image::ColorType::Rgba8);
         let mut noisy = RgbaImage::new(1400, 1400);
         let mut v = 1u32;
         for p in noisy.pixels_mut() {

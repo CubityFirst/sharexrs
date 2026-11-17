@@ -30,8 +30,9 @@ pub fn dib_bytes(image: &RgbaImage) -> Vec<u8> {
     out.extend_from_slice(&24u16.to_le_bytes());
     out.extend_from_slice(&0u32.to_le_bytes()); // BI_RGB
     out.extend_from_slice(&size.to_le_bytes());
-    out.extend_from_slice(&0i32.to_le_bytes());
-    out.extend_from_slice(&0i32.to_le_bytes());
+    // 96 DPI, as ShareX's BMP encoder writes it.
+    out.extend_from_slice(&3780i32.to_le_bytes());
+    out.extend_from_slice(&3780i32.to_le_bytes());
     out.extend_from_slice(&0u32.to_le_bytes());
     out.extend_from_slice(&0u32.to_le_bytes());
     for y in (0..h).rev() {
