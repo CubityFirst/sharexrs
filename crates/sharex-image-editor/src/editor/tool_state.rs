@@ -568,7 +568,7 @@ impl ToolState {
 
 /// `NormalizeFontFamily`: a family the system has, else Segoe UI.
 pub fn normalize_font_family(f: &str) -> String {
-    if !f.trim().is_empty() && crate::render::text::load_face(f, false, false).is_some() {
+    if !f.trim().is_empty() && crate::render::text::is_installed(f, false, false) {
         f.to_string()
     } else {
         "Segoe UI".to_string()

@@ -100,6 +100,13 @@ fn default_font_file(bold: bool) -> Option<std::path::PathBuf> {
 /// Loads (once) the face for `family` (`$Default` for Avalonia's default),
 /// as Avalonia's font manager finds it: the system's family, else the
 /// default (Inter), so text never comes out empty on a system without it.
+/// Whether `family` is installed (so [`load_face`] won't fall back to Inter
+/// for it): tests compared with ShareX's renders skip text in fonts this
+/// system hasn't.
+pub fn is_installed(family: &str, bold: bool, italic: bool) -> bool {
+    family == "$Default" || font_file(family, bold, italic).is_some() || system_face(family, bold, italic).is_some()
+}
+
 /// Found faces by (family, bold, italic): the file's bytes and face index,
 /// or `None` when the system hasn't the family.
 type FaceCache = HashMap<(String, bool, bool), Option<(Arc<Vec<u8>>, u32)>>;
