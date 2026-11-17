@@ -8,7 +8,8 @@
 //! [`crate::main_menu`].
 
 use egui::{Align, CornerRadius, Layout, Rect, Sense, Stroke, Ui, UiBuilder, Vec2, pos2, vec2};
-use sharex_strings::{helpers_lib as hs, sharex as s};
+use sharex_settings::{HotkeySettings, HotkeyStatus};
+use sharex_strings::sharex as s;
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{FAILED, FONT_SIZE, density, palette};
 use sharex_ui::widgets::{self, Caption, font, mono};
@@ -105,21 +106,18 @@ pub fn nav_sections(uploads: bool) -> Vec<NavSection> {
     ]
 }
 
-/// The hotkeys ShareX registers on first run (`HotkeyManager.GetDefaultHotkeyList`),
-/// before the hotkey system is ported.
-pub fn default_hotkey_tips() -> Vec<HotkeyTip> {
-    let t = |hotkey: &str, description: &str| HotkeyTip {
-        registered: true,
-        hotkey: hotkey.into(),
-        description: description.into(),
-    };
-    vec![
-        t("Ctrl + Print Screen", hs::HotkeyType_RectangleRegion()),
-        t("Print Screen", hs::HotkeyType_PrintScreen()),
-        t("Alt + Print Screen", hs::HotkeyType_ActiveWindow()),
-        t("Shift + Print Screen", hs::HotkeyType_ScreenRecorder()),
-        t("Ctrl + Shift + Print Screen", hs::HotkeyType_ScreenRecorderGIF()),
-    ]
+/// `RefreshHotkeyTips`: a tip for every valid hotkey, with its
+/// registration status (`HotkeyTipViewModel`).
+pub fn hotkey_tips(hotkeys: &[HotkeySettings]) -> Vec<HotkeyTip> {
+    hotkeys
+        .iter()
+        .filter(|h| h.HotkeyInfo.is_valid_hotkey())
+        .map(|h| HotkeyTip {
+            registered: h.HotkeyInfo.status == HotkeyStatus::Registered,
+            hotkey: h.HotkeyInfo.to_string(),
+            description: h.TaskSettings.display_name(),
+        })
+        .collect()
 }
 
 impl MainWindow {
@@ -130,7 +128,7 @@ impl MainWindow {
             title: format!("ShareXrs {short}"),
             maximized: false,
             topmost: false,
-            hotkey_tips: default_hotkey_tips(),
+            hotkey_tips: Vec::new(),
             uploads_disabled: false,
             menu_state: MenuState::default(),
             flyout: None,

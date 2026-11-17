@@ -7,7 +7,9 @@
 //! main window with a sidebar menu open: `capture`, `upload`, `workflows`,
 //! `tools`, `after-capture-tasks`, `after-upload-tasks`, `destinations`,
 //! `debug`), `app-icon` (ShareXrs's icon on transparency, `--width` pixels
-//! square).
+//! square), `hotkey-failed` (the "Hotkey registration failed" message box,
+//! for the hotkeys `--unregistered` lists: Ctrl and Shift + Print Screen by
+//! default).
 //!
 //! `--open` opens submenus along a path of entry indices (separators
 //! count: 12 is Capture › Screenshot delay). `--monitors` lists the
@@ -19,7 +21,19 @@
 
 use sharex_ui::offscreen::Offscreen;
 
+use sharex_settings::{HotkeySettings, HotkeyStatus, HotkeysConfig, TaskSettings};
+
 use crate::main_window::{self, MainWindow};
+use crate::message_box::{self, MessageBox, MessageBoxIcon};
+
+/// ShareX's default hotkeys, registered except those at `failed`.
+fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
+    let mut hotkeys = HotkeysConfig::new(&TaskSettings::default()).Hotkeys;
+    for (i, h) in hotkeys.iter_mut().enumerate() {
+        h.HotkeyInfo.status = if failed.contains(&i) { HotkeyStatus::Failed } else { HotkeyStatus::Registered };
+    }
+    hotkeys
+}
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let mut screen = None;
@@ -75,11 +89,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let image = match screen.as_str() {
         _ if screen == "main" || menu.is_some() => {
             let mut state = MainWindow::new();
-            for i in &unregistered {
-                if let Some(t) = state.hotkey_tips.get_mut(*i) {
-                    t.registered = false;
-                }
-            }
+            state.hotkey_tips = main_window::hotkey_tips(&default_hotkeys(&unregistered));
             state.drop_overlay = drop_overlay;
             state.maximized = maximized;
             // The window's height defaults to the sidebar's, as in ShareX.
@@ -124,6 +134,24 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 });
             }
             screen.draw()
+        }
+        "hotkey-failed" => {
+            // The message box ShareX shows when hotkeys fail to register
+            // (`--unregistered`, default 0,3: Ctrl/Shift + Print Screen).
+            if unregistered.is_empty() {
+                unregistered = vec![0, 3];
+            }
+            let failed = crate::hotkeys::failed_hotkeys(&default_hotkeys(&unregistered)).ok_or("no failed hotkeys")?;
+            let dialog = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
         }
         "app-icon" => {
             let side = width.unwrap_or(256);
