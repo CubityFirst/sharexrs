@@ -185,6 +185,13 @@ impl RecordingControl {
         }
     }
 
+    /// `ScreenRecordManager.StopRecording` (the Stop screen recording
+    /// hotkey): stops the current FFmpeg run directly, leaving the status
+    /// as it is; the worker then ends as after a stop.
+    pub fn request_stop(&self) {
+        self.emit_stop_requested();
+    }
+
     /// `StartStopRecording`: the Start/Stop button and the recorder hotkey.
     pub fn start_stop_recording(&self) {
         match self.status() {
