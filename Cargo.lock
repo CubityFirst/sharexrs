@@ -3942,7 +3942,6 @@ dependencies = [
  "serde_json",
  "sharex-helpers",
  "sharex-strings",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

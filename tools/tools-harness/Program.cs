@@ -48,6 +48,7 @@ static partial class Program
             string name = (string)c["name"];
             if (only != null && !name.StartsWith(only, StringComparison.Ordinal)) continue;
             count++;
+            File.Delete(Path.Combine(Out, name + ".error.txt"));
             try
             {
                 RunCase(c);

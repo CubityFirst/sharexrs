@@ -104,5 +104,35 @@ for (set_name, files), delay, loop, repeat in itertools.product(gif_sets.items()
     add(f"gifmaker-{set_name}-d{delay}-{'loop' if loop else 'once'}-r{repeat}", "gifmaker", files=files, delay=delay, loop=loop,
         repeat=repeat)
 
+# ---------------------------------------------------------------- data
+
+for algo in ["CRC32", "MD5", "SHA1", "SHA256", "SHA384", "SHA512"]:
+    add(f"hash-{algo}", "hash", algorithm=algo)
+
+indexer_variants = {
+    "Txt": [{}, {"AddFooter": False}, {"ShowSizeInfo": False, "AddFooter": False},
+            {"IndentationText": "--", "AddEmptyLineAfterFolders": True}, {"SkipHiddenFolders": False, "SkipHiddenFiles": False},
+            {"SkipFiles": True}, {"MaxDepthLevel": 1}, {"MaxDepthLevel": 2}, {"BinaryUnits": True}],
+    "Html": [{}, {"DisplayPath": True}, {"DisplayPath": True, "DisplayPathLimited": True},
+             {"UseCustomCSSFile": True, "CustomCSSFilePath": "custom.css"}, {"ShowSizeInfo": False}, {"SkipFiles": True},
+             {"AddFooter": False, "BinaryUnits": True}],
+    "Xml": [{}, {"UseAttribute": False}, {"ShowSizeInfo": False}, {"SkipHiddenFiles": False, "SkipHiddenFolders": False}],
+    "Json": [{}, {"CreateParseableJson": False}, {"ShowSizeInfo": False}, {"MaxDepthLevel": 1}, {"CreateParseableJson": False, "SkipFiles": True}],
+}
+for output, variants in indexer_variants.items():
+    for i, v in enumerate(variants):
+        for folder in ["tree", "empty", "sizes"]:
+            add(f"index-{output}-{i}-{folder}", "indexer", folder=folder, settings={"Output": output, **v})
+
+qr_texts = {"url": "https://getsharex.com", "hello": "Hello, World!", "numeric": "12345678901234567890",
+            "alnum": "HELLO WORLD 123", "utf8": "é ü 日本語 😀", "multiline": "line1" + chr(10) + "line2", "long": "ShareX " * 70,
+            "max": "a" * 2952, "toolong": "a" * 2953, "empty": ""}
+for (key, text), size in itertools.product(qr_texts.items(), [64, 100, 177, 256, 400, 33]):
+    add(f"qr-{key}-{size}", "qr", text=text, size=size)
+for f, qr_only in itertools.product(["plain.png", "rotated90.png", "inverted.png", "translucent.png", "two.png", "code128.png",
+                                     "ean13.png", "datamatrix.png", "dense.png", "small.png"], [False, True]):
+    add(f"qrscan-{f.split('.')[0]}-{'qr' if qr_only else 'all'}", "qr-scan", file=f, qrOnly=qr_only)
+add("qrscan-none-all", "qr-scan", file="../opaque_97x61.png", qrOnly=False)
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

@@ -32,14 +32,20 @@ pub mod comparer;
 pub mod converter;
 pub mod dotnet;
 pub mod gif;
+pub mod hash;
 pub mod icon;
 pub mod imaging;
+pub mod indexer;
 pub mod jpeg;
 pub mod jpeg_decode;
 pub mod options;
+pub mod qr;
 pub mod resizer;
 pub mod splitter;
 pub mod text;
 pub mod thumbnailer;
 pub mod video;
 pub mod watermark;
+
+/// `Links.Website`.
+pub const WEBSITE: &str = "https://getsharex.com";
