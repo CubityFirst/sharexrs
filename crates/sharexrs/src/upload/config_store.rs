@@ -16,7 +16,6 @@ pub struct UploadersConfigStore(Arc<(Mutex<Option<UploadersConfig>>, Condvar)>);
 
 impl UploadersConfigStore {
     /// A store with `config` already loaded.
-    #[cfg(test)]
     pub fn loaded(config: UploadersConfig) -> Self {
         Self(Arc::new((Mutex::new(Some(config)), Condvar::new())))
     }

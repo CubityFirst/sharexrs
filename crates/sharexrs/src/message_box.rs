@@ -73,6 +73,11 @@ impl MessageBox {
         Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::Ok, check_box: None, checked: false }
     }
 
+    /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNo, icon)`.
+    pub fn yes_no(caption: impl Into<String>, text: impl Into<String>, icon: MessageBoxIcon) -> Self {
+        Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::YesNo, check_box: None, checked: false }
+    }
+
     /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNo, checkBoxText, out checked)`
     /// (no icon).
     pub fn yes_no_with_check_box(caption: impl Into<String>, text: impl Into<String>, check_box: impl Into<String>) -> Self {

@@ -26,8 +26,14 @@ image.workspace = true
 dirs.workspace = true
 # The progress tray icon's percentage, drawn in Arial (`Helpers.GetProgressIconBytes`).
 ab_glyph = "0.2.32"
+serde.workspace = true
 serde_json.workspace = true
 chrono = "0.4.45"
+# The file and folder pickers (`FileDialogHelpers`), as snapr has them.
+rfd = "0.17.2"
+# The QR code window: ZXing's encoding (`qrcode` segments) and scanning.
+qrcode = { version = "0.14.1", default-features = false }
+rqrr = { version = "0.11.0", default-features = false }
 
 [target."cfg(windows)".dependencies]
 # The Startup folder shortcut (`ShortcutHelpers`): IShellLinkW.

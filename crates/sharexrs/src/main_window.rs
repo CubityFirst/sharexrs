@@ -56,6 +56,8 @@ pub struct HotkeyTip {
 
 pub struct MainWindow {
     pub title: String,
+    /// `ApplicationInfo.Title`: what the title is without a progress.
+    pub base_title: String,
     pub maximized: bool,
     pub topmost: bool,
     pub hotkey_tips: Vec<HotkeyTip>,
@@ -132,6 +134,7 @@ impl MainWindow {
         let short = version.rsplit_once('.').map_or(version, |(v, _)| v);
         Self {
             title: format!("ShareXrs {short}"),
+            base_title: format!("ShareXrs {short}"),
             maximized: false,
             topmost: false,
             hotkey_tips: Vec::new(),

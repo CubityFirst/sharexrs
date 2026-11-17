@@ -313,9 +313,9 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 - `UploadersConfigValidator`.
 - What upload tasks don't do yet: see [Upload tasks](#upload-tasks).
 - History (`HistoryLib`) of uploads.
-- UI: Destination settings, Custom uploader settings (editor, test,
-  import/export), upload progress in the task list, response window, the
-  `{inputbox}`/`{outputbox}`/`{select}` dialogs, OAuth windows.
+- UI: the `{inputbox}`/`{outputbox}`/`{select}` dialogs, OAuth windows
+  (Destination settings draws the sign-in cards; their buttons say they
+  aren't ported).
 
 ## Upload tasks
 
@@ -331,7 +331,7 @@ them.
 | `ThreadDoWork`, `DoThreadJob` (after capture tasks, `DoTextJobs`, `DownloadFromURL`, `AutoClearClipboard`), `DoUploadJob` (`WaitUploadersConfig`, status Uploading, `MaxUploadFailRetry` retries 1 s apart), `DoUpload` (`CheckUploadFilters`, `UploadDestination`), `UploadData` (`CheckConfig`, `CreateUploader`, error title, `BufferSizePower`, progress, `EarlyCopyURL`, bidi/reserved characters, `UploadDuration`), `GetInvalidConfigResult`, the `EarlyURLCopied` clean-up, `DeleteFile`, "URL is empty." | `upload::worker` |
 | `DoAfterUploadJobs` (URL regex replace with .NET's substitutions, `ResultForceHTTPS`, shorten (also `AutoShortenURLLength`), share, copy URL with `ClipboardContentFormat`, open URL with `OpenURLFormat`, QR code), `ShortenURL`, `ShareURL`, `UploadInfoParser` | `upload::after_upload` |
 | `UploaderFilter`, `UploaderFactory.AllGenericUploaderServices` | `upload::filters` |
-| `UploadManager` (file, folder (recursive, more than 10 files confirmed), clipboard image/text/files, `ProcessTextUpload`, text with `TextCustom`, download and upload, shorten, share) | `upload::manager`; the pickers and windows are stubs in `upload::manager::dialogs` |
+| `UploadManager` (file, folder (recursive, more than 10 files confirmed), clipboard image/text/files, `ProcessTextUpload`, text with `TextCustom`, download and upload, shorten, share) | `upload::manager`; the pickers and windows in `crates/sharexrs/src/dialogs` |
 | `TaskManager.Start`/`StartTasks` (`UploadLimit` queue), `Stop`/`StopAllTasks`, `Remove` (stops), the `Task_*` handlers, `UpdateProgressUI` (tray progress) | `upload::app`, `TaskManager::{add_task, startable, prepare, stop, apply_event, finish}` |
 | `ThumbnailItemViewModel.RefreshListColumns` (status %, `ToSizeString`, speed, `ProperTimeSpan`) | `TaskManager::set_progress`, `task_view::list_cells` |
 | `TaskHelpers.ExecuteJob` upload jobs, `MainMenuBuilder.BuildUploadMenu`, the Debug menu's test uploads | `App::run_upload_job`, `App::upload_menu_command` |
@@ -355,24 +355,22 @@ Differences and gaps:
   stack trace: `e.ToString()`).
 - A destination `sharex-uploaders` doesn't have fails the task with
   "<service> isn't ported to ShareXrs yet." (ShareX would upload).
-- Not ported (logged when used): the file/folder pickers, the text, URL
-  and shorten URL windows, reading the clipboard, the clipboard content
-  viewer, the drag and drop window, the multi upload confirmation (goes
-  ahead), the large file warning and before upload window (go ahead), the
-  after upload window and task notifications, Destination settings (asked
-  for, logged), `DoFileJobs` (actions, copy file/path, show in Explorer),
-  OCR, `ProcessImagesDuringFileUpload`, index folder, history, the upload
-  entries of the task context menu (Open/Copy URL, Upload, Shorten, Share,
-  Show response/errors), the thumbnail card's progress bar, the main
-  window title's progress, a custom browser (`BrowserPath`).
+- Not ported (logged when used): task notifications, `DoFileJobs`
+  (actions, copy file/path, show in Explorer), OCR,
+  `ProcessImagesDuringFileUpload`, index folder, history, a custom browser
+  (`BrowserPath`), drag and drop onto the main window.
+- The windows (pickers, text/URL/shorten, clipboard viewer, drop window,
+  confirmations, before/after upload, QR code, response, Custom uploader
+  and Destination settings) and the task menu's upload entries are ported
+  and were checked live against the mock beside ShareX: see
+  [PORTING.md](PORTING.md) (Upload, Destination settings rows).
 - .NET regex patterns run on `fancy-regex` (substitutions and group
   numbering follow .NET; pattern syntax differences aren't handled).
 
 ## Plan: upload UI and task integration
 
-Steps 1, 2 and 4 are done for what doesn't need new windows, and step 3's
-list columns (see [Upload tasks](#upload-tasks)); the rest of step 3 and
-steps 5–7 remain.
+Steps 1–6 are done (the windows of steps 3, 5 and 6 are in
+`crates/sharexrs/src/dialogs`); step 7 remains, with the sign-in flows.
 
 1. **Settings load/save**: `SettingManager` gains `uploaders:
    UploadersConfig` (load at startup in the background as ShareX's

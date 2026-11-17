@@ -353,7 +353,7 @@ fn image_task(task: TaskSettings, dir: &Path) -> UploadTask {
 }
 
 fn new_task_context<'a>(app: &'a mut ApplicationConfig, dir: &Path) -> NewTaskContext<'a> {
-    NewTaskContext { app, screenshots_parent: dir.to_path_buf(), image_effects_folder: dir.join("ImageEffects") }
+    NewTaskContext::new(app, dir.to_path_buf(), dir.join("ImageEffects"))
 }
 
 /// The part of a multipart body after `name="<form>"; filename="<name>"`'s

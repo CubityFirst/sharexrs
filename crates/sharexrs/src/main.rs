@@ -13,10 +13,12 @@ mod appearance;
 mod capture;
 mod capture_job;
 mod controls_gallery;
+mod dialogs;
 mod history;
 mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
+mod menu_settings;
 mod main_window;
 mod message_box;
 mod region_render;
@@ -73,6 +75,8 @@ pub enum UserEvent {
     Tray(TrayEvent),
     /// A task's thread or a thumbnail decoder finished.
     Task(tasks::TaskEvent),
+    /// A task's thread asks for a window (the before upload window, ...).
+    Ui(upload::UiRequest),
 }
 
 fn main() {
@@ -152,6 +156,8 @@ fn main() {
         settings_window: None,
         hotkey_window: None,
         task_window: None,
+        dialogs: Vec::new(),
+        pending_dialogs: Vec::new(),
         current_theme: egui::Theme::Dark,
         system_theme: None,
         // `StartupOptions.SilentRun` (`-silent`, `-s`): start in the tray.
@@ -177,6 +183,8 @@ enum DialogPurpose {
     /// A message that only needs reading (`CaptureCustomWindow`'s window
     /// not found).
     Information,
+    /// Custom uploader settings' "Clear all..." confirmation.
+    ClearCustomUploaders,
 }
 
 struct App {
@@ -232,6 +240,11 @@ struct App {
     hotkey_window: Option<app_windows::HotkeyWindow>,
     /// Task settings (the defaults' or a hotkey's), while it's open.
     task_window: Option<app_windows::TaskWindow>,
+    /// The upload windows that are open (`dialogs`).
+    dialogs: Vec<dialogs::DialogWindow>,
+    /// Windows to open once the event loop is at hand (a finished task's
+    /// after upload window).
+    pending_dialogs: Vec<Box<dyn dialogs::Dialog>>,
     /// `ThemeManager.GetCurrentTheme()`.
     current_theme: egui::Theme,
     /// The OS's light or dark mode, for `UseSystemTheme`.
@@ -354,6 +367,16 @@ impl App {
                 self.show_hotkey_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_DestinationSettings`.
+            Action::Nav(10, _) => {
+                self.show_destination_settings(event_loop, None);
+                return;
+            }
+            // `MainMenuBuilder_CustomUploaderSettings`.
+            Action::Nav(11, _) => {
+                self.show_custom_uploader_settings(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -387,7 +410,12 @@ impl App {
             self.capture(job, task, auto_hide);
             return;
         }
-        if self.upload_menu_command(&command) {
+        if self.upload_menu_command(event_loop, &command) {
+            return;
+        }
+        if menu_settings::apply(&mut self.settings.settings.DefaultTaskSettings, &command) {
+            // `staysOpenOnClick` entries: the menu shows the change at once.
+            self.refresh_menus();
             return;
         }
         let capture = self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default();
@@ -404,6 +432,8 @@ impl App {
             MenuCommand::ApplicationSettings => self.show_application_settings(event_loop),
             MenuCommand::TaskSettings => self.show_task_settings(event_loop, app_windows::TaskTarget::Default),
             MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
+            MenuCommand::DestinationSettings => self.show_destination_settings(event_loop, None),
+            MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -419,6 +449,7 @@ impl App {
         m.screenshot_delay = capture.ScreenshotDelay as f32;
         m.screenshot_delay_just_once = s.ScreenshotDelayJustOnce;
         m.hotkeys_disabled = s.DisableHotkeys;
+        menu_settings::fill(m, &s.DefaultTaskSettings);
         m.list_windows = true;
         // `DesktopScreen.AllScreens`.
         m.monitors = sharex_capture::screenshot::screens()
@@ -728,9 +759,18 @@ impl App {
         let with_progress: Vec<f64> = working.iter().filter_map(|t| t.info.progress.map(|p| p.percentage())).collect();
         let average = if with_progress.is_empty() { 0.0 } else { with_progress.iter().sum::<f64>() / with_progress.len() as f64 };
         let progress = if working.is_empty() { -1 } else { average as i32 };
-        let title = self.state.title.clone();
+        // `MainWindowIntegration.SetTitle`: "<title> - 12.3%" while tasks work.
+        let base = self.state.base_title.clone();
+        let title = if progress >= 0 { format!("{base} - {average:.1}%") } else { base };
+        if title != self.state.title {
+            self.state.title = title.clone();
+            if let Some(w) = &self.main {
+                w.window.set_title(&title);
+                w.window.request_redraw();
+            }
+        }
         if let Some(tray) = &mut self.tray {
-            tray.set_tooltip(&if progress >= 0 { format!("{title} - {average:.1}%") } else { title });
+            tray.set_tooltip(&title);
         }
         self.update_tray_icon(progress);
     }
@@ -863,6 +903,12 @@ impl App {
         let Some(dialog) = self.dialog.take() else { return };
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
+        } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
+            && result == DialogResult::Yes
+            && let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("custom-uploader-settings"))
+        {
+            d.dialog.confirmed();
+            d.window.window.request_redraw();
         }
         if self.main.is_none()
             && let Err(e) = self.open_main_window(event_loop)
@@ -946,7 +992,7 @@ impl App {
             self.capture(capture, task, false);
             return;
         }
-        if self.run_upload_job(&job, &task) {
+        if self.run_upload_job(event_loop, &job, &task) {
             return;
         }
         match job {
@@ -1082,6 +1128,15 @@ fn tray_double_click_time() -> Duration {
     Duration::from_millis(500)
 }
 
+/// A ShareX window title with ShareXrs's name: "ShareX - Text upload"
+/// becomes "ShareXrs - Text upload".
+fn rs_title(title: &str) -> String {
+    match title.strip_prefix("ShareX") {
+        Some(rest) if rest.is_empty() || rest.starts_with(' ') => format!("ShareXrs{rest}"),
+        _ => title.to_owned(),
+    }
+}
+
 fn set_theme(w: &EguiWindow, theme: egui::Theme) {
     w.ctx().set_theme(theme);
     w.window.set_theme(Some(match theme {
@@ -1160,7 +1215,11 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Task(event) => {
                 self.task_event(event);
                 self.update_progress_ui();
+                for d in std::mem::take(&mut self.pending_dialogs) {
+                    self.open_dialog_window(event_loop, d);
+                }
             }
+            UserEvent::Ui(request) => self.ui_request(event_loop, request),
         }
     }
 
@@ -1174,6 +1233,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.hotkey_window = None;
         self.task_window = None;
+        self.dialogs.clear();
         self.tray = None;
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
@@ -1197,6 +1257,9 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         if self.app_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.dialog_window_event(event_loop, id, &event) {
             return;
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
@@ -1312,6 +1375,7 @@ impl ApplicationHandler<UserEvent> for App {
             m.redraw_if_due(now);
         }
         let app_windows = self.app_windows_due(now);
+        let dialogs = self.dialogs_due(now);
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
         let next = [
@@ -1322,6 +1386,7 @@ impl ApplicationHandler<UserEvent> for App {
             self.transparent_grab.as_ref().map(|g| g.0),
             self.tray_click_at,
             app_windows,
+            dialogs,
         ]
         .into_iter()
         .flatten()

@@ -86,6 +86,8 @@ pub struct UploadResult {
     /// `IsURLExpected`: false for tasks that don't upload (ShareX sets it so
     /// in `ThreadDoWork`), so their errors fail them whatever their URL.
     pub url_expected: bool,
+    /// `ResponseInfo` of the last request (the response window shows it).
+    pub response_info: Option<Box<sharex_uploaders::http::ResponseInfo>>,
 }
 
 impl UploadResult {
@@ -225,6 +227,9 @@ pub enum TaskEvent {
     /// `UploadersConfigWindowRequested`: a destination's settings are
     /// missing (its service name).
     DestinationSettingsRequested { service: String },
+    /// "Don't show this message again" in the large file warning:
+    /// `ShowLargeFileSizeWarning = 0`.
+    LargeFileWarningOff,
     /// A thumbnail or preview was decoded (`RefreshThumbnailAsync`).
     Image { id: u64, version: u64, kind: ImageKind, image: Option<image::RgbaImage> },
 }
@@ -243,6 +248,12 @@ pub struct TaskReport {
     pub play_sound: bool,
     /// `AfterUploadJob` has `ShowAfterUploadWindow`.
     pub show_after_upload_window: bool,
+    /// `Info.DataType`.
+    pub data_type: EDataType,
+    /// `Info.Metadata.Image`, kept for the after upload window.
+    pub image: Option<std::sync::Arc<image::RgbaImage>>,
+    /// `AdvancedSettings.AutoCloseAfterUploadForm`.
+    pub auto_close_after_upload_form: bool,
     /// `ShowToastNotificationAfterTaskCompleted`.
     pub show_toast: bool,
     /// `UploadDuration`.
@@ -406,7 +417,7 @@ impl TaskManager {
                 self.finish(*id, report, max_recent);
                 Some(*id)
             }
-            TaskEvent::DestinationSettingsRequested { .. } | TaskEvent::Image { .. } => None,
+            TaskEvent::DestinationSettingsRequested { .. } | TaskEvent::LargeFileWarningOff | TaskEvent::Image { .. } => None,
         }
     }
 

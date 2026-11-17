@@ -235,6 +235,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut recording = None;
     let mut cleared: Vec<usize> = Vec::new();
     let (mut hk_disabled, mut hk_reset, mut hk_empty, mut for_hotkey) = (false, false, false, false);
+    let mut dialog = crate::dialogs::render::Options::default();
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -300,6 +301,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--reset" => hk_reset = true,
             "--empty" => hk_empty = true,
             "--hotkey" => for_hotkey = true,
+            "--text" => dialog.text = Some(val()?),
+            "--content" => dialog.content = Some(val()?),
+            "--image" => dialog.image = Some(val()?.into()),
+            "--files" => dialog.files = val()?.split(',').map(std::path::PathBuf::from).collect(),
+            "--count" => dialog.count = val()?.parse().map_err(|_| "--count N")?,
+            "--viewer-only" => dialog.viewer_only = true,
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -312,6 +319,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
     let menu = screen.strip_prefix("main-").and_then(|m| m.strip_suffix("-menu"));
     let image = match screen.as_str() {
+        s if crate::dialogs::render::is_dialog_screen(s) => {
+            crate::appearance::apply(&theme_settings(dark, accent.as_deref(), legacy, compact), None);
+            dialog.dark = dark;
+            dialog.scale = scale;
+            dialog.hover = hover;
+            dialog.clicks = click.clone();
+            dialog.width = width;
+            dialog.height = height;
+            crate::dialogs::render::render(s, &dialog)?
+        }
         "main-tasks" => render_tasks(TaskScene {
             files: &task_files,
             list: list_view,
