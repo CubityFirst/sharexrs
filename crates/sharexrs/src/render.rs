@@ -19,6 +19,13 @@
 //! `--hover` moves the pointer there and lets 0.7s pass, so submenus open
 //! as they do after `MenuShowDelay`.
 //!
+//! `tray-menu` draws the tray menu (`BuildTrayMenu`) as ShareX opens it
+//! with the pointer at `--at X,Y` (default 682,563) on a `--width` x
+//! `--height` work area (default 1024x720), cropped to one menu level
+//! (`--level N`, 0 the root): each is its own popup window in ShareX, which
+//! `winshot.ps1` grabs on black where the corners are rounded off. `--open`
+//! and `--hover` as above.
+//!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
 //! overlay over `--test-pattern`'s picture (`--width`/`--height`, default
 //! 1024x768): `--pointer X,Y` is where the pointer is, `--drag X1,Y1,X2,Y2`
@@ -54,6 +61,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut work_area = None;
     let mut monitors: Vec<(i32, i32, u32, u32)> = Vec::new();
     let mut rest_args: Vec<(String, String)> = Vec::new();
+    let mut at = egui::pos2(682.0, 563.0);
+    let mut level = 0usize;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -81,6 +90,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     monitors.push((0, 0, w.parse().map_err(|_| "--monitors WxH")?, h.parse().map_err(|_| "--monitors WxH")?));
                 }
             }
+            "--at" => {
+                let v = val()?;
+                let (x, y) = v.split_once(',').ok_or("--at X,Y")?;
+                at = egui::pos2(x.parse().map_err(|_| "--at X,Y")?, y.parse().map_err(|_| "--at X,Y")?);
+            }
+            "--level" => level = val()?.parse().map_err(|_| "--level N")?,
             "--drop-overlay" => drop_overlay = true,
             "--maximized" => maximized = true,
             "--unregistered" => {
@@ -144,6 +159,43 @@ pub fn run(args: &[String]) -> Result<(), String> {
             screen.draw()
         }
         s if s.starts_with("region-") => crate::region_render::render(&rest_args, width, height, scale, dark)?,
+        "tray-menu" => {
+            let (w, h) = (width.unwrap_or(1024), height.unwrap_or(720));
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.transparent = true;
+            let state = crate::main_menu::MenuState { monitors: monitors.clone(), ..Default::default() };
+            let anchor = egui::Rect::from_min_size((at.to_vec2() / scale).to_pos2(), egui::vec2(32.0, 39.0) / scale);
+            let mut flyout = sharex_ui::menu::Flyout::menu(
+                egui::Id::new("tray-menu"),
+                crate::main_menu::tray_menu(&state),
+                anchor,
+                sharex_ui::menu::Placement::BottomEdgeAlignedLeft,
+            );
+            flyout.edit_label = sharex_strings::sharex::MainMenuBuilder_EditTools().to_string();
+            flyout.open_path(&open);
+            let events: Vec<egui::Event> = hover.map(egui::Event::PointerMoved).into_iter().collect();
+            for frame in 0..48 {
+                let ev = if frame >= 1 { events.clone() } else { Vec::new() };
+                screen.run(ev, &mut |ui: &mut egui::Ui| {
+                    let bounds = ui.max_rect();
+                    flyout.show(ui, bounds);
+                });
+            }
+            let full = screen.draw();
+            let r = *flyout.rects().get(level).ok_or("no such menu level")?;
+            let (x, y) = ((r.min.x * scale).round() as u32, (r.min.y * scale).round() as u32);
+            let (cw, ch) = ((r.width() * scale).round() as u32, (r.height() * scale).round() as u32);
+            // Where it is on the work area, for checking placement.
+            println!("tray-menu level {level} at {x},{y} {cw}x{ch}");
+            let mut crop = image::imageops::crop_imm(&full, x, y, cw, ch).to_image();
+            // On black, as a popup window's transparent corners come out.
+            for p in crop.pixels_mut() {
+                let a = p[3] as u32;
+                let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+                *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+            }
+            crop
+        }
         "hotkey-failed" => {
             // The message box ShareX shows when hotkeys fail to register
             // (`--unregistered`, default 0,3: Ctrl/Shift + Print Screen).

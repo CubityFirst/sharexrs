@@ -18,6 +18,9 @@ pub struct EguiWindow {
     /// Borderless windows resize from this many points inside their edge.
     resize_border: Option<f32>,
     resize_hover: Option<ResizeDirection>,
+    /// What the window is cleared to before egui draws (premultiplied
+    /// RGBA); the theme's panel colour when unset.
+    pub clear_color: Option<[f32; 4]>,
 }
 
 impl EguiWindow {
@@ -37,7 +40,7 @@ impl EguiWindow {
             window.theme(),
             painter.max_texture_side(),
         );
-        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None })
+        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None })
     }
 
     pub fn ctx(&self) -> &egui::Context {
@@ -121,7 +124,7 @@ impl EguiWindow {
             }
         }
         let primitives = ctx.tessellate(std::mem::take(&mut output.shapes), output.pixels_per_point);
-        let clear = egui::Rgba::from(ctx.global_style().visuals.panel_fill).to_array();
+        let clear = self.clear_color.unwrap_or_else(|| egui::Rgba::from(ctx.global_style().visuals.panel_fill).to_array());
         self.painter.paint_and_update_textures(
             egui::ViewportId::ROOT,
             output.pixels_per_point,

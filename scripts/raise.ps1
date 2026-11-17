@@ -8,7 +8,9 @@
   scripts/raise.ps1 -Process sharexrs -Title '^ShareXrs [0-9]'
 #>
 param(
-    [Parameter(Mandatory)] [string] $Process,
+    [string] $Process,
+    # A process id instead of a name (another ShareXrs may be running).
+    [int] $Id,
     [string] $Title = '.'
 )
 $ErrorActionPreference = 'Stop'
@@ -44,7 +46,7 @@ public static class Raise {
 '@
 [void][Raise]::SetProcessDpiAwarenessContext([IntPtr](-4))
 $pids = [System.Collections.Generic.HashSet[uint32]]::new()
-Get-Process -Name $Process | ForEach-Object { [void]$pids.Add([uint32]$_.Id) }
+if ($Id) { [void]$pids.Add([uint32]$Id) } else { Get-Process -Name $Process | ForEach-Object { [void]$pids.Add([uint32]$_.Id) } }
 $h = [Raise]::Find($pids, $Title)
 if ($h -eq [IntPtr]::Zero) { throw "no window of $Process matching '$Title'" }
 # HWND_TOPMOST, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW

@@ -7,6 +7,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_icon;
+mod capture;
 mod capture_job;
 mod hotkeys;
 mod main_menu;
@@ -17,6 +18,9 @@ mod region_session;
 mod render;
 mod sound;
 mod test_pattern;
+mod transparent_region;
+mod tray;
+mod tray_menu;
 mod window;
 
 use std::sync::Arc;
@@ -32,11 +36,15 @@ use sharex_settings::{AppPaths, HotkeyType, SettingManager, SystemOptions, TaskS
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Icon, WindowAttributes, WindowButtons, WindowId, WindowLevel};
 
+use capture::{CaptureError, CaptureJob};
 use hotkeys::HotkeyManager;
 use main_menu::MenuCommand;
 use main_window::{Action, MainWindow};
 use region_session::RegionSession;
 use sharex_capture::region::Outcome;
+use transparent_region::TransparentRegion;
+use tray::{TrayEvent, TrayMenuEntries};
+use tray_menu::TrayMenu;
 use message_box::{MessageBox, MessageBoxIcon};
 use window::EguiWindow;
 
@@ -45,6 +53,10 @@ use window::EguiWindow;
 pub enum UserEvent {
     /// A global hotkey was pressed (its `HotkeyInfo.ID`).
     Hotkey(u16),
+    /// The tray icon was clicked, or its native menu used.
+    Tray(TrayEvent),
+    /// An image task's after capture tasks finished.
+    TaskDone,
 }
 
 fn main() {
@@ -75,10 +87,19 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     sharex_capture::platform::macos::ask_for_screen_recording();
-    let event_loop = EventLoop::<UserEvent>::with_user_event().build().expect("event loop");
+    #[allow(unused_mut)]
+    let mut builder = EventLoop::<UserEvent>::with_user_event();
+    // No Dock icon until the main window opens (docs/MACOS-LEARNINGS.md 3.5).
+    #[cfg(target_os = "macos")]
+    {
+        use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+        builder.with_activation_policy(ActivationPolicy::Accessory);
+    }
+    let event_loop = builder.build().expect("event loop");
     let proxy = event_loop.create_proxy();
+    let hotkey_proxy = proxy.clone();
     let host = hotkeys::platform_host(Arc::new(move |id| {
-        let _ = proxy.send_event(UserEvent::Hotkey(id));
+        let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
     let mut app = App {
         gpu: None,
@@ -95,6 +116,16 @@ fn main() {
         region: None,
         pending_capture: None,
         last_regions: Vec::new(),
+        proxy,
+        tray: None,
+        tray_menu: None,
+        tray_entries: TrayMenuEntries::default(),
+        tray_left_clicks: 0,
+        tray_click_at: None,
+        transparent: None,
+        transparent_grab: None,
+        working_tasks: 0,
+        tray_progress: -1,
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -128,15 +159,43 @@ struct App {
     pending_capture: Option<PendingCapture>,
     /// `RegionCaptureIntegration.LastRegionRectangles`.
     last_regions: Vec<sharex_capture::Rect>,
+    proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    /// `MainForm.TrayIconService`, while `ShowTray`.
+    tray: Option<tray::Tray>,
+    /// The tray menu (Windows), while it's open.
+    tray_menu: Option<TrayMenu>,
+    /// The commands of the native tray menu (macOS, Linux), by index.
+    tray_entries: TrayMenuEntries,
+    /// `DesktopTrayIconService._leftClickCount` and its single click timer.
+    tray_left_clicks: u32,
+    tray_click_at: Option<Instant>,
+    /// Capture › Region (Transparent), while it's open.
+    transparent: Option<Transparent>,
+    /// A transparent region chosen, captured once its windows are gone
+    /// (`CaptureRegionTransparent.CaptureDelay`).
+    transparent_grab: Option<(Instant, sharex_capture::Rect, TaskSettings, bool)>,
+    /// Image tasks running their after capture tasks (`TaskManager`'s
+    /// working tasks, for the tray icon's progress).
+    working_tasks: usize,
+    /// `TaskManager.lastIconStatus`.
+    tray_progress: i32,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
 /// screenshot delay, then (from the main window's menu) hiding it for 250 ms.
 struct PendingCapture {
     at: Instant,
+    job: CaptureJob,
     task: TaskSettings,
     auto_hide: bool,
     /// The main window was hidden for it (`showMainForm`).
+    hidden: bool,
+}
+
+/// An open Capture › Region (Transparent) and the task it runs for.
+struct Transparent {
+    region: TransparentRegion,
+    task: TaskSettings,
     hidden: bool,
 }
 
@@ -179,6 +238,8 @@ impl App {
         w.window.set_visible(true);
         w.window.request_redraw();
         self.main = Some(w);
+        #[cfg(target_os = "macos")]
+        tray::set_dock_icon(true);
         Ok(())
     }
 
@@ -192,7 +253,10 @@ impl App {
                 w.window.set_maximized(!w.window.is_maximized());
             }
             Action::Minimize => w.window.set_minimized(true),
-            Action::Close => event_loop.exit(),
+            Action::Close => {
+                self.close_main_window(event_loop);
+                return;
+            }
             Action::ToggleTopmost => {
                 self.state.topmost = !self.state.topmost;
                 w.window.set_window_level(if self.state.topmost {
@@ -214,16 +278,82 @@ impl App {
                 let _ = self.settings.save_application_config(false);
             }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
-            Action::Menu(MenuCommand::CaptureRegion) => {
-                // `new CaptureRegion().Capture(autoHide)` with the default
-                // task settings.
-                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
-                self.capture_region(task, true);
+            Action::Menu(command) => {
+                self.menu_command(event_loop, command, false);
                 return;
             }
-            Action::Menu(command) => eprintln!("menu: {command:?}: not ported yet"),
         }
         w.window.request_redraw();
+    }
+
+    /// What a menu entry does (`MainMenuBuilder`'s lambdas): the main
+    /// window's menus hide it while capturing (`autoHide`), the tray menu's
+    /// don't (`MainMenuBuilder(trayMenu: true)`).
+    fn menu_command(&mut self, event_loop: &ActiveEventLoop, command: MenuCommand, tray_menu: bool) {
+        let auto_hide = !tray_menu;
+        // `new Capture…().Capture(autoHide)`: the default task settings.
+        let task = || TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+        let job = match &command {
+            MenuCommand::CaptureFullscreen => Some(CaptureJob::Fullscreen),
+            MenuCommand::CaptureWindow(handle) => Some(CaptureJob::Window(*handle)),
+            &MenuCommand::CaptureMonitor(x, y, w, h) => {
+                Some(CaptureJob::Monitor(sharex_capture::Rect::new(x, y, w as i32, h as i32)))
+            }
+            MenuCommand::CaptureRegion => Some(CaptureJob::Region),
+            MenuCommand::CaptureRegionTransparent => Some(CaptureJob::RegionTransparent),
+            MenuCommand::CaptureLastRegion => Some(CaptureJob::LastRegion),
+            _ => None,
+        };
+        if let Some(job) = job {
+            let task = task();
+            self.capture(job, task, auto_hide);
+            return;
+        }
+        let capture = self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default();
+        match command {
+            MenuCommand::ToggleShowCursor => capture.ShowCursor = !capture.ShowCursor,
+            // `MainWindowIntegration.SetScreenshotDelay`.
+            MenuCommand::SetScreenshotDelay(delay) => capture.ScreenshotDelay = delay as f64,
+            MenuCommand::ToggleScreenshotDelayJustOnce => {
+                let s = &mut self.settings.settings;
+                s.ScreenshotDelayJustOnce = !s.ScreenshotDelayJustOnce;
+            }
+            MenuCommand::ToggleHotkeys => self.toggle_hotkeys(),
+            MenuCommand::ShowMainWindow => self.show_main_window(event_loop),
+            MenuCommand::Exit => self.exit(event_loop),
+            other => eprintln!("menu: {other:?}: not ported yet"),
+        }
+        self.refresh_menus();
+    }
+
+    /// `MainWindow.RefreshMenus`: the menus show the settings as they are.
+    fn refresh_menus(&mut self) {
+        let s = &self.settings.settings;
+        let capture = s.DefaultTaskSettings.CaptureSettings.clone().unwrap_or_default();
+        let m = &mut self.state.menu_state;
+        m.show_cursor = capture.ShowCursor;
+        m.screenshot_delay = capture.ScreenshotDelay as f32;
+        m.screenshot_delay_just_once = s.ScreenshotDelayJustOnce;
+        m.hotkeys_disabled = s.DisableHotkeys;
+        m.list_windows = true;
+        // `DesktopScreen.AllScreens`.
+        m.monitors = sharex_capture::screenshot::screens()
+            .iter()
+            .map(|s| (s.bounds.x, s.bounds.y, s.bounds.w as u32, s.bounds.h as u32))
+            .collect();
+        if cfg!(not(windows))
+            && let Some(tray) = &mut self.tray
+        {
+            // The native menu is built ahead (Avalonia builds it as it opens).
+            let mut state = self.state.menu_state.clone();
+            state.list_windows = false;
+            state.windows = main_menu::WindowItem::list();
+            self.tray_entries = TrayMenuEntries::new(&main_menu::tray_menu(&state));
+            tray.set_menu(self.tray_entries.native.clone());
+        }
+        if let Some(w) = &self.main {
+            w.window.request_redraw();
+        }
     }
 }
 
@@ -231,29 +361,141 @@ impl App {
     /// `CaptureBase.Capture`: waits for the screenshot delay, hides the
     /// main window when asked (`autoHideForm`, from the main window's
     /// menus), then captures.
-    fn capture_region(&mut self, task: TaskSettings, auto_hide: bool) {
-        if self.region.is_some() || self.pending_capture.is_some() {
+    fn capture(&mut self, job: CaptureJob, task: TaskSettings, auto_hide: bool) {
+        if self.region.is_some() || self.transparent.is_some() || self.pending_capture.is_some() {
             return;
         }
         let delay = task.CaptureSettings.as_ref().map_or(0.0, |c| c.ScreenshotDelay).max(0.0);
+        // `ScreenshotDelayJustOnce`: the default delay goes back to 0.
+        if delay > 0.0 && task.UseDefaultCaptureSettings && self.settings.settings.ScreenshotDelayJustOnce {
+            self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default().ScreenshotDelay = 0.0;
+            self.refresh_menus();
+        }
         let at = Instant::now() + Duration::from_secs_f64(delay);
-        self.pending_capture = Some(PendingCapture { at, task, auto_hide, hidden: false });
+        self.pending_capture = Some(PendingCapture { at, job, task, auto_hide, hidden: false });
     }
 
     /// Moves a pending capture on when it's due.
     fn advance_pending_capture(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(pending) = self.pending_capture.as_mut().filter(|p| p.at <= Instant::now()) else { return };
+        if let Some((at, rect, ..)) = &self.transparent_grab
+            && *at <= Instant::now()
+        {
+            let rect = *rect;
+            let Some((_, _, task, hidden)) = self.transparent_grab.take() else { return };
+            self.grab_transparent_region(event_loop, rect, task, hidden);
+        }
+        let Some(pending) = self.pending_capture.as_ref().filter(|p| p.at <= Instant::now()) else { return };
+        let main_handle = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
         if pending.auto_hide
             && !pending.hidden
-            && let Some(w) = self.main.as_ref().filter(|w| w.window.is_visible() != Some(false))
+            && pending.job.allow_auto_hide(main_handle)
+            && self.main.as_ref().is_some_and(|w| w.window.is_visible() != Some(false))
         {
-            w.window.set_visible(false);
-            pending.hidden = true;
-            pending.at = Instant::now() + Duration::from_millis(250);
+            // `MainWindowIntegration.Hide`.
+            self.save_window_bounds();
+            if let Some(w) = &self.main {
+                w.window.set_visible(false);
+            }
+            if let Some(pending) = self.pending_capture.as_mut() {
+                pending.hidden = true;
+                pending.at = Instant::now() + Duration::from_millis(250);
+            }
             return;
         }
-        let Some(pending) = self.pending_capture.take() else { return };
-        self.start_region_capture(event_loop, pending.task, pending.hidden);
+        let Some(PendingCapture { job, task, hidden, .. }) = self.pending_capture.take() else { return };
+        match job {
+            CaptureJob::Region => self.start_region_capture(event_loop, task, hidden),
+            // With no last region, Last region is a region capture.
+            CaptureJob::LastRegion if self.last_regions.is_empty() => {
+                self.start_region_capture(event_loop, task, hidden)
+            }
+            CaptureJob::RegionTransparent => self.start_transparent_capture(event_loop, task, hidden),
+            job => {
+                let result = capture::execute(&job, &task, &self.last_regions);
+                if hidden {
+                    self.show_main_window(event_loop);
+                }
+                match result {
+                    Ok(Some(metadata)) => self.after_capture(metadata, task),
+                    Ok(None) => {}
+                    Err(CaptureError::WindowNotFound) => {
+                        let message = MessageBox::ok(
+                            "ShareX",
+                            sharex_strings::sharex::UnableToFindAWindowWithSpecifiedWindowTitle(),
+                            MessageBoxIcon::Information,
+                        );
+                        if let Err(e) = self.open_dialog(event_loop, message) {
+                            eprintln!("couldn't open the message box: {e}");
+                        }
+                    }
+                    Err(CaptureError::Failed(e)) => eprintln!("capture: {e}"),
+                }
+            }
+        }
+    }
+
+    /// `CaptureRegionTransparent.ExecuteAsync`: a rectangle is drawn over
+    /// the live screen (the active monitor in active monitor mode).
+    fn start_transparent_capture(&mut self, event_loop: &ActiveEventLoop, task: TaskSettings, hidden: bool) {
+        let options = task.CaptureSettings.clone().unwrap_or_default().RegionCaptureOptions;
+        let screens = sharex_capture::screenshot::screens();
+        let cursor = sharex_capture::screenshot::cursor_position().unwrap_or_default();
+        let bounds = if options.ActiveMonitorMode {
+            sharex_capture::screenshot::active_screen_bounds(&screens, cursor)
+        } else {
+            sharex_capture::screenshot::screen_bounds(&screens)
+        };
+        let opened = match &self.gpu {
+            Some(g) => Ok(g),
+            None => Gpu::new().map(|g| &*self.gpu.insert(g)),
+        }
+        .and_then(|gpu| TransparentRegion::open(event_loop, gpu, &screens, bounds));
+        match opened {
+            Ok(region) => self.transparent = Some(Transparent { region, task, hidden }),
+            Err(e) => {
+                eprintln!("transparent region capture: {e}");
+                if hidden {
+                    self.show_main_window(event_loop);
+                }
+            }
+        }
+    }
+
+    /// The transparent region's windows closed: the region is remembered
+    /// (`SetLastRegion`) and captured 50 ms later, once they're off screen.
+    fn finish_transparent_capture(&mut self, event_loop: &ActiveEventLoop, selection: Option<sharex_capture::Rect>) {
+        let Some(Transparent { task, hidden, .. }) = self.transparent.take() else { return };
+        match selection {
+            Some(rect) => {
+                self.last_regions = vec![rect];
+                self.transparent_grab = Some((Instant::now() + Duration::from_millis(50), rect, task, hidden));
+            }
+            None if hidden => self.show_main_window(event_loop),
+            None => {}
+        }
+    }
+
+    fn grab_transparent_region(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        rect: sharex_capture::Rect,
+        task: TaskSettings,
+        hidden: bool,
+    ) {
+        let screens = sharex_capture::screenshot::screens();
+        let capture = task.CaptureSettings.clone().unwrap_or_default();
+        let shot = sharex_capture::screenshot::Screenshot { capture_cursor: capture.ShowCursor, ..Default::default() };
+        let image = shot.capture_rectangle(&screens, rect);
+        if hidden {
+            self.show_main_window(event_loop);
+        }
+        match image {
+            Some(image) => {
+                let metadata = capture::create_metadata(image, Some(rect), Some("explorer"));
+                self.after_capture(metadata, task);
+            }
+            None => eprintln!("transparent region capture: couldn't capture the screen"),
+        }
     }
 
     /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync`: freezes the
@@ -272,25 +514,84 @@ impl App {
             Err(e) => {
                 eprintln!("region capture: {e}");
                 if hidden {
-                    self.show_main_window();
+                    self.show_main_window(event_loop);
                 }
             }
         }
     }
 
-    /// `MainWindowIntegration.Activate`.
-    fn show_main_window(&self) {
-        if let Some(w) = &self.main {
+    /// `MainWindowIntegration.Activate` (`MainWindow.ShowAndActivate`):
+    /// the tray menu closes first; a hidden window comes back (centred if
+    /// no monitor shows where it was), a minimized one is restored, and
+    /// it's brought to the front.
+    fn show_main_window(&mut self, event_loop: &ActiveEventLoop) {
+        self.tray_menu = None;
+        let Some(w) = &self.main else {
+            if let Err(e) = self.open_main_window(event_loop) {
+                eprintln!("couldn't open the main window: {e}");
+            }
+            return;
+        };
+        if w.window.is_visible() == Some(false) {
+            let on_screen = w.window.outer_position().is_ok_and(|p| {
+                event_loop.available_monitors().any(|m| {
+                    let (mp, ms) = (m.position(), m.size());
+                    p.x >= mp.x && p.y >= mp.y && p.x < mp.x + ms.width as i32 && p.y < mp.y + ms.height as i32
+                })
+            });
+            if !on_screen {
+                center(&w.window, event_loop);
+            }
             w.window.set_visible(true);
-            w.window.focus_window();
-            w.window.request_redraw();
         }
+        if w.window.is_minimized() == Some(true) {
+            w.window.set_minimized(false);
+        }
+        w.window.focus_window();
+        w.window.request_redraw();
+        #[cfg(target_os = "macos")]
+        tray::set_dock_icon(true);
+    }
+
+    /// `MainWindow.HideToTray`.
+    fn hide_to_tray(&mut self) {
+        self.save_window_bounds();
+        if let Some(w) = &self.main {
+            w.window.set_visible(false);
+        }
+        #[cfg(target_os = "macos")]
+        tray::set_dock_icon(false);
+    }
+
+    /// `MainWindow.OnClosing`: with the tray icon, closing hides the window
+    /// to the tray and saves the settings (the first time, ShareX says so
+    /// in a notification); without it, ShareX exits.
+    fn close_main_window(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.settings.settings.ShowTray || self.tray.is_none() {
+            self.exit(event_loop);
+            return;
+        }
+        self.hide_to_tray();
+        if self.settings.settings.FirstTimeMinimizeToTray {
+            // `ShowNotificationTip`: notifications aren't ported yet.
+            eprintln!("{}", sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray());
+            self.settings.settings.FirstTimeMinimizeToTray = false;
+        }
+        if let Err(e) = self.settings.save_all() {
+            eprintln!("couldn't save the settings: {e}");
+        }
+    }
+
+    /// `ApplicationLifecycle.ForceClose`.
+    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+        self.tray_menu = None;
+        event_loop.exit();
     }
 
     /// The overlay closed: the main window comes back if it was hidden, and
     /// a capture goes through the after capture tasks
     /// (`CaptureBase.AfterCapture`, `UploadManager.RunImageTask`).
-    fn finish_region_capture(&mut self, outcome: Outcome) {
+    fn finish_region_capture(&mut self, event_loop: &ActiveEventLoop, outcome: Outcome) {
         let Some(Region { session, task, hidden }) = self.region.take() else { return };
         // The overlay changes its options as ShareX's does (magnifier size,
         // toolbar place), on the settings the task takes them from.
@@ -301,22 +602,59 @@ impl App {
             c.RegionCaptureOptions = options;
         }
         if hidden {
-            self.show_main_window();
+            self.show_main_window(event_loop);
         }
         let Outcome::Captured(result) = outcome else { return };
         self.last_regions = result.regions.clone();
+        let metadata = capture_job::Metadata::from_result(&result);
+        self.after_capture(metadata, task);
+    }
+
+    /// `CaptureBase.AfterCapture`: the capture sound, then the image task
+    /// (`UploadManager.RunImageTask`) off the event loop.
+    fn after_capture(&mut self, metadata: capture_job::Metadata, task: TaskSettings) {
         if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterCapture) {
             sound::play_capture();
         }
-        let metadata = capture_job::Metadata::from_result(&result);
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent);
         let owner = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
+        self.working_tasks += 1;
+        self.update_progress_ui();
+        let proxy = self.proxy.clone();
         std::thread::spawn(move || {
             if let Err(e) = job.run(owner) {
                 eprintln!("after capture tasks: {e}");
             }
+            let _ = proxy.send_event(UserEvent::TaskDone);
         });
+    }
+
+    /// `TaskManager.UpdateProgressUI`, for the tray: while tasks work, the
+    /// tray icon shows their progress (0% for captures, which report none)
+    /// and its tooltip the window's title.
+    fn update_progress_ui(&mut self) {
+        let progress = if self.working_tasks > 0 { 0 } else { -1 };
+        let title = self.state.title.clone();
+        if let Some(tray) = &mut self.tray {
+            tray.set_tooltip(&if progress >= 0 { format!("{title} - 0.0%") } else { title });
+        }
+        self.update_tray_icon(progress);
+    }
+
+    /// `TaskManager.UpdateTrayIcon`: the progress icon at `progress` %, or
+    /// the app's icon at -1.
+    fn update_tray_icon(&mut self, progress: i32) {
+        let s = &self.settings.settings;
+        if !s.TrayIconProgressEnabled || !s.ShowTray || self.tray_progress == progress {
+            return;
+        }
+        if let Some(tray) = &mut self.tray {
+            let size = tray::Tray::icon_size();
+            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::app_icon(size) };
+            tray.set_icon(&image);
+        }
+        self.tray_progress = progress;
     }
 }
 
@@ -327,6 +665,16 @@ impl App {
     /// failed" message box if any failed (`ShowFailedHotkeys` holds startup
     /// until it's closed).
     fn start(&mut self, event_loop: &ActiveEventLoop) {
+        // `new DesktopTrayIconService(…, ApplicationInfo.TitleShort, ShowTray)`.
+        let proxy = self.proxy.clone();
+        let callback: tray::Callback = Arc::new(move |e| {
+            let _ = proxy.send_event(UserEvent::Tray(e));
+        });
+        match tray::Tray::new("ShareXrs", self.settings.settings.ShowTray, callback) {
+            Ok(t) => self.tray = Some(t),
+            Err(e) => eprintln!("couldn't add the tray icon: {e}"),
+        }
+        self.refresh_menus();
         self.hotkeys.repeat_limit = Duration::from_millis(self.settings.settings.hotkey_repeat_limit() as u64);
         let disabled = self.settings.settings.DisableHotkeys;
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
@@ -474,18 +822,114 @@ impl App {
     /// Captures and tools hook in here as they're ported; until then the
     /// job is logged.
     fn run_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType, task: TaskSettings) {
+        if job == HotkeyType::None {
+            return;
+        }
         eprintln!("job: {} ({})", job.name(), task.display_name());
+        if let Some(capture) = CaptureJob::from_hotkey(&job) {
+            self.capture(capture, task, false);
+            return;
+        }
         match job {
-            HotkeyType::RectangleRegion => self.capture_region(task, false),
             HotkeyType::DisableHotkeys => self.toggle_hotkeys(),
-            HotkeyType::OpenMainWindow => {
-                if let Some(w) = &self.main {
-                    w.window.set_minimized(false);
-                    w.window.focus_window();
+            HotkeyType::OpenMainWindow => self.show_main_window(event_loop),
+            HotkeyType::ToggleTrayMenu => self.toggle_tray_menu(event_loop),
+            HotkeyType::ExitShareX => self.exit(event_loop),
+            _ => {}
+        }
+    }
+
+    /// `TaskHelpers.ExecuteJob(HotkeyType)`: a job with the default task
+    /// settings, as the tray icon's click actions run them.
+    fn run_default_job(&mut self, event_loop: &ActiveEventLoop, job: HotkeyType) {
+        let defaults = &self.settings.settings.DefaultTaskSettings;
+        let task = defaults.safe_task_settings(defaults);
+        self.run_job(event_loop, job, task);
+    }
+
+    /// `DesktopTrayIconService.OnMouseUp` / `OnMouseDown` and the main
+    /// window's `OnTrayIconRightButtonDown` / `Up`.
+    fn tray_event(&mut self, event_loop: &ActiveEventLoop, event: TrayEvent) {
+        use tray::Button;
+        match event {
+            TrayEvent::Down(Button::Right) => self.tray_menu = None,
+            TrayEvent::Down(_) => {}
+            TrayEvent::Up(Button::Right) => self.toggle_tray_menu(event_loop),
+            TrayEvent::Up(Button::Middle) => {
+                let job = self.settings.settings.TrayMiddleClickAction.clone();
+                self.run_default_job(event_loop, job);
+            }
+            TrayEvent::Up(Button::Left) => {
+                let s = &self.settings.settings;
+                if s.TrayLeftDoubleClickAction == HotkeyType::None {
+                    let job = s.TrayLeftClickAction.clone();
+                    self.run_default_job(event_loop, job);
+                } else {
+                    self.tray_left_clicks += 1;
+                    if self.tray_left_clicks == 1 {
+                        self.tray_click_at = Some(Instant::now() + tray_double_click_time());
+                    } else {
+                        self.tray_left_clicks = 0;
+                        self.tray_click_at = None;
+                        let job = s.TrayLeftDoubleClickAction.clone();
+                        self.run_default_job(event_loop, job);
+                    }
                 }
             }
-            HotkeyType::ExitShareX => event_loop.exit(),
-            _ => {}
+            TrayEvent::Command(i) => {
+                if let Some(command) = self.tray_entries.commands.get(i).cloned() {
+                    self.menu_command(event_loop, command, true);
+                }
+            }
+        }
+    }
+
+    /// `OnSingleClickTimerTick`: one click and no second within the
+    /// double click time.
+    fn tray_click_timer(&mut self, event_loop: &ActiveEventLoop) {
+        if self.tray_click_at.is_some_and(|at| at <= Instant::now()) {
+            self.tray_click_at = None;
+            if self.tray_left_clicks == 1 {
+                self.tray_left_clicks = 0;
+                let job = self.settings.settings.TrayLeftClickAction.clone();
+                self.run_default_job(event_loop, job);
+            }
+        }
+    }
+
+    /// `MainWindow.ShowTrayMenu`: closes the menu when it's open, else opens
+    /// it at the pointer.
+    fn toggle_tray_menu(&mut self, event_loop: &ActiveEventLoop) {
+        if self.tray_menu.take().is_some() {
+            return;
+        }
+        if cfg!(not(windows)) {
+            // The native menu opens from the icon itself.
+            return;
+        }
+        self.refresh_menus();
+        self.state.menu_state.uploads_enabled = !self.state.uploads_disabled;
+        let entries = main_menu::tray_menu(&self.state.menu_state);
+        let screens = sharex_capture::screenshot::screens();
+        let cursor = sharex_capture::screenshot::cursor_position().unwrap_or_default();
+        let open: &[usize] = if self.settings.settings.TrayAutoExpandCaptureMenu { &[0] } else { &[] };
+        let theme = self.theme();
+        let menu = match &self.gpu {
+            Some(g) => Ok(g),
+            None => Gpu::new().map(|g| &*self.gpu.insert(g)),
+        }
+        .and_then(|gpu| TrayMenu::open(event_loop, gpu, &screens, cursor, entries, theme, open));
+        match menu {
+            Ok(m) => self.tray_menu = Some(m),
+            Err(e) => eprintln!("couldn't open the tray menu: {e}"),
+        }
+    }
+
+    /// `OnTrayMenuClosed`: the settings are saved.
+    fn close_tray_menu(&mut self) {
+        self.tray_menu = None;
+        if let Err(e) = self.settings.save_all() {
+            eprintln!("couldn't save the settings: {e}");
         }
     }
 
@@ -496,6 +940,7 @@ impl App {
         self.settings.settings.DisableHotkeys = disabled;
         self.hotkeys.toggle_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         self.refresh_hotkey_tips();
+        self.refresh_menus();
         // ShareX shows this as a notification, which isn't ported yet.
         eprintln!(
             "{}",
@@ -506,6 +951,15 @@ impl App {
             }
         );
     }
+}
+
+/// The double click time the tray's left click waits for a second click.
+fn tray_double_click_time() -> Duration {
+    #[cfg(windows)]
+    return tray::double_click_time();
+    // Avalonia's `GetDoubleTapTime(Mouse)` default.
+    #[cfg(not(windows))]
+    Duration::from_millis(500)
 }
 
 fn set_theme(w: &EguiWindow, theme: egui::Theme) {
@@ -582,12 +1036,20 @@ impl ApplicationHandler<UserEvent> for App {
                 let task = hotkey.TaskSettings.safe_task_settings(defaults);
                 self.run_job(event_loop, task.Job.clone(), task);
             }
+            UserEvent::Tray(e) => self.tray_event(event_loop, e),
+            UserEvent::TaskDone => {
+                self.working_tasks = self.working_tasks.saturating_sub(1);
+                self.update_progress_ui();
+            }
         }
     }
 
     /// `ApplicationLifecycle`: the hotkey host closes (unregistering every
     /// hotkey), then `CloseSequence` saves all settings.
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        // `DisposeWindowResources`: the tray icon goes.
+        self.tray_menu = None;
+        self.tray = None;
         self.save_window_bounds();
         self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
         eprintln!("ShareX closing.");
@@ -600,7 +1062,25 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
             let outcome = region.session.window_event(event_loop, id, event);
             if !matches!(outcome, Outcome::Continue) {
-                self.finish_region_capture(outcome);
+                self.finish_region_capture(event_loop, outcome);
+            }
+            return;
+        }
+        if let Some(t) = self.transparent.as_mut().filter(|t| t.region.owns(id)) {
+            if let transparent_region::Outcome::Done(selection) = t.region.window_event(id, event) {
+                self.finish_transparent_capture(event_loop, selection);
+            }
+            return;
+        }
+        if let Some(menu) = self.tray_menu.as_mut().filter(|m| m.owns(id)) {
+            let out = menu.window_event(event);
+            if out.closed {
+                self.close_tray_menu();
+            }
+            // Entries that stay open (`StaysOpenOnClick`) run with the menu
+            // still up.
+            if let Some(command) = out.command {
+                self.menu_command(event_loop, command, true);
             }
             return;
         }
@@ -611,9 +1091,12 @@ impl ApplicationHandler<UserEvent> for App {
         if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
             self.save_window_bounds();
         }
+        if matches!(event, WindowEvent::CloseRequested) && self.main.as_ref().is_some_and(|w| w.window.id() == id) {
+            self.close_main_window(event_loop);
+            return;
+        }
         let Some(w) = self.main.as_mut().filter(|w| w.window.id() == id) else { return };
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_) => {
                 // Uploading what's dropped comes with the upload tools.
                 self.state.drop_overlay = matches!(event, WindowEvent::HoveredFile(_));
@@ -666,16 +1149,31 @@ impl ApplicationHandler<UserEvent> for App {
             d.window.window.request_redraw();
         }
         self.advance_pending_capture(event_loop);
+        self.tray_click_timer(event_loop);
+        // A due repaint is asked for once: a hidden window gets no redraw,
+        // and waiting on it would stall every timer below.
+        let now = Instant::now();
+        if let Some(w) = self.main.as_mut().filter(|w| w.repaint_at.is_some_and(|at| at <= now)) {
+            w.window.request_redraw();
+            w.repaint_at = None;
+        }
+        if let Some(m) = &mut self.tray_menu {
+            m.redraw_if_due(now);
+        }
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
-        let next = [self.main.as_ref().and_then(|w| w.repaint_at), region, pending].into_iter().flatten().min();
+        let next = [
+            self.main.as_ref().and_then(|w| w.repaint_at),
+            self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
+            region,
+            pending,
+            self.transparent_grab.as_ref().map(|g| g.0),
+            self.tray_click_at,
+        ]
+        .into_iter()
+        .flatten()
+        .min();
         match next {
-            Some(at) if at <= Instant::now() => {
-                if let Some(w) = &self.main {
-                    w.window.request_redraw();
-                }
-                event_loop.set_control_flow(ControlFlow::Wait);
-            }
             Some(at) => event_loop.set_control_flow(ControlFlow::WaitUntil(at)),
             None => event_loop.set_control_flow(ControlFlow::Wait),
         }
