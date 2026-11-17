@@ -73,8 +73,10 @@ cubics included), and strokes through `SkStroke` (round joins as conics). Each
 covered pixel keeps the blitter call that covered it (`blitAntiH`, `blitV`,
 `blitAntiH2`, `blitMask`), since the legacy blitters blend each differently.
 Paths are `SkPath`s (`AddRoundRect` keeps its conics, so the point count that
-picks the scan converter is Skia's). Only aliased path fills and dashing still
-go through tiny-skia (whose aliased scan converter and dasher are Skia's).
+picks the scan converter is Skia's). Strokes no wider than a device pixel are
+hairlines (`SkScan::AntiHairPath`), dashes are `SkDashPathEffect` over
+`SkContourMeasure`. Only aliased path fills still go through tiny-skia (whose
+aliased scan converter is Skia's).
 
 ## Every effect
 
@@ -209,8 +211,9 @@ compares per channel (premultiplied B, G, R, A, as ShareX holds them).
 defaults, labels and six small pixel cases as fixtures, so `cargo test` checks
 them without .NET.
 
-**Result: 116 of 121 cases identical, byte for byte**; 1 more within ±1 on a few
-edge pixels. (107 before the shared analytic AA, cubic clipping and `SkStroke`.)
+**Result: 117 of 121 cases identical, byte for byte**; 1 more within ±1 on a few
+edge pixels. (107 before the shared analytic AA, cubic clipping and `SkStroke`;
+116 before hairlines.)
 Per effect:
 
 | Effect | Cases | Result |
@@ -222,9 +225,9 @@ Per effect:
 | Auto crop, Canvas, Crop, Flip, Force proportions, Resize, Rotate, Scale, Skew | 25 | identical |
 | Rounded corners | 2 | identical |
 | Background, Background image, Checkerboard, Image, Particles | 13 | identical |
-| Border | 4 | 3 identical; 1 px wide: the four corner pixels' alpha (Skia draws it as a hairline) |
+| Border | 4 | identical |
 | Text (`DrawTextEx`) | 3 | default and outline + shadow identical; with a gradient fill: edge pixels ±1 (0.9%) |
-| Text watermark (`DrawText`) | 3 (incl. the default preset) | same box, position and colours; glyph pixels differ (max ~190, 4–5%) |
+| Text watermark (`DrawText`) | 3 (incl. the default preset) | box, border (a hairline), position and colours identical; glyph pixels differ (max ~190, 3–5%) |
 | A chain (Resize, Saturation, Shadow, Border, a disabled Blur) | 1 | identical |
 
 **Presets: every case's preset written back by ShareXrs equals ShareX's
@@ -235,11 +238,6 @@ the default preset and a named, disabled effect). Effect labels
 
 ### Not exact, and why
 
-- **1 px strokes**: an anti-aliased stroke no wider than a device pixel is drawn
-  as a hairline (`SkDrawTreatAsHairline`, then `SkScan::AntiHairPath`), whose line
-  ends overlap at a rectangle's corners. ShareXrs strokes it as a 1 px wide fill:
-  the sides match, the four corner pixels don't. Porting `SkScan_Antihair.cpp`
-  into `sharex-skia` would fix it here and for the editor's 1 px lines.
 - **Text watermark glyphs**: ShareX's `canvas.DrawText` rasterises glyphs through
   DirectWrite (hinted, grayscale) at whole-pixel origins; ShareXrs fills the same
   font's outlines (same file, same advances and metrics: hhea ascent/descent/gap,
@@ -253,8 +251,10 @@ the default preset and a named, disabled effect). Effect labels
   flip a truncation.
 - **Platform**: these results are against ShareX on Windows x64. ShareX on another
   CPU path (NEON, or a Skia build with HSW/FMA) differs from itself the same way.
-- Not covered by the harness: `DrawImage` with Bilinear sampling (Skia's legacy
-  bilinear `SkBitmapProcState` filter isn't ported; ShareXrs uses the pipeline's),
+- Not covered by the harness: `DrawImage` with Bilinear sampling (the legacy
+  `SkBitmapProcState` bilinear filter is ported for clamped scale-translate
+  draws, as the editor's magnifier uses it; repeat/mirror bilinear still goes
+  through the pipeline),
   `TextRenderingMode` ClearType (Skia's LCD text), and EXIF-rotated image files
   (decoded by the `image` crate's orientation, not SkCodec).
 
