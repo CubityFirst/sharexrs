@@ -9,10 +9,10 @@
 use std::sync::Mutex;
 
 use super::*;
-use crate::model::{EmojiProps, SmartEraserFillMode};
+use crate::model::EmojiProps;
 
 /// `EditorView._clipboardAnnotation`: shared by every editor (a static).
-static CLIPBOARD: Mutex<Option<(Annotation, Option<Pixmap>)>> = Mutex::new(None);
+static CLIPBOARD: Mutex<Option<Annotation>> = Mutex::new(None);
 
 /// `EditorView.ClearAnnotationClipboard`.
 pub fn clear_annotation_clipboard() {
@@ -302,53 +302,19 @@ fn unpremul(c: u32) -> u32 {
     (a << 24) | (f((c >> 16) & 0xFF) << 16) | (f((c >> 8) & 0xFF) << 8) | f(c & 0xFF)
 }
 
-/// `SmartEraserAnnotation.ConfigureFill`: matching left and right columns
-/// stretch across, else matching top and bottom rows stretch down, else
-/// the sampled colour.
-pub(super) fn configure_smart_eraser_fill(a: &mut Annotation, source: &Pixmap) {
-    let (sw, sh) = (source.width() as i32, source.height() as i32);
-    if sw <= 0 || sh <= 0 {
-        return;
-    }
-    let b = geometry::bounds(a);
-    let left = (b.l.floor() as i32).clamp(0, sw - 1);
-    let top = (b.t.floor() as i32).clamp(0, sh - 1);
-    let right = ((b.r.ceil() as i32 - 1).max(left)).clamp(0, sw - 1);
-    let bottom = ((b.b.ceil() as i32 - 1).max(top)).clamp(0, sh - 1);
-    let Kind::SmartEraser(p) = &mut a.kind else { return };
-    p.fill_mode = SmartEraserFillMode::SolidColor;
-    p.edge_pixels = None;
-    let px = |x, y| unpremul(source.pixel(x, y));
-    if (top..=bottom).all(|y| px(left, y) == px(right, y)) {
-        p.fill_mode = SmartEraserFillMode::StretchHorizontally;
-        p.edge_pixels = Some((top..=bottom).map(|y| px(left, y)).collect());
-        return;
-    }
-    if (left..=right).all(|x| px(x, top) == px(x, bottom)) {
-        p.fill_mode = SmartEraserFillMode::StretchVertically;
-        p.edge_pixels = Some((left..=right).map(|x| px(x, top)).collect());
-    }
-}
-
 impl Workspace {
-    /// The pixels of an image annotation (inserted image, clone, cursor).
+    /// The pixels of an image annotation (inserted image, clone).
     pub fn image(&self, id: &str) -> Option<&Pixmap> {
-        self.images.get(id)
+        let i = self.find(id)?;
+        match &self.annotations[i].kind {
+            Kind::Image(p) => p.bitmap.as_deref(),
+            _ => None,
+        }
     }
 
     /// What the host has been asked to do since the last call.
     pub fn take_requests(&mut self) -> Vec<Request> {
         std::mem::take(&mut self.requests)
-    }
-
-    /// `WindowsCursorBitmapRenderer.CreateAnnotationBitmap` for the Cursor
-    /// tool: the host's system cursors (without it the tool draws nothing).
-    pub fn set_cursor_bitmaps(&mut self, f: CursorBitmaps) {
-        self.cursor_bitmap = Some(f);
-    }
-
-    pub(super) fn cursor_bitmap_of(&self, t: &CursorType) -> Option<Pixmap> {
-        self.cursor_bitmap.as_ref().and_then(|f| f(t))
     }
 
     // Clipboard.
@@ -358,10 +324,8 @@ impl Workspace {
         CLIPBOARD.lock().unwrap().is_some()
     }
 
-    fn selected_clone(&self) -> Option<(Annotation, Option<Pixmap>)> {
-        let a = self.selected()?.clone();
-        let img = self.images.get(&a.common.id).cloned();
-        Some((a, img))
+    fn selected_clone(&self) -> Option<Annotation> {
+        self.selected().cloned()
     }
 
     /// `CopyAnnotationCommand` (Ctrl+Shift+C): the selected annotation to the
@@ -385,22 +349,22 @@ impl Workspace {
     /// `PasteInternalShape`: the copied annotation again, 20px further, and
     /// selected.
     pub fn paste_annotation(&mut self) -> bool {
-        let Some((a, img)) = CLIPBOARD.lock().unwrap().clone() else { return false };
-        self.add_clone(a, img);
+        let Some(a) = CLIPBOARD.lock().unwrap().clone() else { return false };
+        self.add_clone(a);
         true
     }
 
     /// `DuplicateSelectedAnnotation` (Ctrl+D).
     pub fn duplicate_selected(&mut self) -> bool {
-        let Some((a, img)) = self.selected_clone() else { return false };
-        self.add_clone(a, img);
+        let Some(a) = self.selected_clone() else { return false };
+        self.add_clone(a);
         true
     }
 
     /// A clone offset by 20px (`OffsetClonedAnnotation`), added and
     /// selected. ShareX keeps the clone's `Id`; ids name annotations here,
     /// so it gets a new one.
-    fn add_clone(&mut self, mut a: Annotation, img: Option<Pixmap>) {
+    fn add_clone(&mut self, mut a: Annotation) {
         self.commit_text();
         const OFFSET: f32 = 20.0;
         let shift = |p: Point| Point::new(p.x + OFFSET, p.y + OFFSET);
@@ -416,9 +380,6 @@ impl Workspace {
         }
         a.common.id = self.new_id();
         let id = a.common.id.clone();
-        if let Some(img) = img {
-            self.images.insert(id.clone(), img);
-        }
         self.annotations_memento(false);
         self.annotations.push(a);
         self.history_changed();
@@ -573,9 +534,10 @@ impl Workspace {
         a.common.start_point = sk(at);
         a.common.end_point = sk((at.0 + pm.width() as f64, at.1 + pm.height() as f64));
         a.common.id = self.new_id();
+        if let Kind::Image(p) = &mut a.kind {
+            p.set_image(pm);
+        }
         let id = a.common.id.clone();
-        self.images.insert(id.clone(), pm);
-        log_unrendered(&a);
         self.annotations_memento(false);
         self.annotations.push(a);
         self.history_changed();
@@ -604,9 +566,10 @@ impl Workspace {
         a.common.start_point = sk(pos);
         a.common.end_point = sk((pos.0 + pm.width() as f64, pos.1 + pm.height() as f64));
         a.common.id = self.new_id();
+        if let Kind::Image(p) = &mut a.kind {
+            p.set_image(pm);
+        }
         let id = a.common.id.clone();
-        self.images.insert(id.clone(), pm);
-        log_unrendered(&a);
         self.annotations_memento(false);
         self.annotations.push(a);
         self.history_changed();
@@ -622,7 +585,9 @@ impl Workspace {
         let a = &mut self.annotations[i];
         let s = a.common.start_point;
         a.common.end_point = Point::new(s.x + pm.width() as f32, s.y + pm.height() as f32);
-        self.images.insert(id.to_string(), pm);
+        if let Kind::Image(p) = &mut a.kind {
+            p.set_image(pm);
+        }
         self.history_changed();
     }
 
@@ -638,7 +603,6 @@ impl Workspace {
         a.common.end_point = sk((at.0 + EMOJI_SIZE, at.1 + EMOJI_SIZE));
         a.common.id = self.new_id();
         let id = a.common.id.clone();
-        log_unrendered(&a);
         self.annotations_memento(false);
         self.annotations.push(a);
         self.history_changed();
@@ -657,10 +621,11 @@ impl Workspace {
         self.history_changed();
     }
 
-    /// A cursor annotation of `pm` (the pointer's image) with its top-left
-    /// at `at`, not counted as an edit: what region capture inserts for a
-    /// shown pointer (`InsertWorkspaceImageAnnotation`-style, unselected).
-    pub fn insert_cursor_annotation(&mut self, cursor_type: CursorType, pm: Pixmap, at: P) -> String {
+    /// A cursor annotation with its top-left at `at`, sized to the
+    /// cursor image, not counted as an edit: what region capture inserts
+    /// for a shown pointer.
+    pub fn insert_cursor_annotation(&mut self, cursor_type: CursorType, at: P) -> Option<String> {
+        let pm = render::cursor::cursor_bitmap(&cursor_type)?;
         let mut a = Annotation::new("Cursor").expect("Cursor");
         if let Kind::Cursor(c) = &mut a.kind {
             c.cursor_type = cursor_type;
@@ -669,11 +634,9 @@ impl Workspace {
         a.common.end_point = sk((at.0 + pm.width() as f64, at.1 + pm.height() as f64));
         a.common.id = self.new_id();
         let id = a.common.id.clone();
-        self.images.insert(id.clone(), pm);
-        log_unrendered(&a);
         self.annotations.push(a);
         self.changed();
-        id
+        Some(id)
     }
 
     /// `SampleCanvasColor`: `#RRGGBB` of the image with its annotations at
@@ -948,13 +911,5 @@ impl Workspace {
             }
         }
         RightClick::ContextMenu
-    }
-}
-
-/// Image, emoji, cursor and smart eraser annotations aren't rendered yet
-/// (`render` draws nothing for them).
-pub(super) fn log_unrendered(a: &Annotation) {
-    if matches!(a.kind, Kind::Image(_) | Kind::Emoji(_) | Kind::Cursor(_) | Kind::SmartEraser(_)) {
-        eprintln!("image editor: {} annotations aren't rendered yet (drawn as nothing)", a.kind.type_name());
     }
 }

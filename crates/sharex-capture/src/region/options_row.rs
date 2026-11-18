@@ -232,7 +232,7 @@ fn items(ui: &Ui, v: &Visible, s: &ToolState) -> Vec<(OptionItem, f32)> {
     push(v.arrow_style, O::ArrowStyle, dropdown(tw(arrow_style_name(&s.arrow_style)) + 6.0 + 52.0).clamp(80.0, 160.0));
     // The text, then the cursor's 24px preview with 8px margins (the
     // preview, `WindowsCursorBitmapRenderer`, isn't drawn yet).
-    push(v.cursor_type, O::CursorType, dropdown(tw(&format!("{:?}", s.cursor_type)) + 6.0 + 40.0).clamp(90.0, 180.0));
+    push(v.cursor_type, O::CursorType, dropdown(tw(cursor_type_name(&s.cursor_type)) + 6.0 + 40.0).clamp(90.0, 180.0));
     push(v.font_size, O::FontSize, dropdown(tw(&font_size_text(s.font_size)) + 6.0).max(70.0));
     push(v.text_style, O::Bold, BUTTON);
     push(v.text_italic, O::Italic, BUTTON);
@@ -450,7 +450,11 @@ pub fn paint(
             }
             OptionItem::CursorType => {
                 button_frame(painter, p, rect, over, false, scale);
-                text(ui, painter, cx, rect, &format!("{:?}", s.cursor_type), p.text_secondary, scale);
+                let name = cursor_type_name(&s.cursor_type);
+                text(ui, painter, cx, rect, name, p.text_secondary, scale);
+                let tw = widgets::text_width(ui, name, egui::FontId::new(12.0 * scale, text_font().family));
+                let pr = Rect::from_min_size(pos2(cx + tw + 8.0 * scale, rect.center().y - 12.0 * scale), vec2(24.0, 24.0) * scale);
+                cursor_preview(ui, painter, pr, &s.cursor_type);
                 chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::FontSize => {
@@ -569,6 +573,28 @@ pub fn cursor_type_name(c: &CursorType) -> &'static str {
         C::WaitCursor => ie::CursorTypeDisplayNameConverter_WaitCursor(),
         _ => ie::CursorTypeDisplayNameConverter_Default(),
     }
+}
+
+/// `CursorTypePreviewBitmapConverter` (`GetPreviewBitmap(type, 28)`) in a
+/// 24px `Image` with `Stretch="Uniform"`: the cursor fitted in 24 of a 28px
+/// canvas, centred, the canvas shown at 24.
+pub fn cursor_preview(ui: &Ui, painter: &egui::Painter, rect: Rect, t: &CursorType) {
+    let Some(bmp) = sharex_image_editor::render::cursor::cursor_bitmap(t) else { return };
+    let key = format!("cursor-preview-{t:?}");
+    let tex = ui.ctx().data_mut(|d| d.get_temp::<egui::TextureHandle>(egui::Id::new(&key))).unwrap_or_else(|| {
+        let mut rgba = Vec::with_capacity(bmp.pixels().len() * 4);
+        for c in bmp.pixels() {
+            rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, *c as u8, (c >> 24) as u8]);
+        }
+        let img = egui::ColorImage::from_rgba_premultiplied([bmp.width() as usize, bmp.height() as usize], &rgba);
+        let tex = ui.ctx().load_texture(key.clone(), img, egui::TextureOptions::LINEAR);
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(&key), tex.clone()));
+        tex
+    });
+    let (w, h) = (bmp.width() as f32, bmp.height() as f32);
+    let fit = (24.0 / w).min(24.0 / h) * (rect.width() / 28.0);
+    let r = Rect::from_center_size(rect.center(), vec2(w, h) * fit);
+    painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
 }
 
 /// `ArrowStylePreviewGeometryConverter`: a 36x14 arrow of `style` (1.75px,

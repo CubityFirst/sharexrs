@@ -2,7 +2,6 @@
 //! `EditorInputController` (the tools' gestures), `EditorSelectionController`
 //! (selection, handles, hover outlines) and `EditorView`'s keys.
 
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use sharex_skia::Pixmap;
@@ -257,9 +256,6 @@ pub enum Request {
     ReplaceEmoji { id: String },
 }
 
-/// The host's system cursor images (`WindowsCursorBitmapRenderer`).
-pub type CursorBitmaps = Box<dyn Fn(&CursorType) -> Option<Pixmap>>;
-
 /// What a right button press did (`OnCanvasPointerPressed`).
 #[derive(Clone, Debug, PartialEq)]
 pub enum RightClick {
@@ -298,16 +294,11 @@ pub struct Workspace {
     version: u64,
     cache: render::Cache,
     composite: Option<(u64, Pixmap)>,
-    /// The pixels of image annotations (inserted images, clones, cursors,
-    /// emoji), by annotation id: `ImageAnnotation.SetImage`.
-    images: HashMap<String, Pixmap>,
     /// The crop being drawn or waiting for confirmation, the cut out or
     /// clone region being drawn.
     region: Option<ops::RegionDraw>,
     crop: Option<ops::PendingCrop>,
     requests: Vec<Request>,
-    /// `WindowsCursorBitmapRenderer.CreateAnnotationBitmap`, from the host.
-    cursor_bitmap: Option<CursorBitmaps>,
     /// The workspace is region capture's (`_isWorkspaceHostMode`).
     pub host_mode: bool,
     /// `ShowTaskButtons`: Enter continues the task.
@@ -366,11 +357,9 @@ impl Workspace {
             version: 0,
             cache: render::Cache::default(),
             composite: None,
-            images: HashMap::new(),
             region: None,
             crop: None,
             requests: Vec::new(),
-            cursor_bitmap: None,
             host_mode: false,
             task_buttons: false,
             continue_workflow: false,
@@ -384,7 +373,6 @@ impl Workspace {
         self.source = source;
         self.cache = render::Cache::default();
         self.annotations.clear();
-        self.images.clear();
         self.history.reset();
         self.selected = None;
         self.hovered = None;
@@ -499,17 +487,19 @@ impl Workspace {
     }
 
     /// `GetSnapshot(Rect)`: the image pixels in `(x, y, w, h)` with the
-    /// annotations, no selection chrome.
+    /// annotations, no selection chrome, rendered as ShareX's region capture
+    /// renders it (`render::render_region_cached`).
     pub fn snapshot(&mut self, x: u32, y: u32, w: u32, h: u32) -> Pixmap {
         self.commit_text();
-        let pm = if self.annotations.is_empty() { self.source.clone() } else { self.composite().clone() };
-        let mut out = Pixmap::new(w, h);
-        for row in 0..h {
-            for col in 0..w {
-                *out.pixel_mut(col as i32, row as i32) = pm.pixel((x + col) as i32, (y + row) as i32);
-            }
-        }
-        out
+        let rect = (x as f64, y as f64, w as f64, h as f64);
+        render::render_region_cached(&self.source, &self.annotations, rect, &mut self.cache).unwrap_or_else(|| Pixmap::new(w, h))
+    }
+
+    /// `GetSnapshot()`: the whole image with its annotations, as the
+    /// editor window exports it (`render::render`).
+    pub fn export(&mut self) -> Pixmap {
+        self.commit_text();
+        if self.annotations.is_empty() { self.source.clone() } else { self.composite().clone() }
     }
 
     // History.
@@ -1433,19 +1423,15 @@ impl Workspace {
         a.common.stroke_width = 0.0;
         a.common.start_point = sk(p);
         a.common.end_point = sk(p);
-        ops::configure_smart_eraser_fill(&mut a, &self.source);
-        ops::log_unrendered(&a);
+        super::editor_core::configure_smart_eraser_fill(&mut a, &self.source);
         a
     }
 
-    /// The Cursor tool's start: the cursor's image at the point, or nothing
-    /// without one.
+    /// The Cursor tool's start: the cursor's image (`CreateAnnotationBitmap`)
+    /// at the point, or nothing without one.
     fn new_cursor(&mut self, p: P) -> Option<Annotation> {
         let ct = self.tools.cursor_type.clone();
-        let Some(pm) = self.cursor_bitmap_of(&ct) else {
-            eprintln!("image editor: no cursor image for {ct:?} (the Cursor tool draws nothing)");
-            return None;
-        };
+        let pm = render::cursor::cursor_bitmap(&ct)?;
         let mut a = Annotation::new("Cursor").expect("Cursor");
         if let Kind::Cursor(c) = &mut a.kind {
             c.cursor_type = ct;
@@ -1453,8 +1439,6 @@ impl Workspace {
         a.common.start_point = sk(p);
         a.common.end_point = sk((p.0 + pm.width() as f64, p.1 + pm.height() as f64));
         a.common.id = self.new_id();
-        self.images.insert(a.common.id.clone(), pm);
-        ops::log_unrendered(&a);
         Some(a)
     }
 
@@ -1544,7 +1528,7 @@ impl Workspace {
                 let (r, b) = ((left + w).clamp(0.0, cw), (top + h).clamp(0.0, ch));
                 a.common.start_point = sk((l, t));
                 a.common.end_point = sk((l.max(r), t.max(b)));
-                ops::configure_smart_eraser_fill(a, &self.source);
+                super::editor_core::configure_smart_eraser_fill(a, &self.source);
             }
             _ => {
                 a.common.start_point = sk((left, top));

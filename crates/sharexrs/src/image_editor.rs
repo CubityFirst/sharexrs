@@ -320,8 +320,7 @@ impl EditorWindow {
 
     /// `GetSnapshot()`: the image with its annotations.
     fn snapshot(&mut self) -> RgbaImage {
-        let (w, h) = self.ws.size();
-        rgba_of(&self.ws.snapshot(0, 0, w, h))
+        rgba_of(&self.ws.export())
     }
 
     // Commands.

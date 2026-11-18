@@ -332,9 +332,9 @@ impl Popups {
                 OptionItem::CursorType => {
                     let cur = ws.tools.cursor_type.clone();
                     if let Some(v) = list(ui, p, inner.shrink(8.0), id, &CURSOR_TYPES, |v| *v == cur, |painter, r, v, fg| {
-                        // The cursor's 24px preview (`CursorTypePreviewBitmap`)
-                        // isn't drawn yet.
                         text_left(ui, painter, r, options_row::cursor_type_name(v), 14.0, fg);
+                        let pr = Rect::from_min_size(pos2(r.max.x - 8.0 - 24.0, r.center().y - 12.0), vec2(24.0, 24.0));
+                        options_row::cursor_preview(ui, painter, pr, v);
                     }) {
                         ws.set_option(|s, t| s.set_cursor_type(v, t));
                         close = true;

@@ -139,10 +139,11 @@ fn lines_snap_to_45_degrees_and_get_end_handles() {
 fn the_composite_renders_and_the_snapshot_crops() {
     let mut w = ws();
     drag(&mut w, (10.0, 10.0), (60.0, 60.0), Mods::NONE);
-    let full = render::render(w.source(), w.annotations());
+    let region = render::render_region(w.source(), w.annotations(), (5.0, 5.0, 100.0, 80.0)).unwrap();
     let snap = w.snapshot(5, 5, 100, 80);
-    assert_eq!(snap.pixel(5, 5), full.pixel(10, 10));
-    assert_eq!(snap.pixel(99, 79), full.pixel(104, 84));
+    assert_eq!(snap, region);
+    let full = render::render(w.source(), w.annotations());
+    assert_eq!(&w.export(), &full);
 }
 
 fn none(_: Key, _: Mods) -> Option<EditorTool> {
