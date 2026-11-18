@@ -354,18 +354,6 @@ pub fn rgba_of(pm: &Pixmap) -> RgbaImage {
     out
 }
 
-#[cfg(test)]
-mod rgba_tests {
-    #[test]
-    fn unpremultiplies_as_sharex_copies() {
-        // Premultiplied RGBA, the two corner pixels of ShareX's copy.
-        let pm = sharex_skia::Pixmap::from_premul_rgba(2, 1, &[120, 4, 75, 120, 232, 0, 150, 240]);
-        let img = super::rgba_of(&pm);
-        assert_eq!(img.get_pixel(0, 0).0, [255, 8, 159, 120]);
-        assert_eq!(img.get_pixel(1, 0).0, [247, 0, 159, 240]);
-    }
-}
-
 impl EditorWindow {
     /// `new EditorWindow(options)` with `LoadImage(bitmap)`: the task's
     /// `ImageEditorOptions`, `ShowTaskButtons`, `UseContinueWorkflow =
@@ -2787,5 +2775,17 @@ impl crate::App {
             Some(img) => self.open_image_editor(event_loop, Some(img), Some(path.to_path_buf()), task, None),
             None => eprintln!("Image editor: couldn't load {}", path.display()),
         }
+    }
+}
+
+#[cfg(test)]
+mod rgba_tests {
+    #[test]
+    fn unpremultiplies_as_sharex_copies() {
+        // Premultiplied RGBA, the two corner pixels of ShareX's copy.
+        let pm = sharex_skia::Pixmap::from_premul_rgba(2, 1, &[120, 4, 75, 120, 232, 0, 150, 240]);
+        let img = super::rgba_of(&pm);
+        assert_eq!(img.get_pixel(0, 0).0, [255, 8, 159, 120]);
+        assert_eq!(img.get_pixel(1, 0).0, [247, 0, 159, 240]);
     }
 }
