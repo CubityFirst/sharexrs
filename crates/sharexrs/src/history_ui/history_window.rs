@@ -802,7 +802,8 @@ impl HistoryWindow {
         cb.show(ui, Rect::from_min_size(pos2(inner_x, y + 4.0), vec2(cbw, 32.0)), Id::new("history-adv-type"), &mut self.advanced.filter_type);
         changed |= before != self.advanced.filter_type;
         let items: Vec<ComboItem> = self.types.iter().map(ComboItem::text).collect();
-        let cw = combo_width(ui, &combo, &items, s::HistoryWindows_All_types());
+        // No selection: sized to the placeholder.
+        let cw = combo_width(ui, &combo, &[], s::HistoryWindows_All_types());
         let cr = Rect::from_min_size(pos2(inner_x + cbw + 8.0, y), vec2(cw, 40.0));
         if let Some(i) = combo.show(ui, cr, Id::new("history-adv-type-combo"), &items, self.advanced.type_index) {
             self.advanced.type_index = Some(i);
@@ -960,7 +961,7 @@ fn date_picker(ui: &Ui, rect: Rect, date: DateTime) {
     let d = date.naive();
     use chrono::Datelike;
     let texts = [d.day().to_string(), culture.month_names[d.month() as usize - 1].clone(), d.year().to_string()];
-    let widths = [78.0, 138.0, 78.0];
+    let widths = [78.0, 137.0, 78.0];
     let f = controls::content_font(13.0, 400);
     let lh = line_height(ui, &f);
     let mut x = rect.min.x + 1.0;
