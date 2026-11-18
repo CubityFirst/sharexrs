@@ -605,7 +605,13 @@ impl EditorWindow {
                 self.notify_task(ie::MainViewModel_ImageIsUploading(), icon::CloudUpload);
                 self.close_after_task_action();
             }
-            Command::Print => self.effects.push(Effect::NotPorted("Image editor: Print")),
+            Command::Print => {
+                // `PrintImageRequested` → `TaskHelpers.PrintImage`.
+                if self.has_image {
+                    let img = self.snapshot();
+                    self.effects.push(Effect::PrintImage(img));
+                }
+            }
             Command::ToggleToolbars => self.toolbars_hidden = !self.toolbars_hidden,
             Command::Continue => self.finish(true),
             Command::Exit => {

@@ -108,6 +108,18 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             Box::new(super::clipboard_upload::ClipboardUploadWindow::with_content(content, task, !o.viewer_only))
         }
         "drop-window" => Box::new(super::drop_window::DropWindow::new(&ApplicationConfig::default(), task)),
+        // `--image`: the image to print (a flat colour by default).
+        "print-window" | "print-preview" => {
+            let img = match &o.image {
+                Some(p) => image::open(p).map_err(|e| e.to_string())?.to_rgba8(),
+                None => image::RgbaImage::from_pixel(640, 400, image::Rgba([40, 120, 200, 255])),
+            };
+            if name == "print-preview" {
+                Box::new(super::print_window::PrintPreview::new(img, crate::print::PrintSettings::default()))
+            } else {
+                Box::new(super::print_window::PrintWindow::new(img, false))
+            }
+        }
         "multi-upload" => {
             let files = (0..o.count.max(11)).map(|i| PathBuf::from(format!("{i}.png"))).collect();
             Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::MultiUpload { files, task: Box::new(task) }))
@@ -274,6 +286,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "shorten-url"
             | "clipboard-upload"
             | "drop-window"
+            | "print-window"
+            | "print-preview"
             | "multi-upload"
             | "large-file"
             | "before-upload"

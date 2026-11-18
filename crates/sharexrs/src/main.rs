@@ -49,6 +49,7 @@ mod task_settings_window;
 mod task_view;
 mod tasks;
 mod test_pattern;
+mod print;
 mod thumbnail;
 mod toolbar_editor;
 mod transparent_region;

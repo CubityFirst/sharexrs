@@ -18,6 +18,7 @@ pub mod custom_uploaders;
 pub mod destination_settings;
 pub mod drop_window;
 pub mod layout;
+pub mod print_window;
 pub mod qr_code;
 pub mod render;
 pub mod response;
@@ -168,6 +169,10 @@ pub enum Effect {
     /// `TaskHelpers.PinToScreen(image, taskSettings)` (the image editor's
     /// Pin to screen).
     PinImage(RgbaImage, Box<TaskSettings>),
+    /// `TaskHelpers.PrintImage`: the Print window, or straight to the
+    /// printer (`DontShowPrintSettingsDialog`).
+    PrintImage(RgbaImage),
+
     /// The pin options window saved (`ApplyOptions` on that pin).
     PinOptionsSaved(WindowId, Box<sharex_tools::pin::PinToScreenOptions>),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -368,6 +373,16 @@ pub struct DialogWindow {
 }
 
 impl App {
+    /// `TaskHelpers.PrintImage`.
+    pub(crate) fn print_image(&mut self, event_loop: &ActiveEventLoop, image: RgbaImage) {
+        let s = &self.settings.settings;
+        if s.DontShowPrintSettingsDialog {
+            print_window::print_in_background(image, crate::print::PrintSettings::from_json(&s.PrintSettings));
+        } else {
+            self.open_dialog_window(event_loop, Box::new(print_window::PrintWindow::new(image, false)));
+        }
+    }
+
     /// Opens `dialog` in a window of its own (`Window.Show()`).
     pub(crate) fn open_dialog_window(&mut self, event_loop: &ActiveEventLoop, dialog: Box<dyn Dialog>) {
         if let Some(key) = dialog.single()
@@ -590,6 +605,8 @@ impl App {
                 Effect::HighlighterOptions(o) => self.highlighter_options_changed(*o),
                 Effect::PinFrom(source) => self.pin_from(event_loop, id, source),
                 Effect::PinImage(image, task) => self.pin_image(event_loop, image, None, &task),
+                Effect::PrintImage(image) => self.print_image(event_loop, image),
+
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
