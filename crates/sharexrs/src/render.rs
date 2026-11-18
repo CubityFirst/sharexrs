@@ -316,6 +316,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--files" => dialog.files = val()?.split(',').map(std::path::PathBuf::from).collect(),
             "--count" => dialog.count = val()?.parse().map_err(|_| "--count N")?,
             "--viewer-only" => dialog.viewer_only = true,
+            "--db" => dialog.db = Some(val()?.into()),
+            "--state" => dialog.state = Some(val()?),
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -336,6 +338,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
             dialog.clicks = click.clone();
             dialog.width = width;
             dialog.height = height;
+            dialog.select = select.clone();
+            dialog.context = context;
+            dialog.open = open.clone();
+            dialog.scroll = scroll;
             crate::dialogs::render::render(s, &dialog)?
         }
         "main-tasks" => render_tasks(TaskScene {

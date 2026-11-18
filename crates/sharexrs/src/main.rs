@@ -15,6 +15,7 @@ mod capture_job;
 mod controls_gallery;
 mod dialogs;
 mod history;
+mod history_ui;
 mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
@@ -22,6 +23,7 @@ mod menu_settings;
 mod main_window;
 mod message_box;
 mod ocr;
+mod ocr_window;
 mod recording;
 mod region_render;
 mod region_session;
@@ -392,6 +394,19 @@ impl App {
                 self.show_custom_uploader_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_History`, `_ImageHistory`, `_Stats`.
+            Action::Nav(13, _) => {
+                self.show_history(event_loop);
+                return;
+            }
+            Action::Nav(14, _) => {
+                self.show_image_history(event_loop);
+                return;
+            }
+            Action::Nav(15, _) => {
+                self.show_stats(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -457,6 +472,8 @@ impl App {
             MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
             MenuCommand::DestinationSettings => self.show_destination_settings(event_loop, None),
             MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
+            MenuCommand::History => self.show_history(event_loop),
+            MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -1034,6 +1051,8 @@ impl App {
             HotkeyType::OpenMainWindow => self.show_main_window(event_loop),
             HotkeyType::ToggleTrayMenu => self.toggle_tray_menu(event_loop),
             HotkeyType::ExitShareX => self.exit(event_loop),
+            HotkeyType::OpenHistory => self.show_history(event_loop),
+            HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
             _ => {}
         }
     }

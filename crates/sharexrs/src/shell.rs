@@ -161,3 +161,59 @@ fn select_in_folder(path: &Path) -> Result<(), String> {
 fn recycle(path: &Path) -> Result<(), String> {
     std::fs::remove_file(path).map_err(|e| e.to_string())
 }
+
+/// `NativeMethods.GetFileThumbnail`: the shell's thumbnail of a file
+/// (`IShellItemImageFactory.GetImage` with `SIIGBF_RESIZETOFIT`, so no
+/// larger than `width` x `height`), read as `WindowsImageInterop.FromHBitmap`
+/// does (32 bpp top-down, then made opaque). `None` elsewhere or when the
+/// shell has none.
+#[cfg(windows)]
+pub fn file_thumbnail(path: &Path, width: u32, height: u32) -> Option<image::RgbaImage> {
+    use windows::Win32::Foundation::SIZE;
+    use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
+    use windows::Win32::UI::Shell::{IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_RESIZETOFIT};
+    use windows::core::HSTRING;
+    use windows_sys::Win32::Graphics::Gdi::{
+        BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC,
+    };
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let factory: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None).ok()?;
+        let hbitmap = factory.GetImage(SIZE { cx: width as i32, cy: height as i32 }, SIIGBF_RESIZETOFIT).ok()?;
+        let handle = hbitmap.0 as windows_sys::Win32::Graphics::Gdi::HBITMAP;
+        let mut bm: BITMAP = std::mem::zeroed();
+        let read = GetObjectW(handle, std::mem::size_of::<BITMAP>() as i32, &mut bm as *mut _ as *mut _);
+        let result = (read > 0 && bm.bmWidth > 0 && bm.bmHeight > 0).then(|| {
+            let (w, h) = (bm.bmWidth as u32, bm.bmHeight as u32);
+            let mut info: BITMAPINFO = std::mem::zeroed();
+            info.bmiHeader = BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w as i32,
+                biHeight: -(h as i32),
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB,
+                biSizeImage: w * h * 4,
+                ..std::mem::zeroed()
+            };
+            let mut buf = vec![0u8; (w * h * 4) as usize];
+            let dc = GetDC(std::ptr::null_mut());
+            let lines = GetDIBits(dc, handle, 0, h, buf.as_mut_ptr() as *mut _, &mut info, DIB_RGB_COLORS);
+            ReleaseDC(std::ptr::null_mut(), dc);
+            (lines == h as i32).then(|| {
+                for px in buf.chunks_exact_mut(4) {
+                    px.swap(0, 2);
+                    px[3] = 255;
+                }
+                image::RgbaImage::from_raw(w, h, buf)
+            })
+        });
+        DeleteObject(handle as _);
+        result.flatten().flatten()
+    }
+}
+
+#[cfg(not(windows))]
+pub fn file_thumbnail(_path: &Path, _width: u32, _height: u32) -> Option<image::RgbaImage> {
+    None
+}
