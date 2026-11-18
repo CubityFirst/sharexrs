@@ -11,7 +11,7 @@ use sharex_ui::{Palette, palette, widgets};
 
 use super::{RegionCapture, ResizeNode, options_row, toolbar};
 use crate::geometry::{PointF, Rect as RectI, RectF};
-use sharex_image_editor::editor::{self as ed, Outline};
+use sharex_image_editor::editor as ed;
 
 /// What the magnifier picture shows: the pixel, size, count and scale.
 type MagnifierKey = (i32, i32, i32, i32, u32);
@@ -86,7 +86,7 @@ fn dash_cover(d0: f64, d1: f64, offset: f64) -> f64 {
 /// (image pixels, on the line's centre), black, then white dashes offset
 /// by 3, each pixel as much as the line and its dash cover it. `start` is
 /// the distance along the path at `a`.
-fn dashed_axis_line(painter: &egui::Painter, m: &Mapper, a: (f64, f64), b: (f64, f64), start: f64) {
+pub(crate) fn dashed_axis_line(painter: &egui::Painter, m: &Mapper, a: (f64, f64), b: (f64, f64), start: f64) {
     let vertical = (a.0 - b.0).abs() < 1e-9;
     let len = if vertical { (b.1 - a.1).abs() } else { (b.0 - a.0).abs() };
     if len <= 0.0 {
@@ -149,16 +149,38 @@ pub fn halo(accent: Color32) -> Color32 {
     if ratio(l, 0.0) >= ratio(l, 1.0) { Color32::BLACK } else { Color32::WHITE }
 }
 
-/// Converts screenshot pixels to this window's points.
+/// Converts screenshot (image) pixels to this window's points.
 pub struct Mapper {
     /// The window's top-left corner in screenshot pixels.
     pub origin: (f64, f64),
     pub ppp: f32,
+    /// Physical pixels per image pixel (the editor's zoom; 1 in region
+    /// capture).
+    pub scale: f64,
+    /// Where `origin` is, in points.
+    pub offset: Pos2,
 }
 
 impl Mapper {
+    /// Image pixels 1:1 with physical pixels, `origin` at the window's
+    /// top-left corner.
+    pub fn new(origin: (f64, f64), ppp: f32) -> Self {
+        Self { origin, ppp, scale: 1.0, offset: Pos2::ZERO }
+    }
+
     pub fn pos(&self, x: f64, y: f64) -> Pos2 {
-        pos2(((x - self.origin.0) as f32) / self.ppp, ((y - self.origin.1) as f32) / self.ppp)
+        pos2(
+            self.offset.x + (((x - self.origin.0) * self.scale) as f32) / self.ppp,
+            self.offset.y + (((y - self.origin.1) * self.scale) as f32) / self.ppp,
+        )
+    }
+
+    /// The image point at `p` (points).
+    pub fn image_pos(&self, p: Pos2) -> (f64, f64) {
+        (
+            self.origin.0 + ((p.x - self.offset.x) * self.ppp) as f64 / self.scale,
+            self.origin.1 + ((p.y - self.offset.y) * self.ppp) as f64 / self.scale,
+        )
     }
 
     pub fn rect(&self, x: f64, y: f64, w: f64, h: f64) -> Rect {
@@ -213,7 +235,7 @@ fn dashes(painter: &egui::Painter, m: &Mapper, (x0, y0): (f64, f64), len: f64, v
 /// Fills `r` exactly, with no anti-aliasing feather: these rects are whole
 /// pixels with their coverage already in the colour, and egui's feathering
 /// would blur 1px rects (a half-covered dash end came out fully covered).
-fn pixel_rect(painter: &egui::Painter, r: Rect, color: Color32) {
+pub(crate) fn pixel_rect(painter: &egui::Painter, r: Rect, color: Color32) {
     let mut mesh = egui::Mesh::default();
     mesh.add_colored_rect(r, color);
     painter.add(mesh);
@@ -251,7 +273,7 @@ pub fn pixel_cross(painter: &egui::Painter, m: &Mapper, color: Color32, cx: f64,
 
 /// A `Border` label: padding 7,4, 5px corners, main background, 1px
 /// border, 12px SemiBold text. Returns its size for `text`.
-fn label_size(ui: &egui::Ui, text: &str) -> egui::Vec2 {
+pub(crate) fn label_size(ui: &egui::Ui, text: &str) -> egui::Vec2 {
     let font = widgets::font(12.0, 600);
     let lines: Vec<&str> = text.lines().collect();
     let w = lines.iter().map(|l| widgets::text_width(ui, l, font.clone())).fold(0.0, f32::max);
@@ -259,7 +281,7 @@ fn label_size(ui: &egui::Ui, text: &str) -> egui::Vec2 {
     vec2(w + 2.0 * (7.0 + 1.0), h + 2.0 * (4.0 + 1.0))
 }
 
-fn paint_label(ui: &egui::Ui, p: &Palette, rect: Rect, text: &str, centred: bool) {
+pub(crate) fn paint_label(ui: &egui::Ui, p: &Palette, rect: Rect, text: &str, centred: bool) {
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(5), p.background_main);
     painter.rect_stroke(rect, CornerRadius::same(5), Stroke::new(1.0, p.border), StrokeKind::Inside);
@@ -286,7 +308,7 @@ impl RegionCapture {
         let ppp = ctx.pixels_per_point();
         let painter = ui.painter().clone();
         let sb = self.screen_bounds;
-        let m = Mapper { origin: ((view.monitor.x - sb.x) as f64, (view.monitor.y - sb.y) as f64), ppp };
+        let m = Mapper::new(((view.monitor.x - sb.x) as f64, (view.monitor.y - sb.y) as f64), ppp);
         let accent = p.accent_start;
         let halo = halo(accent);
 
@@ -376,87 +398,21 @@ impl RegionCapture {
             }
         }
 
-        self.paint_editor_chrome(&painter, &m);
+        self.paint_editor_chrome(ui, &painter, &m);
         if self.region_tool_active {
             self.paint_hud(ui, view, &m, &p, ppp);
         }
         self.paint_toolbar(ui, view, &p, ppp, now);
     }
 
-    /// The editor's selection chrome (`OverlayCanvas`): the hovered shape's
-    /// dashed outline, the selected one's handles and rotation line, the
-    /// text box being typed in.
-    fn paint_editor_chrome(&self, painter: &egui::Painter, m: &Mapper) {
+    /// The editor's selection chrome (`OverlayCanvas`).
+    fn paint_editor_chrome(&self, ui: &egui::Ui, painter: &egui::Painter, m: &Mapper) {
         let Some(e) = &self.editor else { return };
         if self.region_tool_active {
             return;
         }
-        match e.outline() {
-            Some(Outline::Rectangle { rect: (l, t, w, h), angle: 0.0, center }) => {
-                // `Rectangle` with a 1px stroke: its path half a pixel in,
-                // clockwise from the top-left corner.
-                let (x0, y0, x1, y1) = (l + 0.5, t + 0.5, l + w - 0.5, t + h - 0.5);
-                let mut d = 0.0;
-                for (a, b) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))] {
-                    dashed_axis_line(painter, m, a, b, d);
-                    d += (b.0 - a.0).abs() + (b.1 - a.1).abs();
-                }
-                let _ = center;
-            }
-            Some(Outline::Rectangle { rect: (l, t, w, h), angle, center }) => {
-                let corners = [(l, t), (l + w, t), (l + w, t + h), (l, t + h), (l, t)];
-                let pts: Vec<Pos2> =
-                    corners.iter().map(|c| ed::geometry::rotate_point(*c, center, angle)).map(|c| m.pos(c.0, c.1)).collect();
-                dashed_poly(painter, &pts);
-            }
-            Some(Outline::Ellipse { rect: (l, t, w, h) }) => {
-                let (cx, cy, rx, ry) = (l + w / 2.0, t + h / 2.0, (w - 1.0) / 2.0, (h - 1.0) / 2.0);
-                let pts: Vec<Pos2> = (0..=96)
-                    .map(|i| {
-                        let a = std::f64::consts::TAU * i as f64 / 96.0 - std::f64::consts::FRAC_PI_2;
-                        m.pos(cx + rx * a.cos(), cy + ry * a.sin())
-                    })
-                    .collect();
-                dashed_poly(painter, &pts);
-            }
-            Some(Outline::Polyline(points)) => {
-                let pts: Vec<Pos2> = points.iter().map(|p| m.pos(p.0, p.1)).collect();
-                dashed_poly(painter, &pts);
-            }
-            None => {}
-        }
-        let (handles, line) = e.handles();
-        if let Some((a, b)) = line {
-            if (a.0 - b.0).abs() < 1e-9 || (a.1 - b.1).abs() < 1e-9 {
-                dashed_axis_line(painter, m, a, b, 0.0);
-            } else {
-                dashed_poly(painter, &[m.pos(a.0, a.1), m.pos(b.0, b.1)]);
-            }
-        }
-        for h in handles {
-            paint_node(painter, m, h.at);
-        }
-        if let Some(b) = e.text_edit().and_then(ed::text_box) {
-            // The `TextBox` (ShareX's style): control background, a border,
-            // 4px corners, the text plain in its colour, and the caret.
-            let p = palette(painter.ctx());
-            let (l, t, w, h) = b.rect;
-            let rect = m.rect(l, t, w, h);
-            painter.rect_filled(rect, CornerRadius::same(4), p.control_background);
-            painter.rect_stroke(rect, CornerRadius::same(4), Stroke::new(2.0 / m.ppp, p.border), StrokeKind::Inside);
-            let c = sharex_image_editor::render::parse_color(&b.color);
-            let color = Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
-            let weight = if b.bold { 700 } else { 400 };
-            let font = egui::FontId::new(b.font_size as f32 / m.ppp, sharex_ui::widgets::font(12.0, weight).family);
-            let text = e.text_edit().map(|t| t.text.clone()).unwrap_or_default();
-            for (i, line) in text.split('\n').enumerate() {
-                let g = painter.layout_no_wrap(line.to_string(), font.clone(), color);
-                let at = m.pos(b.text_origin.0, b.text_origin.1 + i as f64 * b.line_height);
-                painter.galley(at, g, color);
-            }
-            let caret_top = b.text_origin.1 + b.caret.1 as f64 * b.line_height;
-            painter.rect_filled(m.rect(b.caret.0, caret_top, 1.0, b.line_height), 0.0, color);
-        }
+        let p = palette(painter.ctx());
+        crate::editor_chrome::paint(ui, painter, &p, m, e, false);
     }
 
     /// The magnifier with the pointer's position under it, and the
@@ -620,7 +576,7 @@ impl RegionCapture {
 
 /// Black then white 1px dashes, 3 on 3, along `pts` (egui's dashes: for
 /// the outlines Skia would draw anti-aliased off the pixel grid).
-fn dashed_poly(painter: &egui::Painter, pts: &[Pos2]) {
+pub(crate) fn dashed_poly(painter: &egui::Painter, pts: &[Pos2]) {
     if pts.len() < 2 {
         return;
     }
