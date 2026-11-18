@@ -96,9 +96,13 @@ dropped, audio discontinuities and the encoder.
   final path only when it completed (aborts and restarts never touch an
   existing file).
 
-**Not ported.** It's Windows-only by design (WGC, D3D11, MF, WASAPI). The
-macOS/Linux equivalents are snapr's (ScreenCaptureKit/xcap +
-AVFoundation, PipeWire/wlr-screencopy + FFmpeg; `docs/MACOS-LEARNINGS.md`,
+**Ported but its capture** (§10, `crates/sharex-native-recorder`): the
+worker, the encoders, the GPU path, the camera overlay, the GIF writer and
+the mixer match ShareX's output; Windows Graphics Capture, the WASAPI
+devices and the camera's source reader wait for a desktop session. It's
+Windows-only by design (WGC, D3D11, MF, WASAPI). The macOS/Linux
+equivalents are snapr's (ScreenCaptureKit/xcap + AVFoundation,
+PipeWire/wlr-screencopy + FFmpeg; `docs/MACOS-LEARNINGS.md`,
 `G:/scripts/snapr/src/record.rs`, `encode/`).
 
 ## 3. The FFmpeg recorder
@@ -361,13 +365,12 @@ encoding, a 32-bit Windows.
 
 ### Not ported yet
 
-- The native recorder (§2), which is ShareX's default: ShareXrs records
-  with FFmpeg when `ScreenRecordUseNative` is on too, logs "ShareX's native
-  screen recorder isn't ported yet: recording with FFmpeg instead.", keeps
-  the frame out of captures as ShareX does for the native recorder
-  (`ExcludeFromCapture = useNative`), and shows the FFmpeg recorder bar. Its
-  GIFs come from palettegen, not the adaptive encoder; no WASAPI loopback,
-  no camera overlay.
+- The native recorder's capture (§10): FFmpeg grabs the screen for it;
+  no sound (WASAPI) and no camera overlay yet. Outside Windows,
+  `ScreenRecordUseNative` records with FFmpeg ("ShareX's native screen
+  recorder is Windows only: recording with FFmpeg instead.").
+- The native recorder bar's parts (System audio, Microphone, Camera and
+  their options, bitrate): the bar shows its FFmpeg variant for both.
 - The mouse highlighter during recording, and the bar's Mouse highlighter
   options panel (it opens with its title and says so; Task settings › Mouse
   highlighter has the options).
@@ -462,3 +465,93 @@ the download over the network.
 5. The finished path → a file task in `tasks.rs` (the task list shows it;
    video thumbnails are still missing there), then the after upload
    tasks.
+
+## 10. ShareXrs: `crates/sharex-native-recorder`
+
+ShareX.ScreenRecordingLib (§2), ported but for the capture itself, which
+sits behind traits until a desktop session can port and check it.
+
+| Module | Ports |
+|---|---|
+| `options` | `RecordingOptions` (defaults, `Validate` with ShareX's messages, `IsGif` by .NET's `Path.GetExtension`), `VideoEncoderInfo`, `RecordingResult`, `CameraCaptureInfo` |
+| `clock` | `RecordingClock` (pause/resume/stop, `TryMap`) on a `TimeSource`: QPC, or a virtual clock for tests |
+| `signals` | the worker's `stop`/`begin`/`changed` events and `FrameTimer` (a `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` timer, `WaitForMultipleObjects`) |
+| `recorder` | `ScreenRecorder`: `PrepareAsync`, `StartAsync`, `Pause`, `Resume(region)` (same output size), `RequestStop`, `RequestAbort`, `Completion`, `Diagnostic`, `EncodingProgressChanged`, and `Run` line by line (the reserved output, first-frame wait and 10 s timeout, frame slots on the media clock with late slots dropped as discontinuities, the pause loop and retargeting, camera cadence and its 10 s timeout, audio 50 ms behind, the GIF queue's immediate retry, cleanup) |
+| `mixer` | `AudioMixer` (windowed-sinc drift correction, dead band, repositioning, the 2 s ring, clipping) with ShareX's `float`/`double` arithmetic; `WriteAudioUntil` |
+| `audio` | `WasapiCapture.Drain` (discontinuity, timestamp error and silent flags, gains) and its capture thread over `AudioEndpoint`s; `SyntheticEndpoint` (tone/chirp packets, drift, flags) |
+| `source` | `FrameSource`/`CaptureSources` in `GraphicsCapture`'s place (`Update`, `HasFrame`, `LatestTimestamp`, `HasEnded`, `Retarget`), `GetTargets`' size rules; `SyntheticSource` |
+| `ffmpeg_source` | a frame source that has FFmpeg grab the screen (gdigrab, raw BGRA on a pipe, the newest frame kept with its QPC time; `-draw_mouse` = `IncludeCursor`); `GetTargets`' first monitor for the adapter |
+| `camera` | `CameraOverlay.GetBounds`, `CameraSource`/`CameraDevices` in `CameraCapture`'s place (mode, stride, matrix, range; frames as contiguous buffers), `SyntheticCamera` |
+| `gif` | `GifWriter`: the deflated frame cache beside the output (hidden, delete on close), the two passes (`AdaptiveGifQuantizer` palette, changed rectangles, borrowed transparent index), cumulative centisecond delays, progress; ShareX.HelpersLib's quantizer and LZW are `sharex_tools::gif` |
+| `media` | the encoders a recording drives (`Media`), and a CPU canvas with the GIF writer (tests, and recorded MP4 calls) |
+| `windows` | `GraphicsDevice` (adapter of the recorded monitor), `GpuVideoProcessor` (canvas, BT.709 limited NV12 by the video processor, scaling, camera as a second stream or copied in), `VideoTexturePool` (eight NV12 textures, `IMFTrackedSample` with a release callback), `MediaFoundationWriter` (H.264 Main, HEVC Main past 4096 wide/4096x2304 or H.264 downscaled by `FitSize`; AAC-LC 48 kHz stereo from 16-bit PCM; the sink writer's attributes; `ICodecAPI` low latency, no B-frames; the encoder MFT's name, hardware and D3D11 flags; `RequireHardwareEncoder`), `CameraOverlay` and `CameraCircleShader` (the HLSL compiled by `d3dcompiler_47`) |
+| `session` | `ScreenRecordManager`'s native worker (`RecordNativeAsync`): options from the task's settings, prepare during the countdown, rebuild after the waiting frame moved, the frame's stop/abort/restart and in-process pause/resume, the `<name>-recording-<guid>` file moved over the final path when complete |
+
+### Validation
+
+Against ShareX's own `ShareX.ScreenRecordingLib.dll` headlessly
+(`tools/native-recorder-harness`, README there): ShareX's internal classes
+and the port are given the same synthetic frames (moving box, scroll,
+noise; duplicates; dropped slots; odd sizes), camera frames (NV12, YUY2,
+RGB32 bottom-up; rectangle and circle in every corner) and sound (one or
+two sources, gains, jitter, ±500/800 ppm drift, gaps, discontinuities,
+silent and NaN packets). **50/50 outputs match**: every GIF (9), composited
+camera frame set (3), mixer PCM stream (8), NV12 encoder input (7) and
+JSON report (16) byte-identical; every MP4 (7) identical but the
+container's creation times, or (one with two AAC sources) the chunk
+interleaving, which ShareX's own runs vary on too: every sample of every
+track, the codec configuration, timing tables and decoded media are the
+same. On an RTX 4080 with NVIDIA's H.264/HEVC encoder MFTs.
+
+`cargo test -p sharex-native-recorder`: the worker on virtual time (frames
+on the grid with contiguous audio, pause and move, dropped slots, abort,
+stop before start, never overwriting a file, a closed window, GIF end to
+end), the session (pause/stop, abort, restart, errors), the mixer, packets,
+GIF writer, camera bounds, options; on Windows the whole recorder on the
+real clock with the GPU and Media Foundation (MP4 with sound, GIF; skipped
+without a D3D11 video device) and with FFmpeg's `testsrc` through the
+FFmpeg frame source (`SHAREXRS_TEST_FFMPEG`).
+
+### In the app
+
+`recording/native.rs`: on Windows, `ScreenRecordUseNative` records with
+`run_native_session`: `prepare_native_recording` (ShareX's native rules,
+plus FFmpeg's presence while it grabs the screen), the frame with
+`UseInProcessPause` (its timer stops and restarts in process) and
+`ExcludeFromCapture`, ShareX's "ShareX" error box, GIF encoding progress on
+the frame's tray icon. The recording is the region (an active window
+recording records the window's rectangle), FFmpeg's gdigrab draws the
+pointer when `ScreenRecordShowCursor`; sound, the camera overlay and HDR
+tone mapping are left out with a log line. Not checked live (the desktop
+belongs to another agent): only through the session tests and the FFmpeg
+source test above.
+
+### Left for a desktop session
+
+- **Windows Graphics Capture** (`GraphicsCapture.cs`): one session per
+  monitor the region touches or the window (`CreateForWindow`), the frame
+  pool, `MinUpdateInterval`, cursor capture, borderless access, `Closed`,
+  `Retarget`; the WinRT device (`CreateDirect3D11DeviceFromDXGIDevice`);
+  `MonitorColorInfo` and `HdrToneMapShader` for HDR monitors. It plugs in
+  as a `FrameSource` whose `update` copies into the GPU canvas (the
+  `Canvas` trait would need the D3D11 texture for that).
+- **WASAPI devices** (`WasapiCapture.Open`/`Run`, `AudioCaptureDevices`):
+  loopback in a hidden session, the microphone through `IAudioClient3`'s
+  low-latency period with the fallback, event-driven drains, MMCSS; as an
+  `AudioEndpoint`. The packet handling and mixer are ported and checked.
+- **The camera** (`CameraCapture.cs`, `CameraCaptureDevices`): the source
+  reader's mode choice and scoring, MJPEG/H.264 decoding, DXGI samples on
+  the same adapter (the overlay only takes memory frames yet), failures.
+- The native recorder bar (audio, camera and bitrate parts) and the
+  device lists in Task settings.
+
+### Untested
+
+Software H.264 (Windows picks the GPU's encoder whenever there is one;
+`RequireHardwareEncoder` off only allows it), other GPUs' video processors
+(the NV12 conversion is the driver's, so another GPU may differ from
+ShareX on that GPU only if the port drives it differently), HEVC fallback
+to downscaled H.264 (needs a GPU without HEVC), the camera's
+video-processor composition fallback (GPU copies), multi-monitor adapters,
+the FFmpeg frame source against the real screen, and every non-Windows
+path (the crate builds there; the recorder isn't used).
