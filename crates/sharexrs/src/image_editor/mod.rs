@@ -378,7 +378,7 @@ impl EditorWindow {
             bg_key: String::new(),
             bring_into_view: None,
             bar: Vec::new(),
-            emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos() / 1000) % 10 == 0,
+            emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_micros()).is_multiple_of(10),
         };
         w.apply_toolbar_items();
         w.title = w.window_title();
