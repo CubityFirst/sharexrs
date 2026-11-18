@@ -185,6 +185,7 @@ impl App {
         }
         self.init_task_view_settings();
         self.refresh_menus();
+        self.apply_update_settings();
     }
 
     fn settings_effects(&mut self, event_loop: &ActiveEventLoop, effects: Vec<Effect>) {

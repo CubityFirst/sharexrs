@@ -4299,6 +4299,7 @@ dependencies = [
  "sharex-settings",
  "sharex-strings",
  "sharex-ui",
+ "sharex-update",
  "sharex-uploaders",
  "windows",
  "windows-sys 0.61.2",

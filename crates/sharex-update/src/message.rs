@@ -80,6 +80,35 @@ impl UpdateMessage {
     }
 }
 
+/// The About window's update panel (`AboutWindow`): shown unless
+/// `DisableUpdateCheck`, "Checking for updates..." while the check runs,
+/// then the result. The window isn't ported yet; this is what it shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AboutUpdate {
+    /// `UpdatePanel.IsVisible = false`.
+    Hidden,
+    /// `UpdateStatusText` (with the progress ring while checking).
+    Text { text: &'static str, checking: bool },
+    /// `UpdateAvailableButton`: opens the update message (`StartAsync`).
+    Button(&'static str),
+}
+
+impl AboutUpdate {
+    /// Before and after `CheckUpdateAsync` (`status` is `None` while it runs).
+    pub fn new(disable_update_check: bool, status: Option<UpdateStatus>) -> Self {
+        use sharex_strings::sharex as x;
+        if disable_update_check {
+            return AboutUpdate::Hidden;
+        }
+        match status {
+            None | Some(UpdateStatus::None) => AboutUpdate::Text { text: x::AboutWindow_CheckingForUpdates(), checking: true },
+            Some(UpdateStatus::UpdateCheckFailed) => AboutUpdate::Text { text: x::AboutWindow_UpdateCheckFailed(), checking: false },
+            Some(UpdateStatus::UpdateAvailable) => AboutUpdate::Button(x::AboutWindow_NewVersionAvailable()),
+            Some(UpdateStatus::UpToDate) => AboutUpdate::Text { text: x::AboutWindow_UpToDate(), checking: false },
+        }
+    }
+}
+
 /// `BuildMessage`.
 pub fn build_message(checker: &GitHubUpdateChecker) -> String {
     let mut text = String::new();
@@ -142,5 +171,19 @@ mod tests {
         c.status = UpdateStatus::UpdateAvailable;
         assert!(UpdateMessage::should_show(Some(&c)));
         assert!(!UpdateMessage::should_show(None));
+    }
+
+    #[test]
+    fn about_panel() {
+        assert_eq!(AboutUpdate::new(true, None), AboutUpdate::Hidden);
+        assert_eq!(AboutUpdate::new(false, None), AboutUpdate::Text { text: "Checking for updates...", checking: true });
+        assert_eq!(
+            AboutUpdate::new(false, Some(UpdateStatus::UpdateCheckFailed)),
+            AboutUpdate::Text { text: "Update check failed.", checking: false }
+        );
+        assert_eq!(
+            AboutUpdate::new(false, Some(UpdateStatus::UpdateAvailable)),
+            AboutUpdate::Button("A newer version of ShareX is available")
+        );
     }
 }

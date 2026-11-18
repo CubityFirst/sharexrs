@@ -15,6 +15,7 @@ sharex-image-effects.workspace = true
 sharex-history.workspace = true
 sharex-ocr.workspace = true
 sharex-uploaders.workspace = true
+sharex-update.workspace = true
 sharex-screen-recording.workspace = true
 # .NET regex substitutions for the after upload URL replace, as sharex-uploaders uses it.
 fancy-regex = "0.11"

@@ -40,6 +40,7 @@ mod thumbnail;
 mod transparent_region;
 mod tray;
 mod tray_menu;
+mod update;
 mod upload;
 mod window;
 
@@ -81,6 +82,8 @@ pub enum UserEvent {
     Ui(upload::UiRequest),
     /// The screen recording's worker or tray icon.
     Recording(recording::Event),
+    /// The automatic update check found an update.
+    Update(update::UpdateEvent),
 }
 
 fn main() {
@@ -99,6 +102,8 @@ fn main() {
         }
         return;
     }
+    // What an earlier update left behind (the replaced app or files).
+    sharex_update::install::init();
     // `Program.Run`: where the profile is, then the settings
     // (`SettingManager.LoadInitialSettings`), before any window.
     let system = SystemOptions::read();
@@ -130,6 +135,7 @@ fn main() {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
     let uploads = upload::app::Uploads::load(&settings);
+    let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,
         main: None,
@@ -169,6 +175,7 @@ fn main() {
         recording: None,
         ffmpeg_options: None,
         ffmpeg_download: None,
+        updates,
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -194,6 +201,8 @@ enum DialogPurpose {
     ClearCustomUploaders,
     /// FFmpeg is missing (`CheckFFmpeg`): Yes downloads it.
     DownloadFFmpeg(std::path::PathBuf),
+    /// The downloaded installer isn't signed: Yes runs it anyway.
+    UpdateSignature,
 }
 
 struct App {
@@ -265,6 +274,8 @@ struct App {
     ffmpeg_options: Option<recording::ffmpeg_options::FFmpegOptionsHost>,
     /// FFmpeg being downloaded.
     ffmpeg_download: Option<recording::ffmpeg_options::Download>,
+    /// `ApplicationState.UpdateManager`.
+    updates: update::Updates,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -846,6 +857,8 @@ impl App {
             Err(e) => eprintln!("couldn't add the tray icon: {e}"),
         }
         self.refresh_menus();
+        // `ApplicationSettingsRuntime.InitializeAsync`: the update manager too.
+        self.apply_update_settings();
         self.hotkeys.repeat_limit = Duration::from_millis(self.settings.settings.hotkey_repeat_limit() as u64);
         let disabled = self.settings.settings.DisableHotkeys;
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
@@ -932,6 +945,11 @@ impl App {
         } else if let DialogPurpose::DownloadFFmpeg(path) = &dialog.purpose {
             if result == DialogResult::Yes {
                 self.download_ffmpeg(path.clone());
+            }
+        } else if matches!(dialog.purpose, DialogPurpose::UpdateSignature) {
+            if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("update-downloader")) {
+                d.dialog.answered(result == DialogResult::Yes);
+                d.window.window.request_redraw();
             }
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
             && result == DialogResult::Yes
@@ -1255,6 +1273,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Ui(request) => self.ui_request(event_loop, request),
             UserEvent::Recording(event) => self.recording_event(event_loop, event),
+            UserEvent::Update(event) => self.update_event(event_loop, event),
         }
     }
 
