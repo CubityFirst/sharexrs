@@ -288,24 +288,96 @@ impl SftpSession {
         Ok(!base.stop_requested())
     }
 
-    /// `DownloadFileAsync(path, stream)`: `OPEN` (read), `READ`s until
-    /// the end, `CLOSE`.
-    pub fn download_file(&mut self, path: &str, out: &mut dyn std::io::Write) -> Result<(), SftpError> {
-        let p = self.canonical_path(path)?;
-        let handle = self.client.open(&p, PF_READ)?;
-        let chunk = self.max_packet.saturating_sub(13).max(1);
-        let mut offset = 0u64;
-        while let Some(data) = self.client.read(&handle, offset, chunk)? {
-            out.write_all(&data).map_err(|e| SftpError::Ssh(e.to_string()))?;
-            offset += data.len() as u64;
+    /// `GetCanonicalPathAsync`: `REALPATH` of the full path; when that
+    /// fails, SSH.NET's async version asks again for the same path (its
+    /// parent is joined back whole), then takes the path as is.
+    pub fn canonical_path_async(&mut self, path: &str) -> Result<String, SftpError> {
+        let full = self.full_path(path);
+        if let Some(p) = ok_or_not_found(self.client.realpath(&full))?.filter(|p| !p.is_empty()) {
+            return Ok(p);
         }
-        self.client.close_handle(&handle)
+        if full.ends_with("/.") || full.ends_with("/..") || full == "/" || !full.contains('/') {
+            return Ok(full);
+        }
+        let again = if full.is_empty() { "/".to_owned() } else { full.clone() };
+        match ok_or_not_found(self.client.realpath(&again))?.filter(|p| !p.is_empty()) {
+            None => Ok(full),
+            Some(c) => {
+                let name = full.rsplit('/').next().unwrap_or("");
+                Ok(if c.ends_with('/') { format!("{c}{name}") } else { format!("{c}/{name}") })
+            }
+        }
     }
 
-    /// `UploadFileAsync(stream, path, canOverride: true)`.
-    pub fn upload_stream(&mut self, source: &mut dyn std::io::Read, path: &str, buffer_size: usize) -> Result<(), SftpError> {
-        let p = self.canonical_path(path)?;
-        let handle = self.client.open(&p, PF_WRITE | PF_CREAT | PF_TRUNC)?;
+    /// `ListDirectoryAsync(path)` read to the end: `OPENDIR`, `READDIR`
+    /// until the end, `CLOSE` (also after an error).
+    pub fn list_directory_async(&mut self, path: &str) -> Result<Vec<DirEntry>, SftpError> {
+        self.read_directory(path, false).map(|(entries, _)| entries)
+    }
+
+    /// `SFTP.DirectoryHasItemsAsync`: stops (and closes the handle) at the
+    /// first entry that isn't `.` or `..`.
+    pub fn directory_has_items_async(&mut self, path: &str) -> Result<bool, SftpError> {
+        self.read_directory(path, true).map(|(_, found)| found)
+    }
+
+    fn read_directory(&mut self, path: &str, stop_at_item: bool) -> Result<(Vec<DirEntry>, bool), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        let handle = self.client.opendir(&full).map_err(|e| with_path(e, &full))?;
+        let mut entries = Vec::new();
+        let read = (|| -> Result<bool, SftpError> {
+            while let Some(batch) = self.client.readdir(&handle)? {
+                for e in batch {
+                    let item = e.name != "." && e.name != "..";
+                    entries.push(e);
+                    if stop_at_item && item {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        })();
+        let closed = self.client.close_handle(&handle);
+        let found = read?;
+        closed?;
+        Ok((entries, found))
+    }
+
+    /// `DownloadFileAsync(path, stream)`: `OPEN` (read), `FSTAT`, then the
+    /// `READ`s SSH.NET's read-ahead reader sends (`SftpFileReader`: a first
+    /// burst sized by the file, offsets advancing by the chunk whatever
+    /// comes back, a short read re-asked for the rest), `CLOSE`.
+    pub fn download_file_async(&mut self, path: &str, out: &mut dyn std::io::Write, buffer_size: usize) -> Result<(), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        let handle = self.client.open(&full, PF_READ).map_err(|e| with_path(e, &full))?;
+        // CalculateOptimalReadLength: SSH.NET's local packet size is 64 KiB.
+        let chunk = (buffer_size as u32).min(65536).saturating_sub(13);
+        let size = self.client.fstat(&handle).ok().and_then(|a| a.size).map(|s| s as i64).filter(|s| *s >= 0);
+        let initial = match size {
+            Some(s) => (2 + s / i64::from(chunk.max(1))).clamp(1, 100) as usize,
+            None => 1,
+        };
+        let mut reader = FileReader::new(chunk, size.map(|s| s as u64), initial);
+        let result = (|| -> Result<(), SftpError> {
+            loop {
+                let data = reader.read(&mut self.client, &handle)?;
+                if data.is_empty() {
+                    return Ok(());
+                }
+                out.write_all(&data).map_err(|e| SftpError::Ssh(e.to_string()))?;
+            }
+        })();
+        let closed = self.client.close_handle(&handle);
+        result?;
+        closed
+    }
+
+    /// `UploadFileAsync(stream, path, canOverride: true)`: `OPEN` (write,
+    /// create, truncate), `WRITE`s of the buffer size less the request's
+    /// other fields, `CLOSE`.
+    pub fn upload_file_async(&mut self, source: &mut dyn std::io::Read, path: &str, buffer_size: usize) -> Result<(), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        let handle = self.client.open(&full, PF_WRITE | PF_CREAT | PF_TRUNC).map_err(|e| with_path(e, &full))?;
         let chunk = (buffer_size.min(self.max_packet as usize)).saturating_sub(25 + handle.len()).max(1);
         let mut buffer = vec![0u8; chunk];
         let mut offset = 0u64;
@@ -321,28 +393,35 @@ impl SftpSession {
         self.client.close_handle(&handle)
     }
 
+    /// `CreateDirectoryAsync`.
+    pub fn create_directory_async(&mut self, path: &str) -> Result<(), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        self.client.mkdir(&full)
+    }
+
+    /// `RenameFileAsync`.
+    pub fn rename_async(&mut self, from: &str, to: &str) -> Result<(), SftpError> {
+        let a = self.canonical_path_async(from)?;
+        let b = self.canonical_path_async(to)?;
+        self.client.rename(&a, &b)
+    }
+
+    /// `DeleteFileAsync`.
+    pub fn delete_file_async(&mut self, path: &str) -> Result<(), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        self.client.remove(&full).map_err(|e| with_path(e, &full))
+    }
+
+    /// `DeleteDirectoryAsync`.
+    pub fn delete_directory_async(&mut self, path: &str) -> Result<(), SftpError> {
+        let full = self.canonical_path_async(path)?;
+        self.client.rmdir(&full).map_err(|e| with_path(e, &full))
+    }
+
     /// `ListDirectoryAsync` (remote storage browser).
     pub fn list_directory(&mut self, path: &str) -> Result<Vec<DirEntry>, SftpError> {
         let p = self.canonical_path(path)?;
         self.client.list_directory(&p)
-    }
-
-    /// `DeleteFileAsync`.
-    pub fn delete_file(&mut self, path: &str) -> Result<(), SftpError> {
-        let p = self.canonical_path(path)?;
-        self.client.remove(&p)
-    }
-
-    /// `DeleteDirectoryAsync`.
-    pub fn delete_directory(&mut self, path: &str) -> Result<(), SftpError> {
-        let p = self.canonical_path(path)?;
-        self.client.rmdir(&p)
-    }
-
-    /// `RenameAsync`.
-    pub fn rename(&mut self, from: &str, to: &str) -> Result<(), SftpError> {
-        let (a, b) = (self.canonical_path(from)?, self.canonical_path(to)?);
-        self.client.rename(&a, &b)
     }
 
     /// `STAT` of a path.
@@ -354,6 +433,87 @@ impl SftpSession {
     /// `Disconnect()`.
     pub fn disconnect(self) {
         self.client.close();
+    }
+}
+
+/// `GetSftpException(response, path)`: a "no such file" names the path.
+fn with_path(e: SftpError, path: &str) -> SftpError {
+    match e {
+        SftpError::Status(crate::sftp::FX_NO_SUCH_FILE, m) if !m.is_empty() => {
+            let sep = if m.ends_with('.') { " " } else { ". " };
+            SftpError::Status(crate::sftp::FX_NO_SUCH_FILE, format!("{m}{sep}Path: '{path}'."))
+        }
+        e => e,
+    }
+}
+
+/// SSH.NET's `SftpFileStream.SftpFileReader`, sequential: each `READ` is
+/// answered when sent (the server sees the same requests in the same
+/// order as with SSH.NET's pipelining).
+struct FileReader {
+    chunk: u32,
+    file_size: Option<u64>,
+    offset: u64,
+    read_ahead: u64,
+    max_requests: usize,
+    /// Sent requests by offset: their length and answer.
+    requests: std::collections::BTreeMap<u64, (u32, Result<Vec<u8>, SftpError>)>,
+}
+
+impl FileReader {
+    fn new(chunk: u32, file_size: Option<u64>, initial: usize) -> Self {
+        Self { chunk, file_size, offset: 0, read_ahead: 0, max_requests: initial, requests: Default::default() }
+    }
+
+    fn add_request(&mut self, client: &mut SftpClient, handle: &[u8], offset: u64, count: u32) {
+        let r = client.read(handle, offset, count).map(Option::unwrap_or_default);
+        self.requests.insert(offset, (count, r));
+    }
+
+    fn read(&mut self, client: &mut SftpClient, handle: &[u8]) -> Result<Vec<u8>, SftpError> {
+        while self.requests.len() < self.max_requests {
+            let (offset, chunk) = (self.read_ahead, self.chunk);
+            self.add_request(client, handle, offset, chunk);
+            self.read_ahead += u64::from(chunk);
+        }
+        let Some((count, result)) = self.requests.get(&self.offset).cloned() else {
+            return Err(SftpError::Ssh(format!("The given key '{}' was not present in the dictionary.", self.offset)));
+        };
+        let data = match result {
+            Ok(d) => d,
+            Err(e) => {
+                self.max_requests = 0;
+                return Err(e);
+            }
+        };
+        if data.is_empty() {
+            self.max_requests = 0;
+            return Ok(data);
+        }
+        self.requests.remove(&self.offset);
+        self.offset += data.len() as u64;
+        let len = data.len() as u32;
+        if len < count {
+            let next = self.offset - u64::from(len) + u64::from(count);
+            if Some(self.offset) == self.file_size && self.requests.get(&next).is_some_and(|(_, r)| matches!(r, Ok(d) if d.is_empty())) {
+                self.offset = next;
+                self.max_requests = 0;
+                return Ok(data);
+            }
+            let (offset, rest) = (self.offset, count - len);
+            self.add_request(client, handle, offset, rest);
+            if len < self.chunk {
+                self.chunk = len.max(512);
+            }
+        }
+        if self.max_requests > 0 {
+            if self.file_size.is_some_and(|s| self.read_ahead > s + u64::from(self.chunk)) {
+                self.max_requests = 1;
+            } else if self.max_requests < 100 {
+                self.max_requests += 1;
+            }
+        }
+        Ok(data)
     }
 }
 

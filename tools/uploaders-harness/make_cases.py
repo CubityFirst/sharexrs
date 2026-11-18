@@ -976,6 +976,25 @@ remote_case("remote-ftp-os400", "ftp", [{"op": "list", "path": ""}],
                 "QSYS            12288 23/02/00 15:09:55 *STMF      a file.txt",
                 "QPGMR               0 01/01/24 00:00:00 *FILE      MYLIB.FILE/",
                 "QPGMR                                   *MEM       MYLIB.FILE/MBR.MBR"]}), FTP_REMOTE)
+SFTP_FILES = {"/home/user" + k: v for k, v in FTP_FILES.items()}
+SFTP_SERVERS = {"user": "user", "password": "pass", "dirs": ["/home/user/empty"], "sftp_files": SFTP_FILES}
+SFTP_REMOTE = dict(SFTP_ACCOUNT, SubFolderPath="", HttpHomePath="files.example.com/~me")
+SFTP_BROWSE = [s for s in FTP_BROWSE if s["op"] != "upload" or s["dir"] == "docs"] + [
+    {"op": "upload", "dir": "missing", "name": "x.txt", "content_base64": b64(b"x")},
+    {"op": "upload", "dir": "", "name": "big.bin", "content_base64": b64(bytes(range(256)) * 300)},
+    {"op": "download", "item": item("big.bin")}, {"op": "rename", "item": item("empty", True), "name": "made"},
+    {"op": "rename", "item": item("made", True), "name": "renamed"}, {"op": "delete", "item": item("renamed", True)}]
+remote_case("remote-sftp-browse", "sftp", SFTP_BROWSE, SFTP_SERVERS, SFTP_REMOTE)
+remote_case("remote-sftp-no-credentials", "sftp", [{"op": "list", "path": ""}, {"op": "delete", "item": item("docs", True)}],
+            SFTP_SERVERS, dict(SFTP_REMOTE, Password=""))
+remote_case("remote-sftp-wrong-password", "sftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}],
+            SFTP_SERVERS, dict(SFTP_REMOTE, Password="nope"))
+remote_case("remote-sftp-key", "sftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")}],
+            dict(SFTP_SERVERS, authorized_key=pub("sftp_test_ed25519")), dict(SFTP_REMOTE, Password="", Keypath=KEYS + "sftp_test_ed25519"))
+remote_case("remote-sftp-failures", "sftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")},
+                                             {"op": "delete", "item": item("docs/a.txt")}, {"op": "create_folder", "dir": "docs", "name": "n"}],
+            dict(SFTP_SERVERS, sftp_fail_once=[["OPENDIR", 3, "Permission denied"], ["OPEN", 4, "Failure"], ["REMOVE", 3, "Permission denied"],
+                                               ["MKDIR", 4, "Failure"]]), SFTP_REMOTE)
 remote_case("remote-ftp-sanitize", "ftp", [{"op": "list", "path": "a%20b"}, {"op": "list", "path": "x;y"}, {"op": "list", "path": "../etc"},
                                            {"op": "download", "item": item("docs/../top.png")}], FTP_SERVERS, FTP_REMOTE)
 
