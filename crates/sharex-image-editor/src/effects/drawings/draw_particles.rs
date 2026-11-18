@@ -72,7 +72,137 @@ impl EffectImpl for DrawParticlesEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let folder = expand_environment_variables(self.image_folder.trim());
+        if is_blank(&folder) || !std::path::Path::new(&folder).is_dir() {
+            return Ok(source.clone());
+        }
+        // Directory.EnumerateFiles: the file system's order (FindFirstFile's on Windows).
+        let files: Vec<String> = match std::fs::read_dir(&folder) {
+            Ok(rd) => rd
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.extension()
+                        .and_then(|x| x.to_str())
+                        .map(|x| ["png", "jpg", "jpeg"].iter().any(|e| e.eq_ignore_ascii_case(x)))
+                        .unwrap_or(false)
+                })
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        if files.is_empty() {
+            return Ok(source.clone());
+        }
+        let mut out = if self.background { Bitmap::new(source.width(), source.height()) } else { source.clone() };
+        let mut cache: std::collections::HashMap<String, Option<Bitmap>> = std::collections::HashMap::new();
+        let mut rects: Vec<(i32, i32, i32, i32)> = Vec::new();
+        {
+            let mut canvas = Canvas::new(&mut out);
+            for _ in 0..self.image_count {
+                let file = files[random::shared(|r| r.next_range(0, files.len() as i32)) as usize].clone();
+                let key = file.to_lowercase();
+                let particle = cache.entry(key).or_insert_with(|| decode_file(&file));
+                let Some(p) = particle.as_ref() else { continue };
+                if p.width() == 0 || p.height() == 0 {
+                    continue;
+                }
+                self.draw_particle(&mut canvas, source.width() as i32, source.height() as i32, p, &mut rects);
+            }
+            if self.background {
+                canvas.draw_bitmap(source, 0.0, 0.0, None);
+            }
+        }
+        Ok(out)
+    }
+}
+
+// ---- port ----
+
+fn next_int(min: i32, max: i32) -> i32 {
+    if min == max {
+        return min;
+    }
+    let (lo, hi) = if min > max { (max, min) } else { (min, max) };
+    random::shared(|r| r.next_range(lo, hi))
+}
+
+impl DrawParticlesEffect {
+    fn draw_particle(&self, canvas: &mut Canvas, tw: i32, th: i32, particle: &Bitmap, rects: &mut Vec<(i32, i32, i32, i32)>) {
+        let (pw, ph) = (particle.width() as i32, particle.height() as i32);
+        let (width, height) = if self.random_size {
+            let size = next_int(self.random_size_min.min(self.random_size_max), self.random_size_min.max(self.random_size_max));
+            let (mut w, mut h) = (size, size);
+            if pw > ph {
+                h = (size as f64 * (ph as f64 / pw as f64)).round_ties_even() as i32;
+            } else if pw < ph {
+                w = (size as f64 * (pw as f64 / ph as f64)).round_ties_even() as i32;
+            }
+            (w, h)
+        } else {
+            (pw, ph)
+        };
+        if width < 1 || height < 1 {
+            return;
+        }
+        let min_x = if self.edge_overlap { -width + 1 } else { 0 };
+        let min_y = if self.edge_overlap { -height + 1 } else { 0 };
+        let max_x = tw - if self.edge_overlap { 0 } else { width } - 1;
+        let max_y = th - if self.edge_overlap { 0 } else { height } - 1;
+        let mut rect;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            if attempts > 1000 {
+                return;
+            }
+            let x = next_int(min_x.min(max_x), min_x.max(max_x));
+            let y = next_int(min_y.min(max_y), min_y.max(max_y));
+            rect = (x, y, x + width, y + height);
+            let o = self.no_overlap_offset;
+            let inflated = (rect.0 - o, rect.1 - o, rect.2 + o, rect.3 + o);
+            let hit = rects
+                .iter()
+                .any(|r| r.0 < inflated.2 && r.2 > inflated.0 && r.1 < inflated.3 && r.3 > inflated.1);
+            if !(self.no_overlap && hit) {
+                break;
+            }
+        }
+        rects.push(rect);
+        let mut alpha = 255;
+        if self.random_opacity {
+            let o = next_int(
+                self.random_opacity_min.min(self.random_opacity_max),
+                self.random_opacity_min.max(self.random_opacity_max),
+            )
+            .clamp(0, 100);
+            alpha = (o as f32 / 100.0 * 255.0).round_ties_even() as i32;
+        }
+        let saved = canvas.matrix;
+        if self.random_angle {
+            let mx = rect.0 as f32 + (rect.2 - rect.0) as f32 / 2.0;
+            let my = rect.1 as f32 + (rect.3 - rect.1) as f32 / 2.0;
+            let rot = next_int(
+                self.random_angle_min.min(self.random_angle_max),
+                self.random_angle_min.max(self.random_angle_max),
+            );
+            canvas.translate(mx, my);
+            canvas.rotate(rot as f32);
+            canvas.translate(-mx, -my);
+        }
+        let mut paint = Paint::shader(Shader::Color([0, 0, 0, 255]));
+        paint.anti_alias = true;
+        if alpha < 255 {
+            paint.modulate = Some([255, 255, 255, alpha as u8]);
+        }
+        canvas.draw_image_rect(
+            particle,
+            None,
+            RRect::ltrb(rect.0 as f32, rect.1 as f32, rect.2 as f32, rect.3 as f32),
+            Sampling::CatmullRom,
+            Some(&paint),
+        );
+        canvas.matrix = saved;
     }
 }

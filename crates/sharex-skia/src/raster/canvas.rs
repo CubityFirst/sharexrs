@@ -89,6 +89,9 @@ pub struct Paint<'a> {
     pub color_filter: Option<[f32; 20]>,
     /// The paint colour's alpha when a shader draws (`paint.Color = White.WithAlpha(a)`).
     pub alpha: u8,
+    /// `SKColorFilter.CreateBlendMode(color, Modulate)` (straight RGBA), after
+    /// `color_filter`.
+    pub modulate: Option<[u8; 4]>,
 }
 
 impl<'a> Paint<'a> {
@@ -100,6 +103,7 @@ impl<'a> Paint<'a> {
             anti_alias: true,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -110,6 +114,7 @@ impl<'a> Paint<'a> {
             anti_alias: false,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -127,6 +132,7 @@ impl<'a> Paint<'a> {
             anti_alias: true,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -607,11 +613,15 @@ impl<'a> Canvas<'a> {
         let dw = w as usize;
         let iw = image.width() as usize;
         // SkSpriteBlitter_Memcpy and the legacy sprite blitters need an N32 device.
-        let plain = paint.color_filter.is_none() && paint.alpha == 255 && !crate::blitter::pipeline_blitters();
+        let plain = paint.color_filter.is_none()
+            && paint.modulate.is_none()
+            && paint.alpha == 255
+            && !crate::blitter::pipeline_blitters();
         // SkSpriteBlitter::ChooseL32: src-over with a global alpha and no colour filter is
         // Sprite_D32_S32 with kGlobalAlpha (an SKBitmap is never kOpaque, so kSrcPixelAlpha
         // too): S32A_Blend_BlitRow32, SkBlendARGB32 per pixel.
         let global_alpha = paint.color_filter.is_none()
+            && paint.modulate.is_none()
             && paint.alpha != 255
             && paint.blend == Blend::SrcOver
             && !crate::blitter::pipeline_blitters();
@@ -647,15 +657,33 @@ impl<'a> Canvas<'a> {
                 } else {
                     // SkRasterPipelineSpriteBlitter: load_8888, the paint's alpha and colour
                     // filter (highp), then the pipeline blitter's blitRect.
-                    let mut c = load(s);
-                    if paint.alpha != 255 {
-                        let f = from_byte(paint.alpha);
-                        c = c.map(|v| v * f);
+                    if paint.color_filter.is_none() && !crate::blitter::pipeline_blitters() {
+                        // Lowp: load_8888, scale_1_float, the modulate filter.
+                        let mut c = s.map(u32::from);
+                        if paint.alpha != 255 {
+                            let f = lowp_from_float(from_byte(paint.alpha));
+                            c = c.map(|v| div255(v * f));
+                        }
+                        if let Some(m) = paint.modulate {
+                            let k = uniform_lowp(m);
+                            c = [0, 1, 2, 3].map(|i| div255_accurate(k[i] * c[i]));
+                        }
+                        self.blend_full(di, Px::Low(c), paint.blend)
+                    } else {
+                        let mut c = load(s);
+                        if paint.alpha != 255 {
+                            let f = from_byte(paint.alpha);
+                            c = c.map(|v| v * f);
+                        }
+                        if let Some(m) = &paint.color_filter {
+                            c = color_filter(m, c);
+                        }
+                        if let Some(m) = paint.modulate {
+                            let k = uniform_high(m);
+                            c = [0, 1, 2, 3].map(|i| k[i] * c[i]);
+                        }
+                        self.blend_full(di, Px::High(clamp_01(c)), paint.blend)
                     }
-                    if let Some(m) = &paint.color_filter {
-                        c = color_filter(m, c);
-                    }
-                    self.blend_full(di, Px::High(clamp_01(c)), paint.blend)
                 };
                 self.dst.set_px(di, out);
             }
@@ -671,7 +699,7 @@ impl<'a> Canvas<'a> {
         // An opaque solid colour turns srcover into src (and src of a constant is a memset).
         let blend = match (&paint.shader, paint.blend) {
             (Shader::Color(c), Blend::SrcOver)
-                if c[3] == 255 && paint.alpha == 255 && paint.color_filter.is_none() =>
+                if c[3] == 255 && paint.alpha == 255 && paint.color_filter.is_none() && paint.modulate.is_none() =>
             {
                 Blend::Src
             }
@@ -875,7 +903,11 @@ enum Legacy {
 }
 
 fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
-    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() || crate::blitter::pipeline_blitters() {
+    if paint.blend != Blend::SrcOver
+        || paint.color_filter.is_some()
+        || paint.modulate.is_some()
+        || crate::blitter::pipeline_blitters()
+    {
         return None;
     }
     match (&paint.shader, &sampler.kind) {
@@ -1032,6 +1064,7 @@ struct Sampler<'a> {
     kind: SamplerKind<'a>,
     alpha: Option<f32>,
     color_filter: Option<[f32; 20]>,
+    modulate: Option<[u8; 4]>,
     lowp: bool,
 }
 
@@ -1175,6 +1208,7 @@ impl<'a> Sampler<'a> {
             kind,
             alpha,
             color_filter: paint.color_filter,
+            modulate: paint.modulate,
             lowp,
         })
     }
@@ -1190,6 +1224,11 @@ impl<'a> Sampler<'a> {
                 let f = lowp_from_float(a);
                 c = c.map(|v| div255(v * f));
             }
+            if let Some(m) = self.modulate {
+                // move_src_dst, uniform_color, modulate.
+                let k = uniform_lowp(m);
+                c = [0, 1, 2, 3].map(|i| div255_accurate(k[i] * c[i]));
+            }
             Px::Low(c.map(|v| v.min(255)))
         } else {
             let mut c = match &self.kind {
@@ -1202,6 +1241,10 @@ impl<'a> Sampler<'a> {
             }
             if let Some(m) = &self.color_filter {
                 c = color_filter(m, c);
+            }
+            if let Some(m) = self.modulate {
+                let k = uniform_high(m);
+                c = [0, 1, 2, 3].map(|i| k[i] * c[i]);
             }
             Px::High(clamp_01(c))
         }

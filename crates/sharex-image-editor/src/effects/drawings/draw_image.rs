@@ -63,7 +63,74 @@ impl EffectImpl for DrawImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        use super::helpers as dh;
+        if self.opacity < 1 || (self.size_mode != DrawingImageSizeMode::DontResize && self.size.width <= 0 && self.size.height <= 0) {
+            return Ok(source.clone());
+        }
+        let path = expand_environment_variables(self.image_location.trim());
+        if is_blank(&path) || !file_exists(&path) {
+            return Ok(source.clone());
+        }
+        let Some(decoded) = decode_file(&path) else {
+            return Ok(source.clone());
+        };
+        if decoded.width() == 0 || decoded.height() == 0 {
+            return Ok(source.clone());
+        }
+        let watermark = dh::rotate_flip(&decoded, self.rotate_flip);
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let (ww, wh) = (watermark.width() as f32, watermark.height() as f32);
+        let pct = |v: i32, full: f32| (v as f32 / 100.0 * full).round_ties_even() as i32;
+        let size = match self.size_mode {
+            DrawingImageSizeMode::AbsoluteSize => dh::apply_aspect_ratio(
+                if self.size.width == -1 { sw } else { self.size.width },
+                if self.size.height == -1 { sh } else { self.size.height },
+                &watermark,
+            ),
+            DrawingImageSizeMode::PercentageOfWatermark => {
+                dh::apply_aspect_ratio(pct(self.size.width, ww), pct(self.size.height, wh), &watermark)
+            }
+            DrawingImageSizeMode::PercentageOfCanvas => {
+                dh::apply_aspect_ratio(pct(self.size.width, sw as f32), pct(self.size.height, sh as f32), &watermark)
+            }
+            DrawingImageSizeMode::DontResize => SizeI::new(watermark.width() as i32, watermark.height() as i32),
+        };
+        if size.width <= 0 || size.height <= 0 {
+            return Ok(source.clone());
+        }
+        let pos = dh::get_position(self.placement, self.offset, SizeI::new(sw, sh), size);
+        let (l, t, r, b) = (pos.x, pos.y, pos.x + size.width, pos.y + size.height);
+        if self.auto_hide && !(l >= 0 && t >= 0 && r <= sw && b <= sh) {
+            return Ok(source.clone());
+        }
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let sampling = dh::sampling(self.interpolation_mode);
+        let blend = if self.compositing_mode == DrawingCompositingMode::SourceCopy { Blend::Src } else { Blend::SrcOver };
+        let modulate = (self.opacity < 100).then(|| [255, 255, 255, (255.0 * (self.opacity as f32 / 100.0)).round_ties_even() as u8]);
+        if self.tile {
+            let mut paint = Paint::shader(Shader::Image {
+                image: &watermark,
+                matrix: Matrix::IDENTITY,
+                sampling,
+                tile_x: TileMode::Repeat,
+                tile_y: TileMode::Repeat,
+            });
+            paint.anti_alias = true;
+            paint.blend = blend;
+            paint.modulate = modulate;
+            let saved = canvas.matrix;
+            canvas.translate(l as f32, t as f32);
+            sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, (r - l) as f32, (b - t) as f32, &paint, None);
+            canvas.matrix = saved;
+        } else {
+            let mut paint = Paint::shader(Shader::Color([0, 0, 0, 255]));
+            paint.anti_alias = true;
+            paint.blend = blend;
+            paint.modulate = modulate;
+            canvas.draw_image_rect(&watermark, None, RRect::ltrb(l as f32, t as f32, r as f32, b as f32), sampling, Some(&paint));
+        }
+        drop(canvas);
+        Ok(out)
     }
 }
