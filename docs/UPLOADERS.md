@@ -355,8 +355,10 @@ Differences and gaps:
   stack trace: `e.ToString()`).
 - A destination `sharex-uploaders` doesn't have fails the task with
   "<service> isn't ported to ShareXrs yet." (ShareX would upload).
-- Not ported (logged when used): task notifications, `DoFileJobs`
-  (actions, copy file/path, show in Explorer), OCR,
+- `DoFileJobs` (actions, copy file/path/folder, show in Explorer, Scan QR
+  code) is ported and tested headlessly (`upload/tests.rs`, "File jobs");
+  the Analyze image window it would open isn't.
+- Not ported (logged when used): task notifications, OCR,
   `ProcessImagesDuringFileUpload`, index folder, history, a custom browser
   (`BrowserPath`), drag and drop onto the main window.
 - The windows (pickers, text/URL/shorten, clipboard viewer, drop window,
