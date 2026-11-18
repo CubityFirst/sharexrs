@@ -351,6 +351,24 @@ impl Workspace {
 
     /// The image changed through `EditorCore` (with its canvas memento):
     /// the effect caches go, the selection if its annotation went.
+    /// The editor's `EditorCore` as it is (the image effects' preview
+    /// starts from it: `EffectPreview::start`).
+    pub fn core(&self) -> &EditorCore {
+        &self.core
+    }
+
+    /// Commits an image effect or editor operation of the effect browser
+    /// through `EditorCore` (`effects::apply_to_core`,
+    /// `EffectPreview::apply`); the view follows when the image changed.
+    pub fn apply_effect<E>(&mut self, f: impl FnOnce(&mut EditorCore) -> Result<bool, E>) -> Result<bool, E> {
+        self.commit_text();
+        let r = f(&mut self.core);
+        if matches!(r, Ok(true)) {
+            self.image_changed();
+        }
+        r
+    }
+
     pub(super) fn image_changed(&mut self) {
         self.cache = render::Cache::default();
         if self.core.selected.as_ref().is_some_and(|id| self.find(id).is_none()) {
