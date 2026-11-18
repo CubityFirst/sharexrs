@@ -29,7 +29,17 @@ impl EffectImpl for ColorDepthImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let bits = self.bits_per_channel.clamp(1, 8);
+        if bits == 8 {
+            return Ok(source.clone());
+        }
+        let colors = 2f64.powf(bits as f64);
+        let interval = 255.0 / (colors - 1.0);
+        let remap = |c: u8| ((c as f64 / interval).round_ties_even() * interval).round_ties_even() as u8;
+        let dst: Vec<SkColor> = pixels(source)
+            .iter()
+            .map(|c| SkColor::rgba(remap(c.r), remap(c.g), remap(c.b), c.a))
+            .collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
 }

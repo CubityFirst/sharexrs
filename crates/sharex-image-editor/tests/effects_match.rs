@@ -5,11 +5,18 @@
 //! from `tools/editor-harness --effects`). Cases not listed in
 //! tests/data/effects/known.json must be identical, pixel for pixel; an
 //! effect that throws in ShareX must fail here too.
+//!
+//! The comparison runs on Windows: ShareX's results come from .NET's
+//! `MathF`/`Math`, which call the Windows C runtime (`sinf`, `powf`,
+//! `atan2f`...), and so does Rust's `f32` there; other platforms' libms
+//! round some results differently. Elsewhere every case still runs and
+//! must give ShareX's size.
 
 mod effects_runner;
 
 use effects_runner::Outcome;
 
+#[cfg(windows)]
 #[test]
 fn effects_match_sharex() {
     let known: serde_json::Value = serde_json::from_str(
@@ -28,6 +35,21 @@ fn effects_match_sharex() {
         }
     }
     assert!(failures.is_empty(), "{} cases differ:\n{}", failures.len(), failures.join("\n"));
+}
+
+#[cfg(not(windows))]
+#[test]
+fn effects_run_everywhere() {
+    let results = effects_runner::run_cases(None, None);
+    let failures: Vec<String> = results
+        .iter()
+        .filter_map(|r| match &r.outcome {
+            Outcome::Different { note, .. } if !note.is_empty() => Some(format!("{}: {note}", r.name)),
+            _ => None,
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("
+"));
 }
 
 #[test]

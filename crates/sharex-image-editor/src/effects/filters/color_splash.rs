@@ -32,7 +32,24 @@ impl EffectImpl for ColorSplashImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let target = self.target_hue as f32;
+        let tol = self.tolerance as f32;
+        let dst: Vec<SkColor> = pixels(source)
+            .iter()
+            .map(|&c| {
+                let (hue, sat, _) = c.to_hsl();
+                let mut diff = (hue - target).abs();
+                if diff > 180.0 {
+                    diff = 360.0 - diff;
+                }
+                if diff <= tol && sat > 5.0 {
+                    c
+                } else {
+                    let gray = (0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32) as u8;
+                    SkColor::rgba(gray, gray, gray, c.a)
+                }
+            })
+            .collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
 }

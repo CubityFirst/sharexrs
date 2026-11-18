@@ -38,7 +38,58 @@ impl EffectImpl for CrosshatchImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let spacing = self.line_spacing.clamp(4, 24) as f32;
+        let thickness = clampf(self.line_thickness, 0.5, 4.0);
+        let contrast = clampf(self.contrast, 50.0, 200.0) / 100.0;
+        let layers = self.layer_count.clamp(1, 6);
+        if source.is_empty() {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        let th = [0.14f32, 0.28, 0.42, 0.58, 0.74, 0.88];
+        let is_line = |value: f32| {
+            let mut m = value % spacing;
+            if m < 0.0 {
+                m += spacing;
+            }
+            m.min(spacing - m) <= (thickness * 0.5)
+        };
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let s = src[(row + x) as usize];
+                let mut lum = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                lum = clampf(((lum - 0.5) * contrast) + 0.5, 0.0, 1.0);
+                let dark = 1.0 - lum;
+                let (xf, yf) = (x as f32, y as f32);
+                let mut active = 0;
+                if layers >= 1 && dark > th[0] && is_line(((x + y) as f32 * 0.7071).abs()) {
+                    active += 1;
+                }
+                if layers >= 2 && dark > th[1] && is_line(((x - y) as f32 * 0.7071).abs()) {
+                    active += 1;
+                }
+                if layers >= 3 && dark > th[2] && is_line(yf) {
+                    active += 1;
+                }
+                if layers >= 4 && dark > th[3] && is_line(xf) {
+                    active += 1;
+                }
+                if layers >= 5 && dark > th[4] && is_line((xf * 0.5) + yf) {
+                    active += 1;
+                }
+                if layers >= 6 && dark > th[5] && is_line((xf * 0.5) - yf) {
+                    active += 1;
+                }
+                let ink = active as f32 / layers as f32;
+                let mut value = lum * (1.0 - (ink * 0.94));
+                value = clampf(value.min(lum + 0.06), 0.0, 1.0);
+                let v = clamp_to_byte(value * 255.0);
+                dst[(row + x) as usize] = SkColor::rgba(v, v, v, s.a);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }
