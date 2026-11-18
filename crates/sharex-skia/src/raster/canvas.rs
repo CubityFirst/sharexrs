@@ -434,7 +434,7 @@ impl<'a> Canvas<'a> {
         let sx = (m.sx() * stroke_width + m.kx() * stroke_width).abs();
         let sy = (m.ky() * stroke_width + m.sy() * stroke_width).abs();
         let cov = if paint.anti_alias {
-            coverage::anti_frame_rect(device, sx, sy, self.width(), self.height())
+            coverage::anti_frame_rect(device, sx, sy, self.aa_clip.as_ref(), self.width(), self.height())
         } else {
             coverage::frame_rect(device, sx, sy, self.width(), self.height())
         };
@@ -523,6 +523,48 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// `SKCanvas.DrawRoundRect(rrect)` with `SKMaskFilter.CreateBlur(Normal, sigma)`
+    /// (`SkRRect::setRectXY`, then `SkDraw::drawRRect`: the nine-patch of
+    /// `filterRRect`, or the round rect's path through the mask filter).
+    pub fn draw_round_rect_mask_blur(&mut self, rect: Rect, rx: f32, ry: f32, sigma: f32, paint: &Paint) {
+        let r = Rect::ltrb(
+            rect.left.min(rect.right),
+            rect.top.min(rect.bottom),
+            rect.left.max(rect.right),
+            rect.top.max(rect.bottom),
+        );
+        let (w, h) = (r.width(), r.height());
+        let (mut rx, mut ry) = (rx, ry);
+        if w < rx + rx || h < ry + ry {
+            let scale = (w / (rx + rx)).min(h / (ry + ry));
+            rx *= scale;
+            ry *= scale;
+        }
+        let gr = crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom);
+        let mut path = crate::Path::new();
+        if !(rx > 0.0 && ry > 0.0) || w <= 0.0 || h <= 0.0 {
+            path.add_rect(gr, crate::Direction::Cw, 0);
+            self.draw_path_mask_blur(&path, None, sigma, paint);
+            return;
+        }
+        if rx >= w * 0.5 && ry >= h * 0.5 {
+            path.add_oval(gr, crate::Direction::Cw);
+            self.draw_path_mask_blur(&path, None, sigma, paint);
+            return;
+        }
+        if !self.dst.is_empty() && self.matrix.is_scale_translate() {
+            let device = self.matrix.map_rect(r);
+            let (dx, dy) = ((self.matrix.sx() * rx).abs(), (self.matrix.sy() * ry).abs());
+            let s = self.map_radius(sigma).min(128.0);
+            if let Some(cov) = coverage::mask_blur_rrect(device, dx, dy, s, self.width(), self.height()) {
+                self.blit(&cov, paint);
+                return;
+            }
+        }
+        path.add_round_rect(gr, rx, ry, crate::Direction::Cw);
+        self.draw_path_mask_blur(&path, None, sigma, paint);
+    }
+
     /// `SkMatrix::mapRadius`: the geometric mean of the mapped axis vectors' lengths.
     fn map_radius(&self, r: f32) -> f32 {
         let m = &self.matrix;
@@ -595,7 +637,7 @@ impl<'a> Canvas<'a> {
             _ => paint.alpha = crate::hair::hairline_alpha(paint.alpha, coverage),
         }
         let device = path.transformed(&ctm);
-        let cov = coverage::anti_hair_path(&device, cap, self.width(), self.height());
+        let cov = coverage::anti_hair_path_clipped(&device, cap, self.aa_clip.as_ref(), self.width(), self.height());
         self.blit(&cov, &paint);
         true
     }

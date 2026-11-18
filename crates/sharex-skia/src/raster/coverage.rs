@@ -114,14 +114,62 @@ pub(crate) fn mask_blur_path(
 /// An anti-aliased hairline of `path` (device space) with `cap`
 /// (`SkScan::AntiHairPath` and its cap variants).
 pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {
+    anti_hair_path_clipped(path, cap, None, width, height)
+}
+
+/// The same through an anti-aliased clip (`SkAAClipBlitterWrapper`).
+pub(crate) fn anti_hair_path_clipped(
+    path: &crate::Path,
+    cap: crate::Cap,
+    aa_clip: Option<&crate::aaclip::AAClip>,
+    width: u32,
+    height: u32,
+) -> Coverage {
     let mut rec = HitRecorder {
         width: width as i32,
         height: height as i32,
         hits: Vec::new(),
     };
-    let clip = IRect::from_ltrb(0, 0, width as i32, height as i32);
-    crate::hair::anti_hair_path(path, cap, clip, &mut rec);
+    let mut clip = IRect::from_ltrb(0, 0, width as i32, height as i32);
+    match aa_clip {
+        Some(c) => {
+            // hair_path: the path's bounds, rounded out and outset for the cap;
+            // an AA clip that contains them needs no SkAAClipBlitter.
+            let out = if cap == crate::Cap::Butt { 1 } else { 2 };
+            let b = path.bounds().round_out();
+            let ib = IRect::from_ltrb(b.left - out, b.top - out, b.right + out, b.bottom + out);
+            let mut test = ib;
+            if c.is_empty() || !test.intersect(&c.bounds()) {
+                return Coverage::Hits(rec.hits);
+            }
+            if c.quick_contains(ib.left, ib.top, ib.right, ib.bottom) {
+                crate::hair::anti_hair_path(path, cap, clip, &mut rec);
+            } else {
+                if !clip.intersect(&c.bounds()) {
+                    return Coverage::Hits(rec.hits);
+                }
+                let mut blitter = crate::aaclip::AAClipBlitter { inner: &mut rec, clip: c };
+                crate::hair::anti_hair_path(path, cap, clip, &mut blitter);
+            }
+        }
+        None => crate::hair::anti_hair_path(path, cap, clip, &mut rec),
+    }
     Coverage::Hits(rec.hits)
+}
+
+/// A simple round rect (device space) through a normal blur mask filter:
+/// `SkMaskFilterBase::filterRRect`. None when Skia draws its path instead.
+pub(crate) fn mask_blur_rrect(r: Rect, rx: f32, ry: f32, sigma: f32, width: u32, height: u32) -> Option<Coverage> {
+    let mut rec = Recorder::new(width, height);
+    let clip = crate::blitter::device_clip(rec.clip());
+    if clip.is_empty() {
+        return Some(Coverage::Mask(rec.cells));
+    }
+    let rect = crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom);
+    if !crate::maskblur::filter_rrect(rect, rx, ry, sigma, clip, &mut rec) {
+        return None;
+    }
+    Some(Coverage::Mask(rec.cells))
 }
 
 /// A blitter that records every blit in order, clipped to the destination.
@@ -324,14 +372,25 @@ impl Blitter for Recorder {
 }
 
 /// `SkScan::AntiFrameRect`.
-pub(crate) fn anti_frame_rect(r: Rect, sx: f32, sy: f32, width: u32, height: u32) -> Coverage {
+pub(crate) fn anti_frame_rect(
+    r: Rect,
+    sx: f32,
+    sy: f32,
+    aa_clip: Option<&crate::aaclip::AAClip>,
+    width: u32,
+    height: u32,
+) -> Coverage {
     let mut rec = Recorder::new(width, height);
-    crate::scan::anti_frame_rect(
-        crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
-        sx,
-        sy,
-        &mut rec,
-    );
+    let gr = crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom);
+    match aa_clip {
+        Some(c) => {
+            if !c.is_empty() {
+                let mut blitter = crate::aaclip::AAClipBlitter { inner: &mut rec, clip: c };
+                crate::scan::anti_frame_rect(gr, sx, sy, &mut blitter);
+            }
+        }
+        None => crate::scan::anti_frame_rect(gr, sx, sy, &mut rec),
+    }
     Coverage::Mask(rec.cells)
 }
 

@@ -97,7 +97,71 @@ impl EffectImpl for TextWatermarkEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.font_size < 1.0 {
+            return Ok(source.clone());
+        }
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let text = super::helpers::expand_text_variables(&self.text, SizeI::new(sw, sh));
+        if is_blank(&text) {
+            return Ok(source.clone());
+        }
+        let pl = 0.max(self.padding_left);
+        let pt = 0.max(self.padding_top);
+        let pr = 0.max(self.padding_right);
+        let pb = 0.max(self.padding_bottom);
+        let weight = if self.bold { 700 } else { 400 };
+        let font = Font::new(Typeface::from_family(&self.font_family, weight, self.italic), self.font_size);
+        let lines: Vec<String> = text.replace("\r\n", "\n").split('\n').map(str::to_string).collect();
+        let m = font.metrics();
+        let raw = (m.descent - m.ascent).max(font.size);
+        let line_h = (raw + m.leading).max(font.size);
+        let baseline = -m.ascent;
+        let max_w = lines.iter().map(|l| font.measure(l)).fold(0f32, f32::max);
+        let total_h = raw + 0.max(lines.len() as i32 - 1) as f32 * line_h;
+        if max_w <= 0.0 && total_h <= 0.0 {
+            return Ok(source.clone());
+        }
+        let size = SizeI::new(
+            (max_w + pl as f32 + pr as f32).ceil() as i32,
+            (total_h + pt as f32 + pb as f32).ceil() as i32,
+        );
+        if size.width <= 0 || size.height <= 0 {
+            return Ok(source.clone());
+        }
+        let pos = super::helpers::get_position(self.placement, self.offset, SizeI::new(sw, sh), size);
+        let (l, t, r, b) = (pos.x, pos.y, pos.x + size.width, pos.y + size.height);
+        if self.auto_hide && !(l >= 0 && t >= 0 && r <= sw && b <= sh) {
+            return Ok(source.clone());
+        }
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let radius = (self.corner_radius as f32).min(((r - l) as f32).min((b - t) as f32) / 2.0);
+        let rect = RRect::ltrb(l as f32, t as f32, r as f32, b as f32);
+        if self.draw_background && self.background_color.a > 0 {
+            sk::draw_round_rect(&mut canvas, rect, radius, radius, &solid(self.background_color, true), None);
+        }
+        if self.draw_border && self.border_color.a > 0 {
+            let pen = Pen::new(1.max(self.border_size) as f32);
+            sk::draw_round_rect(&mut canvas, rect, radius, radius, &solid(self.border_color, true), Some(&pen));
+        }
+        let tx = (l + pl) as f32;
+        let ty = (t + pt) as f32 + baseline;
+        if self.draw_text_shadow && self.text_shadow_color.a > 0 {
+            let p = solid(self.text_shadow_color, true);
+            for (i, line) in lines.iter().enumerate() {
+                if !line.is_empty() {
+                    let o = self.text_shadow_offset;
+                    font.draw(&mut canvas, line, tx + o.x as f32, ty + o.y as f32 + i as f32 * line_h, Align::Left, &p);
+                }
+            }
+        }
+        let p = solid(self.text_color, true);
+        for (i, line) in lines.iter().enumerate() {
+            if !line.is_empty() {
+                font.draw(&mut canvas, line, tx, ty + i as f32 * line_h, Align::Left, &p);
+            }
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

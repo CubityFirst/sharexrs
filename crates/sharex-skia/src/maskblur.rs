@@ -714,3 +714,51 @@ pub fn filter_path(path: &Path, sigma: f32, hairline: Option<crate::Cap>, clip: 
     }
     true
 }
+
+/// `SkBlurMaskFilterImpl::filterRRectToNine` + `draw_nine` for a simple
+/// (device) round rect: the box-blurred mask of a small copy, stretched.
+/// False when it doesn't apply (`kUnimplemented`, or no blur): draw the
+/// round rect's path through [`filter_path`] then.
+pub fn filter_rrect(rect: Rect, rx: f32, ry: f32, sigma: f32, clip: IRect, blitter: &mut dyn Blitter) -> bool {
+    let exceeds = |r: &Rect, v: f32| {
+        r.left < -v || r.top < -v || r.right > v || r.bottom > v || r.width() > v || r.height() > v
+    };
+    if exceeds(&rect, 32767.0) {
+        return false;
+    }
+    let Some((outer, margin)) = box_blur_bounds(rect.round_out(), sigma) else {
+        return false;
+    };
+    let m2 = (2 * margin) as f32;
+    let left = rx + m2;
+    let right = rx + m2;
+    let small_w = left + right + 3.0;
+    if small_w >= rect.width() {
+        return false;
+    }
+    let top = ry + m2;
+    let bottom = ry + m2;
+    let small_h = top + bottom + 3.0;
+    if small_h >= rect.height() {
+        return false;
+    }
+    let small = Rect::from_ltrb(0.0, 0.0, small_w, small_h);
+    let mut path = Path::new();
+    path.add_round_rect(small, rx, ry, crate::Direction::Cw);
+    let src = draw_path_into_mask(&path, small.round_out(), None);
+    let Some((mut mask, _)) = box_blur(&src, sigma) else {
+        return false;
+    };
+    let (w, h) = (mask.bounds.width(), mask.bounds.height());
+    mask.bounds = IRect::from_ltrb(0, 0, w, h);
+    let patch = NinePatch {
+        mask,
+        outer,
+        center: (left.ceil() as i32 + 1, top.ceil() as i32 + 1),
+    };
+    let mut c = outer;
+    if c.intersect(&clip) {
+        draw_nine(&patch, true, clip, blitter);
+    }
+    true
+}

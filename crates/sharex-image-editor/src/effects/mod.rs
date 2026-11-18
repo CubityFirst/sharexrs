@@ -30,6 +30,7 @@ pub mod random;
 
 pub(crate) mod draw;
 pub(crate) mod helpers;
+pub(crate) mod text;
 
 mod adjustments;
 mod drawings;
@@ -48,6 +49,7 @@ use crate::editor::EditorCore;
 
 /// What the effects' modules share.
 pub(crate) mod prelude {
+    pub(crate) use super::text::{Align, Font, Typeface};
     pub(crate) use super::draw::{self as sk, Pen, solid};
     pub(crate) use sharex_skia::{Cap, Join, Path as SkPath};
     pub(crate) use super::color::{self, SkColor, from_pixels, get_pixel, pixels, set_pixels};

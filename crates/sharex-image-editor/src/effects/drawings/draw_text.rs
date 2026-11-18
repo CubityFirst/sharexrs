@@ -77,7 +77,66 @@ impl EffectImpl for DrawTextEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if is_blank(&self.text) || self.font_size < 1.0 {
+            return Ok(source.clone());
+        }
+        let weight = if self.bold { 700 } else { 400 };
+        let font = Font::new(Typeface::from_family(&self.font_family, weight, self.italic), self.font_size);
+        let m = font.metrics();
+        let line_h = (m.descent - m.ascent + m.leading).max(font.size);
+        let base = -m.ascent;
+        let mut path = SkPath::new();
+        path.fill_type = sharex_skia::FillType::Winding;
+        for (i, line) in self.text.replace("\r\n", "\n").split('\n').enumerate() {
+            if line.is_empty() {
+                continue;
+            }
+            path.add_path(&font.text_path(line, 0.0, base + i as f32 * line_h));
+        }
+        if path.is_empty() {
+            return Ok(source.clone());
+        }
+        if self.angle != 0 {
+            path = path.transformed(&sharex_skia::Matrix::rotate(self.angle as f32));
+        }
+        let b = path.bounds();
+        if b.is_empty() {
+            return Ok(source.clone());
+        }
+        let size = SizeI::new((b.width() as f64).ceil() as i32 + 1, (b.height() as f64).ceil() as i32 + 1);
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let pos = super::helpers::get_position(self.placement, self.offset, SizeI::new(sw, sh), size);
+        let (l, t, r, bt) = (pos.x, pos.y, pos.x + size.width, pos.y + size.height);
+        if self.auto_hide && !(l >= 0 && t >= 0 && r <= sw && bt <= sh) {
+            return Ok(source.clone());
+        }
+        let path = path.translated(l as f32 - b.left, t as f32 - b.top);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let outline = self.outline && self.outline_size > 0;
+        let stroke = |canvas: &mut Canvas, p: &SkPath, size: i32, c: SkColor| {
+            if c.a != 0 {
+                sk::stroke_path(canvas, p, &Pen::new(1.max(size) as f32).join(Join::Round), &solid(c, true));
+            }
+        };
+        let fill = |canvas: &mut Canvas, p: &SkPath, c: SkColor| {
+            if c.a != 0 {
+                canvas.fill_sk_path(p, &solid(c, true));
+            }
+        };
+        if self.shadow && self.shadow_color.a > 0 {
+            let sp = path.translated(self.shadow_offset.x as f32, self.shadow_offset.y as f32);
+            if outline {
+                stroke(&mut canvas, &sp, self.outline_size, self.shadow_color);
+            } else {
+                fill(&mut canvas, &sp, self.shadow_color);
+            }
+        }
+        if outline {
+            stroke(&mut canvas, &path, self.outline_size, self.outline_color);
+        }
+        fill(&mut canvas, &path, self.color);
+        drop(canvas);
+        Ok(out)
     }
 }
