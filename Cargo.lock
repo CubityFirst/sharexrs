@@ -4214,6 +4214,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharex-native-recorder"
+version = "22.4.0"
+dependencies = [
+ "flate2",
+ "serde_json",
+ "sharex-settings",
+ "sharex-tools",
+ "windows",
+ "windows-core",
+]
+
+[[package]]
 name = "sharex-ocr"
 version = "22.4.0"
 dependencies = [
