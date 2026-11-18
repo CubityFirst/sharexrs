@@ -256,6 +256,8 @@ pub struct EditorWindow {
     layout: Layout,
     /// Open the File menu once the toolbar is laid out (`OpenFileMenu`).
     open_file_menu: bool,
+    /// `--render`: the favourite effects menu once the toolbar is laid out.
+    open_favorites_menu: bool,
     /// The window's client area on the desktop (points) and its scale.
     window_inner: Option<(Rect, f32)>,
     /// The Canvas size tool, while open (`IsCanvasSizeModeActive`).
@@ -403,6 +405,7 @@ impl EditorWindow {
             url_job: None,
             layout: Layout::default(),
             open_file_menu: false,
+            open_favorites_menu: false,
             window_inner: None,
             canvas_resize: None,
             canvas_resize_on_open: false,
@@ -2271,7 +2274,7 @@ impl EditorWindow {
         let chrome = full.size() - self.layout.canvas.size();
         let w = (fw as f32).max(toolbar_w) + margin + chrome.x;
         let h = fh as f32 + toolbar_h * 2.0 + margin + chrome.y;
-        let (w, h) = (w.max(640.0), h.max(480.0));
+        // (`Math.Max(width, MinWidth)`: `EditorWindow` sets no minimum.)
         let fits = sharex_capture::screenshot::screens().into_iter().find(|s| s.primary).is_none_or(|s| {
             let ppp = self.window_inner.map_or(1.0, |(_, p)| p);
             // The frame (title bar and borders) on top of the client size.
@@ -2345,7 +2348,8 @@ impl Dialog for EditorWindow {
         let maximized = if saved { o.IsWindowMaximized } else { !o.AutoSizeWindow };
         // `AutoSizeWindow`: maximized until the image is laid out, then
         // sized to it (`TryAutoSize`).
-        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
+        // `EditorWindow` sets no `MinWidth`/`MinHeight`.
+        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 0.0, 0.0) }
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -2406,6 +2410,13 @@ impl Dialog for EditorWindow {
                 && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::File)
             {
                 self.flyout = Some(self.file_flyout(*r));
+            }
+            if self.open_favorites_menu
+                && self.bring_into_view.is_none()
+                && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::ImageEffects).copied()
+            {
+                self.open_favorites_menu = false;
+                self.flyout = self.favorites_flyout(r);
             }
         } else {
             self.layout.top = None;
@@ -2681,6 +2692,12 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
                 w.bg_panel.set_scroll(500.0);
             }
             w.bring_into_view = Some(Item::Background);
+        }
+        Some("effects-favorites") => {
+            // The favourites menu, once the toolbar is laid out (scrolled
+            // to Image Effects).
+            w.bring_into_view = Some(Item::ImageEffects);
+            w.open_favorites_menu = true;
         }
         Some(st) if st.starts_with("effects") => {
             // `--state effects[:search][@recent=id,id...]`: the browser
