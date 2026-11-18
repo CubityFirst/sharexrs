@@ -12,6 +12,9 @@ use sharex_uploaders::factory::{self, TaskReferenceHelper};
 use sharex_uploaders::http;
 use sharex_uploaders::testing::ftp::{FtpMockConfig, FtpMockServer, test_tls_acceptor};
 use sharex_uploaders::testing::sftp::{SftpMockConfig, SftpMockServer};
+use sharex_uploaders::testing::smtp::{SmtpMockConfig, SmtpMockServer};
+use sharex_uploaders::uploader;
+use sharex_uploaders::URLSharingServices;
 use sharex_uploaders::{FileDestination, UploadersConfig};
 
 const HARNESS_BASE: u64 = 18820;
@@ -78,7 +81,7 @@ fn ftp_and_sftp_cases_match_sharex() {
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut ran = 0;
     for case in cases["cases"].as_array().unwrap() {
-        if case["service"] != "file:FTP" {
+        if case["service"] != "file:FTP" || case["config"]["FTPAccountList"].is_null() {
             continue;
         }
         let id = case["id"].as_str().unwrap();
@@ -150,6 +153,79 @@ fn ftp_and_sftp_cases_match_sharex() {
         ran += 1;
     }
     assert!(ran >= 20, "only {ran} FTP/SFTP cases ran");
+}
+
+/// A mail with its date and boundary (counter and GUID) normalised.
+fn norm_mail(m: &str) -> String {
+    let mut out = String::new();
+    for line in m.split("\r\n") {
+        let line = if line.starts_with("Date: ") { "Date: DATE".to_owned() } else { line.to_owned() };
+        let line = match line.find("--boundary_") {
+            Some(i) => {
+                let rest = &line[i + "--boundary_".len()..];
+                let end = rest.find(|c: char| !(c.is_ascii_hexdigit() || c == '-' || c == '_' || c.is_ascii_digit())).unwrap_or(rest.len());
+                format!("{}--boundary_N_GUID{}", &line[..i], &rest[end..])
+            }
+            None => line,
+        };
+        out.push_str(&line);
+        out.push_str("\r\n");
+    }
+    out
+}
+
+#[test]
+fn email_cases_match_sharex() {
+    let cases = load("../../tools/uploaders-harness/cases.json");
+    let fixture = load("tests/fixtures/servers.sharex.json");
+    let Some(tls) = test_tls_acceptor() else {
+        eprintln!("email cases skipped: the platform's TLS can't load the test certificate");
+        return;
+    };
+    sharex_uploaders::destinations::email::set_accept_invalid_certificates_for_tests(true);
+    let smtp = SmtpMockServer::start(SmtpMockConfig::default()).unwrap();
+    let mut ran = 0;
+    for case in cases["cases"].as_array().unwrap() {
+        let service = case["service"].as_str().unwrap_or("");
+        if service != "file:Email" && service != "sharing:Email" {
+            continue;
+        }
+        let id = case["id"].as_str().unwrap();
+        let expected = &fixture[id];
+        let spec = &case["servers"];
+        smtp.reset(Some(SmtpMockConfig {
+            user: spec["user"].as_str().unwrap_or("user").into(),
+            password: spec["password"].as_str().unwrap_or("pass").into(),
+            tls: Some(tls.clone()),
+            fail_once: Vec::new(),
+        }));
+        let mut config_json = case["config"].clone();
+        config_json["EmailSmtpPort"] = smtp.addr.port().into();
+        let mut config: UploadersConfig = serde_json::from_value(config_json).unwrap();
+        let task = TaskReferenceHelper::default();
+        let r = if service == "file:Email" {
+            let mut u = factory::create_file(&FileDestination::Email, &mut config, &task).expect("email uploader");
+            let bytes = base64_decode(case["input"]["content_base64"].as_str().unwrap());
+            u.upload(&http::shared_stream(Cursor::new(bytes)), case["input"]["file_name"].as_str().unwrap())
+        } else {
+            let mut u = factory::create_url_sharing(&URLSharingServices::Email, &mut config, &task).expect("email sharer");
+            uploader::share_url(u.as_mut(), case["input"]["url"].as_str().unwrap())
+        };
+        smtp.wait_closed(std::time::Duration::from_secs(5));
+        let (url, exception) = match r {
+            Ok(Some(res)) => (res.url, None),
+            Ok(None) => (None, None),
+            Err(e) => (None, Some(e)),
+        };
+        assert_eq!(exception.as_deref(), expected["exception"].as_str(), "{id}: exception");
+        assert_eq!(url.as_deref(), expected["url"].as_str(), "{id}: URL");
+        assert_eq!(smtp.log_lines(), lines(&expected["servers"]["smtp"]), "{id}: SMTP commands and replies");
+        let mails: Vec<String> = smtp.messages().iter().map(|m| norm_mail(&String::from_utf8_lossy(m))).collect();
+        let expected_mails: Vec<String> = lines(&expected["servers"]["mails"]).iter().map(|m| norm_mail(m)).collect();
+        assert_eq!(mails, expected_mails, "{id}: the mail");
+        ran += 1;
+    }
+    assert!(ran >= 4, "only {ran} email cases ran");
 }
 
 fn base64_decode(s: &str) -> Vec<u8> {

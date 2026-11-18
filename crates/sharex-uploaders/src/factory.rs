@@ -19,6 +19,7 @@ use crate::destinations::amazon_s3::AmazonS3;
 use crate::destinations::cloud_storage::{AzureStorage, BackblazeB2};
 use crate::destinations::ftp::{FTPAccount, Ftp};
 use crate::destinations::sftp::Sftp;
+use crate::destinations::email::{Email, EmailSettings, EmailSharer, show_email_window};
 use crate::destinations::oauth_services::{
     BoxUploader, Dropbox, Flickr, FlickrSettings, GitHubGist, GoogleCloudStorage, GoogleDrive, OneDrive, Photobucket, PhotobucketAccountInfo, YouTube,
     dropbox_upload_path,
@@ -232,6 +233,7 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
         FileDestination::FTP => {
             FTPAccount::list_from_value(&config.FTPAccountList).is_some_and(|l| usize::try_from(config.FTPSelectedFile).is_ok_and(|i| i < l.len()))
         }
+        FileDestination::Email => email_configured(config),
         FileDestination::Dropbox => OAuth2Info::check(config.DropboxOAuth2Info.as_ref()),
         FileDestination::OneDrive => OAuth2Info::check(config.OneDriveV2OAuth2Info.as_ref()),
         FileDestination::Box => OAuth2Info::check(config.BoxOAuth2Info.as_ref()),
@@ -320,6 +322,21 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
                 crate::enums::FTPProtocol::FTP | crate::enums::FTPProtocol::FTPS => GenericUploader::File(Box::new(Ftp::new(account))),
                 crate::enums::FTPProtocol::SFTP => GenericUploader::File(Box::new(Sftp::new(account))),
                 _ => return None,
+            }
+        }
+        FileDestination::Email => {
+            let settings = email_settings(config);
+            let automatic_to = s(&config.EmailAutomaticSendTo);
+            if config.EmailAutomaticSend && !automatic_to.is_empty() {
+                GenericUploader::File(Box::new(Email::new(settings, &automatic_to, &s(&config.EmailDefaultSubject), &s(&config.EmailDefaultBody))))
+            } else {
+                let first = if config.EmailRememberLastTo { s(&config.EmailLastTo) } else { String::new() };
+                // `EmailWindowIntegration.Show`; cancelled: no uploader (ShareX stops the task).
+                let (to, subject, body) = show_email_window(&first, &s(&config.EmailDefaultSubject), &s(&config.EmailDefaultBody))?;
+                if config.EmailRememberLastTo {
+                    config.EmailLastTo = Some(to.clone());
+                }
+                GenericUploader::File(Box::new(Email::new(settings, &to, &subject, &body)))
             }
         }
         FileDestination::Dropbox => {
@@ -509,6 +526,7 @@ pub fn check_url_sharing(dest: &URLSharingServices, config: &UploadersConfig) ->
     }
     match dest {
         URLSharingServices::CustomURLSharingService => Ported::Yes(valid_index(config, config.CustomURLSharingServiceSelected)),
+        URLSharingServices::Email => Ported::Yes(email_configured(config)),
         URLSharingServices::Pushbullet => Ported::Yes(PushbulletSettings::check(PushbulletSettings::from_value(&config.PushbulletSettings).as_ref())),
         _ => Ported::No,
     }
@@ -524,8 +542,30 @@ pub fn create_url_sharing(dest: &URLSharingServices, config: &mut UploadersConfi
             let index = custom_index(config, task, config.CustomURLSharingServiceSelected);
             Some(Box::new(CustomUrlSharer::new(custom_item(config, index)?)))
         }
+        URLSharingServices::Email => {
+            let mut u = EmailSharer::new(email_settings(config), config.EmailDefaultSubject.as_deref().unwrap_or(""));
+            let to = config.EmailAutomaticSendTo.clone().unwrap_or_default();
+            u.automatic_to = (config.EmailAutomaticSend && !to.is_empty()).then_some(to);
+            u.last_to = config.EmailLastTo.clone().unwrap_or_default();
+            u.remember_last_to = config.EmailRememberLastTo;
+            Some(Box::new(u))
+        }
         URLSharingServices::Pushbullet => Some(Box::new(PushbulletSharer::new(PushbulletSettings::from_value(&config.PushbulletSettings)?))),
         _ => None,
+    }
+}
+
+/// `EmailFileUploaderService.CheckConfig` (and the sharing service's).
+fn email_configured(config: &UploadersConfig) -> bool {
+    ne(&config.EmailSmtpServer) && config.EmailSmtpPort > 0 && ne(&config.EmailFrom) && !config.EmailPassword.is_empty()
+}
+
+fn email_settings(config: &UploadersConfig) -> EmailSettings {
+    EmailSettings {
+        smtp_server: config.EmailSmtpServer.clone().unwrap_or_default(),
+        smtp_port: config.EmailSmtpPort,
+        from_email: config.EmailFrom.clone().unwrap_or_default(),
+        password: config.EmailPassword.as_str().to_owned(),
     }
 }
 

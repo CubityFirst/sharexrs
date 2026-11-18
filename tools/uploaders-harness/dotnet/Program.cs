@@ -52,6 +52,10 @@ static class Program
         for (int i = 0; i < args.Length - 1; i++) if (args[i] == "--fixture") fixturePath = args[i + 1];
 
         Harness.Rewire(Port);
+        // The mock SMTP server's certificate is self-signed (ShareX checks it).
+#pragma warning disable SYSLIB0014
+        System.Net.ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, errors) => true;
+#pragma warning restore SYSLIB0014
 
         JsonArray cases = JsonNode.Parse(File.ReadAllText(casesPath))!["cases"]!.AsArray();
         JsonArray results = new JsonArray();

@@ -255,6 +255,17 @@ def cut_stack(text):
     return "\n".join(line for line in text.split("\n") if not line.startswith("   at "))
 
 
+def norm_servers(servers):
+    """The mock servers' logs with what changes between runs normalised:
+    a mail's Date header and boundary GUID."""
+    if not isinstance(servers, dict):
+        return servers
+    out = dict(servers)
+    out["mails"] = [re.sub(r"(--boundary_\d+_)[0-9a-f-]{36}", r"\1GUID", re.sub(r"\r\nDate: [^\r]*\r\n", "\r\nDate: DATE\r\n", m))
+                    for m in servers.get("mails", [])]
+    return out
+
+
 def compare_case(a, b, case=None):
     diffs = []
     ra, rb = a.get("requests", []), b.get("requests", [])
@@ -284,7 +295,7 @@ def compare_case(a, b, case=None):
             diffs.append(f"request {i} body differs at byte {j} (lengths {len(na['body'])}/{len(nb['body'])}): "
                          f"sharex {na['body'][max(0, j - 40):j + 40]!r} vs sharexrs {nb['body'][max(0, j - 40):j + 40]!r}")
     for k in ["check_config", "request_url", "written_file_base64", "steps", "auth", "servers"]:
-        if a.get(k) != b.get(k):
+        if (norm_servers(a.get(k)) if k == "servers" else a.get(k)) != (norm_servers(b.get(k)) if k == "servers" else b.get(k)):
             diffs.append(f"{k}: sharex {a.get(k)!r} vs sharexrs {b.get(k)!r}")
     if (a.get("sxcu_export") or "").replace("\r\n", "\n") != (b.get("sxcu_export") or "").replace("\r\n", "\n"):
         diffs.append(f"sxcu_export:\n--- sharex\n{a.get('sxcu_export')}\n--- sharexrs\n{b.get('sxcu_export')}")

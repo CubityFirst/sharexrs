@@ -26,6 +26,9 @@ fn main() {
     let results_path = &args[2];
     let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(18765);
 
+    // The mock SMTP server's certificate is self-signed (the .NET harness
+    // accepts it too).
+    sharex_uploaders::destinations::email::set_accept_invalid_certificates_for_tests(true);
     let prefix = format!("http://127.0.0.1:{port}/__/");
     let back_prefix = prefix.clone();
     http::set_url_rewriter(Some(UrlRewriter {

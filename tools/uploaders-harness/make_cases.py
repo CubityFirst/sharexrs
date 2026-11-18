@@ -818,6 +818,22 @@ ftp_case("sftp-open-failure", [SFTP_ACCOUNT], BIN_PNG,
 ftp_case("sftp-absolute", [dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
          {"user": "user", "password": "pass", "dirs": ["/srv"]})
 
+# Email (SMTP with STARTTLS, automatic send: no window).
+EMAIL = {"EmailSmtpServer": "127.0.0.1", "EmailSmtpPort": MOCK + 5, "EmailFrom": "sender@example.com", "EmailPassword": "pass",
+         "EmailAutomaticSend": True, "EmailAutomaticSendTo": "someone@example.com", "EmailDefaultSubject": "Sending email from ShareX",
+         "EmailDefaultBody": "Screenshot is attached."}
+SMTP = {"user": "sender@example.com", "password": "pass"}
+cases.append({"id": "email", "kind": "builtin", "service": "file:Email", "config": EMAIL, "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-unicode", "kind": "builtin", "service": "file:Email",
+              "config": dict(EMAIL, EmailDefaultSubject="Écran 🙂 capturé", EmailDefaultBody="Line 1\nLíne 2 — done"),
+              "input": image_input("café shot.png"), "responses": [], "servers": SMTP})
+cases.append({"id": "email-auth-failed", "kind": "builtin", "service": "file:Email", "config": dict(EMAIL, EmailPassword="nope"),
+              "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-invalid-from", "kind": "builtin", "service": "file:Email", "config": dict(EMAIL, EmailFrom="user"),
+              "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-share-url", "kind": "builtin", "service": "sharing:Email", "config": EMAIL, "input": url_input(), "responses": [],
+              "servers": SMTP})
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

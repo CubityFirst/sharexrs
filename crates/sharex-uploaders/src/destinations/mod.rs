@@ -5,6 +5,7 @@
 
 pub mod amazon_s3;
 pub mod cloud_storage;
+pub mod email;
 pub mod file_hosts;
 pub mod files;
 pub mod ftp;
