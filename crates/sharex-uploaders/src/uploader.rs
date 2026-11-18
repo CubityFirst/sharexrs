@@ -246,6 +246,7 @@ impl Uploader {
             cancel: self.cancel.clone(),
             progress: if self.allow_report_progress { self.progress.clone() } else { None },
             read_body,
+            factory_client: true,
         }
     }
 

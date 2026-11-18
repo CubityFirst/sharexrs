@@ -10,6 +10,7 @@
 //!   ordinal ignoring case) that sorting and matching depend on.
 
 pub mod culture;
+pub mod dotnet_sort;
 pub mod emoji;
 pub mod file_helpers;
 pub mod mime_types;
