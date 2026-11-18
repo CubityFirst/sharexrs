@@ -371,6 +371,32 @@ pub fn is_valid_url(url: &str) -> bool {
     VALID_URL.is_match(url.trim()).unwrap_or(false)
 }
 
+/// `URLHelpers.GetDirectoryPath`: the path up to its last `/`.
+pub fn get_directory_path(path: &str) -> String {
+    match path.rfind('/') {
+        Some(i) => path[..i].to_owned(),
+        None => path.to_owned(),
+    }
+}
+
+/// `URLHelpers.GetPaths`: every parent path of `a/b/c` (`a`, `a/b`,
+/// `a/b/c`), as the FTP and SFTP uploaders create them.
+pub fn get_paths(path: &str) -> Vec<String> {
+    let chars: Vec<(usize, char)> = path.char_indices().collect();
+    let mut paths = Vec::new();
+    for (n, (i, c)) in chars.iter().enumerate() {
+        if *c == '/' {
+            let current = &path[..*i];
+            if !current.is_empty() {
+                paths.push(current.to_owned());
+            }
+        } else if n == chars.len() - 1 {
+            paths.push(path.to_owned());
+        }
+    }
+    paths
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,3 +449,4 @@ mod tests {
         assert_eq!(json_encode("a\"b\\c\n\u{1}\u{2028}é"), "a\\\"b\\\\c\\n\\u0001\\u2028é");
     }
 }
+

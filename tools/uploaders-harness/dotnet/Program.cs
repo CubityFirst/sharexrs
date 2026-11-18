@@ -52,6 +52,10 @@ static class Program
         for (int i = 0; i < args.Length - 1; i++) if (args[i] == "--fixture") fixturePath = args[i + 1];
 
         Harness.Rewire(Port);
+        // The mock SMTP server's certificate is self-signed (ShareX checks it).
+#pragma warning disable SYSLIB0014
+        System.Net.ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, errors) => true;
+#pragma warning restore SYSLIB0014
 
         JsonArray cases = JsonNode.Parse(File.ReadAllText(casesPath))!["cases"]!.AsArray();
         JsonArray results = new JsonArray();
@@ -140,15 +144,36 @@ static class Harness
         return JsonNode.Parse(text);
     }
 
+    // The FTP/SFTP/SMTP mocks (sharex_uploaders_mock_servers): their control port.
+    static readonly int MockServers = int.Parse(Environment.GetEnvironmentVariable("MOCK_SERVERS_PORT") ?? "18820");
+
+    static void ResetServers(JsonNode spec)
+    {
+        Control.PostAsync($"http://127.0.0.1:{MockServers}/reset", new StringContent(spec.ToJsonString())).GetAwaiter().GetResult().EnsureSuccessStatusCode();
+    }
+
+    static JsonNode ServersLog()
+    {
+        return JsonNode.Parse(Control.GetStringAsync($"http://127.0.0.1:{MockServers}/log").GetAwaiter().GetResult());
+    }
+
     public static JsonObject RunCase(JsonObject c)
     {
         Reset(c["responses"]);
+        if (c["servers"] != null) ResetServers(c["servers"]);
         JsonObject output = new JsonObject();
         Uploader uploader = null;
         try
         {
-            UploadResult result = Execute(c, ref uploader, output);
-            output["result"] = ResultToJson(result);
+            if ((string)c["kind"] == "oauth")
+            {
+                OAuthCases.Run(c, output, ref uploader);
+            }
+            else
+            {
+                UploadResult result = Execute(c, ref uploader, output);
+                output["result"] = ResultToJson(result);
+            }
         }
         catch (Exception e)
         {
@@ -157,7 +182,14 @@ static class Harness
             output["exception_type"] = inner.GetType().FullName;
         }
         if (uploader != null) output["uploader_errors"] = ErrorsToJson(uploader.Errors);
+        string checkFile = (string)c["input"]?["check_file"];
+        if (checkFile != null)
+        {
+            output["written_file_base64"] = File.Exists(checkFile) ? Convert.ToBase64String(File.ReadAllBytes(checkFile)) : null;
+            if (File.Exists(checkFile)) File.Delete(checkFile);
+        }
         output["requests"] = Log();
+        if (c["servers"] != null) output["servers"] = ServersLog();
         return output;
     }
 

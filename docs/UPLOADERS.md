@@ -5,8 +5,9 @@ plus `ShareX/UploadManager.cs`, the upload half of `WorkerTask` and the
 after-upload tasks) and what `crates/sharex-uploaders` ports of it.
 Validation: [tools/uploaders-harness](../tools/uploaders-harness/README.md)
 runs ShareX's own DLL and ShareXrs against a local mock server and diffs
-requests byte for byte and results; every case listed below as validated
-is identical (97 of 97 cases). Uploads as tasks (`crates/sharexrs/src/upload`)
+requests byte for byte and results (and, for FTP, SFTP and SMTP, every
+command and reply on mock servers); every case listed below as validated
+is identical (217 of 217 cases). Uploads as tasks (`crates/sharexrs/src/upload`)
 are under [Upload tasks](#upload-tasks).
 
 ## Layers
@@ -37,7 +38,14 @@ Uploader.SendRequest*/GetResponseAsync ─ HttpClientFactory (HelpersLib) ─ Ht
 | `HelpersLib/MimeTypes` | `sharex_helpers::mime_types` |
 | `UploadersConfig.cs` | `config::UploadersConfig` |
 | `APIKeys/APIKeys.cs` | `api_keys` (empty unless `SHAREXRS_KEY_*` set at build, as ShareX's source) |
-| `OAuth/*` | `oauth` (stored shapes and token checks only) |
+| `OAuth/*` (`OAuth2Info`, `OAuthInfo`, tokens) | `oauth` |
+| `OAuth/OAuthManager.cs` (OAuth 1.0a) | `oauth1` |
+| `OAuth/OAuth2ProofKey`, `OAuthListener`, `GoogleOAuth2`, `IOAuth*` | `oauth2` (traits `OAuth2Client`, `OAuth2Loopback`, `OAuth1Client`) |
+| `Presentation/DestinationSettings/DestinationSettingsAccounts.cs` (the sign-in logic), `UploaderOAuthClientFactory` | `signin` |
+| FluentFTP (`FtpClient` as ShareX uses it), `FileUploaders/FTP.cs`, `FTPAccount.cs` | `destinations::ftp` |
+| SSH.NET (`SftpClient`), `FileUploaders/SFTP.cs` | `ssh`, `sftp`, `destinations::sftp` |
+| `System.Net.Mail` (`SmtpClient`, `MailMessage`), `FileUploaders/Email.cs`, `EmailSharingService.cs` | `destinations::email` |
+| (test servers) | `testing::{ftp, sftp, smtp}`, the `sharex_uploaders_mock_servers` example |
 | `CustomUploader/*` | `custom` |
 
 ## The HTTP layer
@@ -193,34 +201,50 @@ message for non-JSON text) or "Unable to parse the response content returned
 by the host (x)." (anything else). The dialogs go through
 `custom::ParserUi` (none set: they give nothing).
 
-## OAuth
+## OAuth and other sign-ins
+
+All of ShareX's sign-in flows are ported without their windows
+(`oauth`, `oauth1`, `oauth2`, `signin`); the Destination settings window
+calls [`signin`](../crates/sharex-uploaders/src/signin.rs), which does what
+`DestinationSettingsAccounts.cs`'s cards do to `UploadersConfig`.
 
 | Flow | ShareX | Used by | ShareXrs |
 |---|---|---|---|
-| OAuth 2 with PIN (copy code) | `IOAuth2`: `GetAuthorizationURLAsync` → user pastes PIN → `GetAccessTokenAsync`; `RefreshAccessTokenAsync`, `CheckAuthorizationAsync` | Imgur, Dropbox, Box, Gist, OneDrive (older) | Imgur's token exchange, refresh and check ported (`Imgur::authorization_url`, `get_access_token`, `refresh_access_token`); the PIN window isn't |
-| OAuth 2 basic (code) | `IOAuth2Basic` | bit.ly | ported (`Bitly::authorization_url`, `get_access_token`), no window |
-| OAuth 2 loopback (PKCE, local listener) | `IOAuth2Loopback`, `OAuthListener`, `OAuth2ProofKey`, `GoogleOAuth2` | Google Drive, Google Cloud Storage, YouTube, OneDrive | not ported |
-| OAuth 1.0a (HMAC-SHA1 signing) | `OAuthManager`, `IOAuth` | Flickr, Photobucket | not ported |
-| API key / user key | settings | most simple services | ported per destination |
+| OAuth 2, code paste | `IOAuth2Basic` / `IOAuth2`: open `GetAuthorizationURLAsync`, the user pastes the code (Imgur: the PIN) into the card, `GetAccessTokenAsync`; `RefreshAccessTokenAsync`, `CheckAuthorizationAsync` | Imgur (PIN), GitHub Gist, Dropbox, OneDrive (with a PKCE proof key), Box, bit.ly | `oauth2::OAuth2Client` (implemented by each), `signin::{open_authorization, complete_authorization, refresh_token, disconnect}` |
+| OAuth 2 loopback | `IOAuth2Loopback`, `OAuthListener` (a one-request HTTP listener on `127.0.0.1:<free port>`, random 32-character state), `GoogleOAuth2`, `OAuthListenerWindow` (user info after) | Google Drive, Google Cloud Storage, YouTube | `oauth2::{OAuthListener, connect, GoogleOAuth2}`, `signin::connect_loopback` (the page opened through a callback; stoppable) |
+| PKCE | `OAuth2ProofKey` (S256) | OneDrive | `oauth2::OAuth2ProofKey` (RFC 7636 vectors in its tests), stored in `OAuth2Info.Proof` |
+| OAuth 1.0a | `OAuthManager` (HMAC-SHA1; parameters sorted, nonce, timestamp), `Uploader.GetAuthorizationURLAsync`/`GetAccessTokenExAsync` | Flickr, Photobucket | `oauth1` (RFC 5849's example in its tests), `signin::{open_authorization_oauth1, complete_authorization_oauth1}`. RSA-SHA1 isn't (ShareX's signs a SHA-1 hash as MD5, which .NET refuses; no service uses it) |
+| User / password | per destination | Pastebin, puush, LobFile (API key fetch), ImageShack (auth token), Seafile (auth token, library checks), MEGA (session, two-factor code), Pushbullet (device list) | `Pastebin::login`, `Puush::login`, `LobFile::fetch_api_key`, `ImageShack::get_access_token`, `Seafile::{get_auth_token, check_api_url, check_auth_token, get_account_info, get_libraries, get_or_make_default_library, decrypt_library}`, `Mega::login` (`MegaError::Api(-26)`: ask the code, log in again), `Pushbullet::get_device_list` |
 
-Tokens live in `UploadersConfig` (`OAuth2Info`: `Client_ID`, `Client_Secret`,
-`Token` {`access_token`, `refresh_token`, `expires_in`, `token_type`,
-`scope`, `ExpireDate`}, `Proof`), ported in `oauth`; a token ShareX saved
-keeps working. Uploaders that refresh tokens hand them back with
-`WritesBackConfig::write_back`.
+Tokens live in `UploadersConfig` (`OAuth2Info`: `Client_ID`,
+`Client_Secret`, `Token` {`access_token`, `refresh_token`, `expires_in`,
+`token_type`, `scope`, `ExpireDate`}, `Proof`; `OAuthInfo` for OAuth 1),
+in ShareX's JSON; a token ShareX saved keeps working. Uploaders that
+refresh tokens hand them back with `WritesBackConfig::write_back`.
+Client IDs and secrets are `api_keys` (`SHAREXRS_KEY_*` at build time,
+empty otherwise, as in a ShareX built from source). The redirect page
+(`oauth_callback_page.html`) is ShareX's under ShareXrs's name.
+
+Validated: 18 sign-in cases run ShareX's own sign-in code and ShareXrs's
+against mock token endpoints (authorization URLs, code and PIN exchanges,
+refreshes keeping the refresh token, `CheckAuthorization` with an expired
+token, refused codes, Google's user info, OAuth 1.0a request and access
+tokens with their HMAC-SHA1 signatures verified on both sides, MEGA's v2
+login and two-factor error): identical. The loopback listener is tested
+in-process (code, wrong state, stop).
 
 ## Built-in destinations
 
-✅ ported and identical in the harness · 🟨 ported, partly validated ·
-⬜ not ported. "Needs": what it takes besides an HTTP request.
+✅ ported and identical in the harness (case count). Every value of the
+destination enums is ported (`factory::tests::every_destination_is_ported`).
 
 ### Image
 | Destination | Needs | Status |
 |---|---|---|
-| Imgur (default) | app client ID (`APIKeys`, empty in source builds); user: OAuth 2 PIN | ✅ anonymous, not-direct link + thumbnail size, video (`video` form field, gifv, trailing-dot link), error string, error object, user + album, user not signed in. Token refresh on "invalid token" ported, not harness-tested; album list/images not ported |
-| ImageShack | API key + login | ⬜ |
-| Flickr | OAuth 1.0a | ⬜ |
-| Photobucket | OAuth 1.0a | ⬜ |
+| Imgur (default) | app client ID (`APIKeys`, empty in source builds); user: OAuth 2 PIN | ✅ anonymous, not-direct link + thumbnail size, video (`video` form field, gifv, trailing-dot link), error string, error object, user + album, user not signed in; sign-in 2. Album list/images not ported |
+| ImageShack | API key + auth token (login) | ✅ 2 (upload, error) |
+| Flickr | OAuth 1.0a | ✅ 2 (upload with OAuth form fields + `flickr.photos.getSizes`, `fail` response); sign-in 2 |
+| Photobucket | OAuth 1.0a | ✅ 2 (upload to the subdomain, album index out of range); sign-in 1 |
 | Chevereto | URL + API key | ✅ |
 | vgy.me | optional user key | ✅ |
 
@@ -230,42 +254,44 @@ keeps working. Uploaders that refresh tokens hand them back with
 | Pastebin (default) | dev key (`APIKeys`); optional login → user key | ✅ upload (privacy, expiration, raw URL, user key), "Bad API request" error; login ported, not harness-tested |
 | Paste2, Slexy, Pastie | — (URL is where the form post ends) | ✅ |
 | Paste.ee | app key or user key | ✅ (and "API key is missing") |
-| GitHub Gist | OAuth 2 PIN (or anonymous) | ⬜ |
+| GitHub Gist | OAuth 2 | ✅ 3 (raw URL, custom API URL, 401); sign-in 1 |
 | uPaste | optional user key | ✅ success and error |
 | Hastebin | — (custom domain) | ✅ extension from file name, `.txt` ignored |
 | OneTimeSecret | optional basic auth | ✅ |
-| PrivateBin | client-side AES-GCM + zlib + base58 | ⬜ |
+| PrivateBin | PBKDF2-SHA256 + AES-256-CBC on this side, base58 key | ✅ 4 (password + burn + markdown, defaults, error, 401); compare.py decrypts each side's paste with the key from its link |
 
 ### File
 | Destination | Needs | Status |
 |---|---|---|
-| Dropbox (default) | OAuth 2 PIN, Dropbox API | ⬜ |
-| FTP / FTPS / SFTP | FluentFTP / SSH.NET | ⬜ (next: `suppaftp` + `russh`/`ssh2`) |
-| OneDrive | OAuth 2 loopback | ⬜ |
-| Google Drive, Google Cloud Storage, YouTube | Google OAuth 2 loopback (PKCE) | ⬜ |
+| Dropbox (default) | OAuth 2 | ✅ 4 (direct link, link already exists → listed, no link, API error); sign-in 2. Metadata, copy, move, delete, create folder, list links ported (remote storage browser) |
+| FTP / FTPS / SFTP | FluentFTP / SSH.NET | ✅ 26 (15 FTP/FTPS, 11 SFTP): see [FTP, FTPS and SFTP](#ftp-ftps-and-sftp) |
+| OneDrive | OAuth 2 + PKCE | ✅ 6 (folder + link, root + web URL + escaped name, chunk error → session deleted, expired token refreshed, refresh refused, not signed in); sign-in 1. Folder listing (`get_path_info`) ported |
+| Google Drive | Google OAuth 2 loopback | ✅ 5 (public + direct link, folder in a shared drive, shared drive root, expired token refreshed, error); sign-in 1. Folder and drive listings ported |
+| Google Cloud Storage | Google OAuth 2 loopback | ✅ 3 (ACL + extension removed, custom domain, error); sign-in 1 |
+| YouTube | Google OAuth 2 loopback | ✅ 2 (unlisted, short link + rejected); sign-in 1. The video options window is a hook (`set_youtube_options_ui`) |
 | puush | API key | ✅ success, authentication error, garbage response; login ported |
-| Box | OAuth 2 PIN | ⬜ |
-| MEGA | MEGA's own crypto (AES, RSA) | ⬜ |
+| Box | OAuth 2 | ✅ 4 (share, no share → folder link, refresh refused, not signed in); sign-in 2. Folder listing (`get_files`) ported |
+| MEGA | MEGA's API and crypto | ✅ 5 (Cloud Drive root, chosen folder with a non-ASCII name, expired session, not logged in, hashcash proof of work) + login 2; compare.py decrypts each side's chunk, checks its MAC, name and key. Folder listing not ported |
 | Amazon S3 (and compatible) | access key + secret, SigV4 | ✅ single PUT, signed payload + path style + storage class + region, custom domain + no extension, 403 error, multipart (parallel parts, ETag, complete), complete error + abort; signatures verified on both sides. List/download/copy (remote storage browser) not ported; delete ported |
-| Azure Storage | SharedKey (HMAC-SHA256) | ⬜ (simple HTTP + HMAC) |
-| Backblaze B2 | key + SHA1 per file | ⬜ (simple HTTP) |
+| Azure Storage | SharedKey (HMAC-SHA256) | ✅ 4 (sub folder + cache control, `$root` + custom domain + other cloud, 403, missing account); signatures verified on both sides |
+| Backblaze B2 | key + SHA1 per file | ✅ 7 (bucket lookup, key restricted to a bucket + 503 retry + custom URL, auth errors JSON and not, name prefix refused, no bucket, upload error) |
 | ownCloud / Nextcloud | basic auth, WebDAV + OCS share | ✅ direct link + file name, preview + expiring share (3.x URL form), no share, share error, PUT error |
 | Immich | API key | ✅ shareable link, photo URL with metadata, no asset id (the GUID and time it sends each upload are normalised) |
-| MediaFire | login + SHA1 signatures | ⬜ |
-| Pushbullet | API key | ⬜ (simple HTTP; also the sharing service) |
-| SendSpace | API key + login (MD5) | ⬜ |
-| Hostr (Localhostr) | basic auth | ⬜ (simple HTTP) |
+| MediaFire | login + SHA1/MD5 signatures | ✅ 3 (upload + poll until done with key rotation, login error, poll error) |
+| Pushbullet | API key + device | ✅ 2 (file push through the S3 form, no device); sharing 1 |
+| SendSpace | API key (+ login, MD5) | ✅ 4 (anonymous, anonymous refused, user: token + login + info, user again with the kept session) |
+| Hostr (Localhostr) | basic auth | ✅ 2 (direct + thumbnail, href) |
 | Lambda | API key | ✅ success (and the old `λ.pw` URL fixed), error list |
 | img.fish | API key | ✅ success, error, response that isn't JSON |
 | Pomf | upload URL (+ result URL) | ✅ |
 | Uguu, transfer.sh | — | ✅ |
-| Seafile | token | ⬜ (simple HTTP) |
+| Seafile | token | ✅ 3 (raw share link with password and expiry, encrypted library, upload link error) |
 | Streamable | optional basic auth | ✅ upload + transcode polling (progress 0–100, 1 s between checks), transcode failure, no shortcode |
 | s-ul | API key | ✅ success and error |
 | LobFile (Lithiio) | API key | ✅ success and error; API key fetch ported |
-| Plik | URL (+ API key / login) | ⬜ (simple HTTP) |
-| Shared folder | local file copy | ⬜ |
-| Email | SMTP | ⬜ |
+| Plik | URL + API key (+ login) | ✅ 3 (secured + comment + TTL in hours, never expires, metadata error) |
+| Shared folder | local file copy | ✅ 1 (the file written and the URL; both harnesses read the file back) |
+| Email | SMTP | ✅ 4 + sharing 1: see [Email](#email) |
 
 ### URL shorteners
 bit.ly (saved OAuth 2 token), is.gd, v.gd, TinyURL, turl.ca, YOURLS
@@ -277,7 +303,78 @@ paths (is.gd "Error:", turl "ERROR:"). Custom: ✅.
 Facebook, Reddit, Pinterest, Tumblr, LinkedIn, StumbleUpon, Delicious, VK,
 Google Lens, Bing visual search: 🟨 ported (`SimpleURLSharer`: open the share
 page with the URL encoded; the app sets `sharing::set_url_opener`), unit
-tested (no HTTP to compare). Email, Pushbullet: ⬜. Custom: ✅.
+tested (no HTTP to compare). Email: ✅ (SMTP, below). Pushbullet: ✅ (a link
+push). Custom: ✅.
+
+## FTP, FTPS and SFTP
+
+ShareX uses FluentFTP and SSH.NET; ShareXrs sends what they send for
+ShareX's calls. What that is was read off a mock server
+([`testing::ftp`](../crates/sharex-uploaders/src/testing/ftp.rs),
+[`testing::sftp`](../crates/sharex-uploaders/src/testing/sftp.rs): virtual
+file systems that answer as vsftpd and OpenSSH's `sftp-server` do and
+record every command and reply) with ShareX's own uploaders talking to it.
+
+- **FTP / FTPS** (`destinations::ftp`, its own client on `std::net` and
+  native-tls): connect `[TLS] 220`, `[AUTH TLS]`, `USER`, `PASS`,
+  `[PBSZ 0, PROT P]`, `FEAT`, `OPTS UTF8 ON` (if listed), `SYST`, `PWD`;
+  upload `SIZE`, `TYPE I` (once), `EPSV` (passive; a refusal is an error,
+  as FluentFTP's) or `EPRT` falling back to `PORT` (active), `STOR`, the
+  data (over TLS with `PROT P`), the reply; on 550/553 ShareX's
+  `CreateMultiDirectory`, i.e. FluentFTP's forced `CreateDirectory` for
+  each level (the parent's `DirectoryExists`: `CWD`, `PWD` for a relative
+  path, `CWD` back; then `MKD`), and the upload again; `QUIT`. Errors read
+  as FluentFTP's (`Code: 530 Message: Login incorrect.`, `Failed to connect
+  to host.`). The server's certificate is accepted when it doesn't
+  validate, as ShareX does; a client certificate (`FTPSCertificateLocation`)
+  isn't sent. `FTPAccount`'s URL (`GetUriPath`, its `UriBuilder` and
+  `HttpHomePath` rules), FTP path and previews are ported.
+- **SFTP** (`destinations::sftp` on `ssh` + `sftp`, SSH-2 and SFTP v3
+  written for this on RustCrypto crates: curve25519-sha256,
+  ssh-ed25519 / ecdsa-sha2-nistp256 / rsa-sha2 host keys, aes-ctr,
+  hmac-sha2; russh needs ring or aws-lc, C code that doesn't cross-check
+  for macOS): the `none` login then the password or the key (RSA keys as
+  `ssh-rsa` then `rsa-sha2-512`, each asked first; OpenSSH keys, encrypted
+  ones with the passphrase, and unencrypted PEM RSA keys), a refused login
+  dropping the connection; `INIT 3`, `REALPATH .`; SSH.NET's canonical
+  paths (`REALPATH` of the full path, else of its parent); `OPEN`
+  (write|create|truncate), `WRITE`s of the buffer size less the request's
+  other fields, `CLOSE`; for a missing directory ShareX's
+  `CreateDirectory` / `CreateMultiDirectory` (`LSTAT`, `MKDIR`, permission
+  denied ignored). Errors as SSH.NET's (`Permission denied (password).`,
+  `No such file. Path: '…'.`, `Key file does not exist.`). Host keys
+  aren't checked against a known list (ShareX doesn't either); their
+  signatures are.
+
+Cases (identical: every command and reply in order, the stored files,
+results and errors): FTP passive with directories created, existing,
+parent existing, `MKD` refused once, active, active without `EPRT`, no
+`EPSV` (error), login refused, absolute path with name parsing and
+no-extension URL, `STOR` refused, a second account with a query-style home
+path, connection refused; FTPS explicit, implicit, explicit active. SFTP
+password with directories created, existing (several writes), ed25519 key,
+passphrase-protected RSA key, PEM RSA key, wrong password, missing key
+file, no credentials, `MKDIR` refused, `OPEN` failing, absolute path with a
+non-ASCII name. `tests/servers.rs` replays them in-process on every
+platform against ShareX's logs (`tests/fixtures/servers.sharex.json`).
+
+## Email
+
+`destinations::email`: the SMTP dialogue .NET's `SmtpClient` has with
+ShareX's settings (`EHLO`, `STARTTLS`, `EHLO`, `AUTH login <user>` +
+password, `MAIL FROM`, `RCPT TO` per address, `DATA`, `QUIT` only on
+success; a refused login goes on to `MAIL FROM`, as .NET does) and the
+message `MailMessage` writes (`MIME-Version`, `From`, `To`, `Date`,
+`Subject` as `=?utf-8?B?…?=` when not ASCII; the body us-ascii
+quoted-printable or utf-8 base64; with a file, `multipart/mixed` with
+`--boundary_<n>_<guid>` (n counting per process, as .NET's) and the file as
+`application/octet-stream; name=…` in 68-column base64; parameters folded
+at 76 columns). The server certificate is checked (the tests accept the
+mock's). Without automatic sending, the email window is a hook
+(`email::set_email_ui`); `EmailLastTo` is remembered. Cases (identical
+dialogue and mail, Date and boundary GUID normalised): attachment, non-ASCII
+subject/body/name, login refused, invalid sender address, URL shared by
+email; replayed in-process by `tests/servers.rs`.
 
 ## UploadersConfig
 
@@ -306,16 +403,59 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 
 ## Not ported yet
 
-- Destinations marked ⬜ above; FTP/SFTP and the OAuth-loopback services
-  (Google, OneDrive) next, then the simple-HTTP ones (Plik, Azure, B2,
-  Seafile, Pushbullet, Hostr).
-- OAuth sign-in flows and windows; `OAuthManager` (OAuth 1.0a).
+- The windows: see [What the Destination settings window still
+  needs](#what-the-destination-settings-window-still-needs).
+- MEGA's folder listing (`GetFoldersAsync`, node name decryption), Imgur's
+  album list, FTP's directory listing (FluentFTP's `LIST` parsing), the
+  S3/Azure/B2/GCS listings: the remote storage browser's data side.
+- FTPS client certificates (`FTPSCertificateLocation`); SFTP: encrypted PEM
+  keys (convert to the OpenSSH format), PuTTY keys, Diffie-Hellman key
+  exchange (servers without curve25519, OpenSSH before 6.5), other ciphers
+  than AES-CTR and other MACs than HMAC-SHA2.
+- Long non-ASCII email subjects are one encoded word (.NET folds them).
 - `UploadersConfigValidator`.
 - What upload tasks don't do yet: see [Upload tasks](#upload-tasks).
-- History (`HistoryLib`) of uploads.
-- UI: the `{inputbox}`/`{outputbox}`/`{select}` dialogs, OAuth windows
-  (Destination settings draws the sign-in cards; their buttons say they
-  aren't ported).
+
+## What the Destination settings window still needs
+
+Everything below is logic that's ported; the window
+(`crates/sharexrs/src/dialogs/destination_settings.rs`) draws the cards and
+their buttons say they aren't ported. Run network calls on a worker
+thread and save `UploadersConfig` after a change, as the other cards do.
+
+- **Sign-in buttons** (`signin`, by `SignInService::from_page_id(page)`):
+  - code-paste cards (imgur, gist, dropbox, onedrive, box, bitly): "Open
+    authorization page" → `open_authorization` and open the URL it gives
+    (`sharing::open_url`); "Complete authorization" → `complete_authorization`
+    with the code box's text; "Refresh token" → `refresh_token`;
+    "Disconnect" → `disconnect`; the status line from `is_connected`;
+  - loopback cards (google-drive, google-cloud-storage, youtube): "Connect
+    account" → `connect_loopback` (blocks until the browser comes back:
+    ShareX shows `OAuthListenerWindow` with Cancel meanwhile → cancel the
+    token), status "Connected as {0}" from `connected_as`;
+  - OAuth 1 cards (flickr, photobucket): `open_authorization_oauth1`,
+    `complete_authorization_oauth1`, `disconnect`;
+  - user/password cards: Pastebin `Pastebin::login`, puush
+    `Puush::login`, LobFile `LobFile::fetch_api_key`, ImageShack
+    `ImageShack::get_access_token` (+ `write_back`), MEGA `Mega::login`
+    (on `MegaError::Api(-26)` ask for the two-factor code with the input
+    box and call it again; save `session_id`/`master_key` into
+    `MegaSessionID`/`MegaMasterKey`), Seafile's token, account info and
+    library buttons (`Seafile::*`), Pushbullet "Get device list"
+    (`Pushbullet::get_device_list`).
+- **Pickers**: Imgur albums (not ported: album list request), OneDrive
+  folders (`OneDrive::get_path_info`), Box folders (`BoxUploader::get_files`),
+  Google Drive folders and shared drives (`GoogleDrive::{get_folders,
+  get_drives}`), MEGA folders (listing not ported), Pushbullet devices
+  (above), Seafile libraries (`Seafile::get_libraries`).
+- **Remote storage browser** (Tools › Remote storage browser): SFTP has
+  `SftpSession::{list_directory, delete_file, delete_directory, rename,
+  stat}`; Dropbox has metadata/copy/move/delete/create folder; S3 has
+  delete; the FTP/S3/Azure/B2/GCS listings aren't ported.
+- **Dialog hooks** the app must set: `email::set_email_ui` (the email
+  window when automatic sending is off: to, subject, body; `None`
+  cancels), `oauth_services::set_youtube_options_ui` (title, description,
+  privacy when "show dialog" is on), and `sharing::set_url_opener` (done).
 
 ## Upload tasks
 
@@ -411,5 +551,5 @@ Steps 1–6 are done (the windows of steps 3, 5 and 6 are in
    highlighting), import/export `.sxcu` (`to_sxcu`/`from_json`, `.sxcu`
    double-click via `ShareXCLIManager`), the test buttons (they upload a
    test image/text/URL), response window.
-7. Then FTP/SFTP, the Google/OneDrive loopback OAuth and the remaining
-   simple-HTTP destinations, each added to the harness.
+7. FTP/SFTP, email, the OAuth flows and every remaining destination are
+   ported and in the harness; what's left is the windows' side (above).

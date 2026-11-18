@@ -26,6 +26,9 @@ fn main() {
     let results_path = &args[2];
     let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(18765);
 
+    // The mock SMTP server's certificate is self-signed (the .NET harness
+    // accepts it too).
+    sharex_uploaders::destinations::email::set_accept_invalid_certificates_for_tests(true);
     let prefix = format!("http://127.0.0.1:{port}/__/");
     let back_prefix = prefix.clone();
     http::set_url_rewriter(Some(UrlRewriter {
@@ -61,6 +64,20 @@ fn main() {
 fn control(port: u16) -> ureq::Agent {
     let _ = port;
     ureq::Agent::config_builder().http_status_as_error(false).build().into()
+}
+
+/// The FTP/SFTP/SMTP mocks' control port (`sharex_uploaders_mock_servers`).
+fn servers_port() -> u16 {
+    std::env::var("MOCK_SERVERS_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(18820)
+}
+
+fn reset_servers(spec: &Value) {
+    control(0).post(&format!("http://127.0.0.1:{}/reset", servers_port())).send(spec.to_string()).expect("mock servers reset");
+}
+
+fn servers_log() -> Value {
+    let mut resp = control(0).get(&format!("http://127.0.0.1:{}/log", servers_port())).call().expect("mock servers log");
+    serde_json::from_str(&resp.body_mut().read_to_string().expect("log body")).expect("log JSON")
 }
 
 fn reset(port: u16, responses: &Value) {
@@ -100,9 +117,166 @@ enum Runner {
     Sharer(Box<dyn UrlSharer>),
 }
 
+/// An "oauth" case: the sign-in steps through the service's client.
+fn run_oauth(case: &Value, out: &mut Value) {
+    use sharex_uploaders::destinations::oauth_services::{Flickr, Photobucket, PhotobucketAccountInfo};
+    use sharex_uploaders::oauth::{OAuth2Info, OAuthInfo};
+    use sharex_uploaders::oauth2::{OAuth1Client, OAuth2ChallengeMethod, OAuth2Client, OAuth2Loopback, OAuth2ProofKey};
+    use sharex_uploaders::signin::SignInService;
+
+    let service = case["service"].as_str().unwrap_or("");
+    let mut steps = Vec::new();
+    let token_json = |info: &OAuth2Info| match &info.Token {
+        None => json!({"access_token": null, "refresh_token": null, "expires_in": null, "token_type": null, "scope": null,
+                       "has_expire_date": null, "expired": null}),
+        Some(t) => json!({
+            "access_token": t.access_token.get(),
+            "refresh_token": t.refresh_token.get(),
+            "expires_in": t.expires_in,
+            "token_type": t.token_type,
+            "scope": t.scope,
+            "has_expire_date": t.ExpireDate.as_str().is_some_and(|d| !d.starts_with("0001-01-01T00:00:00")),
+            "expired": t.is_expired(),
+        }),
+    };
+    let oauth1_json = |info: &OAuthInfo| {
+        json!({"AuthToken": info.AuthToken, "AuthSecret": info.AuthSecret.get(), "AuthVerifier": info.AuthVerifier.get(),
+               "UserToken": info.UserToken, "UserSecret": info.UserSecret.get()})
+    };
+    let errors;
+    let mut exception: Option<String> = None;
+    if service == "mega" {
+        use sharex_uploaders::destinations::mega::Mega;
+        let mut m = None;
+        for step in case["steps"].as_array().into_iter().flatten() {
+            let mut mega = Mega::new(step["email"].as_str().unwrap_or(""), step["password"].as_str().unwrap_or(""));
+            match mega.login(None) {
+                Ok(s) => steps.push(json!(format!("{}|{}", s.session_id, s.master_key))),
+                Err(e) => {
+                    exception = Some(e.to_string());
+                    m = Some(mega);
+                    break;
+                }
+            }
+            m = Some(mega);
+        }
+        out["steps"] = Value::Array(steps);
+        out["uploader_errors"] = m.map(|m| errors_json(&m.base.errors)).unwrap_or(json!([]));
+        if let Some(e) = exception {
+            out["exception"] = json!(e);
+        }
+        return;
+    }
+    if service == "flickr" || service == "photobucket" {
+        let info: OAuthInfo = serde_json::from_value(case["oauth1"].clone()).unwrap_or_default();
+        let mut flickr = (service == "flickr").then(|| Flickr::new(info.clone(), Default::default()));
+        let mut pb = (service == "photobucket").then(|| Photobucket::new(info, PhotobucketAccountInfo::default()));
+        for step in case["steps"].as_array().into_iter().flatten() {
+            let client: &mut dyn OAuth1Client = match (flickr.as_mut(), pb.as_mut()) {
+                (Some(f), _) => f,
+                (_, Some(p)) => p,
+                _ => unreachable!(),
+            };
+            let r = match step["op"].as_str().unwrap_or("") {
+                "authorization_url" => client.authorization_url().map(|u| json!(u)),
+                "access_token" => client.get_access_token(step["code"].as_str().unwrap_or("")).map(|b| json!(b)),
+                op => panic!("unknown op {op}"),
+            };
+            match r {
+                Ok(v) => steps.push(v),
+                Err(e) => {
+                    exception = Some(e.to_string());
+                    break;
+                }
+            }
+        }
+        let client: &mut dyn OAuth1Client = match (flickr.as_mut(), pb.as_mut()) {
+            (Some(f), _) => f,
+            (_, Some(p)) => p,
+            _ => unreachable!(),
+        };
+        let mut auth = oauth1_json(client.auth_info());
+        errors = errors_json(&client.uploader().errors);
+        if let Some(p) = &pb {
+            auth["Subdomain"] = json!(p.account_info.subdomain);
+            auth["AlbumID"] = json!(p.account_info.album_id);
+        }
+        out["auth"] = auth;
+    } else {
+        let s = SignInService::from_page_id(service).unwrap_or_else(|| panic!("unknown service {service}"));
+        let mut info: OAuth2Info = serde_json::from_value(case["oauth2"].clone()).unwrap_or_default();
+        if let Some(p) = case.get("proof") {
+            let proof = OAuth2ProofKey {
+                code_verifier: p["verifier"].as_str().unwrap_or("").into(),
+                code_challenge: p["challenge"].as_str().unwrap_or("").into(),
+                method: OAuth2ChallengeMethod::Sha256,
+            };
+            info.Proof = proof.to_value();
+        }
+        let mut loopback: Option<Box<dyn OAuth2Loopback>> = s.loopback_client(info.clone());
+        let mut code_paste: Option<Box<dyn OAuth2Client>> = if loopback.is_none() { s.oauth2_client(info) } else { None };
+        if let (Some(l), Some(r)) = (loopback.as_mut(), case.get("redirect")) {
+            l.set_redirect_uri(r["uri"].as_str().unwrap_or(""));
+            l.set_state(r["state"].as_str().unwrap_or(""));
+        }
+        for step in case["steps"].as_array().into_iter().flatten() {
+            let client: &mut dyn OAuth2Client = match (loopback.as_mut(), code_paste.as_mut()) {
+                (Some(l), _) => l.as_mut(),
+                (None, Some(c)) => c.as_mut(),
+                _ => unreachable!(),
+            };
+            let r = match step["op"].as_str().unwrap_or("") {
+                "authorization_url" => client.authorization_url().map(|u| json!(u)),
+                "access_token" => client.get_access_token(step["code"].as_str().unwrap_or("")).map(|b| json!(b)),
+                "refresh" => client.refresh_access_token().map(|b| json!(b)),
+                "check" => client.check_authorization().map(|b| json!(b)),
+                "user_info" => loopback.as_mut().expect("loopback").get_user_info().map(|u| match u {
+                    Some(u) => json!(format!(
+                        "{}|{}|{}|{}|{}",
+                        u.sub.unwrap_or_default(),
+                        u.name.unwrap_or_default(),
+                        u.given_name.unwrap_or_default(),
+                        u.picture.unwrap_or_default(),
+                        u.locale.unwrap_or_default()
+                    )),
+                    None => Value::Null,
+                }),
+                op => panic!("unknown op {op}"),
+            };
+            match r {
+                Ok(v) => steps.push(v),
+                Err(e) => {
+                    exception = Some(e.to_string());
+                    break;
+                }
+            }
+        }
+        let client: &mut dyn OAuth2Client = match (loopback.as_mut(), code_paste.as_mut()) {
+            (Some(l), _) => l.as_mut(),
+            (None, Some(c)) => c.as_mut(),
+            _ => unreachable!(),
+        };
+        out["auth"] = token_json(client.auth_info());
+        errors = errors_json(&client.uploader().errors);
+    }
+    out["steps"] = Value::Array(steps);
+    out["uploader_errors"] = errors;
+    if let Some(e) = exception {
+        out["exception"] = json!(e);
+    }
+}
+
 fn run_case(case: &Value, port: u16) -> Value {
     reset(port, &case["responses"]);
+    if !case["servers"].is_null() {
+        reset_servers(&case["servers"]);
+    }
     let mut out = json!({});
+    if case["kind"] == "oauth" {
+        run_oauth(case, &mut out);
+        out["requests"] = log(port);
+        return out;
+    }
     let input = &case["input"];
     let file_name = input["file_name"].as_str().unwrap_or("").to_owned();
     let text = input["text"].as_str().map(str::to_owned);
@@ -199,6 +373,16 @@ fn run_case(case: &Value, port: u16) -> Value {
     if let Some(e) = errors {
         out["uploader_errors"] = e;
     }
+    if let Some(path) = input["check_file"].as_str() {
+        out["written_file_base64"] = match std::fs::read(path) {
+            Ok(bytes) => json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
+            Err(_) => Value::Null,
+        };
+        let _ = std::fs::remove_file(path);
+    }
     out["requests"] = log(port);
+    if !case["servers"].is_null() {
+        out["servers"] = servers_log();
+    }
     out
 }

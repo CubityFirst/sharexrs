@@ -23,7 +23,14 @@ pub mod factory;
 pub mod http;
 pub mod json;
 pub mod oauth;
+pub mod oauth1;
+pub mod oauth2;
 pub mod result;
+pub mod sftp;
+pub mod signin;
+pub mod ssh;
+#[doc(hidden)]
+pub mod testing;
 pub mod uploader;
 pub mod url_helpers;
 pub mod validator;

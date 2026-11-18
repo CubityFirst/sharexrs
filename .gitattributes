@@ -10,3 +10,8 @@ crates/sharex-settings/tests/fixtures/** -text
 crates/sharex-tools/tests/fixtures/** -text
 # ShareX's OCR outputs, zlib-compressed, compared bit for bit.
 crates/sharex-ocr/tests/fixtures/** -text
+# Test keys, certificates and ShareX's server logs, kept byte for byte
+# (OpenSSH keys must stay LF).
+crates/sharex-uploaders/tests/fixtures/sftp_test_* -text
+crates/sharex-uploaders/tests/fixtures/*.p12 -text
+crates/sharex-uploaders/tests/fixtures/servers.sharex.json -text
