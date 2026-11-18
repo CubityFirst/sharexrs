@@ -14,6 +14,7 @@ pub mod private_bin;
 pub mod self_hosted;
 pub mod shared_folder;
 pub mod services;
+pub mod sftp;
 pub mod sharing;
 pub mod shorteners;
 pub mod text;

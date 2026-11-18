@@ -11,6 +11,7 @@ use serde_json::Value;
 use sharex_uploaders::factory::{self, TaskReferenceHelper};
 use sharex_uploaders::http;
 use sharex_uploaders::testing::ftp::{FtpMockConfig, FtpMockServer, test_tls_acceptor};
+use sharex_uploaders::testing::sftp::{SftpMockConfig, SftpMockServer};
 use sharex_uploaders::{FileDestination, UploadersConfig};
 
 const HARNESS_BASE: u64 = 18820;
@@ -34,6 +35,28 @@ fn ftp_config(spec: &Value, tls: bool, implicit: bool) -> FtpMockConfig {
     }
 }
 
+fn sftp_config(v: &Value) -> SftpMockConfig {
+    SftpMockConfig {
+        user: v["user"].as_str().unwrap_or("user").to_owned(),
+        password: v["password"].as_str().unwrap_or("pass").to_owned(),
+        authorized_key: v["authorized_key"].as_str().map(str::to_owned),
+        home: v["home"].as_str().unwrap_or("/home/user").to_owned(),
+        dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
+        fail_once: v["sftp_fail_once"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), (p[1].as_u64()? as u32, p[2].as_str()?.to_owned())))).collect())
+            .unwrap_or_default(),
+    }
+}
+
+fn lines(v: &Value) -> Vec<String> {
+    v.as_array().map(|a| a.iter().map(|l| l.as_str().unwrap().to_owned()).collect()).unwrap_or_default()
+}
+
+fn file_list(v: &Value) -> Vec<(String, Vec<u8>)> {
+    v.as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), base64_decode(v.as_str().unwrap()))).collect()).unwrap_or_default()
+}
+
 /// A port nothing listens on.
 fn closed_port() -> u16 {
     let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -41,7 +64,7 @@ fn closed_port() -> u16 {
 }
 
 #[test]
-fn ftp_cases_match_sharex() {
+fn ftp_and_sftp_cases_match_sharex() {
     let cases = load("../../tools/uploaders-harness/cases.json");
     let fixture = load("tests/fixtures/servers.sharex.json");
     let tls = test_tls_acceptor().is_some();
@@ -51,6 +74,8 @@ fn ftp_cases_match_sharex() {
     let plain = FtpMockServer::start(FtpMockConfig::default()).unwrap();
     let explicit = FtpMockServer::start(FtpMockConfig::default()).unwrap();
     let implicit = FtpMockServer::start(FtpMockConfig::default()).unwrap();
+    let sftp = SftpMockServer::start(SftpMockConfig::default()).unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut ran = 0;
     for case in cases["cases"].as_array().unwrap() {
         if case["service"] != "file:FTP" {
@@ -63,10 +88,19 @@ fn ftp_cases_match_sharex() {
         let mut needs_tls = false;
         for account in config_json["FTPAccountList"].as_array_mut().unwrap() {
             let port = account["Port"].as_u64().unwrap();
+            // Key files are relative to the repository (the harness's
+            // working directory).
+            if let Some(k) = account["Keypath"].as_str().filter(|k| !k.is_empty()) {
+                account["Keypath"] = repo.join(k).to_string_lossy().into_owned().into();
+            }
             let s = match port - HARNESS_BASE {
                 1 => &plain,
                 2 => &explicit,
                 3 => &implicit,
+                4 => {
+                    account["Port"] = sftp.addr.port().into();
+                    continue;
+                }
                 _ => {
                     account["Port"] = closed_port().into();
                     continue;
@@ -83,6 +117,7 @@ fn ftp_cases_match_sharex() {
         for (s, t, i) in [(&plain, false, false), (&explicit, true, false), (&implicit, true, true)] {
             s.reset(Some(ftp_config(spec, t, i)));
         }
+        sftp.reset(Some(sftp_config(spec)));
         let mut config: UploadersConfig = serde_json::from_value(config_json).unwrap();
         let task = TaskReferenceHelper::default();
         let mut uploader = factory::create_file(&FileDestination::FTP, &mut config, &task).expect("FTP uploader");
@@ -91,6 +126,7 @@ fn ftp_cases_match_sharex() {
         for s in [&plain, &explicit, &implicit] {
             s.wait_closed(std::time::Duration::from_secs(5));
         }
+        sftp.wait_closed(std::time::Duration::from_secs(5));
         let (url, exception) = match r {
             Ok(Some(res)) => (res.url, None),
             Ok(None) => (None, None),
@@ -109,9 +145,11 @@ fn ftp_cases_match_sharex() {
             .map(|(k, v)| (k.clone(), base64_decode(v.as_str().unwrap())))
             .collect();
         assert_eq!(files, expected_files, "{id}: stored files");
+        assert_eq!(sftp.log_lines(), lines(&expected["servers"]["sftp"]), "{id}: SFTP requests and replies");
+        assert_eq!(sftp.files().into_iter().collect::<Vec<_>>(), file_list(&expected["servers"]["sftp_files"]), "{id}: SFTP files");
         ran += 1;
     }
-    assert!(ran >= 10, "only {ran} FTP cases ran");
+    assert!(ran >= 20, "only {ran} FTP/SFTP cases ran");
 }
 
 fn base64_decode(s: &str) -> Vec<u8> {

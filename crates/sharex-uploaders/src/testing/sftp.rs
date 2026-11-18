@@ -1,0 +1,471 @@
+//! A mock SFTP server on 127.0.0.1: SSH-2 ([`crate::ssh`] in the server
+//! role, an ed25519 host key), password and public key logins, and SFTP
+//! version 3 over a virtual file system that answers as OpenSSH's
+//! `sftp-server` does. Every login attempt and SFTP request and reply is
+//! recorded.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+use crate::sftp::*;
+use crate::ssh::*;
+
+/// The server's settings.
+#[derive(Clone, Debug)]
+pub struct SftpMockConfig {
+    pub user: String,
+    pub password: String,
+    /// An OpenSSH public key line allowed to log in.
+    pub authorized_key: Option<String>,
+    /// The home directory (`REALPATH .`).
+    pub home: String,
+    /// Directories that exist besides the home's parents.
+    pub dirs: Vec<String>,
+    /// Status replies that replace the normal reply the first time a
+    /// request whose log line starts with the key arrives
+    /// (`("MKDIR /home/user/a", (3, "Permission denied"))`).
+    pub fail_once: Vec<(String, (u32, String))>,
+}
+
+impl Default for SftpMockConfig {
+    fn default() -> Self {
+        Self { user: "user".into(), password: "pass".into(), authorized_key: None, home: "/home/user".into(), dirs: Vec::new(), fail_once: Vec::new() }
+    }
+}
+
+#[derive(Default)]
+struct State {
+    log: Vec<String>,
+    dirs: BTreeSet<String>,
+    files: BTreeMap<String, Vec<u8>>,
+    fail_once: Vec<(String, (u32, String))>,
+    sessions_open: usize,
+}
+
+/// A running mock SFTP server.
+pub struct SftpMockServer {
+    pub addr: SocketAddr,
+    state: Arc<Mutex<State>>,
+    config: Arc<Mutex<SftpMockConfig>>,
+}
+
+/// The mock's host key (fixed, test only).
+pub fn mock_host_key() -> HostKey {
+    ssh_key::PrivateKey::from(ssh_key::private::Ed25519Keypair::from_seed(&[7u8; 32]))
+}
+
+fn normalize(cwd: &str, path: &str) -> String {
+    let full = if path.starts_with('/') { path.to_owned() } else { format!("{}/{path}", cwd.trim_end_matches('/')) };
+    let mut parts: Vec<&str> = Vec::new();
+    for p in full.split('/') {
+        match p {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            p => parts.push(p),
+        }
+    }
+    format!("/{}", parts.join("/"))
+}
+
+fn parent(path: &str) -> String {
+    match path.rfind('/') {
+        Some(0) | None => "/".into(),
+        Some(i) => path[..i].to_owned(),
+    }
+}
+
+impl SftpMockServer {
+    pub fn start(config: SftpMockConfig) -> std::io::Result<Self> {
+        Self::start_on(0, config)
+    }
+
+    pub fn start_on(port: u16, config: SftpMockConfig) -> std::io::Result<Self> {
+        let listener = TcpListener::bind(("127.0.0.1", port))?;
+        let addr = listener.local_addr()?;
+        let server = Self { addr, state: Arc::new(Mutex::new(State::default())), config: Arc::new(Mutex::new(config)) };
+        server.reset(None);
+        let state = server.state.clone();
+        let config = server.config.clone();
+        thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let state = state.clone();
+                let config = config.lock().expect("sftp config").clone();
+                thread::spawn(move || {
+                    state.lock().expect("sftp state").sessions_open += 1;
+                    let r = Session { state: state.clone(), config }.run(stream);
+                    let mut s = state.lock().expect("sftp state");
+                    if let Err(e) = r {
+                        s.log.push(format!("error {e}"));
+                    }
+                    s.log.push("close".into());
+                    s.sessions_open -= 1;
+                });
+            }
+        });
+        Ok(server)
+    }
+
+    /// Clears the log and files and sets up the next case.
+    pub fn reset(&self, config: Option<SftpMockConfig>) {
+        if let Some(c) = config {
+            *self.config.lock().expect("sftp config") = c;
+        }
+        let c = self.config.lock().expect("sftp config").clone();
+        let mut s = self.state.lock().expect("sftp state");
+        s.log.clear();
+        s.files.clear();
+        s.dirs = BTreeSet::from(["/".to_owned()]);
+        for d in std::iter::once(&c.home).chain(c.dirs.iter()) {
+            let mut p = String::new();
+            for part in d.split('/').filter(|p| !p.is_empty()) {
+                p.push('/');
+                p.push_str(part);
+                s.dirs.insert(p.clone());
+            }
+        }
+        s.fail_once = c.fail_once.clone();
+    }
+
+    pub fn log_lines(&self) -> Vec<String> {
+        self.state.lock().expect("sftp state").log.clone()
+    }
+
+    pub fn files(&self) -> BTreeMap<String, Vec<u8>> {
+        self.state.lock().expect("sftp state").files.clone()
+    }
+
+    /// Waits until every session has ended.
+    pub fn wait_closed(&self, timeout: Duration) {
+        let end = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < end {
+            if self.state.lock().expect("sftp state").sessions_open == 0 {
+                return;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+struct Session {
+    state: Arc<Mutex<State>>,
+    config: SftpMockConfig,
+}
+
+impl Session {
+    fn log(&self, line: impl Into<String>) {
+        self.state.lock().expect("sftp state").log.push(line.into());
+    }
+
+    fn run(&self, stream: TcpStream) -> SshResult<()> {
+        stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+        self.log("connect");
+        let mut t = Transport::accept(stream, "SSH-2.0-OpenSSH_9.6 ShareXrs-mock", &mock_host_key())?;
+        // Authentication.
+        let p = t.recv()?;
+        if p.first() != Some(&MSG_SERVICE_REQUEST) {
+            return Err(SshError("Expected a service request.".into()));
+        }
+        t.send(&Writer::new(MSG_SERVICE_ACCEPT).string("ssh-userauth").0)?;
+        loop {
+            let p = t.recv()?;
+            if p.first() != Some(&MSG_USERAUTH_REQUEST) {
+                return Err(SshError("Expected an authentication request.".into()));
+            }
+            let mut r = Reader::new(&p[1..]);
+            let user = r.string()?;
+            let service = r.string()?;
+            let method = r.string()?;
+            let ok = match method.as_str() {
+                "password" => {
+                    r.bool()?;
+                    let password = r.string()?;
+                    let ok = user == self.config.user && password == self.config.password;
+                    self.log(format!("auth password {user} {}", if ok { "ok" } else { "fail" }));
+                    ok
+                }
+                "publickey" => {
+                    let signed = r.bool()?;
+                    let algorithm = r.string()?;
+                    let blob = r.bytes()?.to_vec();
+                    let allowed = self.config.authorized_key.as_deref().and_then(|k| ssh_key::PublicKey::from_openssh(k).ok()).and_then(|k| k.to_bytes().ok());
+                    let known = user == self.config.user && allowed.as_deref() == Some(&blob[..]);
+                    if !signed {
+                        self.log(format!("auth publickey-query {user} {algorithm} {}", if known { "ok" } else { "fail" }));
+                        if known {
+                            t.send(&Writer::new(MSG_USERAUTH_PK_OK).string(&algorithm).bytes(&blob).0)?;
+                            continue;
+                        }
+                        false
+                    } else {
+                        let signature = r.bytes()?;
+                        let data = Writer::default()
+                            .bytes(&t.session_id)
+                            .byte(MSG_USERAUTH_REQUEST)
+                            .string(&user)
+                            .string(&service)
+                            .string("publickey")
+                            .bool(true)
+                            .string(&algorithm)
+                            .bytes(&blob)
+                            .0;
+                        let verified = known && verify(&blob, signature, &data);
+                        self.log(format!("auth publickey {user} {algorithm} {}", if verified { "ok" } else { "fail" }));
+                        verified
+                    }
+                }
+                m => {
+                    self.log(format!("auth {m} {user}"));
+                    false
+                }
+            };
+            if ok {
+                t.send(&[MSG_USERAUTH_SUCCESS])?;
+                break;
+            }
+            t.send(&Writer::new(MSG_USERAUTH_FAILURE).string("publickey,password").bool(false).0)?;
+        }
+        // The session channel and the subsystem.
+        let mut client_channel = 0;
+        let mut inbox: Vec<u8> = Vec::new();
+        let mut cwd_files = SftpFs { state: self.state.clone(), home: self.config.home.clone(), handles: BTreeMap::new(), next_handle: 0 };
+        let mut consumed = 0u64;
+        loop {
+            let p = match t.recv() {
+                Ok(p) => p,
+                Err(_) => return Ok(()),
+            };
+            let mut r = Reader::new(&p[1..]);
+            match p[0] {
+                MSG_CHANNEL_OPEN => {
+                    r.string()?;
+                    client_channel = r.u32()?;
+                    t.send(&Writer::new(MSG_CHANNEL_OPEN_CONFIRMATION).u32(client_channel).u32(0).u32(2 * 1024 * 1024).u32(32768).0)?;
+                }
+                MSG_CHANNEL_REQUEST => {
+                    r.u32()?;
+                    let kind = r.string()?;
+                    let want = r.bool()?;
+                    let ok = kind == "subsystem" && r.string()? == "sftp";
+                    if want {
+                        t.send(&Writer::new(if ok { MSG_CHANNEL_SUCCESS } else { MSG_CHANNEL_FAILURE }).u32(client_channel).0)?;
+                    }
+                }
+                MSG_CHANNEL_DATA => {
+                    r.u32()?;
+                    let data = r.bytes()?;
+                    consumed += data.len() as u64;
+                    inbox.extend_from_slice(data);
+                    while inbox.len() >= 4 {
+                        let len = u32::from_be_bytes(inbox[..4].try_into().expect("4")) as usize;
+                        if inbox.len() < 4 + len {
+                            break;
+                        }
+                        let packet: Vec<u8> = inbox.drain(..4 + len).skip(4).collect();
+                        if let Some(reply) = cwd_files.handle(&packet, self)? {
+                            let mut out = (reply.len() as u32).to_be_bytes().to_vec();
+                            out.extend_from_slice(&reply);
+                            t.send(&Writer::new(MSG_CHANNEL_DATA).u32(client_channel).bytes(&out).0)?;
+                        }
+                    }
+                    if consumed > 1024 * 1024 {
+                        t.send(&Writer::new(MSG_CHANNEL_WINDOW_ADJUST).u32(client_channel).u32(consumed as u32).0)?;
+                        consumed = 0;
+                    }
+                }
+                MSG_CHANNEL_EOF => {}
+                MSG_CHANNEL_CLOSE => {
+                    let _ = t.send(&Writer::new(MSG_CHANNEL_CLOSE).u32(client_channel).0);
+                }
+                MSG_CHANNEL_WINDOW_ADJUST => {}
+                _ => {}
+            }
+        }
+    }
+}
+
+/// The log line of a request (after its id), as the handler writes it.
+fn describe(kind: u8, body: &[u8]) -> String {
+    let mut r = Reader::new(body);
+    let mut path = || r.string().unwrap_or_default();
+    match kind {
+        FXP_REALPATH => format!("REALPATH {}", path()),
+        FXP_STAT => format!("STAT {}", path()),
+        FXP_LSTAT => format!("LSTAT {}", path()),
+        FXP_MKDIR => format!("MKDIR {}", path()),
+        FXP_OPEN => {
+            let p = path();
+            let flags = r.u32().unwrap_or(0);
+            format!("OPEN {p} flags=0x{flags:x}")
+        }
+        FXP_WRITE => {
+            let _ = path();
+            let offset = r.u64().unwrap_or(0);
+            let len = r.bytes().map(<[u8]>::len).unwrap_or(0);
+            format!("WRITE offset={offset} len={len}")
+        }
+        FXP_CLOSE => "CLOSE".into(),
+        _ => format!("OTHER {kind}"),
+    }
+}
+
+fn verify(blob: &[u8], signature: &[u8], data: &[u8]) -> bool {
+    use signature::Verifier;
+    let (Ok(key), Ok(sig)) = (ssh_key::PublicKey::from_bytes(blob), ssh_key::Signature::try_from(signature)) else { return false };
+    key.key_data().verify(data, &sig).is_ok()
+}
+
+struct SftpFs {
+    state: Arc<Mutex<State>>,
+    home: String,
+    handles: BTreeMap<String, (String, bool)>,
+    next_handle: u32,
+}
+
+impl SftpFs {
+    fn status(id: u32, code: u32, message: &str) -> Vec<u8> {
+        Writer::new(FXP_STATUS).u32(id).u32(code).string(message).string("").0
+    }
+
+    fn dir_attrs() -> Attrs {
+        Attrs { size: Some(4096), permissions: Some(0o040755), mtime: Some(1_767_225_600) }
+    }
+
+    fn file_attrs(size: usize) -> Attrs {
+        Attrs { size: Some(size as u64), permissions: Some(0o100644), mtime: Some(1_767_225_600) }
+    }
+
+    fn stat_of(&self, path: &str) -> Option<Attrs> {
+        let s = self.state.lock().expect("sftp state");
+        if s.dirs.contains(path) {
+            Some(Self::dir_attrs())
+        } else {
+            s.files.get(path).map(|f| Self::file_attrs(f.len()))
+        }
+    }
+
+    fn handle(&mut self, packet: &[u8], session: &Session) -> SshResult<Option<Vec<u8>>> {
+        let mut r = Reader::new(&packet[1..]);
+        let kind = packet[0];
+        if kind == FXP_INIT {
+            let v = r.u32()?;
+            session.log(format!("> INIT {v}"));
+            session.log("< VERSION 3");
+            return Ok(Some(Writer::new(FXP_VERSION).u32(3).0));
+        }
+        let id = r.u32()?;
+        // A scripted failure replaces the reply, before anything is done.
+        let described = describe(kind, &packet[5..]);
+        let failure = {
+            let mut s = self.state.lock().expect("sftp state");
+            let i = s.fail_once.iter().position(|(k, _)| described.starts_with(k.as_str()));
+            i.map(|i| s.fail_once.remove(i).1)
+        };
+        if let Some((code, message)) = failure {
+            session.log(format!("> {described}"));
+            session.log(format!("< STATUS {code} {message}"));
+            return Ok(Some(Self::status(id, code, &message)));
+        }
+        let path_arg = |r: &mut Reader| -> SshResult<String> { r.string() };
+        let (line, reply, reply_line): (String, Vec<u8>, String) = match kind {
+            FXP_REALPATH => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("REALPATH {p}");
+                if self.stat_of(&full).is_some() {
+                    let reply = Writer::new(FXP_NAME).u32(id).u32(1).string(&full).string(&full);
+                    (line, Self::dir_attrs().write(reply).0, format!("NAME {full}"))
+                } else {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                }
+            }
+            FXP_STAT | FXP_LSTAT => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("{} {p}", if kind == FXP_STAT { "STAT" } else { "LSTAT" });
+                match self.stat_of(&full) {
+                    Some(a) => {
+                        let what = if a.is_dir() { "dir" } else { "file" };
+                        (line, a.write(Writer::new(FXP_ATTRS).u32(id)).0, format!("ATTRS {what}"))
+                    }
+                    None => (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file")),
+                }
+            }
+            FXP_OPEN => {
+                let p = path_arg(&mut r)?;
+                let flags = r.u32()?;
+                let full = normalize(&self.home, &p);
+                let line = format!("OPEN {p} flags=0x{flags:x}");
+                let mut s = self.state.lock().expect("sftp state");
+                if !s.dirs.contains(&parent(&full)) {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                } else if s.dirs.contains(&full) {
+                    (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
+                } else {
+                    if flags & PF_CREAT != 0 && (flags & PF_TRUNC != 0 || !s.files.contains_key(&full)) {
+                        s.files.insert(full.clone(), Vec::new());
+                    }
+                    drop(s);
+                    self.next_handle += 1;
+                    let h = format!("h{}", self.next_handle);
+                    self.handles.insert(h.clone(), (full, false));
+                    (line, Writer::new(FXP_HANDLE).u32(id).string(&h).0, "HANDLE".into())
+                }
+            }
+            FXP_WRITE => {
+                let h = r.string()?;
+                let offset = r.u64()?;
+                let data = r.bytes()?;
+                let line = format!("WRITE offset={offset} len={}", data.len());
+                if let Some((path, _)) = self.handles.get(&h) {
+                    let mut s = self.state.lock().expect("sftp state");
+                    let f = s.files.entry(path.clone()).or_default();
+                    let end = offset as usize + data.len();
+                    if f.len() < end {
+                        f.resize(end, 0);
+                    }
+                    f[offset as usize..end].copy_from_slice(data);
+                    (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+                } else {
+                    (line, Self::status(id, FX_FAILURE, "Bad handle"), "STATUS 4 Bad handle".into())
+                }
+            }
+            FXP_CLOSE => {
+                let h = r.string()?;
+                self.handles.remove(&h);
+                ("CLOSE".into(), Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+            }
+            FXP_FSTAT => {
+                let h = r.string()?;
+                let size = self.handles.get(&h).and_then(|(p, _)| self.state.lock().expect("sftp state").files.get(p).map(Vec::len)).unwrap_or(0);
+                ("FSTAT".into(), Self::file_attrs(size).write(Writer::new(FXP_ATTRS).u32(id)).0, "ATTRS file".into())
+            }
+            FXP_SETSTAT | FXP_FSETSTAT => {
+                let what = if kind == FXP_SETSTAT { format!("SETSTAT {}", r.string()?) } else { "FSETSTAT".into() };
+                (what, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+            }
+            FXP_MKDIR => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("MKDIR {p}");
+                let mut s = self.state.lock().expect("sftp state");
+                if !s.dirs.contains(&parent(&full)) {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                } else if s.dirs.contains(&full) || s.files.contains_key(&full) {
+                    (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
+                } else {
+                    s.dirs.insert(full);
+                    (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+                }
+            }
+            other => (format!("UNSUPPORTED {other}"), Self::status(id, 8, "Operation unsupported"), "STATUS 8 Operation unsupported".into()),
+        };
+        session.log(format!("> {line}"));
+        session.log(format!("< {reply_line}"));
+        Ok(Some(reply))
+    }
+}

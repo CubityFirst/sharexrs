@@ -18,6 +18,7 @@ use crate::destinations::text::{Hastebin, OneTimeSecret, Paste2, PasteEe, Pasteb
 use crate::destinations::amazon_s3::AmazonS3;
 use crate::destinations::cloud_storage::{AzureStorage, BackblazeB2};
 use crate::destinations::ftp::{FTPAccount, Ftp};
+use crate::destinations::sftp::Sftp;
 use crate::destinations::oauth_services::{
     BoxUploader, Dropbox, Flickr, FlickrSettings, GitHubGist, GoogleCloudStorage, GoogleDrive, OneDrive, Photobucket, PhotobucketAccountInfo, YouTube,
     dropbox_upload_path,
@@ -317,6 +318,7 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
             let account = accounts.into_iter().nth(usize::try_from(index).ok()?)?;
             match account.Protocol {
                 crate::enums::FTPProtocol::FTP | crate::enums::FTPProtocol::FTPS => GenericUploader::File(Box::new(Ftp::new(account))),
+                crate::enums::FTPProtocol::SFTP => GenericUploader::File(Box::new(Sftp::new(account))),
                 _ => return None,
             }
         }

@@ -10,7 +10,7 @@
 //! cargo run -p sharex-uploaders --example sharex_uploaders_mock_servers -- [base port]
 //! ```
 //! Ports: base (control), base+1 FTP, base+2 FTPS explicit, base+3 FTPS
-//! implicit (default base 18820).
+//! implicit, base+4 SFTP (default base 18820).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
@@ -18,6 +18,7 @@ use std::net::TcpListener;
 use base64::Engine;
 use serde_json::{Value, json};
 use sharex_uploaders::testing::ftp::{FtpMockConfig, FtpMockServer, test_tls_acceptor};
+use sharex_uploaders::testing::sftp::{SftpMockConfig, SftpMockServer};
 
 fn config(v: &Value, tls: bool, implicit: bool) -> FtpMockConfig {
     FtpMockConfig {
@@ -33,11 +34,26 @@ fn config(v: &Value, tls: bool, implicit: bool) -> FtpMockConfig {
     }
 }
 
+fn sftp_config(v: &Value) -> SftpMockConfig {
+    SftpMockConfig {
+        user: v["user"].as_str().unwrap_or("user").to_owned(),
+        password: v["password"].as_str().unwrap_or("pass").to_owned(),
+        authorized_key: v["authorized_key"].as_str().map(str::to_owned),
+        home: v["home"].as_str().unwrap_or("/home/user").to_owned(),
+        dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
+        fail_once: v["sftp_fail_once"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), (p[1].as_u64()? as u32, p[2].as_str()?.to_owned())))).collect())
+            .unwrap_or_default(),
+    }
+}
+
 fn main() {
     let base: u16 = std::env::args().nth(1).and_then(|p| p.parse().ok()).unwrap_or(18820);
     let ftp = FtpMockServer::start_on(base + 1, config(&json!({}), false, false)).expect("FTP port");
     let ftps = FtpMockServer::start_on(base + 2, config(&json!({}), true, false)).expect("FTPS port");
     let ftps_implicit = FtpMockServer::start_on(base + 3, config(&json!({}), true, true)).expect("FTPS implicit port");
+    let sftp = SftpMockServer::start_on(base + 4, sftp_config(&json!({}))).expect("SFTP port");
     let servers = [&ftp, &ftps, &ftps_implicit];
     let control = TcpListener::bind(("127.0.0.1", base)).expect("control port");
     println!("mock servers on 127.0.0.1:{base} (control), FTP {}, FTPS {}, FTPS implicit {}", base + 1, base + 2, base + 3);
@@ -66,6 +82,7 @@ fn main() {
             ftp.reset(Some(config(&v, false, false)));
             ftps.reset(Some(config(&v, true, false)));
             ftps_implicit.reset(Some(config(&v, true, true)));
+            sftp.reset(Some(sftp_config(&v)));
             "{}".to_owned()
         } else if request_line.starts_with("GET /log") {
             let mut lines = Vec::new();
@@ -77,7 +94,10 @@ fn main() {
                     files.insert(k, json!(base64::engine::general_purpose::STANDARD.encode(v)));
                 }
             }
-            json!({"ftp": lines, "files": files}).to_string()
+            sftp.wait_closed(std::time::Duration::from_secs(5));
+            let sftp_files: serde_json::Map<String, Value> =
+                sftp.files().into_iter().map(|(k, v)| (k, json!(base64::engine::general_purpose::STANDARD.encode(v)))).collect();
+            json!({"ftp": lines, "files": files, "sftp": sftp.log_lines(), "sftp_files": sftp_files}).to_string()
         } else {
             "{}".to_owned()
         };

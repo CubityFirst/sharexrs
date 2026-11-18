@@ -790,6 +790,34 @@ ftp_case("ftp-second-account", [FTP_ACCOUNT, dict(FTP_ACCOUNT, Name="two", SubFo
          BIN_PNG, {"user": "user", "password": "pass", "dirs": []}, selected=1)
 ftp_case("ftp-connection-refused", [dict(FTP_ACCOUNT, Port=MOCK + 9)], BIN_PNG)
 
+SFTP_ACCOUNT = dict(FTP_ACCOUNT, Protocol="SFTP", Port=MOCK + 4, Name="sftp")
+ftp_case("sftp-password-mkdir", [SFTP_ACCOUNT], BIN_PNG)
+ftp_case("sftp-existing-dir", [SFTP_ACCOUNT], {"file_name": "big.bin", "content_base64": base64.b64encode(bytes(range(256)) * 200).decode()},
+         {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"]})
+KEYS = "crates/sharex-uploaders/tests/fixtures/"
+
+
+def pub(name):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", KEYS + name + ".pub"), encoding="utf-8") as f:
+        return f.read().strip()
+
+
+ftp_case("sftp-key-ed25519", [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + "sftp_test_ed25519")], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "authorized_key": pub("sftp_test_ed25519")})
+ftp_case("sftp-key-rsa-passphrase", [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + "sftp_test_rsa", Passphrase="made-up-passphrase")], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "authorized_key": pub("sftp_test_rsa")})
+ftp_case("sftp-key-pem", [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + "sftp_test_rsa_pem")], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "authorized_key": pub("sftp_test_rsa_pem")})
+ftp_case("sftp-wrong-password", [dict(SFTP_ACCOUNT, Password="nope")], BIN_PNG)
+ftp_case("sftp-key-missing", [dict(SFTP_ACCOUNT, Keypath=KEYS + "no_such_key")], BIN_PNG)
+ftp_case("sftp-no-credentials", [dict(SFTP_ACCOUNT, Password="")], BIN_PNG)
+ftp_case("sftp-mkdir-denied", [SFTP_ACCOUNT], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": [], "sftp_fail_once": [["MKDIR /home/user/shots", 3, "Permission denied"]]})
+ftp_case("sftp-open-failure", [SFTP_ACCOUNT], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_fail_once": [["OPEN", 4, "Failure"]]})
+ftp_case("sftp-absolute", [dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
+         {"user": "user", "password": "pass", "dirs": ["/srv"]})
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)
