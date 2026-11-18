@@ -4049,6 +4049,1872 @@
     "check_file": "target/uploaders-harness/shared/shots/my shot.png"
    },
    "responses": []
+  },
+  {
+   "id": "gist-raw",
+   "kind": "builtin",
+   "service": "text:Gist",
+   "config": {
+    "GistOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GistPublishPublic": true,
+    "GistRawURL": true
+   },
+   "input": {
+    "file_name": "notes.md",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"html_url\": \"https://gist.github.com/abc\", \"files\": {\"notes.md\": {\"filename\": \"notes.md\", \"raw_url\": \"https://gist.githubusercontent.com/raw/abc/notes.md\"}}}"
+    }
+   ]
+  },
+  {
+   "id": "gist-custom-api",
+   "kind": "builtin",
+   "service": "text:Gist",
+   "config": {
+    "GistOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GistCustomURL": "https://github.example.com/api/v3"
+   },
+   "input": {
+    "file_name": "notes.txt",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"html_url\": \"https://github.example.com/gist/abc\", \"files\": {}}"
+    }
+   ]
+  },
+  {
+   "id": "gist-error",
+   "kind": "builtin",
+   "service": "text:Gist",
+   "config": {
+    "GistOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    }
+   },
+   "input": {
+    "file_name": "notes.txt",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 401,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"message\":\"Bad credentials\"}"
+    }
+   ]
+  },
+  {
+   "id": "dropbox-direct-link",
+   "kind": "builtin",
+   "service": "file:Dropbox",
+   "config": {
+    "DropboxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "DropboxUploadPath": "ShareX\\shots/",
+    "DropboxAutoCreateShareableLink": true,
+    "DropboxUseDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\".tag\": \"file\", \"name\": \"my shot.png\", \"path_display\": \"/ShareX/shots/my shot.png\", \"id\": \"id:1\", \"size\": 768}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\".tag\": \"file\", \"url\": \"https://www.dropbox.com/scl/fi/abc/my%20shot.png?rlkey=k&dl=0\"}"
+    }
+   ]
+  },
+  {
+   "id": "dropbox-link-exists",
+   "kind": "builtin",
+   "service": "file:Dropbox",
+   "config": {
+    "DropboxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "DropboxUploadPath": "ShareX\\shots/",
+    "DropboxAutoCreateShareableLink": true,
+    "DropboxUseDirectLink": false
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\".tag\": \"file\", \"name\": \"my shot.png\", \"path_display\": \"/ShareX/shots/my shot.png\", \"id\": \"id:1\", \"size\": 768}"
+    },
+    {
+     "status": 409,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error_summary\": \"shared_link_already_exists/..\", \"error\": {\".tag\": \"shared_link_already_exists\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"links\": [{\".tag\": \"file\", \"url\": \"https://www.dropbox.com/scl/fi/old/my%20shot.png?dl=0\"}], \"has_more\": false}"
+    }
+   ]
+  },
+  {
+   "id": "dropbox-no-link",
+   "kind": "builtin",
+   "service": "file:Dropbox",
+   "config": {
+    "DropboxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "DropboxUploadPath": "ShareX\\shots/",
+    "DropboxAutoCreateShareableLink": false,
+    "DropboxUseDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\".tag\": \"file\", \"name\": \"my shot.png\", \"path_display\": \"/ShareX/shots/my shot.png\", \"id\": \"id:1\", \"size\": 768}"
+    }
+   ]
+  },
+  {
+   "id": "dropbox-error",
+   "kind": "builtin",
+   "service": "file:Dropbox",
+   "config": {
+    "DropboxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "DropboxUploadPath": "ShareX\\shots/",
+    "DropboxAutoCreateShareableLink": true,
+    "DropboxUseDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 409,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error_summary\":\"path/insufficient_space/\"}"
+    }
+   ]
+  },
+  {
+   "id": "onedrive-link",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "OneDriveV2SelectedFolder": {
+     "id": "FOLDER1",
+     "name": "Shots",
+     "webUrl": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"uploadUrl\": \"https://api.onedrive.com/rup/abc123\", \"nextExpectedRanges\": [\"0-\"]}"
+    },
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"ITEM1\", \"name\": \"my shot.png\", \"webUrl\": \"https://onedrive.live.com/?id=ITEM1\"}"
+    },
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"link\": {\"webUrl\": \"https://1drv.ms/i/s!abc\", \"webHtml\": null}}"
+    }
+   ]
+  },
+  {
+   "id": "onedrive-web-url-root",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "OneDriveV2SelectedFolder": {
+     "id": "",
+     "name": "Root"
+    },
+    "OneDriveAutoCreateShareableLink": false
+   },
+   "input": {
+    "file_name": "a b#c.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"uploadUrl\": \"https://api.onedrive.com/rup/abc123\", \"nextExpectedRanges\": [\"0-\"]}"
+    },
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"ITEM1\", \"name\": \"my shot.png\", \"webUrl\": \"https://onedrive.live.com/?id=ITEM1\"}"
+    }
+   ]
+  },
+  {
+   "id": "onedrive-chunk-error",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "OneDriveV2SelectedFolder": {
+     "id": "FOLDER1",
+     "name": "Shots",
+     "webUrl": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"uploadUrl\": \"https://api.onedrive.com/rup/abc123\", \"nextExpectedRanges\": [\"0-\"]}"
+    },
+    {
+     "status": 500,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "fail"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    }
+   ]
+  },
+  {
+   "id": "onedrive-refresh",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2001-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "OneDriveUseDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"uploadUrl\": \"https://api.onedrive.com/rup/abc123\", \"nextExpectedRanges\": [\"0-\"]}"
+    },
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"ITEM1\", \"name\": \"my shot.png\", \"webUrl\": \"https://onedrive.live.com/?id=ITEM1\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"link\": {\"webUrl\": \"https://onedrive.live.com/embed?x\"}}"
+    }
+   ]
+  },
+  {
+   "id": "onedrive-refresh-fails",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2001-01-01T00:00:00Z"
+     },
+     "Proof": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 400,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error\":\"invalid_grant\"}"
+    }
+   ]
+  },
+  {
+   "id": "onedrive-not-signed-in",
+   "kind": "builtin",
+   "service": "file:OneDrive",
+   "config": {
+    "OneDriveV2OAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": null,
+     "Proof": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": []
+  },
+  {
+   "id": "box-share",
+   "kind": "builtin",
+   "service": "file:Box",
+   "config": {
+    "BoxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "BoxSelectedFolder": {
+     "type": "folder",
+     "id": "123",
+     "name": "Shots"
+    },
+    "BoxShareAccessLevel": "Company"
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"total_count\": 1, \"entries\": [{\"type\": \"file\", \"id\": \"999\", \"name\": \"my shot.png\", \"parent\": {\"type\": \"folder\", \"id\": \"123\"}}]}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"type\": \"file\", \"id\": \"999\", \"shared_link\": {\"url\": \"https://app.box.com/s/abc\"}}"
+    }
+   ]
+  },
+  {
+   "id": "box-no-share",
+   "kind": "builtin",
+   "service": "file:Box",
+   "config": {
+    "BoxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "BoxSelectedFolder": {
+     "type": "folder",
+     "id": "123",
+     "name": "Shots"
+    },
+    "BoxShareAccessLevel": "Company",
+    "BoxShare": false
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"total_count\": 1, \"entries\": [{\"type\": \"file\", \"id\": \"999\", \"name\": \"my shot.png\", \"parent\": {\"type\": \"folder\", \"id\": \"123\"}}]}"
+    }
+   ]
+  },
+  {
+   "id": "box-refresh-fails",
+   "kind": "builtin",
+   "service": "file:Box",
+   "config": {
+    "BoxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2001-01-01T00:00:00Z"
+     },
+     "Proof": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 400,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "no"
+    }
+   ]
+  },
+  {
+   "id": "box-not-signed-in",
+   "kind": "builtin",
+   "service": "file:Box",
+   "config": {
+    "BoxOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": []
+  },
+  {
+   "id": "google-drive-public-direct",
+   "kind": "builtin",
+   "service": "file:GoogleDrive",
+   "config": {
+    "GoogleDriveOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleDriveIsPublic": true,
+    "GoogleDriveDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"FILE1\", \"webViewLink\": \"https://drive.google.com/file/d/FILE1/view?usp=drivesdk\", \"webContentLink\": \"https://drive.google.com/uc?id=FILE1&export=download\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"kind\":\"drive#permission\",\"id\":\"anyone\"}"
+    }
+   ]
+  },
+  {
+   "id": "google-drive-folder",
+   "kind": "builtin",
+   "service": "file:GoogleDrive",
+   "config": {
+    "GoogleDriveOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleDriveIsPublic": false,
+    "GoogleDriveDirectLink": false,
+    "GoogleDriveUseFolder": true,
+    "GoogleDriveFolderID": "FOLDER9",
+    "GoogleDriveSelectedDrive": {
+     "id": "DRIVE2",
+     "name": "Team"
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"FILE1\", \"webViewLink\": \"https://drive.google.com/file/d/FILE1/view?usp=drivesdk\", \"webContentLink\": \"https://drive.google.com/uc?id=FILE1&export=download\"}"
+    }
+   ]
+  },
+  {
+   "id": "google-drive-shared-drive-root",
+   "kind": "builtin",
+   "service": "file:GoogleDrive",
+   "config": {
+    "GoogleDriveOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleDriveIsPublic": false,
+    "GoogleDriveDirectLink": false,
+    "GoogleDriveSelectedDrive": {
+     "id": "DRIVE2",
+     "name": "Team"
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"FILE1\", \"webViewLink\": \"https://drive.google.com/file/d/FILE1/view?usp=drivesdk\", \"webContentLink\": \"https://drive.google.com/uc?id=FILE1&export=download\"}"
+    }
+   ]
+  },
+  {
+   "id": "google-drive-refresh",
+   "kind": "builtin",
+   "service": "file:GoogleDrive",
+   "config": {
+    "GoogleDriveOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2001-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleDriveIsPublic": false
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"fresh\", \"expires_in\": 3599, \"token_type\": \"Bearer\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"FILE1\", \"webViewLink\": \"https://drive.google.com/file/d/FILE1/view?usp=drivesdk\", \"webContentLink\": \"https://drive.google.com/uc?id=FILE1&export=download\"}"
+    }
+   ]
+  },
+  {
+   "id": "google-drive-error",
+   "kind": "builtin",
+   "service": "file:GoogleDrive",
+   "config": {
+    "GoogleDriveOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleDriveIsPublic": true,
+    "GoogleDriveDirectLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error\":{\"code\":403,\"message\":\"no\"}}"
+    }
+   ]
+  },
+  {
+   "id": "gcs-acl",
+   "kind": "builtin",
+   "service": "file:GoogleCloudStorage",
+   "config": {
+    "GoogleCloudStorageOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleCloudStorageBucket": "made-up-bucket",
+    "GoogleCloudStorageObjectPrefix": "/shots/sub/",
+    "GoogleCloudStorageRemoveExtensionImage": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"name\":\"shots/sub/my shot\"}"
+    }
+   ]
+  },
+  {
+   "id": "gcs-domain-no-acl",
+   "kind": "builtin",
+   "service": "file:GoogleCloudStorage",
+   "config": {
+    "GoogleCloudStorageOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleCloudStorageBucket": "made-up-bucket",
+    "GoogleCloudStorageObjectPrefix": "/shots/sub/",
+    "GoogleCloudStorageRemoveExtensionImage": false,
+    "GoogleCloudStorageDomain": "cdn.example.com",
+    "GoogleCloudStorageSetPublicACL": false
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"name\":\"shots/sub/my shot.png\"}"
+    }
+   ]
+  },
+  {
+   "id": "gcs-error",
+   "kind": "builtin",
+   "service": "file:GoogleCloudStorage",
+   "config": {
+    "GoogleCloudStorageOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "GoogleCloudStorageBucket": "made-up-bucket",
+    "GoogleCloudStorageObjectPrefix": "/shots/sub/",
+    "GoogleCloudStorageRemoveExtensionImage": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error\":{\"code\":403}}"
+    }
+   ]
+  },
+  {
+   "id": "youtube",
+   "kind": "builtin",
+   "service": "file:YouTube",
+   "config": {
+    "YouTubeOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "YouTubePrivacyType": "Unlisted"
+   },
+   "input": {
+    "file_name": "clip.mp4",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"vid123\", \"snippet\": {\"title\": \"clip\"}, \"status\": {\"uploadStatus\": \"uploaded\", \"privacyStatus\": \"unlisted\"}}"
+    }
+   ]
+  },
+  {
+   "id": "youtube-short-rejected",
+   "kind": "builtin",
+   "service": "file:YouTube",
+   "config": {
+    "YouTubeOAuth2Info": {
+     "Client_ID": "made-up-client",
+     "Client_Secret": "made-up-secret",
+     "Token": {
+      "access_token": "made-up-access",
+      "refresh_token": "made-up-refresh",
+      "expires_in": 3600,
+      "token_type": "bearer",
+      "scope": null,
+      "ExpireDate": "2099-01-01T00:00:00Z"
+     },
+     "Proof": null
+    },
+    "YouTubePrivacyType": "Private",
+    "YouTubeUseShortenedLink": true
+   },
+   "input": {
+    "file_name": "clip.mp4",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"vid9\", \"status\": {\"uploadStatus\": \"rejected\", \"rejectionReason\": \"duplicate\", \"privacyStatus\": \"private\"}}"
+    }
+   ]
+  },
+  {
+   "id": "flickr",
+   "kind": "builtin",
+   "service": "image:Flickr",
+   "config": {
+    "FlickrOAuthInfo": {
+     "Description": "x",
+     "OAuthVersion": "1.0",
+     "ConsumerKey": "made-up-consumer-key",
+     "ConsumerSecret": "made-up-consumer-secret",
+     "SignatureMethod": "HMAC_SHA1",
+     "UserToken": "made-up-user-token",
+     "UserSecret": "made-up-user-secret"
+    },
+    "FlickrSettings": {
+     "DirectLink": false,
+     "Title": "A title",
+     "Tags": "a b",
+     "IsPublic": "1",
+     "Hidden": "2"
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<rsp stat=\"ok\">\n<photoid>51234</photoid>\n</rsp>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"sizes\": {\"canblog\": 0, \"size\": [{\"label\": \"Square\", \"source\": \"https://live.staticflickr.com/s.png\", \"url\": \"https://flickr.com/s\"}, {\"label\": \"Original\", \"source\": \"https://live.staticflickr.com/o.png\", \"url\": \"https://www.flickr.com/photos/me/51234/sizes/o/\"}]}, \"stat\": \"ok\"}"
+    }
+   ]
+  },
+  {
+   "id": "flickr-fail",
+   "kind": "builtin",
+   "service": "image:Flickr",
+   "config": {
+    "FlickrOAuthInfo": {
+     "Description": "x",
+     "OAuthVersion": "1.0",
+     "ConsumerKey": "made-up-consumer-key",
+     "ConsumerSecret": "made-up-consumer-secret",
+     "SignatureMethod": "HMAC_SHA1",
+     "UserToken": "made-up-user-token",
+     "UserSecret": "made-up-user-secret"
+    },
+    "FlickrSettings": {
+     "DirectLink": true
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<rsp stat=\"fail\"><err code=\"5\" msg=\"Filetype was not recognised\" /></rsp>"
+    }
+   ]
+  },
+  {
+   "id": "photobucket",
+   "kind": "builtin",
+   "service": "image:Photobucket",
+   "config": {
+    "PhotobucketOAuthInfo": {
+     "Description": "x",
+     "OAuthVersion": "1.0",
+     "ConsumerKey": "made-up-consumer-key",
+     "ConsumerSecret": "made-up-consumer-secret",
+     "SignatureMethod": "HMAC_SHA1",
+     "UserToken": "made-up-user-token",
+     "UserSecret": "made-up-user-secret"
+    },
+    "PhotobucketAccountInfo": {
+     "Subdomain": "api123.photobucket.com",
+     "AlbumID": "me",
+     "AlbumList": [
+      "me",
+      "me/shots"
+     ],
+     "ActiveAlbumID": 1
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\"?><response><status>OK</status><content><url>https://i.photobucket.com/me/shots/a.png</url><thumb>https://i.photobucket.com/me/shots/th_a.png</thumb></content></response>"
+    }
+   ]
+  },
+  {
+   "id": "photobucket-bad-album",
+   "kind": "builtin",
+   "service": "image:Photobucket",
+   "config": {
+    "PhotobucketOAuthInfo": {
+     "Description": "x",
+     "OAuthVersion": "1.0",
+     "ConsumerKey": "made-up-consumer-key",
+     "ConsumerSecret": "made-up-consumer-secret",
+     "SignatureMethod": "HMAC_SHA1",
+     "UserToken": "made-up-user-token",
+     "UserSecret": "made-up-user-secret"
+    },
+    "PhotobucketAccountInfo": {
+     "Subdomain": "api123.photobucket.com",
+     "AlbumID": "me",
+     "AlbumList": [
+      "me",
+      "me/shots"
+     ],
+     "ActiveAlbumID": 5
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": []
+  },
+  {
+   "id": "signin-imgur",
+   "kind": "oauth",
+   "service": "imgur",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-imgur-refresh",
+   "kind": "oauth",
+   "service": "imgur",
+   "steps": [
+    {
+     "op": "refresh"
+    },
+    {
+     "op": "check"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": {
+     "access_token": "old-access",
+     "refresh_token": "old-refresh",
+     "expires_in": 3600,
+     "token_type": "bearer",
+     "scope": null,
+     "ExpireDate": "2001-01-01T00:00:00Z"
+    },
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-gist",
+   "kind": "oauth",
+   "service": "gist",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\":\"gho_x\",\"token_type\":\"bearer\",\"scope\":\"gist\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-dropbox",
+   "kind": "oauth",
+   "service": "dropbox",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-dropbox-refused",
+   "kind": "oauth",
+   "service": "dropbox",
+   "steps": [
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    }
+   ],
+   "responses": [
+    {
+     "status": 400,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"error\":\"invalid_grant\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-onedrive-pkce",
+   "kind": "oauth",
+   "service": "onedrive",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    },
+    {
+     "op": "refresh"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"a2\", \"expires_in\": 3600}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   },
+   "proof": {
+    "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+    "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+   }
+  },
+  {
+   "id": "signin-box",
+   "kind": "oauth",
+   "service": "box",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    },
+    {
+     "op": "refresh"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-box-no-refresh",
+   "kind": "oauth",
+   "service": "box",
+   "steps": [
+    {
+     "op": "refresh"
+    }
+   ],
+   "responses": [],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-bitly",
+   "kind": "oauth",
+   "service": "bitly",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\":\"bitly-token\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "signin-google-drive",
+   "kind": "oauth",
+   "service": "google-drive",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "made-up code/1"
+    },
+    {
+     "op": "user_info"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 3600, \"token_type\": \"Bearer\", \"scope\": \"x\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"sub\": \"1\", \"name\": \"Some One\", \"given_name\": \"Some\", \"picture\": \"https://x/p.png\", \"locale\": \"en\"}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": null,
+    "Proof": null
+   },
+   "redirect": {
+    "uri": "http://127.0.0.1:49152/",
+    "state": "made-up-state-0123456789abcdefghij"
+   }
+  },
+  {
+   "id": "signin-youtube-refresh",
+   "kind": "oauth",
+   "service": "youtube",
+   "steps": [
+    {
+     "op": "check"
+    },
+    {
+     "op": "authorization_url"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"a3\", \"expires_in\": 60}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": {
+     "access_token": "old-access",
+     "refresh_token": "old-refresh",
+     "expires_in": 3600,
+     "token_type": "bearer",
+     "scope": null,
+     "ExpireDate": "2001-01-01T00:00:00Z"
+    },
+    "Proof": null
+   },
+   "redirect": {
+    "uri": "http://127.0.0.1:49152/",
+    "state": "made-up-state-0123456789abcdefghij"
+   }
+  },
+  {
+   "id": "signin-gcs-refresh-fails",
+   "kind": "oauth",
+   "service": "google-cloud-storage",
+   "steps": [
+    {
+     "op": "check"
+    }
+   ],
+   "responses": [
+    {
+     "status": 400,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client-id",
+    "Client_Secret": "made-up-client-secret",
+    "Token": {
+     "access_token": "old-access",
+     "refresh_token": "old-refresh",
+     "expires_in": 3600,
+     "token_type": "bearer",
+     "scope": null,
+     "ExpireDate": "2001-01-01T00:00:00Z"
+    },
+    "Proof": null
+   },
+   "redirect": {
+    "uri": "http://127.0.0.1:49152/",
+    "state": "made-up-state-0123456789abcdefghij"
+   }
+  },
+  {
+   "id": "signin-flickr",
+   "kind": "oauth",
+   "service": "flickr",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "123-456-789"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/x-www-form-urlencoded"
+      ]
+     ],
+     "body": "oauth_callback_confirmed=true&oauth_token=made-up-request-token&oauth_token_secret=made-up-request-secret"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/x-www-form-urlencoded"
+      ]
+     ],
+     "body": "fullname=Some%20One&oauth_token=made-up-user-token&oauth_token_secret=made-up-user-secret&user_nsid=1%40N0&username=someone"
+    }
+   ],
+   "oauth1": {
+    "Description": "x",
+    "OAuthVersion": "1.0",
+    "ConsumerKey": "made-up-consumer-key",
+    "ConsumerSecret": "made-up-consumer-secret",
+    "SignatureMethod": "HMAC_SHA1"
+   }
+  },
+  {
+   "id": "signin-photobucket",
+   "kind": "oauth",
+   "service": "photobucket",
+   "steps": [
+    {
+     "op": "authorization_url"
+    },
+    {
+     "op": "access_token",
+     "code": "verifier"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/x-www-form-urlencoded"
+      ]
+     ],
+     "body": "oauth_token=made-up-request-token&oauth_token_secret=made-up-request-secret&next_step=x"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/x-www-form-urlencoded"
+      ]
+     ],
+     "body": "oauth_token=made-up-user-token&oauth_token_secret=made-up-user-secret&username=someone&subdomain=api123.photobucket.com"
+    }
+   ],
+   "oauth1": {
+    "Description": "x",
+    "OAuthVersion": "1.0",
+    "ConsumerKey": "made-up-consumer-key",
+    "ConsumerSecret": "made-up-consumer-secret",
+    "SignatureMethod": "HMAC_SHA1"
+   }
+  },
+  {
+   "id": "signin-flickr-no-token",
+   "kind": "oauth",
+   "service": "flickr",
+   "steps": [
+    {
+     "op": "authorization_url"
+    }
+   ],
+   "responses": [
+    {
+     "status": 401,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "oauth_problem=signature_invalid"
+    }
+   ],
+   "oauth1": {
+    "Description": "x",
+    "OAuthVersion": "1.0",
+    "ConsumerKey": "made-up-consumer-key",
+    "ConsumerSecret": "made-up-consumer-secret",
+    "SignatureMethod": "HMAC_SHA1"
+   }
   }
  ]
 }

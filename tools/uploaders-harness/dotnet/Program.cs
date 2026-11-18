@@ -147,8 +147,15 @@ static class Harness
         Uploader uploader = null;
         try
         {
-            UploadResult result = Execute(c, ref uploader, output);
-            output["result"] = ResultToJson(result);
+            if ((string)c["kind"] == "oauth")
+            {
+                OAuthCases.Run(c, output, ref uploader);
+            }
+            else
+            {
+                UploadResult result = Execute(c, ref uploader, output);
+                output["result"] = ResultToJson(result);
+            }
         }
         catch (Exception e)
         {

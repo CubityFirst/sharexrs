@@ -136,7 +136,63 @@ def norm_privatebin(req, result, case):
     return req
 
 
+OAUTH1_CONSUMER_SECRET = "made-up-consumer-secret"  # make_cases.py's
+OAUTH1_TOKEN_SECRETS = ["", "made-up-user-secret", "made-up-request-secret"]
+
+
+def multipart_fields(body):
+    """The form fields (not files) of a multipart body."""
+    fields = []
+    for part in re.split(rb"\r\n--[^\r\n]*\r\n|^--[^\r\n]*\r\n", body):
+        head, sep, value = part.partition(b"\r\n\r\n")
+        if not sep or b"filename=" in head:
+            continue
+        m = re.search(rb'name="([^"]*)"', head)
+        if m:
+            fields.append((m.group(1).decode(), value.decode("utf-8", "replace")))
+    return fields
+
+
+def verify_oauth1(req):
+    """Checks an OAuth 1.0a HMAC-SHA1 signature (in the query or the form
+    fields) with the made-up secrets. Returns an error text, or None."""
+    from urllib.parse import parse_qsl, quote
+    scheme, host, path, query = split_target(req["target"])
+    params = parse_qsl(query, keep_blank_values=True)
+    if not any(k == "oauth_signature" for k, _ in params):
+        params = multipart_fields(base64.b64decode(req["body_base64"]))
+    signature = dict(params).get("oauth_signature")
+    if signature is None:
+        return "no signature"
+    params = [(k, v) for k, v in params if k != "oauth_signature"]
+    enc = lambda t: quote(t, safe="-_.~")  # noqa: E731
+    normalized = "&".join(f"{k}={enc(v)}" for k, v in sorted(params))
+    # Photobucket signs api.photobucket.com, then sends to the subdomain;
+    # Flickr signs getSizes as POST and sends a GET.
+    for h in [host, "api.photobucket.com"]:
+        for method in [req["method"], "POST", "GET"]:
+            base = f"{method}&{enc(f'{scheme}://{h}{path}')}&{enc(normalized)}"
+            for secret in OAUTH1_TOKEN_SECRETS:
+                key = f"{enc(OAUTH1_CONSUMER_SECRET)}&{enc(secret)}".encode()
+                if base64.b64encode(hmac.new(key, base.encode(), hashlib.sha1).digest()).decode() == signature:
+                    return None
+    return "bad OAuth 1.0a signature"
+
+
+def norm_oauth1(req):
+    """The nonce, time and signature of an OAuth 1.0a request (checked first)."""
+    body = base64.b64decode(req["body_base64"])
+    if "oauth_signature" not in req["target"] and b'name="oauth_signature"' not in body:
+        return req
+    error = verify_oauth1(req)
+    target = re.sub(r"(oauth_(?:nonce|timestamp|signature)=)[^&]*", r"\1X", req["target"])
+    body = re.sub(rb'(name="oauth_(?:nonce|timestamp|signature)"\r\n\r\n)[^\r]*', rb"\1X", body)
+    headers = req["headers"] + ([["x-oauth1-check", error]] if error else [])
+    return dict(req, target=target, body_base64=base64.b64encode(body).decode(), headers=headers)
+
+
 def norm_request(req):
+    req = norm_oauth1(req)
     headers = [[k, v] for k, v in req["headers"]]
     if any(k.lower() == "x-ms-date" for k, _ in headers):
         error = verify_azure(req)
@@ -180,12 +236,19 @@ def norm_request(req):
             "headers": norm, "body": body}
 
 
+def norm_oauth_text(text):
+    """OAuth 1.0a's nonce, time and signature in a URL or error text."""
+    if not isinstance(text, str):
+        return text
+    return re.sub(r"(oauth_(?:nonce|timestamp|signature)=)[^&\s]*", r"\1X", text)
+
+
 def cut_stack(text):
     """An error text without its stack trace: ShareX's "Stack trace:" section
     and the "   at ..." lines of an exception's ToString()."""
     if text is None:
         return None
-    text = text.replace("\r\n", "\n")
+    text = norm_oauth_text(text).replace("\r\n", "\n")
     i = text.find("Stack trace:")
     if i >= 0:
         text = text[:i]
@@ -220,7 +283,7 @@ def compare_case(a, b, case=None):
                      min(len(na['body']), len(nb['body'])))
             diffs.append(f"request {i} body differs at byte {j} (lengths {len(na['body'])}/{len(nb['body'])}): "
                          f"sharex {na['body'][max(0, j - 40):j + 40]!r} vs sharexrs {nb['body'][max(0, j - 40):j + 40]!r}")
-    for k in ["check_config", "request_url", "written_file_base64"]:
+    for k in ["check_config", "request_url", "written_file_base64", "steps", "auth"]:
         if a.get(k) != b.get(k):
             diffs.append(f"{k}: sharex {a.get(k)!r} vs sharexrs {b.get(k)!r}")
     if (a.get("sxcu_export") or "").replace("\r\n", "\n") != (b.get("sxcu_export") or "").replace("\r\n", "\n"):
@@ -232,7 +295,7 @@ def compare_case(a, b, case=None):
         diffs.append(f"result: sharex {resa!r} vs sharexrs {resb!r}")
     elif resa is not None:
         for k in RESULT_KEYS:
-            if resa.get(k) != resb.get(k):
+            if norm_oauth_text(resa.get(k)) != norm_oauth_text(resb.get(k)):
                 diffs.append(f"result.{k}: sharex {resa.get(k)!r} vs sharexrs {resb.get(k)!r}")
         ea = [cut_stack(e) for e in resa.get("errors", [])]
         eb = [cut_stack(e) for e in resb.get("errors", [])]

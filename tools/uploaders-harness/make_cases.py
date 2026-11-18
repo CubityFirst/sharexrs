@@ -605,6 +605,149 @@ cases.append({"id": "shared-folder", "kind": "builtin", "service": "file:SharedF
                                                    "HttpHomePath": "@https://files.example.com/share/", "RemoteProtocol": "https"}]},
               "input": dict(image_input("my shot.png"), check_file=SHARED_ROOT + "/shots/my shot.png"), "responses": []})
 
+# ---------------------------------------------------------------------------
+# OAuth destinations (tokens made up; an expired one makes the uploader
+# refresh it first).
+
+PAST = "2001-01-01T00:00:00Z"
+TOKEN_OK = json.dumps({"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600, "token_type": "Bearer", "scope": "x"})
+VIDEO = {"file_name": "clip.mp4", "content_base64": FILE_B64}
+
+builtin("gist-raw", "text:Gist", {"GistOAuth2Info": oauth2(), "GistPublishPublic": True, "GistRawURL": True}, text_input("notes.md"),
+        [resp(json.dumps({"html_url": "https://gist.github.com/abc", "files": {"notes.md": {"filename": "notes.md", "raw_url": "https://gist.githubusercontent.com/raw/abc/notes.md"}}}), 201)])
+builtin("gist-custom-api", "text:Gist", {"GistOAuth2Info": oauth2(), "GistCustomURL": "https://github.example.com/api/v3"}, text_input(),
+        [resp(json.dumps({"html_url": "https://github.example.com/gist/abc", "files": {}}), 201)])
+builtin("gist-error", "text:Gist", {"GistOAuth2Info": oauth2()}, text_input(), [resp('{"message":"Bad credentials"}', 401)])
+
+DBX = {"DropboxOAuth2Info": oauth2(), "DropboxUploadPath": "ShareX\\shots/", "DropboxAutoCreateShareableLink": True, "DropboxUseDirectLink": True}
+DBX_META = json.dumps({".tag": "file", "name": "my shot.png", "path_display": "/ShareX/shots/my shot.png", "id": "id:1", "size": 768})
+builtin("dropbox-direct-link", "file:Dropbox", DBX, BIN_PNG, [
+    resp(DBX_META), resp(json.dumps({".tag": "file", "url": "https://www.dropbox.com/scl/fi/abc/my%20shot.png?rlkey=k&dl=0"}))])
+builtin("dropbox-link-exists", "file:Dropbox", dict(DBX, DropboxUseDirectLink=False), BIN_PNG, [
+    resp(DBX_META), resp(json.dumps({"error_summary": "shared_link_already_exists/..", "error": {".tag": "shared_link_already_exists"}}), 409),
+    resp(json.dumps({"links": [{".tag": "file", "url": "https://www.dropbox.com/scl/fi/old/my%20shot.png?dl=0"}], "has_more": False}))])
+builtin("dropbox-no-link", "file:Dropbox", dict(DBX, DropboxAutoCreateShareableLink=False), BIN_PNG, [resp(DBX_META)])
+builtin("dropbox-error", "file:Dropbox", DBX, BIN_PNG, [resp('{"error_summary":"path/insufficient_space/"}', 409)])
+
+OD = {"OneDriveV2OAuth2Info": oauth2(), "OneDriveV2SelectedFolder": {"id": "FOLDER1", "name": "Shots", "webUrl": None}}
+OD_SESSION = json.dumps({"uploadUrl": "https://api.onedrive.com/rup/abc123", "nextExpectedRanges": ["0-"]})
+OD_ITEM = json.dumps({"id": "ITEM1", "name": "my shot.png", "webUrl": "https://onedrive.live.com/?id=ITEM1"})
+builtin("onedrive-link", "file:OneDrive", OD, BIN_PNG, [
+    resp(OD_SESSION), resp(OD_ITEM, 201), resp(json.dumps({"link": {"webUrl": "https://1drv.ms/i/s!abc", "webHtml": None}}), 201)])
+builtin("onedrive-web-url-root", "file:OneDrive", dict(OD, OneDriveAutoCreateShareableLink=False, OneDriveV2SelectedFolder={"id": "", "name": "Root"}),
+        image_input("a b#c.png"), [resp(OD_SESSION), resp(OD_ITEM, 201)])
+builtin("onedrive-chunk-error", "file:OneDrive", OD, BIN_PNG, [resp(OD_SESSION), text_resp("fail", 500), resp("", 204, [])])
+builtin("onedrive-refresh", "file:OneDrive", {"OneDriveV2OAuth2Info": dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST)),
+                                             "OneDriveUseDirectLink": True}, BIN_PNG, [
+    resp(TOKEN_OK), resp(OD_SESSION), resp(OD_ITEM, 201), resp(json.dumps({"link": {"webUrl": "https://onedrive.live.com/embed?x"}}))])
+builtin("onedrive-refresh-fails", "file:OneDrive", {"OneDriveV2OAuth2Info": dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST))},
+        BIN_PNG, [resp('{"error":"invalid_grant"}', 400)])
+builtin("onedrive-not-signed-in", "file:OneDrive", {"OneDriveV2OAuth2Info": dict(oauth2(), Token=None)}, BIN_PNG, [])
+
+BOX = {"BoxOAuth2Info": oauth2(), "BoxSelectedFolder": {"type": "folder", "id": "123", "name": "Shots"}, "BoxShareAccessLevel": "Company"}
+BOX_FILE = json.dumps({"total_count": 1, "entries": [{"type": "file", "id": "999", "name": "my shot.png", "parent": {"type": "folder", "id": "123"}}]})
+builtin("box-share", "file:Box", BOX, BIN_PNG, [resp(BOX_FILE, 201), resp(json.dumps({"type": "file", "id": "999", "shared_link": {"url": "https://app.box.com/s/abc"}}))])
+builtin("box-no-share", "file:Box", dict(BOX, BoxShare=False), BIN_PNG, [resp(BOX_FILE, 201)])
+builtin("box-refresh-fails", "file:Box", {"BoxOAuth2Info": dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST))}, BIN_PNG,
+        [text_resp("no", 400)])
+builtin("box-not-signed-in", "file:Box", {"BoxOAuth2Info": dict(oauth2(), Client_Secret="")}, BIN_PNG, [])
+
+GD = {"GoogleDriveOAuth2Info": oauth2(), "GoogleDriveIsPublic": True, "GoogleDriveDirectLink": True}
+GD_FILE = json.dumps({"id": "FILE1", "webViewLink": "https://drive.google.com/file/d/FILE1/view?usp=drivesdk",
+                      "webContentLink": "https://drive.google.com/uc?id=FILE1&export=download"})
+builtin("google-drive-public-direct", "file:GoogleDrive", GD, BIN_PNG, [resp(GD_FILE), resp('{"kind":"drive#permission","id":"anyone"}')])
+builtin("google-drive-folder", "file:GoogleDrive", dict(GD, GoogleDriveIsPublic=False, GoogleDriveDirectLink=False, GoogleDriveUseFolder=True,
+                                                        GoogleDriveFolderID="FOLDER9", GoogleDriveSelectedDrive={"id": "DRIVE2", "name": "Team"}),
+        BIN_PNG, [resp(GD_FILE)])
+builtin("google-drive-shared-drive-root", "file:GoogleDrive", dict(GD, GoogleDriveIsPublic=False, GoogleDriveDirectLink=False,
+                                                                   GoogleDriveSelectedDrive={"id": "DRIVE2", "name": "Team"}), BIN_PNG, [resp(GD_FILE)])
+builtin("google-drive-refresh", "file:GoogleDrive", {"GoogleDriveOAuth2Info": dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST)),
+                                                     "GoogleDriveIsPublic": False}, BIN_PNG,
+        [resp(json.dumps({"access_token": "fresh", "expires_in": 3599, "token_type": "Bearer"})), resp(GD_FILE)])
+builtin("google-drive-error", "file:GoogleDrive", GD, BIN_PNG, [resp('{"error":{"code":403,"message":"no"}}', 403)])
+GCS = {"GoogleCloudStorageOAuth2Info": oauth2(), "GoogleCloudStorageBucket": "made-up-bucket", "GoogleCloudStorageObjectPrefix": "/shots/sub/",
+       "GoogleCloudStorageRemoveExtensionImage": True}
+builtin("gcs-acl", "file:GoogleCloudStorage", GCS, BIN_PNG, [resp('{"name":"shots/sub/my shot"}')])
+builtin("gcs-domain-no-acl", "file:GoogleCloudStorage", dict(GCS, GoogleCloudStorageDomain="cdn.example.com", GoogleCloudStorageSetPublicACL=False,
+                                                             GoogleCloudStorageRemoveExtensionImage=False), BIN_PNG, [resp('{"name":"shots/sub/my shot.png"}')])
+builtin("gcs-error", "file:GoogleCloudStorage", GCS, BIN_PNG, [resp('{"error":{"code":403}}', 403)])
+YT = {"YouTubeOAuth2Info": oauth2(), "YouTubePrivacyType": "Unlisted"}
+builtin("youtube", "file:YouTube", YT, VIDEO,
+        [resp(json.dumps({"id": "vid123", "snippet": {"title": "clip"}, "status": {"uploadStatus": "uploaded", "privacyStatus": "unlisted"}}))])
+builtin("youtube-short-rejected", "file:YouTube", dict(YT, YouTubeUseShortenedLink=True, YouTubePrivacyType="Private"), VIDEO,
+        [resp(json.dumps({"id": "vid9", "status": {"uploadStatus": "rejected", "rejectionReason": "duplicate", "privacyStatus": "private"}}))])
+
+# OAuth 1.0a (made-up consumer and token secrets; compare.py checks each
+# side's HMAC-SHA1 signature, then normalises the nonce, time and signature).
+OAUTH1 = {"Description": "x", "OAuthVersion": "1.0", "ConsumerKey": "made-up-consumer-key", "ConsumerSecret": "made-up-consumer-secret",
+          "SignatureMethod": "HMAC_SHA1", "UserToken": "made-up-user-token", "UserSecret": "made-up-user-secret"}
+FLICKR = {"FlickrOAuthInfo": OAUTH1, "FlickrSettings": {"DirectLink": False, "Title": "A title", "Tags": "a b", "IsPublic": "1", "Hidden": "2"}}
+builtin("flickr", "image:Flickr", FLICKR, BIN_PNG, [
+    resp('<?xml version="1.0" encoding="utf-8" ?>\n<rsp stat="ok">\n<photoid>51234</photoid>\n</rsp>', headers=XML),
+    resp(json.dumps({"sizes": {"canblog": 0, "size": [{"label": "Square", "source": "https://live.staticflickr.com/s.png", "url": "https://flickr.com/s"},
+                                                       {"label": "Original", "source": "https://live.staticflickr.com/o.png",
+                                                        "url": "https://www.flickr.com/photos/me/51234/sizes/o/"}]}, "stat": "ok"}))])
+builtin("flickr-fail", "image:Flickr", dict(FLICKR, FlickrSettings={"DirectLink": True}), BIN_PNG,
+        [resp('<rsp stat="fail"><err code="5" msg="Filetype was not recognised" /></rsp>', headers=XML)])
+PB_ACCOUNT = {"Subdomain": "api123.photobucket.com", "AlbumID": "me", "AlbumList": ["me", "me/shots"], "ActiveAlbumID": 1}
+builtin("photobucket", "image:Photobucket", {"PhotobucketOAuthInfo": OAUTH1, "PhotobucketAccountInfo": PB_ACCOUNT}, BIN_PNG, [
+    resp('<?xml version="1.0"?><response><status>OK</status><content><url>https://i.photobucket.com/me/shots/a.png</url>'
+         '<thumb>https://i.photobucket.com/me/shots/th_a.png</thumb></content></response>', headers=XML)])
+builtin("photobucket-bad-album", "image:Photobucket", {"PhotobucketOAuthInfo": OAUTH1, "PhotobucketAccountInfo": dict(PB_ACCOUNT, ActiveAlbumID=5)},
+        BIN_PNG, [])
+
+# ---------------------------------------------------------------------------
+# Sign-in flows: the authorization URL each service builds, the code (PIN)
+# exchange, refresh and Google's user info, against a mock token endpoint.
+
+
+def oauth_case(id, service, steps, responses, oauth2_info=None, oauth1_info=None, proof=None, redirect=None):
+    c = {"id": id, "kind": "oauth", "service": service, "steps": steps, "responses": responses}
+    if oauth2_info is not None:
+        c["oauth2"] = oauth2_info
+    if oauth1_info is not None:
+        c["oauth1"] = oauth1_info
+    if proof is not None:
+        c["proof"] = proof
+    if redirect is not None:
+        c["redirect"] = redirect
+    cases.append(c)
+
+
+CLIENT = {"Client_ID": "made-up-client-id", "Client_Secret": "made-up-client-secret", "Token": None, "Proof": None}
+SIGNED_IN = dict(CLIENT, Token={"access_token": "old-access", "refresh_token": "old-refresh", "expires_in": 3600, "token_type": "bearer",
+                                "scope": None, "ExpireDate": PAST})
+URL, CODE, REFRESH = {"op": "authorization_url"}, {"op": "access_token", "code": "made-up code/1"}, {"op": "refresh"}
+oauth_case("signin-imgur", "imgur", [URL, CODE], [resp(TOKEN_OK)], CLIENT)
+oauth_case("signin-imgur-refresh", "imgur", [REFRESH, {"op": "check"}], [resp(TOKEN_OK)], SIGNED_IN)
+oauth_case("signin-gist", "gist", [URL, CODE], [resp('{"access_token":"gho_x","token_type":"bearer","scope":"gist"}')], CLIENT)
+oauth_case("signin-dropbox", "dropbox", [URL, CODE], [resp(TOKEN_OK)], CLIENT)
+oauth_case("signin-dropbox-refused", "dropbox", [CODE], [resp('{"error":"invalid_grant"}', 400)], CLIENT)
+oauth_case("signin-onedrive-pkce", "onedrive", [URL, CODE, REFRESH], [resp(TOKEN_OK), resp(json.dumps({"access_token": "a2", "expires_in": 3600}))],
+           CLIENT, proof={"verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"})
+oauth_case("signin-box", "box", [URL, CODE, REFRESH], [resp(TOKEN_OK), resp(TOKEN_OK)], CLIENT)
+oauth_case("signin-box-no-refresh", "box", [REFRESH], [], CLIENT)
+oauth_case("signin-bitly", "bitly", [URL, CODE], [resp('{"access_token":"bitly-token"}')], CLIENT)
+REDIRECT = {"uri": "http://127.0.0.1:49152/", "state": "made-up-state-0123456789abcdefghij"}
+oauth_case("signin-google-drive", "google-drive", [URL, CODE, {"op": "user_info"}],
+           [resp(TOKEN_OK), resp(json.dumps({"sub": "1", "name": "Some One", "given_name": "Some", "picture": "https://x/p.png", "locale": "en"}))],
+           CLIENT, redirect=REDIRECT)
+oauth_case("signin-youtube-refresh", "youtube", [{"op": "check"}, URL], [resp(json.dumps({"access_token": "a3", "expires_in": 60}))], SIGNED_IN,
+           redirect=REDIRECT)
+oauth_case("signin-gcs-refresh-fails", "google-cloud-storage", [{"op": "check"}], [resp("{}", 400)], SIGNED_IN, redirect=REDIRECT)
+OAUTH1_CLIENT = {"Description": "x", "OAuthVersion": "1.0", "ConsumerKey": "made-up-consumer-key", "ConsumerSecret": "made-up-consumer-secret",
+                 "SignatureMethod": "HMAC_SHA1"}
+FORM = [["Content-Type", "application/x-www-form-urlencoded"]]
+oauth_case("signin-flickr", "flickr", [URL, {"op": "access_token", "code": "123-456-789"}], [
+    resp("oauth_callback_confirmed=true&oauth_token=made-up-request-token&oauth_token_secret=made-up-request-secret", headers=FORM),
+    resp("fullname=Some%20One&oauth_token=made-up-user-token&oauth_token_secret=made-up-user-secret&user_nsid=1%40N0&username=someone",
+         headers=FORM)], oauth1_info=OAUTH1_CLIENT)
+oauth_case("signin-photobucket", "photobucket", [URL, {"op": "access_token", "code": "verifier"}], [
+    resp("oauth_token=made-up-request-token&oauth_token_secret=made-up-request-secret&next_step=x", headers=FORM),
+    resp("oauth_token=made-up-user-token&oauth_token_secret=made-up-user-secret&username=someone&subdomain=api123.photobucket.com",
+         headers=FORM)], oauth1_info=OAUTH1_CLIENT)
+oauth_case("signin-flickr-no-token", "flickr", [URL], [text_resp("oauth_problem=signature_invalid", 401)], oauth1_info=OAUTH1_CLIENT)
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

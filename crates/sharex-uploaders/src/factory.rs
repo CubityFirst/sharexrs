@@ -17,6 +17,11 @@ use crate::destinations::shorteners::{Bitly, FirebaseDynamicLinks, Isgd, Kutt, P
 use crate::destinations::text::{Hastebin, OneTimeSecret, Paste2, PasteEe, Pastebin, Pastie, Slexy, SlexySettings, Upaste};
 use crate::destinations::amazon_s3::AmazonS3;
 use crate::destinations::cloud_storage::{AzureStorage, BackblazeB2};
+use crate::destinations::oauth_services::{
+    BoxUploader, Dropbox, Flickr, FlickrSettings, GitHubGist, GoogleCloudStorage, GoogleDrive, OneDrive, Photobucket, PhotobucketAccountInfo, YouTube,
+    dropbox_upload_path,
+};
+use crate::oauth::OAuthInfo;
 use crate::destinations::private_bin::{PrivateBin, PrivateBinSettings};
 use crate::destinations::services::{
     Hostr, ImageShack, ImageShackOptions, MediaFire, Plik, Pushbullet, PushbulletSettings, PushbulletSharer, Seafile, SendSpace, mediafire_upload_path,
@@ -90,6 +95,8 @@ pub fn check_image(dest: &ImageDestination, config: &UploadersConfig) -> Ported 
         ImageDestination::ImageShack => {
             ImageShackOptions::from_value(&config.ImageShackSettings).is_some_and(|o| o.Auth_token.as_deref().is_some_and(|t| !t.is_empty()))
         }
+        ImageDestination::Flickr => OAuthInfo::check(config.FlickrOAuthInfo.as_ref()),
+        ImageDestination::Photobucket => !config.PhotobucketAccountInfo.is_null() && OAuthInfo::check(config.PhotobucketOAuthInfo.as_ref()),
         ImageDestination::CustomImageUploader => valid_index(config, config.CustomImageUploaderSelected),
         _ => return Ported::No,
     })
@@ -121,6 +128,13 @@ pub fn create_image(dest: &ImageDestination, config: &mut UploadersConfig, task:
             let options = ImageShackOptions::from_value(&config.ImageShackSettings)?;
             GenericUploader::File(Box::new(ImageShack::new(api_keys::IMAGE_SHACK_KEY, options)))
         }
+        ImageDestination::Flickr => {
+            GenericUploader::File(Box::new(Flickr::new(config.FlickrOAuthInfo.clone()?, FlickrSettings::from_value(&config.FlickrSettings))))
+        }
+        ImageDestination::Photobucket => GenericUploader::File(Box::new(Photobucket::new(
+            config.PhotobucketOAuthInfo.clone()?,
+            PhotobucketAccountInfo::from_value(&config.PhotobucketAccountInfo)?,
+        ))),
         ImageDestination::CustomImageUploader => {
             let index = custom_index(config, task, config.CustomImageUploaderSelected);
             GenericUploader::File(Box::new(CustomFileUploader::new(custom_item(config, index)?)))
@@ -141,6 +155,7 @@ pub fn check_text(dest: &TextDestination, config: &UploadersConfig) -> Ported {
         | TextDestination::OneTimeSecret
         | TextDestination::Pastie
         | TextDestination::PrivateBin => true,
+        TextDestination::Gist => OAuth2Info::check(config.GistOAuth2Info.as_ref()),
         TextDestination::CustomTextUploader => valid_index(config, config.CustomTextUploaderSelected),
         _ => return Ported::No,
     })
@@ -182,6 +197,13 @@ pub fn create_text(dest: &TextDestination, config: &mut UploadersConfig, task: &
             config.OneTimeSecretAPIKey.as_str(),
         ))),
         TextDestination::Pastie => GenericUploader::Text(Box::new(Pastie::new(config.PastieIsPublic))),
+        TextDestination::Gist => {
+            let mut u = GitHubGist::new(config.GistOAuth2Info.clone()?);
+            u.public_upload = config.GistPublishPublic;
+            u.raw_url = config.GistRawURL;
+            u.custom_url_api = config.GistCustomURL.clone().unwrap_or_default();
+            GenericUploader::Text(Box::new(u))
+        }
         TextDestination::PrivateBin => GenericUploader::Text(Box::new(PrivateBin::new(PrivateBinSettings::from_value(&config.PrivateBinSettings)))),
         TextDestination::CustomTextUploader => {
             let index = custom_index(config, task, config.CustomTextUploaderSelected);
@@ -205,6 +227,12 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
         FileDestination::Streamable => ne(&config.StreamableUsername) && !config.StreamablePassword.is_empty(),
         FileDestination::Lithiio => !config.LithiioSettings.UserAPIKey.is_empty(),
         FileDestination::ImgFish => (IMGFISH_MIN_FILE_ID_LENGTH..=IMGFISH_MAX_FILE_ID_LENGTH).contains(&config.ImgFishSettings.FileIDLength),
+        FileDestination::Dropbox => OAuth2Info::check(config.DropboxOAuth2Info.as_ref()),
+        FileDestination::OneDrive => OAuth2Info::check(config.OneDriveV2OAuth2Info.as_ref()),
+        FileDestination::Box => OAuth2Info::check(config.BoxOAuth2Info.as_ref()),
+        FileDestination::GoogleDrive => OAuth2Info::check(config.GoogleDriveOAuth2Info.as_ref()),
+        FileDestination::GoogleCloudStorage => OAuth2Info::check(config.GoogleCloudStorageOAuth2Info.as_ref()) && ne(&config.GoogleCloudStorageBucket),
+        FileDestination::YouTube => OAuth2Info::check(config.YouTubeOAuth2Info.as_ref()),
         FileDestination::AzureStorage => {
             ne(&config.AzureStorageAccountName) && !config.AzureStorageAccountAccessKey.is_empty() && ne(&config.AzureStorageContainer)
         }
@@ -269,6 +297,53 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
         }
         FileDestination::Lithiio => GenericUploader::File(Box::new(LobFile::new(config.LithiioSettings.UserAPIKey.as_str()))),
         FileDestination::ImgFish => GenericUploader::File(Box::new(ImgFish::new(config.ImgFishSettings.clone()))),
+        FileDestination::Dropbox => {
+            let mut u = Dropbox::new(config.DropboxOAuth2Info.clone()?);
+            u.upload_path = dropbox_upload_path(&s(&config.DropboxUploadPath));
+            u.auto_create_shareable_link = config.DropboxAutoCreateShareableLink;
+            u.use_direct_link = config.DropboxUseDirectLink;
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::OneDrive => {
+            let mut u = OneDrive::new(config.OneDriveV2OAuth2Info.clone()?);
+            u.folder_id = config.OneDriveV2SelectedFolder.get("id").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+            u.auto_create_shareable_link = config.OneDriveAutoCreateShareableLink;
+            u.use_direct_link = config.OneDriveUseDirectLink;
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::Box => {
+            let mut u = BoxUploader::new(config.BoxOAuth2Info.clone()?);
+            u.folder_id = config.BoxSelectedFolder.get("id").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+            u.share = config.BoxShare;
+            u.share_access_level = config.BoxShareAccessLevel.clone();
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::GoogleDrive => {
+            let mut u = GoogleDrive::new(config.GoogleDriveOAuth2Info.clone()?);
+            u.is_public = config.GoogleDriveIsPublic;
+            u.direct_link = config.GoogleDriveDirectLink;
+            u.folder_id = if config.GoogleDriveUseFolder { config.GoogleDriveFolderID.clone() } else { None };
+            u.drive_id = config.GoogleDriveSelectedDrive.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::GoogleCloudStorage => {
+            let mut u = GoogleCloudStorage::new(config.GoogleCloudStorageOAuth2Info.clone()?);
+            u.bucket = s(&config.GoogleCloudStorageBucket);
+            u.domain = s(&config.GoogleCloudStorageDomain);
+            u.prefix = s(&config.GoogleCloudStorageObjectPrefix);
+            u.remove_extension_image = config.GoogleCloudStorageRemoveExtensionImage;
+            u.remove_extension_text = config.GoogleCloudStorageRemoveExtensionText;
+            u.remove_extension_video = config.GoogleCloudStorageRemoveExtensionVideo;
+            u.set_public_acl = config.GoogleCloudStorageSetPublicACL;
+            GenericUploader::File(Box::new(u))
+        }
+        FileDestination::YouTube => {
+            let mut u = YouTube::new(config.YouTubeOAuth2Info.clone()?);
+            u.privacy_type = config.YouTubePrivacyType.clone();
+            u.use_shortened_link = config.YouTubeUseShortenedLink;
+            u.show_dialog = config.YouTubeShowDialog;
+            GenericUploader::File(Box::new(u))
+        }
         FileDestination::AzureStorage => GenericUploader::File(Box::new(AzureStorage::new(
             &s(&config.AzureStorageAccountName),
             config.AzureStorageAccountAccessKey.as_str(),
