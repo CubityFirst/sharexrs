@@ -68,6 +68,7 @@ pub fn render(
         last_regions: Vec::new(),
         enable_annotations: true,
         editor_options: Default::default(),
+        cursor_image: None,
     });
     let none = Modifiers::default();
     let later = Instant::now() + Duration::from_secs(1);

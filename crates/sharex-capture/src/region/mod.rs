@@ -65,6 +65,9 @@ pub struct Request {
     pub enable_annotations: bool,
     /// The annotation tools' options (`ToolsSettingsReference.ImageEditorOptions`).
     pub editor_options: ImageEditorOptions,
+    /// The pointer (`ShowCursor`, `CursorData.ToBitmap`), inserted as an
+    /// image annotation over the frozen screen.
+    pub cursor_image: Option<crate::CursorImage>,
 }
 
 /// `AvaloniaRegionCaptureResult`.
@@ -325,10 +328,18 @@ impl RegionCapture {
             last_regions,
             enable_annotations,
             editor_options,
+            cursor_image,
         } = request;
         let editor = enable_annotations.then(|| {
             let pm = sharex_skia::Pixmap::from_rgba(screenshot.width(), screenshot.height(), screenshot.as_raw());
-            Workspace::new(pm, editor_options)
+            // `ConfigureForFullscreenWorkspace`: the workspace host mode.
+            let mut ws = Workspace::new(pm, editor_options);
+            ws.host_mode = true;
+            if let Some(c) = &cursor_image {
+                let cpm = sharex_skia::Pixmap::from_rgba(c.image.width(), c.image.height(), c.image.as_raw());
+                ws.insert_workspace_image(cpm, (c.position.0 as f64, c.position.1 as f64));
+            }
+            ws
         });
         let width = screen_bounds.w.max(1) as f64;
         let height = screen_bounds.h.max(1) as f64;

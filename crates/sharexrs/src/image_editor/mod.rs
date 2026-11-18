@@ -45,6 +45,14 @@ mod start_screen;
 
 use sharex_ui::keys::app_icons as icon;
 
+/// Where a colour picked from the screen goes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PickTarget {
+    Option(OptionItem),
+    NewImage,
+    CanvasFill,
+}
+
 /// The dialog in `EditorView`'s modal host (`ModalContent`).
 enum Modal {
     /// `ConfirmationDialogView` (unsaved changes on exit).
@@ -246,6 +254,11 @@ pub struct EditorWindow {
     window_inner: Option<(Rect, f32)>,
     /// The Canvas size tool, while open (`IsCanvasSizeModeActive`).
     canvas_resize: Option<canvas_size::CanvasResize>,
+    /// What the screen colour picker's colour goes to.
+    pick_target: Option<PickTarget>,
+    /// The window as last seen (`Bounds.Size`, `Position`, maximized), for
+    /// `SaveWindowState`.
+    window_state: Option<(Vec2, (i32, i32), bool)>,
     /// The confirmation's warning sign, drawn once.
     sign_texture: Option<Option<TextureHandle>>,
     /// `--render`: the Canvas size tool opened on the first frame.
@@ -344,9 +357,16 @@ impl EditorWindow {
             canvas_resize: None,
             canvas_resize_on_open: false,
             sign_texture: None,
+            pick_target: None,
+            window_state: None,
             room: Vec2::ZERO,
         };
         w.title = w.window_title();
+        // `QueueAutoCopyImageToClipboard`: the opened image copied.
+        if has_image && w.ws.tools.options.AutoCopyImageToClipboard && !w.ws.host_mode {
+            let img = w.snapshot();
+            w.effects.push(Effect::CopyImage(img));
+        }
         // `OnLoaded`: no image (and not a task) shows the start screen.
         if !has_image && !task_mode {
             w.modal = Some(Modal::Start(start_screen::StartScreen::new(w.ws.tools.options.RecentImageFiles.clone())));
@@ -625,7 +645,10 @@ impl EditorWindow {
         match c {
             MenuCmd::New => self.run(Command::NewImage),
             MenuCmd::Open => self.run(Command::OpenImage),
-            MenuCmd::NewRegion | MenuCmd::NewFullscreen => self.effects.push(Effect::NotPorted("Image editor: New from screenshot")),
+            MenuCmd::NewRegion | MenuCmd::NewFullscreen => {
+                let fullscreen = c == MenuCmd::NewFullscreen;
+                self.effects.push(Effect::EditorCapture { fullscreen, task: Box::new(self.task.clone()) });
+            }
             MenuCmd::Save => self.run(Command::Save),
             MenuCmd::SaveAs => self.run(Command::SaveAs),
             MenuCmd::Exit => self.run(Command::Exit),
@@ -788,6 +811,12 @@ impl EditorWindow {
                 }
                 ed::Request::Cropped { width, height } => {
                     self.notify(Self::size_message(ie::MainViewModel_ImageCropped(), width, height), tool_icons::Crop);
+                }
+                ed::Request::AutoExpanded { left, top } => {
+                    // Content moved right/down: scrolled by as much.
+                    let z = self.zoom as f32;
+                    self.scroll += vec2(left as f32 * z, top as f32 * z);
+                    self.update_title();
                 }
                 ed::Request::CutOut { width, height } => {
                     self.notify(Self::size_message(ie::MainViewModel_ImageCutOut(), width, height), tool_icons::CutOut);
@@ -1408,7 +1437,8 @@ impl EditorWindow {
                     Bottom::Pin => self.run(Command::PinToScreen),
                     Bottom::Print => self.run(Command::Print),
                     Bottom::Upload => self.run(Command::Upload),
-                    Bottom::CaptureRegion | Bottom::CaptureFullscreen => self.menu_command(MenuCmd::NewRegion),
+                    Bottom::CaptureRegion => self.menu_command(MenuCmd::NewRegion),
+                    Bottom::CaptureFullscreen => self.menu_command(MenuCmd::NewFullscreen),
                 }
             }
         }
@@ -1593,7 +1623,10 @@ impl EditorWindow {
                 let pos = ui.ctx().input(|i| i.pointer.interact_pos());
                 let outside = modal::scrim(ui, p, full, rect) && !pos.is_some_and(|q| d.popup_contains(q));
                 let out = d.show(ui, p, rect);
-                d.show_popup(ui, p, full);
+                if d.show_popup(ui, p, full).pick_screen_color {
+                    self.pick_target = Some(PickTarget::NewImage);
+                    self.effects.push(Effect::PickScreenColorOverWindow);
+                }
                 match out {
                     Some(new_image::Outcome::Ok) => self.create_new_image(&d),
                     Some(new_image::Outcome::Cancel) => {}
@@ -1924,9 +1957,13 @@ fn image_extension(task: &TaskSettings) -> &'static str {
 
 impl Dialog for EditorWindow {
     fn spec(&self) -> Spec {
+        // `ApplySavedWindowState`: the saved size and state; otherwise the
+        // window's `WindowState="Maximized"`.
         let o = &self.ws.tools.options;
-        let (w, h) = if o.RememberWindowState && o.WindowWidth > 0.0 { (o.WindowWidth as f32, o.WindowHeight as f32) } else { (1280.0, 720.0) };
-        Spec { maximized: !o.RememberWindowState || o.IsWindowMaximized, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
+        let saved = o.RememberWindowState && !o.AutoSizeWindow;
+        let (w, h) = if saved && o.WindowWidth > 0.0 && o.WindowHeight > 0.0 { (o.WindowWidth as f32, o.WindowHeight as f32) } else { (1280.0, 720.0) };
+        let maximized = if saved { o.IsWindowMaximized } else { !o.AutoSizeWindow };
+        Spec { maximized, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -1936,6 +1973,20 @@ impl Dialog for EditorWindow {
         self.layout.view = full;
         let ppp = ui.ctx().pixels_per_point();
         self.window_inner = ui.ctx().input(|i| i.viewport().inner_rect).map(|r| (r, ppp));
+        // `OnWindowResized` / `SaveNormalWindowSize`: the normal window's
+        // client size and frame position, and whether it's maximized.
+        let (outer, maximized, minimized) = ui.ctx().input(|i| (i.viewport().outer_rect, i.viewport().maximized, i.viewport().minimized));
+        if let (Some((inner, _)), Some(outer)) = (self.window_inner, outer)
+            && minimized != Some(true)
+        {
+            let max = maximized == Some(true);
+            let pos = ((outer.min.x * ppp).round() as i32, (outer.min.y * ppp).round() as i32);
+            match (&mut self.window_state, max) {
+                (Some(st), true) => st.2 = true,
+                (st, false) => *st = Some((inner.size(), pos, false)),
+                (st @ None, true) => *st = Some((Vec2::ZERO, pos, true)),
+            }
+        }
         ui.painter().rect_filled(full, 0.0, p.background_main);
         self.input(ui);
         self.paint_canvas(ui, &p, full);
@@ -1960,7 +2011,8 @@ impl Dialog for EditorWindow {
         {
             let r = self.popups.show(ui, &p, anchor, full, &mut self.ws);
             if r.pick_screen_color {
-                self.effects.push(Effect::NotPorted("Image editor: pick a colour from the screen"));
+                self.pick_target = Some(PickTarget::Option(item));
+                self.effects.push(Effect::PickScreenColorOverWindow);
             }
         }
         if self.zoom_open {
@@ -2012,6 +2064,19 @@ impl Dialog for EditorWindow {
     }
 
     fn closed(&mut self, cx: &mut Cx) -> Vec<Effect> {
+        // `SaveWindowState`.
+        if self.ws.tools.options.RememberWindowState
+            && let Some((size, pos, max)) = self.window_state
+        {
+            let o = &mut self.ws.tools.options;
+            if !max && size.x > 0.0 && size.y > 0.0 {
+                o.WindowWidth = size.x as f64;
+                o.WindowHeight = size.y as f64;
+                o.WindowX = Some(pos.0);
+                o.WindowY = Some(pos.1);
+            }
+            o.IsWindowMaximized = max;
+        }
         // The tool options go back into the task settings
         // (`ToolsSettingsReference.ImageEditorOptions`).
         let options = self.options().to_value();
@@ -2028,8 +2093,67 @@ impl Dialog for EditorWindow {
         }
     }
 
+    /// New from screenshot's image (`LoadBitmapIntoEditor`, the dialog
+    /// closed).
     fn replace_image(&mut self, image: RgbaImage, _ctx: &egui::Context) {
-        self.load(image);
+        self.modal = None;
+        self.load_bitmap(image, None);
+    }
+
+    /// The screen colour picker's colour (`ColorPickerPanel`: the colour
+    /// set and added to the recent colours).
+    fn screen_color(&mut self, color: Option<sharex_tools::color::Color>, _cx: &mut Cx) {
+        let (Some(c), Some(target)) = (color, self.pick_target.take()) else { return };
+        let c32 = Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
+        sharex_capture::editor_popups::add_recent_color(c32);
+        let hex = sharex_ui::accent::to_hex(c32);
+        match target {
+            PickTarget::Option(item) => self.ws.set_option(|s, t| match item {
+                OptionItem::BorderColor => s.set_selected_color(&hex, t),
+                OptionItem::FillColor => s.set_fill_color(&hex, t),
+                OptionItem::TextColor => s.set_text_color(&hex, t),
+                _ => {}
+            }),
+            PickTarget::NewImage => {
+                if let Some(Modal::NewImage(d)) = &mut self.modal {
+                    d.color = c32;
+                }
+            }
+            PickTarget::CanvasFill => self.ws.tools.options.CanvasFillColorHex = hex,
+        }
+    }
+
+    /// `OnDrop`: image files (by extension); with no image the first
+    /// becomes it, otherwise each is inserted (the insert dialog asks once).
+    fn dropped(&mut self, files: Vec<PathBuf>, _cx: &mut Cx) -> Vec<Effect> {
+        const EXT: [&str; 7] = ["png", "jpg", "jpeg", "bmp", "gif", "webp", "ico"];
+        for f in files {
+            let ext = f.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
+            if !EXT.contains(&ext.as_str()) {
+                continue;
+            }
+            let Some(img) = crate::thumbnail::load(&f) else { continue };
+            if !self.has_image {
+                // `UpdatePreview(clearAnnotations: true)`: no file, the
+                // dialog (if any) stays.
+                self.load(img);
+                return std::mem::take(&mut self.effects);
+            }
+            if self.modal.is_some() && self.ws.tools.options.ShowInsertImageDialog {
+                continue;
+            }
+            self.insert_external_image(img, f);
+        }
+        std::mem::take(&mut self.effects)
+    }
+
+    /// `ApplySavedWindowState`'s position.
+    fn position(&self, _work_area: sharex_capture::Rect, _size: (u32, u32)) -> Option<(i32, i32)> {
+        let o = &self.ws.tools.options;
+        if !o.RememberWindowState || o.AutoSizeWindow {
+            return None;
+        }
+        Some((o.WindowX?, o.WindowY?))
     }
 }
 

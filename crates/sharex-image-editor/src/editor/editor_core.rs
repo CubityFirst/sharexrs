@@ -395,8 +395,8 @@ impl EditorCore {
         r.inflate(stroke, stroke)
     }
 
-    /// `AutoExpandCanvasToFit` over the annotations with `ids` (every one
-    /// when `None`): the canvas grown on the sides they cross, by `margin`
+    /// `AutoExpandCanvasToFit` over the annotations with these keys
+    /// ([`crate::model::Common::key`]; every one when `None`): the canvas grown on the sides they cross, by `margin`
     /// more, filled with `background`. Returns the room added left and top.
     pub fn auto_expand_canvas_to_fit(
         &mut self,
@@ -406,7 +406,7 @@ impl EditorCore {
     ) -> Option<(i32, i32)> {
         let mut union: Option<Rect> = None;
         for a in &self.annotations {
-            if ids.is_some_and(|ids| !ids.contains(&a.common.id)) || !Self::can_auto_expand_for(a) {
+            if ids.is_some_and(|ids| !ids.contains(&a.common.key.0)) || !Self::can_auto_expand_for(a) {
                 continue;
             }
             let b = Self::auto_expand_bounds(a);

@@ -414,6 +414,10 @@ impl EditorWindow {
             if r.changed {
                 picked = Some(c);
             }
+            if r.pick_screen_color {
+                self.pick_target = Some(super::PickTarget::CanvasFill);
+                self.effects.push(crate::dialogs::Effect::PickScreenColorOverWindow);
+            }
         }
         if let Some(c) = picked {
             self.ws.tools.options.CanvasFillColorHex = sharex_ui::accent::to_hex(c);

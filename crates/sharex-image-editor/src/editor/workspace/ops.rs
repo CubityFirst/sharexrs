@@ -487,22 +487,13 @@ impl Workspace {
         self.history_changed();
     }
 
-    /// A cursor annotation with its top-left at `at`, sized to the
-    /// cursor image, not counted as an edit: what region capture inserts
-    /// for a shown pointer.
-    pub fn insert_cursor_annotation(&mut self, cursor_type: CursorType, at: P) -> Option<String> {
-        let pm = render::cursor::cursor_bitmap(&cursor_type)?;
-        let mut a = Annotation::new("Cursor").expect("Cursor");
-        if let Kind::Cursor(c) = &mut a.kind {
-            c.cursor_type = cursor_type;
-        }
-        a.common.start_point = sk(at);
-        a.common.end_point = sk((at.0 + pm.width() as f64, at.1 + pm.height() as f64));
-        a.common.id = crate::editor::editor_core::new_annotation_id();
-        let id = a.common.key.0.clone();
-        self.core.annotations.push(a);
-        self.changed();
-        Some(id)
+    /// `InsertWorkspaceImageAnnotation`: an image annotation of `pm` with
+    /// its top-left at `at`, not selected and not marking the editor dirty
+    /// (region capture's shown pointer, `CursorData.ToBitmap`).
+    pub fn insert_workspace_image(&mut self, pm: Pixmap, at: P) -> String {
+        let key = self.insert_image_annotation(pm, at, EditorTool::Image, false);
+        self.dirty = false;
+        key
     }
 
     /// `SampleCanvasColor`: `#RRGGBB` of the image with its annotations at

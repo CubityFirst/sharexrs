@@ -40,10 +40,19 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
         shot.capture_fullscreen(&screens)
     }
     .ok_or("couldn't capture the screen")?;
+    let enable_annotations = !task.AdvancedSettings.as_ref().is_some_and(|a| a.RegionCaptureDisableAnnotation);
+    // The pointer becomes an image annotation over the frozen screen; with
+    // annotations off (no workspace here) it's drawn in, which renders the
+    // same.
+    let mut cursor_image = None;
     if capture.ShowCursor
         && let Some(c) = screenshot::cursor_image(&frozen, (screen_bounds.x, screen_bounds.y))
     {
-        screenshot::draw_cursor(&mut frozen, &c);
+        if enable_annotations {
+            cursor_image = Some(c);
+        } else {
+            screenshot::draw_cursor(&mut frozen, &c);
+        }
     }
     let windows = if options.DetectWindows {
         windows_list::window_info_list(options.DetectControls, &[])
@@ -58,8 +67,9 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
         windows,
         cursor,
         last_regions,
-        enable_annotations: !task.AdvancedSettings.as_ref().is_some_and(|a| a.RegionCaptureDisableAnnotation),
+        enable_annotations,
         editor_options: image_editor_options(task),
+        cursor_image,
     })
 }
 

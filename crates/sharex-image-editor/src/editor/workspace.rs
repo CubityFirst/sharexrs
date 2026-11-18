@@ -9,7 +9,7 @@ use sharex_skia::Pixmap;
 use super::geometry::{self, Rect, Segment, rotate_point, shape_hit};
 use super::editor_core::EditorCore;
 use super::tool_state::{Target, ToolState};
-use crate::model::{Annotation, CursorType, EditorTool, Kind, Point, TextHorizontalAlignment};
+use crate::model::{Annotation, EditorTool, Kind, Point, TextHorizontalAlignment};
 use crate::options::ImageEditorOptions;
 use crate::render;
 
@@ -259,6 +259,10 @@ pub enum Request {
     Cropped { width: u32, height: u32 },
     /// The cut out tool cut it (`ShowImageCutOutNotification`).
     CutOut { width: u32, height: u32 },
+    /// The canvas grew to fit an annotation (`ExpandCanvasToFit`): this
+    /// much room was added left and top (the host scrolls by it so the view
+    /// doesn't jump).
+    AutoExpanded { left: i32, top: i32 },
 }
 
 /// What a right button press did (`OnCanvasPointerPressed`).
@@ -1146,6 +1150,9 @@ impl Workspace {
         }
         if self.drag.take().is_some() {
             self.changed();
+            if let Some(key) = self.core.selected.clone() {
+                self.auto_expand(&key);
+            }
             return;
         }
         let Some(d) = self.drawing.take() else { return };
@@ -1171,6 +1178,27 @@ impl Workspace {
             self.set_selected(id.clone());
         }
         self.add_annotation(&id);
+        self.auto_expand(&id);
+    }
+
+    /// `ScheduleAutoExpandCanvas` / `ExpandCanvasToFit`: with
+    /// `AutoExpandCanvas` (not in region capture), the canvas grows (one
+    /// undo step) to take the annotation with 16px to spare, filled with
+    /// `CanvasFillColor`.
+    fn auto_expand(&mut self, key: &str) {
+        if self.host_mode || !self.tools.options.AutoExpandCanvas {
+            return;
+        }
+        let Some(i) = self.find(key) else { return };
+        if !EditorCore::can_auto_expand_for(&self.core.annotations[i]) {
+            return;
+        }
+        let c = render::parse_color(&self.tools.options.CanvasFillColorHex);
+        let keys = [key.to_string()];
+        if let Some((left, top)) = self.core.auto_expand_canvas_to_fit(Some(&keys), 16.0, [c.r, c.g, c.b, c.a]) {
+            self.image_changed();
+            self.requests.push(Request::AutoExpanded { left, top });
+        }
     }
 
     /// Discards the shape being drawn (`CancelActiveDrawing`).
@@ -1766,6 +1794,7 @@ impl Workspace {
                 Kind::SpeechBalloon(p) => p.text = t.text,
                 _ => {}
             }
+            self.auto_expand(&id);
             return;
         }
         if t.text.trim().is_empty() {
@@ -1779,7 +1808,8 @@ impl Workspace {
         let id = a.common.key.0.clone();
         self.core.annotations.push(a);
         self.add_annotation(&id);
-        self.set_selected(id);
+        self.set_selected(id.clone());
+        self.auto_expand(&id);
     }
 }
 

@@ -79,6 +79,11 @@ pub enum CaptureError {
 /// drawn in (`ShowCursor`), clipped to the monitors. Client area only,
 /// window shadows, hiding the taskbar and HDR correction aren't ported
 /// (all off by default).
+/// `TaskHelpers.GetScreenshot(taskSettings)`.
+pub(crate) fn task_screenshot(task: &TaskSettings) -> Screenshot {
+    screenshot(task)
+}
+
 fn screenshot(task: &TaskSettings) -> Screenshot {
     let capture = task.CaptureSettings.clone().unwrap_or_default();
     Screenshot { capture_cursor: capture.ShowCursor, remove_outside_screen_area: true }

@@ -755,6 +755,8 @@ pub enum OcrRegion {
     New(Box<sharex_settings::TaskSettings>),
     /// An OCR window's Select region...
     Window(winit::window::WindowId),
+    /// The image editor's New from screenshot (hidden, not minimized).
+    Shown(winit::window::WindowId),
 }
 
 impl crate::App {
@@ -784,6 +786,35 @@ impl crate::App {
         }
     }
 
+    /// The image editor's New from screenshot: hidden, captured, shown.
+    pub(crate) fn editor_capture(&mut self, id: winit::window::WindowId, fullscreen: bool, task: sharex_settings::TaskSettings) {
+        if self.region.is_some() || self.transparent.is_some() || self.pending_capture.is_some() {
+            return;
+        }
+        let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) else { return };
+        d.window.window.set_visible(false);
+        if fullscreen {
+            // `GetScreenshot(taskSettings).CaptureFullscreen()` after the
+            // 250 ms the window takes to disappear.
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let screens = sharex_capture::screenshot::screens();
+            let grab = crate::capture::task_screenshot(&task).capture_fullscreen(&screens);
+            d.window.window.set_visible(true);
+            d.window.window.focus_window();
+            if let Some(image) = grab {
+                let ctx = d.window.ctx().clone();
+                d.dialog.replace_image(image, &ctx);
+            }
+            d.window.window.request_redraw();
+            return;
+        }
+        self.ocr_region = Some(OcrRegion::Shown(id));
+        self.capture(crate::capture::CaptureJob::Region, task, false);
+        if let Some(p) = self.pending_capture.as_mut() {
+            p.at += std::time::Duration::from_millis(250);
+        }
+    }
+
     /// A region capture for OCR ended (`None`: cancelled).
     pub(crate) fn ocr_region_captured(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, target: OcrRegion, image: Option<RgbaImage>) {
         match target {
@@ -792,9 +823,10 @@ impl crate::App {
                     self.ocr_image(event_loop, image, None, *task);
                 }
             }
-            OcrRegion::Window(id) => {
+            OcrRegion::Window(id) | OcrRegion::Shown(id) => {
                 let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) else { return };
                 d.window.window.set_minimized(false);
+                d.window.window.set_visible(true);
                 d.window.window.focus_window();
                 if let Some(image) = image {
                     let ctx = d.window.ctx().clone();
