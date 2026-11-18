@@ -9,8 +9,10 @@ Usage: python make_cases.py  (writes cases.json beside it)
 """
 
 import base64
+import hashlib
 import json
 import os
+import subprocess
 
 # Every byte value, so multipart bodies show any encoding slip.
 FILE_BYTES = bytes(range(256)) * 3
@@ -833,6 +835,39 @@ cases.append({"id": "email-invalid-from", "kind": "builtin", "service": "file:Em
               "input": BIN_PNG, "responses": [], "servers": SMTP})
 cases.append({"id": "email-share-url", "kind": "builtin", "service": "sharing:Email", "config": EMAIL, "input": url_input(), "responses": [],
               "servers": SMTP})
+
+# MEGA: random file keys and request ids; compare.py decrypts each side's
+# chunk, name and key with the made-up master key and checks the MAC.
+
+
+def b64url(b):
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def aes_ecb(data, key):
+    return subprocess.run(["openssl", "enc", "-aes-128-ecb", "-nopad", "-K", key.hex()], input=data, capture_output=True, check=True).stdout
+
+
+MEGA_MASTER = bytes(range(16))
+MEGA = {"MegaSessionID": "made-up-session-id", "MegaMasterKey": b64url(MEGA_MASTER)}
+MEGA_TOKEN = {"status": 200, "headers": [["Content-Type", "application/octet-stream"]], "body_base64": base64.b64encode(bytes(range(36))).decode()}
+MEGA_UPLOAD = [resp('[{"p":"https://gfs270n123.userstorage.mega.co.nz/ul/made-up-upload"}]'), MEGA_TOKEN,
+               resp('[{"f":[{"h":"NODE1","t":0,"a":"x","k":"y"}]}]'), resp('["PUBHANDLE"]')]
+builtin("mega-root", "file:Mega", MEGA, BIN_PNG, [resp('[{"f":[{"h":"INBOX","t":3},{"h":"ROOT1","t":2}]}]')] + MEGA_UPLOAD)
+builtin("mega-folder", "file:Mega", dict(MEGA, MegaSelectedFolder={"ID": "FOLDER7", "Name": "Shots"}), image_input("é b.png"), MEGA_UPLOAD)
+builtin("mega-session-expired", "file:Mega", MEGA, BIN_PNG, [resp("[-15]")])
+builtin("mega-not-logged-in", "file:Mega", {"MegaSessionID": "", "MegaMasterKey": b64url(MEGA_MASTER)}, BIN_PNG, [])
+builtin("mega-hashcash", "file:Mega", dict(MEGA, MegaSelectedFolder={"ID": "F", "Name": "x"}), BIN_PNG, [
+    resp("", 402, [["X-Hashcash", "1:255:1700000000:" + b64url(bytes(range(48)))]])] + MEGA_UPLOAD)
+MEGA_SALT = bytes(range(100, 132))
+MEGA_PASSWORD = "made-up password"
+MEGA_PWKEY = hashlib.pbkdf2_hmac("sha512", MEGA_PASSWORD.encode("latin-1") + b"\0" * ((-len(MEGA_PASSWORD)) % 4), MEGA_SALT, 100000, 32)[:16]
+MEGA_TSID = bytes(range(200, 216))
+oauth_case("signin-mega", "mega", [{"op": "login", "email": " Someone@Example.com ", "password": MEGA_PASSWORD}], [
+    resp(json.dumps([{"v": 2, "s": b64url(MEGA_SALT)}])),
+    resp(json.dumps([{"k": b64url(aes_ecb(MEGA_MASTER, MEGA_PWKEY)), "tsid": b64url(MEGA_TSID + aes_ecb(MEGA_TSID, MEGA_MASTER))}]))])
+oauth_case("signin-mega-2fa", "mega", [{"op": "login", "email": "someone@example.com", "password": MEGA_PASSWORD}], [
+    resp(json.dumps([{"v": 2, "s": b64url(MEGA_SALT)}])), resp("[-26]")])
 
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:

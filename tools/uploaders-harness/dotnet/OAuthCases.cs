@@ -27,6 +27,29 @@ static class OAuthCases
             info2.Proof = proof;
         }
 
+        if (service == "mega")
+        {
+            JsonArray megaSteps = new JsonArray();
+            output["steps"] = megaSteps;
+            foreach (JsonNode step in c["steps"].AsArray())
+            {
+                var mega = new Mega((string)step["email"], (string)step["password"]);
+                uploader = mega;
+                MethodInfo login = typeof(Mega).GetMethod("LoginAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+                try
+                {
+                    Task task = (Task)login.Invoke(mega, new object[] { null, CancellationToken.None });
+                    task.GetAwaiter().GetResult();
+                    object session = task.GetType().GetProperty("Result").GetValue(task);
+                    megaSteps.Add((string)session.GetType().GetProperty("SessionID").GetValue(session) + "|" + (string)session.GetType().GetProperty("MasterKey").GetValue(session));
+                }
+                catch (TargetInvocationException e)
+                {
+                    throw e.InnerException;
+                }
+            }
+            return;
+        }
         object client;
         Photobucket photobucket = null;
         switch (service)

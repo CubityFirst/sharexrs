@@ -145,6 +145,28 @@ fn run_oauth(case: &Value, out: &mut Value) {
     };
     let errors;
     let mut exception: Option<String> = None;
+    if service == "mega" {
+        use sharex_uploaders::destinations::mega::Mega;
+        let mut m = None;
+        for step in case["steps"].as_array().into_iter().flatten() {
+            let mut mega = Mega::new(step["email"].as_str().unwrap_or(""), step["password"].as_str().unwrap_or(""));
+            match mega.login(None) {
+                Ok(s) => steps.push(json!(format!("{}|{}", s.session_id, s.master_key))),
+                Err(e) => {
+                    exception = Some(e.to_string());
+                    m = Some(mega);
+                    break;
+                }
+            }
+            m = Some(mega);
+        }
+        out["steps"] = Value::Array(steps);
+        out["uploader_errors"] = m.map(|m| errors_json(&m.base.errors)).unwrap_or(json!([]));
+        if let Some(e) = exception {
+            out["exception"] = json!(e);
+        }
+        return;
+    }
     if service == "flickr" || service == "photobucket" {
         let info: OAuthInfo = serde_json::from_value(case["oauth1"].clone()).unwrap_or_default();
         let mut flickr = (service == "flickr").then(|| Flickr::new(info.clone(), Default::default()));

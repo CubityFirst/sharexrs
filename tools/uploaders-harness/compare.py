@@ -191,8 +191,62 @@ def norm_oauth1(req):
     return dict(req, target=target, body_base64=base64.b64encode(body).decode(), headers=headers)
 
 
+MEGA_MASTER = bytes(range(16))  # make_cases.py's
+
+
+def openssl(args, data):
+    return subprocess.run(["openssl", "enc"] + args, input=data, capture_output=True, check=True).stdout
+
+
+def mega_keys(url):
+    """(file key, IV, meta MAC, full key) of a MEGA link's key."""
+    full = base64.urlsafe_b64decode(url.split("#", 1)[1] + "==")
+    file_key = bytes(full[i] ^ full[i + 16] for i in range(16))
+    return file_key, full[16:24], full[24:32], full
+
+
+def norm_mega(reqs, result, file_bytes):
+    """MEGA's random ids, cipher text and keys: the decrypted chunk (and its
+    MAC), name and key checked, then normalised."""
+    url = (result or {}).get("url") or ""
+    keys = mega_keys(url) if "#" in url else None
+    out = []
+    position = 0
+    for req in reqs:
+        req = dict(req, target=re.sub(r"([?&]id=)\d+", r"\1N", req["target"]))
+        body = base64.b64decode(req["body_base64"])
+        checks = []
+        if "/ul/" in req["target"] and keys:
+            file_key, iv, meta_mac, _ = keys
+            offset = int(req["target"].rsplit("/", 1)[1])
+            plain = openssl(["-d", "-aes-128-ctr", "-K", file_key.hex(), "-iv", (iv + (offset // 16).to_bytes(8, "big")).hex()], body)
+            checks.append("chunk ok" if plain == file_bytes[offset:offset + len(plain)] else "chunk differs")
+            padded = plain + b"\0" * ((-len(plain)) % 16)
+            chunk_mac = openssl(["-aes-128-cbc", "-nopad", "-K", file_key.hex(), "-iv", (iv + iv).hex()], padded)[-16:]
+            file_mac = openssl(["-aes-128-ecb", "-nopad", "-K", file_key.hex()], chunk_mac)
+            mm = bytes([file_mac[i] ^ file_mac[i + 4] for i in range(4)] + [file_mac[i + 8] ^ file_mac[i + 12] for i in range(4)])
+            checks.append("mac ok" if mm == meta_mac or offset > 0 else "mac differs")
+            body = b"CIPHERTEXT"
+        elif body.startswith(b'[{"a":"p"') and keys:
+            file_key, _, _, full = keys
+            payload = json.loads(body)
+            node = payload[0]["n"][0]
+            attr = openssl(["-d", "-aes-128-cbc", "-nopad", "-K", file_key.hex(), "-iv", "00" * 16],
+                           base64.urlsafe_b64decode(node["a"] + "=="))
+            key = openssl(["-d", "-aes-128-ecb", "-nopad", "-K", MEGA_MASTER.hex()], base64.urlsafe_b64decode(node["k"] + "=="))
+            checks.append("attr " + attr.rstrip(b"\0").decode("utf-8", "replace"))
+            checks.append("key ok" if key == full else "key differs")
+            node["a"], node["k"] = "ATTR", "KEY"
+            body = json.dumps(payload, separators=(",", ":")).encode()
+        req = dict(req, body_base64=base64.b64encode(body).decode(), headers=req["headers"] + [["x-mega-check", c] for c in checks])
+        out.append(req)
+    return out
+
+
 def norm_request(req):
     req = norm_oauth1(req)
+    # MEGA's request ids start at a random number.
+    req = dict(req, target=re.sub(r"(g\.api\.mega\.co\.nz/cs\?id=)\d+", r"\1N", req["target"]))
     headers = [[k, v] for k, v in req["headers"]]
     if any(k.lower() == "x-ms-date" for k, _ in headers):
         error = verify_azure(req)
@@ -269,6 +323,13 @@ def norm_servers(servers):
 def compare_case(a, b, case=None):
     diffs = []
     ra, rb = a.get("requests", []), b.get("requests", [])
+    if (case or {}).get("service", "") == "file:Mega":
+        file_bytes = base64.b64decode(case["input"].get("content_base64", ""))
+        ra = norm_mega(ra, a.get("result"), file_bytes)
+        rb = norm_mega(rb, b.get("result"), file_bytes)
+        for side in (a, b):
+            if side.get("result") and "#" in (side["result"].get("url") or ""):
+                side["result"]["url"] = side["result"]["url"].split("#")[0] + "#KEY"
     if (case or {}).get("service", "").endswith(":PrivateBin"):
         ra = [norm_privatebin(r, a.get("result"), case) for r in ra]
         rb = [norm_privatebin(r, b.get("result"), case) for r in rb]

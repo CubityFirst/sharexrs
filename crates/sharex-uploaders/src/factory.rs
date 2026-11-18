@@ -19,6 +19,7 @@ use crate::destinations::amazon_s3::AmazonS3;
 use crate::destinations::cloud_storage::{AzureStorage, BackblazeB2};
 use crate::destinations::ftp::{FTPAccount, Ftp};
 use crate::destinations::sftp::Sftp;
+use crate::destinations::mega::{Mega, from_base64_url};
 use crate::destinations::email::{Email, EmailSettings, EmailSharer, show_email_window};
 use crate::destinations::oauth_services::{
     BoxUploader, Dropbox, Flickr, FlickrSettings, GitHubGist, GoogleCloudStorage, GoogleDrive, OneDrive, Photobucket, PhotobucketAccountInfo, YouTube,
@@ -234,6 +235,7 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
             FTPAccount::list_from_value(&config.FTPAccountList).is_some_and(|l| usize::try_from(config.FTPSelectedFile).is_ok_and(|i| i < l.len()))
         }
         FileDestination::Email => email_configured(config),
+        FileDestination::Mega => !config.MegaSessionID.as_str().trim().is_empty() && !config.MegaMasterKey.as_str().trim().is_empty(),
         FileDestination::Dropbox => OAuth2Info::check(config.DropboxOAuth2Info.as_ref()),
         FileDestination::OneDrive => OAuth2Info::check(config.OneDriveV2OAuth2Info.as_ref()),
         FileDestination::Box => OAuth2Info::check(config.BoxOAuth2Info.as_ref()),
@@ -323,6 +325,11 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
                 crate::enums::FTPProtocol::SFTP => GenericUploader::File(Box::new(Sftp::new(account))),
                 _ => return None,
             }
+        }
+        FileDestination::Mega => {
+            let mut u = Mega::with_session(config.MegaSessionID.as_str(), from_base64_url(config.MegaMasterKey.as_str()).unwrap_or_default());
+            u.folder_id = config.MegaSelectedFolder.get("ID").and_then(|v| v.as_str()).map(str::to_owned);
+            GenericUploader::File(Box::new(u))
         }
         FileDestination::Email => {
             let settings = email_settings(config);
