@@ -200,3 +200,116 @@ pub fn anti_fill_rect(r: Rect, clip: IRect, blitter: &mut dyn Blitter) {
         }
     }
 }
+
+/// `SkAlphaMulRound` (`SkMulDiv255Round`).
+fn alpha_mul_round(a: i32, b: i32) -> i32 {
+    let prod = a * b + 128;
+    (prod + (prod >> 8)) >> 8
+}
+
+/// `InvAlphaMul`: `1 - (1 - a) * (1 - b)`.
+fn inv_alpha_mul(a: i32, b: i32) -> u8 {
+    (a + b - alpha_mul_round(a, b)) as u8
+}
+
+/// `inner_scanline` (SkScan_Antihair.cpp).
+fn inner_scanline(l: i32, top: i32, r: i32, alpha: i32, blitter: &mut dyn Blitter) {
+    if (l >> 8) == ((r - 1) >> 8) {
+        let mut wid = r - l;
+        wid -= wid >> 8;
+        blitter.blit_v(l >> 8, top, 1, inv_alpha_mul(alpha, wid));
+        return;
+    }
+    let mut left = l >> 8;
+    if l & 0xFF != 0 {
+        blitter.blit_v(left, top, 1, inv_alpha_mul(alpha, l & 0xFF));
+        left += 1;
+    }
+    let rite = r >> 8;
+    let width = rite - left;
+    if width > 0 {
+        hline(blitter, left, top, width, alpha);
+    }
+    if r & 0xFF != 0 {
+        blitter.blit_v(rite, top, 1, inv_alpha_mul(alpha, !r & 0xFF));
+    }
+}
+
+/// `innerstrokedot8`.
+fn innerstrokedot8(l: i32, t: i32, r: i32, b: i32, blitter: &mut dyn Blitter) {
+    let mut top = t >> 8;
+    if top == ((b - 1) >> 8) {
+        let alpha = 256 - (b - t);
+        if alpha != 0 {
+            inner_scanline(l, top, r, alpha, blitter);
+        }
+        return;
+    }
+    if t & 0xFF != 0 {
+        inner_scanline(l, top, r, t & 0xFF, blitter);
+        top += 1;
+    }
+    let bot = b >> 8;
+    let height = bot - top;
+    if height > 0 {
+        if l & 0xFF != 0 {
+            blitter.blit_v(l >> 8, top, height, (l & 0xFF) as u8);
+        }
+        if r & 0xFF != 0 {
+            blitter.blit_v(r >> 8, top, height, (!r & 0xFF) as u8);
+        }
+    }
+    if b & 0xFF != 0 {
+        inner_scanline(l, bot, r, !b & 0xFF, blitter);
+    }
+}
+
+/// `SkScan::AntiFrameRect`: an anti-aliased stroked rectangle (`r` the
+/// rectangle's centre line, `stroke` the device stroke size). The clip is
+/// applied by the blitter (rectangular here).
+pub fn anti_frame_rect(r: Rect, stroke_x: f32, stroke_y: f32, blitter: &mut dyn Blitter) {
+    let to = |x: f32| (x * 256.0) as i32;
+    let floor8 = |x: i32| x >> 8;
+    let ceil8 = |x: i32| (x + 0xFF) >> 8;
+    let mut rx = stroke_x * 0.5;
+    let mut ry = stroke_y * 0.5;
+    let mut outer_l = to(r.left - rx);
+    let mut outer_t = to(r.top - ry);
+    let mut outer_r = to(r.right + rx);
+    let mut outer_b = to(r.bottom + ry);
+    rx = stroke_x - rx;
+    ry = stroke_y - ry;
+    let mut inner_l = to(r.left + rx);
+    let mut inner_t = to(r.top + ry);
+    let mut inner_r = to(r.right - rx);
+    let mut inner_b = to(r.bottom - ry);
+    let align = |e1: &mut i32, e2: &mut i32| {
+        if floor8(*e1) == floor8(*e2) {
+            *e2 -= *e1 & 0xFF;
+            *e1 &= !0xFF;
+        }
+    };
+    if stroke_x < 1.0 || stroke_y < 1.0 {
+        align(&mut outer_l, &mut inner_l);
+        align(&mut outer_t, &mut inner_t);
+        align(&mut inner_r, &mut outer_r);
+        align(&mut inner_b, &mut outer_b);
+    }
+    antifilldot8(outer_l, outer_t, outer_r, outer_b, blitter, false);
+    let (ol, ot, or, ob) = (ceil8(outer_l), ceil8(outer_t), floor8(outer_r), floor8(outer_b));
+    let fillcheck = |l: i32, t: i32, r: i32, b: i32, blitter: &mut dyn Blitter| {
+        if l < r && t < b {
+            blitter.blit_rect(l, t, r - l, b - t);
+        }
+    };
+    if inner_l >= inner_r || inner_t >= inner_b {
+        fillcheck(ol, ot, or, ob, blitter);
+    } else {
+        let (il, it, ir, ib) = (floor8(inner_l), floor8(inner_t), ceil8(inner_r), ceil8(inner_b));
+        fillcheck(ol, ot, or, it, blitter);
+        fillcheck(ol, it, il, ib, blitter);
+        fillcheck(ir, it, or, ib, blitter);
+        fillcheck(ol, ib, or, ob, blitter);
+        innerstrokedot8(inner_l, inner_t, inner_r, inner_b, blitter);
+    }
+}

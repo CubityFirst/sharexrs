@@ -384,6 +384,34 @@ impl<'a> Canvas<'a> {
         self.draw_rect(dst, &p);
     }
 
+    /// `SkCanvas::drawRect` with `Style = Stroke` and a miter join
+    /// (`SkDraw::drawRect`'s `kStroke_RectType`: `SkScan::AntiFrameRect`
+    /// when anti-aliased, `SkScan::FrameRect` otherwise). A rotated canvas
+    /// or a zero width isn't ported (it'd go through the path stroker or the
+    /// hairline).
+    pub fn stroke_rect(&mut self, rect: Rect, stroke_width: f32, paint: &Paint) {
+        if self.dst.is_empty() || !self.matrix.rect_stays_rect() || stroke_width <= 0.0 {
+            return;
+        }
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            // easy_rect_join: an empty rect goes through the path stroker.
+            return;
+        }
+        let (x0, y0) = self.matrix.map(rect.left, rect.top);
+        let (x1, y1) = self.matrix.map(rect.right, rect.bottom);
+        let device = Rect::ltrb(x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1));
+        // compute_stroke_size: the width mapped as a vector.
+        let m = &self.matrix;
+        let sx = (m.sx() * stroke_width + m.kx() * stroke_width).abs();
+        let sy = (m.ky() * stroke_width + m.sy() * stroke_width).abs();
+        let cov = if paint.anti_alias {
+            coverage::anti_frame_rect(device, sx, sy, self.width(), self.height())
+        } else {
+            coverage::frame_rect(device, sx, sy, self.width(), self.height())
+        };
+        self.blit(&cov, paint);
+    }
+
     /// `SkCanvas::drawRect` (fill).
     pub fn draw_rect(&mut self, rect: Rect, paint: &Paint) {
         if self.dst.is_empty() {
@@ -511,12 +539,21 @@ impl<'a> Canvas<'a> {
         let iw = image.width() as usize;
         // SkSpriteBlitter_Memcpy and the legacy sprite blitters need an N32 device.
         let plain = paint.color_filter.is_none() && paint.alpha == 255 && !crate::blitter::pipeline_blitters();
+        // SkSpriteBlitter::ChooseL32: src-over with a global alpha and no colour filter is
+        // Sprite_D32_S32 with kGlobalAlpha (an SKBitmap is never kOpaque, so kSrcPixelAlpha
+        // too): S32A_Blend_BlitRow32, SkBlendARGB32 per pixel.
+        let global_alpha = paint.color_filter.is_none()
+            && paint.alpha != 255
+            && paint.blend == Blend::SrcOver
+            && !crate::blitter::pipeline_blitters();
         for y in y0..y1 {
             for x in x0..x1 {
                 let si = (y - iy) as usize * iw + (x - ix) as usize;
                 let di = y as usize * dw + x as usize;
                 let s = image.px(si);
-                let out = if plain {
+                let out = if global_alpha {
+                    blend_argb32(s, self.dst.px(di), paint.alpha)
+                } else if plain {
                     match paint.blend {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,

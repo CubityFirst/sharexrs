@@ -266,3 +266,41 @@ impl Blitter for Recorder {
         }
     }
 }
+
+/// `SkScan::AntiFrameRect`.
+pub(crate) fn anti_frame_rect(r: Rect, sx: f32, sy: f32, width: u32, height: u32) -> Coverage {
+    let mut rec = Recorder::new(width, height);
+    crate::scan::anti_frame_rect(
+        crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        sx,
+        sy,
+        &mut rec,
+    );
+    Coverage::Mask(rec.cells)
+}
+
+/// `SkScan::FrameRect`: the stroke's four sides as aliased rects (or one
+/// rect when the stroke covers the middle).
+pub(crate) fn frame_rect(r: Rect, dx: f32, dy: f32, width: u32, height: u32) -> Coverage {
+    let mut rec = Recorder::new(width, height);
+    let (rx, ry) = (dx * 0.5, dy * 0.5);
+    let outer = Rect::ltrb(r.left - rx, r.top - ry, r.right + rx, r.bottom + ry);
+    let mut fill = |r: Rect| {
+        if let Coverage::Rect { left, top, right, bottom } = fill_rect(r, width, height) {
+            for y in top..bottom {
+                for x in left..right {
+                    rec.put(x, y, Call::H, 255);
+                }
+            }
+        }
+    };
+    if r.width() <= dx || r.height() <= dy {
+        fill(outer);
+    } else {
+        fill(Rect::ltrb(outer.left, outer.top, outer.right, outer.top + dy));
+        fill(Rect::ltrb(outer.left, outer.bottom - dy, outer.right, outer.bottom));
+        fill(Rect::ltrb(outer.left, outer.top + dy, outer.left + dx, outer.bottom - dy));
+        fill(Rect::ltrb(outer.right - dx, outer.top + dy, outer.right, outer.bottom - dy));
+    }
+    Coverage::Mask(rec.cells)
+}

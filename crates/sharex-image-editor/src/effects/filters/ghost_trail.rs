@@ -38,7 +38,24 @@ impl EffectImpl for GhostTrailImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let copies = 1.max(self.copies);
+        let (w, h) = (source.width(), source.height());
+        let mut out = Bitmap::new(w, h);
+        let mut canvas = Canvas::new(&mut out);
+        let fade = clampf(self.fade / 100.0, 0.1, 0.9);
+        for i in (1..=copies).rev() {
+            let alpha = (1.0 - fade).powf(i as f32);
+            let a = (255.0 * alpha) as u8;
+            if a == 0 {
+                // SkPaint::nothingToDraw: src-over with a zero alpha draws nothing.
+                continue;
+            }
+            let mut p = Paint::shader(Shader::Color([255, 255, 255, 255]));
+            p.alpha = a;
+            canvas.draw_bitmap(source, self.offset_x.wrapping_mul(i) as f32, self.offset_y.wrapping_mul(i) as f32, Some(&p));
+        }
+        canvas.draw_bitmap(source, 0.0, 0.0, None);
+        drop(canvas);
+        Ok(out)
     }
 }

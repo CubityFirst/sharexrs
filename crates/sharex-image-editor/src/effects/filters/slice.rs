@@ -38,7 +38,31 @@ impl EffectImpl for SliceImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.min_height <= 0 && self.max_height <= 0 {
+            return Ok(source.clone());
+        }
+        let min_h = 1.max(self.min_height.min(self.max_height));
+        let max_h = min_h.max(self.min_height.max(self.max_height));
+        let min_s = self.min_shift.wrapping_abs().min(self.max_shift.wrapping_abs());
+        let max_s = self.min_shift.wrapping_abs().max(self.max_shift.wrapping_abs());
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let nw = sw + max_s * 2;
+        let mut out = Bitmap::new(nw.max(0) as u32, sh.max(0) as u32);
+        let mut canvas = Canvas::new(&mut out);
+        let mut y = 0;
+        while y < sh {
+            let (slice_h, shift) = random::shared(|r| {
+                let s = r.next_range(min_h, max_h + 1);
+                let shift = if r.next_max(2) == 0 { r.next_range(-max_s, -min_s + 1) } else { r.next_range(min_s, max_s + 1) };
+                (s, shift)
+            });
+            let slice_h = slice_h.min(sh - y);
+            let src = RRect::ltrb(0.0, y as f32, sw as f32, (y + slice_h) as f32);
+            let dst = RRect::ltrb((max_s + shift) as f32, y as f32, (max_s + shift + sw) as f32, (y + slice_h) as f32);
+            canvas.draw_image_rect(source, Some(src), dst, Sampling::Nearest, None);
+            y += slice_h;
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

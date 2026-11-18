@@ -29,7 +29,16 @@ impl EffectImpl for PixelateImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.size <= 1 {
+            return Ok(source.clone());
+        }
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let small_w = 1.max(sw / self.size);
+        let small_h = 1.max(sh / self.size);
+        let mut small = Bitmap::new(small_w as u32, small_h as u32);
+        Canvas::new(&mut small).draw_image_rect(source, None, RRect::ltrb(0.0, 0.0, small_w as f32, small_h as f32), Sampling::Nearest, None);
+        let mut out = Bitmap::new(source.width(), source.height());
+        Canvas::new(&mut out).draw_image_rect(&small, None, RRect::ltrb(0.0, 0.0, sw as f32, sh as f32), Sampling::Nearest, None);
+        Ok(out)
     }
 }
