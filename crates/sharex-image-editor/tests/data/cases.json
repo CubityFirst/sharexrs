@@ -5512,6 +5512,153 @@
    ]
   },
   {
+   "name": "shadow-step",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "Number": 3,
+     "FontSize": 30,
+     "FillColor": "#FFF23C3C",
+     "StrokeWidth": 0,
+     "TextColor": "#00000000",
+     "ShadowEnabled": true,
+     "TailEnabled": false
+    }
+   ]
+  },
+  {
+   "name": "shadow-step-tail",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 120,
+      "Y": 110
+     },
+     "EndPoint": {
+      "X": 120,
+      "Y": 110
+     },
+     "Number": 5,
+     "FontSize": 30,
+     "FillColor": "#FF2080F0",
+     "StrokeWidth": 2,
+     "StrokeColor": "#FFFFFFFF",
+     "TextColor": "#00000000",
+     "ShadowEnabled": true,
+     "ShadowBlurRadius": 6,
+     "ShadowOffsetX": 5,
+     "ShadowOffsetY": -2,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 220,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "Text": "",
+     "ShadowEnabled": true
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon-tail",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "Text": "",
+     "ShadowEnabled": true,
+     "ShadowColor": "#C0000080",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 120,
+      "Y": 240
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon-rotated",
+   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 120,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 150
+     },
+     "Text": "",
+     "ShadowEnabled": true,
+     "RotationAngle": 20,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 150,
+      "Y": 250
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-rect-rotated",
+   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 120,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 280,
+      "Y": 180
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": 30,
+     "FillColor": "#80FFFFFF"
+    }
+   ]
+  },
+  {
    "name": "region-shapes",
    "annotations": [
     {

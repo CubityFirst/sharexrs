@@ -191,6 +191,31 @@ CASES += [
 ]
 
 
+ROTATED_SHADOW_PENDING = ("Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer "
+                          "space) and draws the layer back rotated, resampled; ShareXrs blurs in device space")
+
+# Drop shadows on steps and balloons (no visible text: glyph masks are pending).
+CASES += [
+    {"name": "shadow-step", "fonts": ["Segoe UI"], "annotations": [
+        ann("Number", (100, 100), (100, 100), Number=3, FontSize=30, FillColor="#FFF23C3C", StrokeWidth=0,
+            TextColor="#00000000", ShadowEnabled=True, TailEnabled=False)]},
+    {"name": "shadow-step-tail", "fonts": ["Segoe UI"], "annotations": [
+        ann("Number", (120, 110), (120, 110), Number=5, FontSize=30, FillColor="#FF2080F0", StrokeWidth=2,
+            StrokeColor="#FFFFFFFF", TextColor="#00000000", ShadowEnabled=True, ShadowBlurRadius=6,
+            ShadowOffsetX=5, ShadowOffsetY=-2, TailPointInitialized=True, TailPoint=p(220, 200))]},
+    {"name": "shadow-balloon", "annotations": [
+        ann("SpeechBalloon", (60, 40), (260, 140), Text="", ShadowEnabled=True)]},
+    {"name": "shadow-balloon-tail", "annotations": [
+        ann("SpeechBalloon", (60, 40), (260, 140), Text="", ShadowEnabled=True, ShadowColor="#C0000080",
+            TailPointInitialized=True, TailPoint=p(120, 240))]},
+    {"name": "shadow-balloon-rotated", "pending": ROTATED_SHADOW_PENDING, "annotations": [
+        ann("SpeechBalloon", (120, 60), (300, 150), Text="", ShadowEnabled=True, RotationAngle=20,
+            TailPointInitialized=True, TailPoint=p(150, 250))]},
+    {"name": "shadow-rect-rotated", "pending": ROTATED_SHADOW_PENDING, "annotations": [
+        ann("Rectangle", (120, 80), (280, 180), ShadowEnabled=True, RotationAngle=30, FillColor="#80FFFFFF")]},
+]
+
+
 def load_case(name):
     with open(os.path.join(HERE, "cases.json"), encoding="utf-8") as f:
         for c in json.load(f)["cases"]:
