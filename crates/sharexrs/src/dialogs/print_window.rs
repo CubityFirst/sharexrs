@@ -139,7 +139,8 @@ impl Dialog for PrintWindow {
         let prw = compact(true).width(ui, &print_t).max(92.0);
         let print_r = Rect::from_min_size(pos2(cancel.min.x - 7.0 - prw, by), vec2(prw, 36.0));
         let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
-        if (compact(true).show(ui, print_r, Id::new("print-print"), &print_t, !self.preview_only).clicked() || (enter && !self.preview_only)) && !self.preview_only {
+        let clicked = compact(true).show(ui, print_r, Id::new("print-print"), &print_t, !self.preview_only).clicked();
+        if (clicked || enter) && !self.preview_only {
             print_in_background(self.image.clone(), s2.clone());
             effects.push(Effect::Close);
         }
