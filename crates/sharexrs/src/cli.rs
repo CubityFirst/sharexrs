@@ -421,6 +421,11 @@ impl App {
     fn import_custom_uploader(&mut self, event_loop: &ActiveEventLoop, path: &std::path::Path) {
         use sharex_uploaders::custom::CustomUploaderItem;
         use sharex_uploaders::enums::CustomUploaderDestinationType as D;
+        // `JsonHelpers.DeserializeFromFile`: no file, or an empty one, is
+        // `null`, and nothing happens.
+        if std::fs::metadata(path).map_or(true, |m| !m.is_file() || m.len() == 0) {
+            return;
+        }
         let item = std::fs::read_to_string(path)
             .map_err(|e| e.to_string())
             .and_then(|text| CustomUploaderItem::from_json(text.trim_start_matches('\u{feff}')));
