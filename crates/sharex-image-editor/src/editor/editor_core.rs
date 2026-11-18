@@ -26,6 +26,7 @@ pub struct CoreMemento {
     pub annotations: Vec<Annotation>,
     pub canvas_size: (u32, u32),
     pub canvas: Option<Pixmap>,
+    /// The selected annotation's key ([`crate::model::Common::key`]).
     pub selected: Option<String>,
 }
 
@@ -51,10 +52,11 @@ pub fn new_annotation_id() -> String {
 }
 
 pub struct EditorCore {
-    source: Pixmap,
-    annotations: Vec<Annotation>,
-    selected: Option<String>,
-    history: History<CoreMemento>,
+    pub(crate) source: Pixmap,
+    pub(crate) annotations: Vec<Annotation>,
+    /// The selected annotation's key ([`crate::model::Common::key`]).
+    pub(crate) selected: Option<String>,
+    pub(crate) history: History<CoreMemento>,
     live_expand_original: Option<Pixmap>,
     /// `ActiveTool`: annotation history is skipped while cropping.
     pub active_tool: EditorTool,
@@ -96,7 +98,7 @@ impl EditorCore {
         &mut self.annotations
     }
 
-    /// `SelectedAnnotation`'s id.
+    /// `SelectedAnnotation`'s key ([`crate::model::Common::key`]).
     pub fn selected(&self) -> Option<&str> {
         self.selected.as_deref()
     }
@@ -145,12 +147,14 @@ impl EditorCore {
     // History.
 
     /// `GetMementoFromAnnotations`.
-    fn annotations_memento(&self, exclude: Option<&str>) -> CoreMemento {
+    /// `exclude` is a key: the annotation just added (its visual is
+    /// already in the list).
+    pub(crate) fn annotations_memento(&self, exclude: Option<&str>) -> CoreMemento {
         CoreMemento {
             annotations: self
                 .annotations
                 .iter()
-                .filter(|a| Some(a.common.id.as_str()) != exclude)
+                .filter(|a| Some(a.common.key.0.as_str()) != exclude)
                 .cloned()
                 .collect(),
             canvas_size: self.canvas_size(),
@@ -160,7 +164,7 @@ impl EditorCore {
     }
 
     /// `GetMementoFromCanvas`.
-    fn canvas_memento(&self) -> CoreMemento {
+    pub(crate) fn canvas_memento(&self) -> CoreMemento {
         CoreMemento {
             canvas: Some(self.source.clone()),
             ..self.annotations_memento(None)
@@ -183,45 +187,51 @@ impl EditorCore {
         self.history.add(m);
     }
 
-    /// `Undo`.
-    pub fn undo(&mut self) {
-        let Some(canvas) = self.history.peek_undo().map(|m| m.has_canvas()) else {
-            return;
-        };
+    /// `Undo`; true when it restored an image.
+    pub fn undo(&mut self) -> Option<bool> {
+        let canvas = self.history.peek_undo().map(|m| m.has_canvas())?;
         let current = if canvas {
             self.canvas_memento()
         } else {
             self.annotations_memento(None)
         };
-        if let Some(m) = self.history.undo(current) {
-            self.restore_state(m);
-        }
+        let m = self.history.undo(current)?;
+        self.restore_state(m);
+        Some(canvas)
     }
 
-    /// `Redo`.
-    pub fn redo(&mut self) {
-        let Some(canvas) = self.history.peek_redo().map(|m| m.has_canvas()) else {
-            return;
-        };
+    /// `Redo`; true when it restored an image.
+    pub fn redo(&mut self) -> Option<bool> {
+        let canvas = self.history.peek_redo().map(|m| m.has_canvas())?;
         let current = if canvas {
             self.canvas_memento()
         } else {
             self.annotations_memento(None)
         };
-        if let Some(m) = self.history.redo(current) {
-            self.restore_state(m);
-        }
+        let m = self.history.redo(current)?;
+        self.restore_state(m);
+        Some(canvas)
     }
 
-    /// `RestoreState`.
+    /// `RestoreState`: the selection found again by `SelectedAnnotationId`,
+    /// the first annotation with the selected one's `Id` (a copy keeps its
+    /// original's).
     fn restore_state(&mut self, m: CoreMemento) {
+        let selected_id = m.selected.as_ref().and_then(|k| {
+            m.annotations.iter().find(|a| &a.common.key.0 == k).map(|a| a.common.id.clone())
+        });
         self.annotations = m.annotations;
         if let Some(canvas) = m.canvas {
             self.source = canvas;
         }
-        self.selected = m
-            .selected
-            .filter(|id| self.annotations.iter().any(|a| &a.common.id == id));
+        self.selected = selected_id.and_then(|id| {
+            self.annotations.iter().find(|a| a.common.id == id).map(|a| a.common.key.0.clone())
+        });
+    }
+
+    /// The annotation with `key`.
+    pub fn find(&self, key: &str) -> Option<usize> {
+        self.annotations.iter().position(|a| a.common.key.0 == key)
     }
 
     // Annotations.
@@ -232,9 +242,10 @@ impl EditorCore {
         self.annotations.push(a);
     }
 
-    /// `RemoveAnnotation`, renumbering the steps after a deleted step.
-    pub fn remove_annotation(&mut self, id: &str) {
-        let Some(i) = self.annotations.iter().position(|a| a.common.id == id) else {
+    /// `RemoveAnnotation` (by key), renumbering the steps after a deleted
+    /// step.
+    pub fn remove_annotation(&mut self, key: &str) {
+        let Some(i) = self.find(key) else {
             return;
         };
         self.create_annotations_memento(None, false);
@@ -248,7 +259,7 @@ impl EditorCore {
                 }
             }
         }
-        if self.selected.as_deref() == Some(id) {
+        if self.selected.as_deref() == Some(key) {
             self.selected = None;
         }
     }
@@ -384,8 +395,8 @@ impl EditorCore {
         r.inflate(stroke, stroke)
     }
 
-    /// `AutoExpandCanvasToFit` over the annotations with `ids` (every one
-    /// when `None`): the canvas grown on the sides they cross, by `margin`
+    /// `AutoExpandCanvasToFit` over the annotations with these keys
+    /// ([`crate::model::Common::key`]; every one when `None`): the canvas grown on the sides they cross, by `margin`
     /// more, filled with `background`. Returns the room added left and top.
     pub fn auto_expand_canvas_to_fit(
         &mut self,
@@ -395,7 +406,7 @@ impl EditorCore {
     ) -> Option<(i32, i32)> {
         let mut union: Option<Rect> = None;
         for a in &self.annotations {
-            if ids.is_some_and(|ids| !ids.contains(&a.common.id)) || !Self::can_auto_expand_for(a) {
+            if ids.is_some_and(|ids| !ids.contains(&a.common.key.0)) || !Self::can_auto_expand_for(a) {
                 continue;
             }
             let b = Self::auto_expand_bounds(a);
@@ -721,7 +732,7 @@ impl EditorCore {
 
     /// `EditorView.CloneRegion`: the image pixels in `rect` (`x, y, w, h`,
     /// clipped to the image, rounded out) as an image annotation with the
-    /// Clone tool's type, added and selected. Returns its id.
+    /// Clone tool's type, added and selected. Returns its key.
     pub fn clone_region(&mut self, rect: (f64, f64, f64, f64)) -> Option<String> {
         let (iw, ih) = (self.source.width() as f64, self.source.height() as f64);
         // Avalonia Rect.Intersect
@@ -746,10 +757,10 @@ impl EditorCore {
         let mut props = ImageProps::default();
         props.set_image(region);
         a.kind = Kind::Image(props);
-        let id = a.common.id.clone();
+        let key = a.common.key.0.clone();
         self.add_annotation(a);
-        self.selected = Some(id.clone());
-        Some(id)
+        self.selected = Some(key.clone());
+        Some(key)
     }
 }
 

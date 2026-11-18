@@ -372,8 +372,11 @@ commands, for both hosts:
   editor): Ctrl+Shift+C copies, Ctrl+X cuts (undoable), Ctrl+V is the
   host's (an image on the system clipboard first, then the copied shape:
   `paste_annotation`), Ctrl+D duplicates; copies are 20px further and
-  selected. ShareX keeps a clone's `Id`; ids name annotations here, so
-  the copy gets a new one.
+  selected, and keep their original's `Id` (`Annotation.Clone`). The
+  editor goes by `Common::key` instead: a per-object handle (ShareX holds
+  the annotation object itself), not serialised, never part of `==`. Undo
+  selects again by `SelectedAnnotationId`, the first annotation with the
+  selected one's `Id`, as `RestoreState` does.
 - Z-order (Home, End, Page Up, Page Down), flatten (Ctrl+Shift+F), the
   right button (`right_pressed`: cancels a drawing or a pending crop,
   `RightClickDeletesShape`, or selects the shape for the context menu).
@@ -406,9 +409,10 @@ crop with undo, cut out, clone, flatten, the right button, the balloon
 editor and tail, editing a text, the Image/Emoji requests, the smart
 eraser).
 
-Note: `EditorCore` (master) has its own crop, cut out and flatten; the
-workspace's `ops.rs` implements the same operations for its history and
-selection. Folding the workspace onto `EditorCore` is a follow-up.
+The workspace holds an `EditorCore` (the image, the annotations, the
+selection and the history) and runs its crop, cut out, flatten, resize
+canvas and auto-expand; the workspace only adds what the view does around
+them (caches, hover, the host's notifications through `Request`).
 
 ### The overlay and the options' popups (both hosts)
 
@@ -472,7 +476,7 @@ annotation shots (`compare-annotate.py`) stay at 0.00-0.09% with the
 balloon editor now open on selection (0.06%: its caret, which ShareX's shot
 caught off).
 
-### The editor window (`crates/sharexrs/src/image_editor.rs`)
+### The editor window (`crates/sharexrs/src/image_editor/`)
 
 `EditorWindow` as `ImageEditorIntegration.ShowEditorDialog` opens it:
 maximized (`RememberWindowState`/`IsWindowMaximized`), titled "ShareXrs -
@@ -516,21 +520,107 @@ image-editor-context`, cropped) 0.68% light. Side by side: the same two
 ellipses drawn in both editors and copied give a pixel-identical PNG and a
 byte-identical CF_DIB.
 
+### The dialogs and the rest (`image_editor/`)
+
+`EditorView`'s modal host (`modal.rs`): the `modal-scrim` over the whole
+view (Escape on key up or a press outside closes the dialog; the toolbars
+under it take no input), the dialogs' shared frame (popup border, panel,
+the title row, the button bar):
+
+- `StartScreenDialogView` (`start_screen.rs`), shown when the editor opens
+  without an image outside task mode: new image, open, the clipboard's
+  image (or its first image file), a URL (prefilled from the clipboard,
+  downloaded on a thread with a 30 s timeout, `EnsureSuccessStatusCode`'s
+  message, the invalid-URL and not-an-image statuses), the two
+  screenshots, exit, and the recent files (leading ellipsis; a missing file
+  leaves the list with its status).
+- `NewImageDialogView` (`new_image.rs`): size, transparent or a solid
+  colour through its own `ColorPickerDropdown`
+  (`sharex_capture::editor_popups::ColorDropdown`).
+- `InsertImageDialogView` (`insert_image.rs`) after the Image tool's file
+  picker (with no image the picked one becomes the image;
+  `ShowInsertImageDialog` off inserts it centred): centred on the monitor
+  under the pointer (clamped to the canvas), or the canvas grown below or
+  to the right; the dialog sits on the part of the view on that monitor
+  (`PositionModalOnCursorScreen`). A double click's replacement keeps the
+  image's centre.
+- `EmojiPickerDialogView` (`emoji_picker.rs`) over ShareX's bundled
+  catalogue (`sharex_image_editor::emoji_catalog`: groups in ShareX's
+  order, the search scoring) with `RenderPreviewBitmap`'s 48px previews,
+  a few rendered a frame; picking inserts a 160px emoji centred on the
+  pointer's monitor or replaces the double-clicked one.
+- `ConfirmationDialogView`: the colour warning sign (the emoji font on
+  Segoe UI's line), the message's four lines.
+
+The Canvas size tool (`canvas_size.rs`, `EditorView.CanvasResize`): the
+frame with eight handles over a contrasting halo, room added round the
+image in the scroll viewer (the image stays put), a large image zoomed to
+70% of the view while it's open, the area to add in `CanvasFillColor`
+(checkerboard when transparent), the area to drop shaded, the panel (size,
+fill colour, Apply, Cancel); Enter or a double click applies, Escape or a
+right click cancels, X or its button toggles it. The canvas scroll viewer
+shows Fluent's collapsed scroll bars; the canvas sits on
+`ShareX.Brush.Checkered` (15px squares, scaled with the zoom).
+
+`MainViewModel.Notifications` (`notify.rs`): the editor's own toast at the
+bottom of the view (new image, opened, saved, copied, pinned, uploading,
+cropped, cut out, inserted), 2.4 s plus the time under the pointer, faded
+by `popup-surface`'s transitions, dismissed by a click; none for the task
+actions when `AutoCloseEditorOnTask` closes the editor after them. These
+are the editor's, not the app's toasts (which aren't ported).
+
+Also: recent files (`ImageEditorOptions.RecentImageFiles`, the File menu's
+Open recent), New from screenshot (hidden 250 ms, the task's region capture
+or the full screen), the colour popups' screen colour picker (over the
+window, as `ScreenColorPickerWindow.PickAsync(owner)`), dropped image
+files, `AutoCopyImageToClipboard`, `AutoExpandCanvas` (after a draw, move,
+resize or text commit; one undo step; the view scrolled by the room
+added), `RememberWindowState` (`ApplySavedWindowState`/`SaveWindowState`),
+`AutoCloseEditorOnTask`, disabled export buttons without an image, Cancel
+asking before closing (`CancelCommand`), and region capture as the
+workspace host (its shown pointer is an unselected image annotation that
+doesn't make it dirty, `InsertWorkspaceImageAnnotation`).
+
+The File menu is a `MenuFlyout`: `sharex_ui::menu::MenuStyle::Flyout`
+(Fluent's `MenuItem` metrics that ShareX's `ContextMenu MenuItem` style
+doesn't reach), its first item selected on open.
+
+Validation (`scripts/compare-editor-dialogs.sh`, ShareX's shots in
+`shots/sharex/editor-dialogs/`, inputs from
+`scripts/editor-dialogs-inputs.py`, the editor opened with
+`scripts/editor-open.ps1`):
+
+| Screen | Dark | Light |
+|---|---|---|
+| Start screen | 0.14% | 0.10% |
+| New image | 0.10% | 0.09% |
+| New image created (notification) | 0.15% | 0.16% |
+| Insert image | 0.15% | 0.11% |
+| Emoji picker | 0.22% | 0.05% |
+| Canvas size | 0.14% | 0.13% |
+| Exit confirmation | 0.56% | 0.57% (ShareX's shot has another tool chosen) |
+| File menu (of the menu / of the window) | 1.42% / 0.21% | 2.36% / 0.35% |
+| Context menu | 0.89% / 0.16% | 0.68% / 0.12% |
+
+Side by side: the test image, the 200x120 image inserted below in both
+editors and copied: CF_DIB byte-identical, the PNG pixel-identical. Both
+apps place the centred insert at the monitor's centre (canvas 210,133
+for ShareX's window); the result depends on where each window sits.
+
 ### Not ported yet
 
-- The editor window's dialogs: the start screen (Tools > Image editor opens
-  an empty editor instead), New image, Insert image (the Image tool opens a
-  file picker), the emoji picker (logged; emoji insert and render through
-  `insert_emoji` once a picker calls it), toolbar customisation, the
-  Background panel, Canvas size and the Image effects panel (their buttons
-  log), New from screenshot (logged), Print (logged), the screen colour
-  picker in the colour popup (logged).
-- The File menu matches ShareX's items but not exactly its `MenuFlyout`
-  metrics (taller items, lighter gestures, the first item focused).
-- Notifications (`ShowNotification`), auto-expand canvas, recent files,
-  drag and drop onto the editor, `AutoSizeWindow`, saving the window state,
-  `AutoCopyImageToClipboard`, `AutoCloseEditorOnTask`.
-- Dark context menu and File menu shots weren't taken (light only).
+- The Background panel (`BackgroundSettingsPanel`, `MainViewModel.
+  BackgroundState`/`CanvasState`: margin, padding, smart padding, corners,
+  shadow, ratios, colour/gradient/image/wallpaper backgrounds, and the
+  export with them): its button logs.
+- Print (`PrintImageRequested` → `TaskHelpers.PrintImage`: ShareX's
+  `PrintWindow`/`PrintHelper`, not part of the editor): its button logs.
+- Toolbar customisation (`ToolbarCustomizationDialogView`): ShareX opens
+  it from Task settings › Image editor (and Region capture), not from the
+  editor; the editor doesn't read `ToolbarItems` yet (default items).
+- `AutoSizeWindow`, the live canvas growth while a new text is typed
+  (`OnLiveTextEditorBoundsChanged`; the commit's auto-expand is ported).
+- The Image effects panel (another branch ports the catalogue).
 
 ## Plan for the editor UI
 

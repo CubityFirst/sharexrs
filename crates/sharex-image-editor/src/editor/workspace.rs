@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 use sharex_skia::Pixmap;
 
 use super::geometry::{self, Rect, Segment, rotate_point, shape_hit};
-use super::history::{History, Memento};
+use super::editor_core::EditorCore;
 use super::tool_state::{Target, ToolState};
-use crate::model::{Annotation, CursorType, EditorTool, Kind, Point, TextHorizontalAlignment};
+use crate::model::{Annotation, EditorTool, Kind, Point, TextHorizontalAlignment};
 use crate::options::ImageEditorOptions;
 use crate::render;
 
@@ -254,6 +254,15 @@ pub enum Request {
     ReplaceImage { id: String },
     /// A double click on an emoji: pick another one for it.
     ReplaceEmoji { id: String },
+    /// The crop tool cropped the image (`ShowImageCroppedNotification`):
+    /// its new size.
+    Cropped { width: u32, height: u32 },
+    /// The cut out tool cut it (`ShowImageCutOutNotification`).
+    CutOut { width: u32, height: u32 },
+    /// The canvas grew to fit an annotation (`ExpandCanvasToFit`): this
+    /// much room was added left and top (the host scrolls by it so the view
+    /// doesn't jump).
+    AutoExpanded { left: i32, top: i32 },
 }
 
 /// What a right button press did (`OnCanvasPointerPressed`).
@@ -275,22 +284,19 @@ const DOUBLE_CLICK_DISTANCE: f64 = 4.0;
 
 /// The shared workspace (`EditorView` with its view model).
 pub struct Workspace {
-    source: Pixmap,
-    annotations: Vec<Annotation>,
-    history: History,
+    /// The image, its annotations, the selection (an annotation's key) and
+    /// the history.
+    core: EditorCore,
     pub tools: ToolState,
     tool: EditorTool,
-    selected: Option<String>,
     hovered: Option<String>,
     drawing: Option<Drawing>,
     drag: Option<Drag>,
-    number_counter: i32,
     dirty: bool,
     text: Option<TextEdit>,
     mods: Mods,
     pointer: Option<P>,
     last_press: Option<(Instant, P)>,
-    next_id: u64,
     version: u64,
     cache: render::Cache,
     composite: Option<(u64, Pixmap)>,
@@ -338,22 +344,17 @@ impl Workspace {
     pub fn new(source: Pixmap, options: ImageEditorOptions) -> Self {
         let tool = initial_tool(&options);
         Self {
-            source,
-            annotations: Vec::new(),
-            history: History::default(),
+            core: EditorCore::new(source),
             tools: ToolState::new(options, tool.clone()),
             tool,
-            selected: None,
             hovered: None,
             drawing: None,
             drag: None,
-            number_counter: 1,
             dirty: false,
             text: None,
             mods: Mods::NONE,
             pointer: None,
             last_press: None,
-            next_id: 0,
             version: 0,
             cache: render::Cache::default(),
             composite: None,
@@ -370,17 +371,15 @@ impl Workspace {
     /// new history (`ClearAll(resetHistory: true)`).
     pub fn load_image(&mut self, source: Pixmap) {
         self.text = None;
-        self.source = source;
+        self.core.source = source;
         self.cache = render::Cache::default();
-        self.annotations.clear();
-        self.history.reset();
-        self.selected = None;
+        self.core.clear_all(true);
         self.hovered = None;
         self.drawing = None;
         self.drag = None;
         self.region = None;
         self.crop = None;
-        self.number_counter = 1;
+        self.core.number_counter = 1;
         self.dirty = false;
         self.changed();
     }
@@ -391,15 +390,15 @@ impl Workspace {
     }
 
     pub fn size(&self) -> (u32, u32) {
-        (self.source.width(), self.source.height())
+        (self.core.source.width(), self.core.source.height())
     }
 
     pub fn source(&self) -> &Pixmap {
-        &self.source
+        &self.core.source
     }
 
     pub fn annotations(&self) -> &[Annotation] {
-        &self.annotations
+        &self.core.annotations
     }
 
     pub fn active_tool(&self) -> EditorTool {
@@ -412,15 +411,15 @@ impl Workspace {
     }
 
     pub fn can_undo(&self) -> bool {
-        self.history.can_undo()
+        self.core.history.can_undo()
     }
 
     pub fn can_redo(&self) -> bool {
-        self.history.can_redo()
+        self.core.history.can_redo()
     }
 
     pub fn number_counter(&self) -> i32 {
-        self.number_counter
+        self.core.number_counter
     }
 
     pub fn text_edit(&self) -> Option<&TextEdit> {
@@ -428,7 +427,7 @@ impl Workspace {
     }
 
     pub fn selected(&self) -> Option<&Annotation> {
-        self.selected.as_ref().and_then(|id| self.find(id)).map(|i| &self.annotations[i])
+        self.core.selected.as_ref().and_then(|id| self.find(id)).map(|i| &self.core.annotations[i])
     }
 
     /// Changes whenever what [`Self::composite`] shows changes.
@@ -446,25 +445,20 @@ impl Workspace {
     }
 
     fn find(&self, id: &str) -> Option<usize> {
-        self.annotations.iter().position(|a| a.common.id == id)
+        self.core.annotations.iter().position(|a| a.common.key.0 == id)
     }
 
     fn get(&self, id: &Option<String>) -> Option<&Annotation> {
-        id.as_ref().and_then(|id| self.find(id)).map(|i| &self.annotations[i])
+        id.as_ref().and_then(|id| self.find(id)).map(|i| &self.core.annotations[i])
     }
 
     fn get_mut(&mut self, id: &Option<String>) -> Option<&mut Annotation> {
         let i = id.as_ref().and_then(|id| self.find(id))?;
-        Some(&mut self.annotations[i])
+        Some(&mut self.core.annotations[i])
     }
 
     fn changed(&mut self) {
         self.version += 1;
-    }
-
-    fn new_id(&mut self) -> String {
-        self.next_id += 1;
-        format!("00000000-0000-4000-8000-{:012x}", self.next_id)
     }
 
     /// The image with every annotation, as exported. The text being typed
@@ -472,15 +466,16 @@ impl Workspace {
     pub fn composite(&mut self) -> &Pixmap {
         if self.composite.as_ref().is_none_or(|(v, _)| *v != self.version) {
             let list: Vec<Annotation> = self
-                .annotations
+                .core
+            .annotations
                 .iter()
                 .filter(|a| {
                     self.text.as_ref().filter(|t| t.kind == TextKind::Edit).and_then(|t| t.existing.as_ref())
-                        != Some(&a.common.id)
+                        != Some(&a.common.key.0)
                 })
                 .cloned()
                 .collect();
-            let pm = render::render_cached(&self.source, &list, &mut self.cache);
+            let pm = render::render_cached(&self.core.source, &list, &mut self.cache);
             self.composite = Some((self.version, pm));
         }
         &self.composite.as_ref().unwrap().1
@@ -492,30 +487,17 @@ impl Workspace {
     pub fn snapshot(&mut self, x: u32, y: u32, w: u32, h: u32) -> Pixmap {
         self.commit_text();
         let rect = (x as f64, y as f64, w as f64, h as f64);
-        render::render_region_cached(&self.source, &self.annotations, rect, &mut self.cache).unwrap_or_else(|| Pixmap::new(w, h))
+        render::render_region_cached(&self.core.source, &self.core.annotations, rect, &mut self.cache).unwrap_or_else(|| Pixmap::new(w, h))
     }
 
     /// `GetSnapshot()`: the whole image with its annotations, as the
     /// editor window exports it (`render::render`).
     pub fn export(&mut self) -> Pixmap {
         self.commit_text();
-        if self.annotations.is_empty() { self.source.clone() } else { self.composite().clone() }
+        if self.core.annotations.is_empty() { self.core.source.clone() } else { self.composite().clone() }
     }
 
     // History.
-
-    fn memento(&self, exclude: Option<&str>) -> Memento {
-        Memento {
-            annotations: self.annotations.iter().filter(|a| Some(a.common.id.as_str()) != exclude).cloned().collect(),
-            selected: self.selected.clone(),
-            canvas: None,
-        }
-    }
-
-    /// `GetMementoFromCanvas`: the annotations and the image.
-    fn canvas_memento(&self) -> Memento {
-        Memento { canvas: Some(self.source.clone()), ..self.memento(None) }
-    }
 
     /// `CreateAnnotationsMemento`: none while a crop is drawn (the crop
     /// commits through a canvas memento) unless `force`.
@@ -523,8 +505,8 @@ impl Workspace {
         if !force && self.tool == EditorTool::Crop {
             return;
         }
-        let m = self.memento(None);
-        self.history.add(m);
+        let m = self.core.annotations_memento(None);
+        self.core.history.add(m);
     }
 
     /// `EditorCore` raised `HistoryChanged`: dirty, and the step counter
@@ -538,6 +520,7 @@ impl Workspace {
     /// `RecalculateNumberCounter`.
     fn recalculate_number_counter(&mut self) {
         let max = self
+            .core
             .annotations
             .iter()
             .filter_map(|a| match &a.kind {
@@ -547,40 +530,32 @@ impl Workspace {
             .max()
             .unwrap_or(0)
             .max(0);
-        self.number_counter = (max + 1).max(self.tools.step_start_number);
+        self.core.number_counter = (max + 1).max(self.tools.step_start_number);
     }
 
     /// `Undo`.
     pub fn undo(&mut self) {
-        let canvas = self.history.peek_undo().is_some_and(|m| m.canvas.is_some());
-        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
-        if let Some(m) = self.history.undo(current) {
-            self.restore(m);
+        if let Some(canvas) = self.core.undo() {
+            self.restored(canvas);
         }
     }
 
     /// `Redo`.
     pub fn redo(&mut self) {
-        let canvas = self.history.peek_redo().is_some_and(|m| m.canvas.is_some());
-        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
-        if let Some(m) = self.history.redo(current) {
-            self.restore(m);
+        if let Some(canvas) = self.core.redo() {
+            self.restored(canvas);
         }
     }
 
-    /// `EditorCore.RestoreState`.
-    fn restore(&mut self, m: Memento) {
-        if let Some(canvas) = m.canvas {
-            self.source = canvas;
+    /// After `EditorCore.RestoreState`: the view follows.
+    fn restored(&mut self, canvas: bool) {
+        if canvas {
             self.cache = render::Cache::default();
             self.crop = None;
             self.region = None;
         }
-        self.annotations = m.annotations;
         self.drag = None;
-        self.hovered = None;
-        self.selected = m.selected.filter(|id| self.find(id).is_some());
-        self.hovered = self.selected.clone();
+        self.hovered = self.core.selected.clone();
         self.history_changed();
     }
 
@@ -588,8 +563,8 @@ impl Workspace {
     /// already in the list, where its visual went).
     fn add_annotation(&mut self, id: &str) {
         if self.tool != EditorTool::Crop {
-            let m = self.memento(Some(id));
-            self.history.add(m);
+            let m = self.core.annotations_memento(Some(id));
+            self.core.history.add(m);
         }
         self.history_changed();
     }
@@ -598,9 +573,9 @@ impl Workspace {
     fn remove_annotation(&mut self, id: &str) {
         let Some(i) = self.find(id) else { return };
         self.annotations_memento(false);
-        let removed = self.annotations.remove(i);
+        let removed = self.core.annotations.remove(i);
         if let Kind::Number(n) = &removed.kind {
-            for a in &mut self.annotations {
+            for a in &mut self.core.annotations {
                 if let Kind::Number(p) = &mut a.kind
                     && p.number > n.number
                 {
@@ -613,7 +588,7 @@ impl Workspace {
 
     /// `PerformDelete`: the selected annotation.
     pub fn delete_selected(&mut self) {
-        if let Some(id) = self.selected.clone() {
+        if let Some(id) = self.core.selected.clone() {
             self.remove_annotation(&id);
             self.clear_selection();
         }
@@ -621,24 +596,24 @@ impl Workspace {
 
     /// `ClearAllAnnotations` (`ClearAll(resetHistory: false)`).
     pub fn clear_annotations(&mut self) {
-        if self.annotations.is_empty() {
+        if self.core.annotations.is_empty() {
             return;
         }
         self.clear_selection();
         self.annotations_memento(true);
-        self.annotations.clear();
+        self.core.annotations.clear();
         self.history_changed();
-        self.number_counter = self.tools.step_start_number;
+        self.core.number_counter = self.tools.step_start_number;
     }
 
     /// `MoveSelectedAnnotation` (Home, End, Page Up, Page Down).
     fn move_selected_to(&mut self, target: impl Fn(usize, usize) -> Option<usize>) {
-        let Some(i) = self.selected.clone().and_then(|id| self.find(&id)) else { return };
-        let n = self.annotations.len();
+        let Some(i) = self.core.selected.clone().and_then(|id| self.find(&id)) else { return };
+        let n = self.core.annotations.len();
         let Some(t) = target(i, n).filter(|t| *t < n && *t != i) else { return };
         self.annotations_memento(false);
-        let a = self.annotations.remove(i);
-        self.annotations.insert(t, a);
+        let a = self.core.annotations.remove(i);
+        self.core.annotations.insert(t, a);
         self.history_changed();
     }
 
@@ -682,7 +657,7 @@ impl Workspace {
     /// `StepStartNumber`: resets the counter.
     pub fn set_step_start_number(&mut self, v: i32) {
         if self.tools.set_step_start_number(v) {
-            self.number_counter = self.tools.step_start_number;
+            self.core.number_counter = self.tools.step_start_number;
             self.recalculate_number_counter();
             self.changed();
         }
@@ -692,29 +667,29 @@ impl Workspace {
 
     /// `ClearSelection`.
     pub fn clear_selection(&mut self) {
-        if self.selected.is_some() || self.hovered.is_some() || self.drag.is_some() {
+        if self.core.selected.is_some() || self.hovered.is_some() || self.drag.is_some() {
             self.changed();
         }
-        self.selected = None;
+        self.core.selected = None;
         self.drag = None;
         self.hovered = None;
     }
 
     /// `SetSelectedShape`.
     fn set_selected(&mut self, id: String) {
-        self.selected = Some(id.clone());
+        self.core.selected = Some(id.clone());
         self.hovered = Some(id.clone());
         self.ensure_selected_balloon_tail();
         self.changed();
         // Selecting a speech balloon opens its text editor.
-        if self.find(&id).is_some_and(|i| matches!(self.annotations[i].kind, Kind::SpeechBalloon(_))) {
+        if self.find(&id).is_some_and(|i| matches!(self.core.annotations[i].kind, Kind::SpeechBalloon(_))) {
             self.show_balloon_editor(&id);
         }
     }
 
     /// `UpdateSelectionHandles` initialises a selected balloon's tail.
     fn ensure_selected_balloon_tail(&mut self) {
-        let sel = self.selected.clone();
+        let sel = self.core.selected.clone();
         if let Some(a) = self.get_mut(&sel)
             && let Kind::SpeechBalloon(p) = &a.kind
             && p.tail_enabled
@@ -730,7 +705,7 @@ impl Workspace {
 
     /// `HitTestShape`: the topmost annotation under `p`.
     fn hit(&self, p: P) -> Option<usize> {
-        self.annotations.iter().rposition(|a| !matches!(a.kind, Kind::Crop) && shape_hit(a, p.0, p.1))
+        self.core.annotations.iter().rposition(|a| !matches!(a.kind, Kind::Crop) && shape_hit(a, p.0, p.1))
     }
 
     /// `IsActiveToolShape`.
@@ -745,14 +720,14 @@ impl Workspace {
 
     /// `HitTestActiveToolShape`.
     fn hit_active(&self, p: P) -> Option<usize> {
-        self.hit(p).filter(|i| self.is_active_tool_shape(&self.annotations[*i]))
+        self.hit(p).filter(|i| self.is_active_tool_shape(&self.core.annotations[*i]))
     }
 
     /// `DeleteWorkspaceAnnotationAt`: the topmost annotation of the active
     /// tool under `p`.
     pub fn delete_at(&mut self, p: P) -> bool {
         let Some(i) = self.hit_active(p) else { return false };
-        let id = self.annotations[i].common.id.clone();
+        let id = self.core.annotations[i].common.key.0.clone();
         self.set_selected(id);
         self.delete_selected();
         true
@@ -763,7 +738,7 @@ impl Workspace {
         if self.cancel_clone() || self.cancel_crop() {
             return true;
         }
-        if self.selected.is_some() {
+        if self.core.selected.is_some() {
             self.clear_selection();
             return true;
         }
@@ -942,7 +917,7 @@ impl Workspace {
             self.set_hovered(None);
             return;
         }
-        let hit = self.hit_active(p).map(|i| self.annotations[i].common.id.clone());
+        let hit = self.hit_active(p).map(|i| self.core.annotations[i].common.key.0.clone());
         self.set_hovered(hit);
     }
 
@@ -1027,7 +1002,7 @@ impl Workspace {
         }
         if let Some(kind) = self.handle_at(p) {
             if kind == HandleKind::SegmentCenter
-                && let Some(a) = self.get_mut(&self.selected.clone())
+                && let Some(a) = self.get_mut(&self.core.selected.clone())
             {
                 geometry::ensure_curve_activated(a);
             }
@@ -1039,9 +1014,9 @@ impl Workspace {
         let tool = self.tool.clone();
         let hit = match tool {
             EditorTool::Select => self.hit(p),
-            EditorTool::Spotlight => self.hit(p).filter(|i| matches!(self.annotations[*i].kind, Kind::Spotlight(_))),
+            EditorTool::Spotlight => self.hit(p).filter(|i| matches!(self.core.annotations[*i].kind, Kind::Spotlight(_))),
             EditorTool::Freehand => return false,
-            _ => self.hit(p).filter(|i| tool_of(&self.annotations[*i]) == tool),
+            _ => self.hit(p).filter(|i| tool_of(&self.core.annotations[*i]) == tool),
         };
         let Some(i) = hit else {
             if matches!(tool, EditorTool::Select | EditorTool::Spotlight) {
@@ -1049,11 +1024,11 @@ impl Workspace {
             }
             return false;
         };
-        let id = self.annotations[i].common.id.clone();
+        let id = self.core.annotations[i].common.key.0.clone();
         if double && self.edit_text_of(&id) {
             return true;
         }
-        self.selected = Some(id);
+        self.core.selected = Some(id);
         self.drag = Some(Drag::Shape { last: p });
         self.changed();
         true
@@ -1063,7 +1038,7 @@ impl Workspace {
     /// editors, emoji and images their pickers.
     fn edit_text_of(&mut self, id: &str) -> bool {
         let Some(i) = self.find(id) else { return false };
-        let a = &self.annotations[i];
+        let a = &self.core.annotations[i];
         match &a.kind {
             Kind::Text(t) => {
                 let len = t.text.chars().count();
@@ -1074,7 +1049,7 @@ impl Workspace {
                     text: t.text.clone(),
                     caret: len,
                 });
-                self.selected = Some(id.to_string());
+                self.core.selected = Some(id.to_string());
                 self.changed();
                 true
             }
@@ -1098,7 +1073,7 @@ impl Workspace {
     /// not auto-sized) grows to 200x100, then its text box opens over it.
     fn show_balloon_editor(&mut self, id: &str) {
         let Some(i) = self.find(id) else { return };
-        let a = &mut self.annotations[i];
+        let a = &mut self.core.annotations[i];
         let Kind::SpeechBalloon(p) = &a.kind else { return };
         let auto = p.auto_size;
         let (_, _, w, h) = Self::logical_rect(a);
@@ -1119,12 +1094,12 @@ impl Workspace {
                 p.tail_point_initialized = true;
             }
         }
-        let a = self.annotations[i].clone();
+        let a = self.core.annotations[i].clone();
         let Kind::SpeechBalloon(p) = &a.kind else { return };
         let text = p.text.clone();
         let caret = text.chars().count();
         self.text = Some(TextEdit { kind: TextKind::Balloon, annotation: a, existing: Some(id.to_string()), text, caret });
-        self.selected = Some(id.to_string());
+        self.core.selected = Some(id.to_string());
         self.changed();
     }
 
@@ -1175,6 +1150,9 @@ impl Workspace {
         }
         if self.drag.take().is_some() {
             self.changed();
+            if let Some(key) = self.core.selected.clone() {
+                self.auto_expand(&key);
+            }
             return;
         }
         let Some(d) = self.drawing.take() else { return };
@@ -1183,32 +1161,53 @@ impl Workspace {
         let tool = self.tool.clone();
         let size_based = !matches!(tool, EditorTool::Step | EditorTool::Freehand | EditorTool::Text | EditorTool::Cursor);
         if size_based {
-            let (w, h) = if let Kind::SmartEraser(_) = self.annotations[i].kind {
+            let (w, h) = if let Kind::SmartEraser(_) = self.core.annotations[i].kind {
                 // Its clamped size.
-                let (_, _, w, h) = Self::logical_rect(&self.annotations[i]);
+                let (_, _, w, h) = Self::logical_rect(&self.core.annotations[i]);
                 (w, h)
             } else {
                 ((p.0 - d.start.0).abs(), (p.1 - d.start.1).abs())
             };
             if w < MIN_SHAPE_SIZE && h < MIN_SHAPE_SIZE {
-                self.annotations.remove(i);
+                self.core.annotations.remove(i);
                 self.changed();
                 return;
             }
         }
-        if !matches!(self.annotations[i].kind, Kind::Freehand(_)) {
+        if !matches!(self.core.annotations[i].kind, Kind::Freehand(_)) {
             self.set_selected(id.clone());
         }
         self.add_annotation(&id);
+        self.auto_expand(&id);
+    }
+
+    /// `ScheduleAutoExpandCanvas` / `ExpandCanvasToFit`: with
+    /// `AutoExpandCanvas` (not in region capture), the canvas grows (one
+    /// undo step) to take the annotation with 16px to spare, filled with
+    /// `CanvasFillColor`.
+    fn auto_expand(&mut self, key: &str) {
+        if self.host_mode || !self.tools.options.AutoExpandCanvas {
+            return;
+        }
+        let Some(i) = self.find(key) else { return };
+        if !EditorCore::can_auto_expand_for(&self.core.annotations[i]) {
+            return;
+        }
+        let c = render::parse_color(&self.tools.options.CanvasFillColorHex);
+        let keys = [key.to_string()];
+        if let Some((left, top)) = self.core.auto_expand_canvas_to_fit(Some(&keys), 16.0, [c.r, c.g, c.b, c.a]) {
+            self.image_changed();
+            self.requests.push(Request::AutoExpanded { left, top });
+        }
     }
 
     /// Discards the shape being drawn (`CancelActiveDrawing`).
     pub fn cancel_drawing(&mut self) {
         let Some(d) = self.drawing.take() else { return };
         if let Some(i) = d.id.and_then(|id| self.find(&id)) {
-            let a = self.annotations.remove(i);
+            let a = self.core.annotations.remove(i);
             if matches!(a.kind, Kind::Number(_)) {
-                self.number_counter -= 1;
+                self.core.number_counter -= 1;
             }
             self.changed();
         }
@@ -1321,7 +1320,7 @@ impl Workspace {
                 n.is_bold = s.text_bold;
                 n.step_type = s.step_type.clone();
                 n.tail_enabled = s.speech_balloon_tail;
-                n.number = self.number_counter;
+                n.number = self.core.number_counter;
             }
             Kind::Text(t) => {
                 // A transparent text colour falls back to the option's.
@@ -1380,7 +1379,7 @@ impl Workspace {
         };
         if let Some(mut a) = created {
             if a.common.id.is_empty() {
-                a.common.id = self.new_id();
+                a.common.id = super::editor_core::new_annotation_id();
             }
             if let Kind::Text(_) = a.kind {
                 // `HandleTextTool`: a text box at the point, typed into.
@@ -1390,13 +1389,14 @@ impl Workspace {
                 return;
             }
             if let Kind::Number(_) = a.kind {
-                self.number_counter += 1;
+                self.core.number_counter += 1;
             }
-            d.id = Some(a.common.id.clone());
+            d.id = Some(a.common.key.0.clone());
             if matches!(a.kind, Kind::Highlight(_)) {
                 // Below the first non-effect shape.
                 let at = self
-                    .annotations
+                    .core
+            .annotations
                     .iter()
                     .position(|x| {
                         !matches!(
@@ -1404,10 +1404,10 @@ impl Workspace {
                             Kind::Highlight(_) | Kind::Blur(_) | Kind::Pixelate(_) | Kind::Magnify(_)
                         )
                     })
-                    .unwrap_or(self.annotations.len());
-                self.annotations.insert(at, a);
+                    .unwrap_or(self.core.annotations.len());
+                self.core.annotations.insert(at, a);
             } else {
-                self.annotations.push(a);
+                self.core.annotations.push(a);
             }
             self.changed();
         }
@@ -1423,7 +1423,7 @@ impl Workspace {
         a.common.stroke_width = 0.0;
         a.common.start_point = sk(p);
         a.common.end_point = sk(p);
-        super::editor_core::configure_smart_eraser_fill(&mut a, &self.source);
+        super::editor_core::configure_smart_eraser_fill(&mut a, &self.core.source);
         a
     }
 
@@ -1438,7 +1438,7 @@ impl Workspace {
         }
         a.common.start_point = sk(p);
         a.common.end_point = sk((p.0 + pm.width() as f64, p.1 + pm.height() as f64));
-        a.common.id = self.new_id();
+        a.common.id = super::editor_core::new_annotation_id();
         Some(a)
     }
 
@@ -1456,12 +1456,12 @@ impl Workspace {
         let m = self.mods;
         if !m.ctrl {
             d.moving = false;
-        } else if Self::can_move_during_creation(&self.annotations[i]) && (d.moving || !d.ctrl_was_held) {
+        } else if Self::can_move_during_creation(&self.core.annotations[i]) && (d.moving || !d.ctrl_was_held) {
             // `MoveShapeDuringCreation`.
             let (dx, dy) = (p.0 - d.last.0, p.1 - d.last.1);
             if dx != 0.0 || dy != 0.0 {
                 d.start = (d.start.0 + dx, d.start.1 + dy);
-                let a = &mut self.annotations[i];
+                let a = &mut self.core.annotations[i];
                 if let Kind::Freehand(f) = &mut a.kind {
                     f.points.iter_mut().for_each(|q| *q = Point::new(q.x + dx as f32, q.y + dy as f32));
                 } else {
@@ -1486,7 +1486,7 @@ impl Workspace {
             self.drawing = Some(d);
             return;
         }
-        let a = &mut self.annotations[i];
+        let a = &mut self.core.annotations[i];
         if let Kind::Freehand(f) = &mut a.kind {
             add_freehand_point(&mut f.points, sk(p), m.shift, &mut d.freehand_straight);
             d.last = p;
@@ -1523,12 +1523,12 @@ impl Workspace {
             }
             Kind::SmartEraser(_) => {
                 // `UpdateSmartEraserFill`: clamped to the image, refilled.
-                let (cw, ch) = (self.source.width() as f64, self.source.height() as f64);
+                let (cw, ch) = (self.core.source.width() as f64, self.core.source.height() as f64);
                 let (l, t) = (left.clamp(0.0, cw), top.clamp(0.0, ch));
                 let (r, b) = ((left + w).clamp(0.0, cw), (top + h).clamp(0.0, ch));
                 a.common.start_point = sk((l, t));
                 a.common.end_point = sk((l.max(r), t.max(b)));
-                super::editor_core::configure_smart_eraser_fill(a, &self.source);
+                super::editor_core::configure_smart_eraser_fill(a, &self.core.source);
             }
             _ => {
                 a.common.start_point = sk((left, top));
@@ -1544,7 +1544,7 @@ impl Workspace {
     /// `HandleResize` / `HandleMove` while a handle or shape is dragged.
     fn drag_to(&mut self, p: P) {
         let shift = self.mods.shift;
-        let sel = self.selected.clone();
+        let sel = self.core.selected.clone();
         let Some(mut drag) = self.drag.take() else { return };
         match &mut drag {
             Drag::Shape { last } => {
@@ -1586,7 +1586,7 @@ impl Workspace {
         };
         if key == Key::Delete {
             if m.shift {
-                if self.annotations.is_empty() {
+                if self.core.annotations.is_empty() {
                     return KeyResult::default();
                 }
                 self.clear_annotations();
@@ -1645,7 +1645,7 @@ impl Workspace {
         if m.alt {
             return KeyResult::default();
         }
-        if matches!(key, Key::Left | Key::Right | Key::Up | Key::Down) && self.selected.is_some() {
+        if matches!(key, Key::Left | Key::Right | Key::Up | Key::Down) && self.core.selected.is_some() {
             let step = if m.shift { 10.0 } else { 1.0 };
             let dx = match key {
                 Key::Left => -step,
@@ -1657,7 +1657,7 @@ impl Workspace {
                 Key::Down => step,
                 _ => 0.0,
             };
-            let sel = self.selected.clone();
+            let sel = self.core.selected.clone();
             if let Some(a) = self.get_mut(&sel) {
                 move_shape(a, dx, dy);
             }
@@ -1736,7 +1736,7 @@ impl Workspace {
         let Some(t) = self.text.as_ref().filter(|t| t.kind == TextKind::Balloon) else { return };
         let (Some(id), text) = (t.existing.clone(), t.text.clone()) else { return };
         let Some(i) = self.find(&id) else { return };
-        let a = &mut self.annotations[i];
+        let a = &mut self.core.annotations[i];
         if !matches!(&a.kind, Kind::SpeechBalloon(p) if p.auto_size) {
             return;
         }
@@ -1789,11 +1789,12 @@ impl Workspace {
         self.changed();
         if let Some(id) = t.existing {
             let Some(i) = self.find(&id) else { return };
-            match &mut self.annotations[i].kind {
+            match &mut self.core.annotations[i].kind {
                 Kind::Text(p) => p.text = t.text,
                 Kind::SpeechBalloon(p) => p.text = t.text,
                 _ => {}
             }
+            self.auto_expand(&id);
             return;
         }
         if t.text.trim().is_empty() {
@@ -1804,10 +1805,11 @@ impl Workspace {
             p.text = t.text;
         }
         fit_text(&mut a);
-        let id = a.common.id.clone();
-        self.annotations.push(a);
+        let id = a.common.key.0.clone();
+        self.core.annotations.push(a);
         self.add_annotation(&id);
-        self.set_selected(id);
+        self.set_selected(id.clone());
+        self.auto_expand(&id);
     }
 }
 

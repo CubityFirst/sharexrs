@@ -27,6 +27,8 @@ use ttf_parser::{GlyphId, RgbaColor};
 /// `EmojiFontFamily`, then the colour fonts other systems have.
 const FAMILIES: [&str; 3] = ["Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla"];
 const STICKER_PADDING: u32 = 14;
+/// `PreviewPadding`.
+const PREVIEW_PADDING: u32 = 6;
 const RAW_CANVAS_SCALE: f32 = 2.0;
 const RAW_FONT_SCALE: f32 = 1.32;
 
@@ -104,6 +106,23 @@ pub fn sticker_bitmap(sequence: &str, size: u32) -> Option<Arc<Pixmap>> {
     v
 }
 
+/// `RenderPreviewBitmap(sequence, size)`: the picker's tile (6px of
+/// padding), cached.
+pub fn preview_bitmap(sequence: &str, size: u32) -> Option<Arc<Pixmap>> {
+    if sequence.trim().is_empty() || size == 0 {
+        return None;
+    }
+    static CACHE: OnceLock<Mutex<StickerCache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    let key = (sequence.to_string(), size);
+    if let Some(v) = cache.lock().unwrap().get(&key) {
+        return v.clone();
+    }
+    let v = render_square(sequence, size, PREVIEW_PADDING).map(Arc::new);
+    cache.lock().unwrap().insert(key, v.clone());
+    v
+}
+
 /// `RenderSquareBitmap`.
 fn render_square(sequence: &str, size: u32, padding: u32) -> Option<Pixmap> {
     let glyph = to_glyph(sequence);
@@ -172,6 +191,39 @@ fn fit_into_square(src: &Pixmap, size: u32, padding: u32) -> Pixmap {
 pub fn render_raw(text: &str, canvas: u32, font_size: f32) -> Option<Pixmap> {
     let (data, index) = font()?;
     let face = ttf_parser::Face::parse(data, *index).ok()?;
+    let em = face.units_per_em() as f32;
+    let ascent = match face.tables().os2 {
+        Some(os2) => os2.windows_ascender() as f32,
+        None => face.ascender() as f32,
+    };
+    render_line(text, canvas, canvas, font_size, (ascent * font_size / em).round())
+}
+
+/// A line of emoji text as a `TextBlock` lays it out in the emoji font:
+/// its advance, its ascent and its line height (`hhea`: ascender,
+/// descender, line gap), at `font_size`.
+pub fn line_metrics(text: &str, font_size: f32) -> Option<(f32, f32, f32)> {
+    let (data, index) = font()?;
+    let face = ttf_parser::Face::parse(data, *index).ok()?;
+    let fref = harfrust::FontRef::from_index(data, *index).ok()?;
+    let shaper_data = harfrust::ShaperData::new(&fref);
+    let shaper = shaper_data.shaper(&fref).build();
+    let mut buffer = harfrust::UnicodeBuffer::new();
+    buffer.push_str(text);
+    buffer.guess_segment_properties();
+    let out = shaper.shape(buffer, harfrust::ShapeOptions::new());
+    let scale = font_size / face.units_per_em() as f32;
+    let advance: f32 = out.glyph_positions().iter().map(|p| p.x_advance as f32 * scale).sum();
+    let ascent = face.ascender() as f32 * scale;
+    let height = (face.ascender() as f32 - face.descender() as f32 + face.line_gap() as f32) * scale;
+    Some((advance, ascent, height))
+}
+
+/// `text` painted in the emoji font on a `width` x `height` canvas, its
+/// baseline at `baseline`.
+pub fn render_line(text: &str, width: u32, height: u32, font_size: f32, baseline: f32) -> Option<Pixmap> {
+    let (data, index) = font()?;
+    let face = ttf_parser::Face::parse(data, *index).ok()?;
     let fref = harfrust::FontRef::from_index(data, *index).ok()?;
     let shaper_data = harfrust::ShaperData::new(&fref);
     let shaper = shaper_data.shaper(&fref).build();
@@ -181,14 +233,10 @@ pub fn render_raw(text: &str, canvas: u32, font_size: f32) -> Option<Pixmap> {
     let out = shaper.shape(buffer, harfrust::ShapeOptions::new());
     let em = face.units_per_em() as f32;
     let scale = font_size / em;
-    let ascent = match face.tables().os2 {
-        Some(os2) => os2.windows_ascender() as f32,
-        None => face.ascender() as f32,
-    };
-    let baseline = (ascent * scale).round();
     let mut pen_x = 0.0;
 
-    let mut painter = ColrPainter::new(&face, canvas);
+    let side = width.max(height);
+    let mut painter = ColrPainter::new(&face, side);
     for (info, pos) in out.glyph_infos().iter().zip(out.glyph_positions()) {
         let gid = GlyphId(info.glyph_id as u16);
         let x = pen_x + pos.x_offset as f32 * scale;
@@ -207,7 +255,11 @@ pub fn render_raw(text: &str, canvas: u32, font_size: f32) -> Option<Pixmap> {
         }
         pen_x += pos.x_advance as f32 * scale;
     }
-    Some(painter.finish())
+    let pm = painter.finish();
+    if width == side && height == side {
+        return Some(pm);
+    }
+    crate::editor::image_ops::crop(&pm, 0, 0, width as i32, height as i32)
 }
 
 /// A 2D affine transform `[a, b, c, d, e, f]`: `x' = a x + c y + e`,

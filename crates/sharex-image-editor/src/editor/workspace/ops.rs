@@ -193,105 +193,6 @@ fn round(v: f64) -> i32 {
     v.round_ties_even() as i32
 }
 
-/// `Annotation.TransformPoints`: the end points and each type's own points
-/// (`TransformAdditionalPoints`: freehand points, a step's or a balloon's
-/// tail; not a line's curve point, as ShareX).
-pub(super) fn transform_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
-    a.common.start_point = f(a.common.start_point);
-    a.common.end_point = f(a.common.end_point);
-    transform_additional_points(a, f);
-}
-
-fn transform_additional_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
-    let balloon_default = match &a.kind {
-        Kind::SpeechBalloon(_) => Some(geometry::balloon_default_tail_point(&geometry::bounds(a))),
-        _ => None,
-    };
-    match &mut a.kind {
-        Kind::Freehand(p) => p.points.iter_mut().for_each(|q| *q = f(*q)),
-        Kind::Number(p) if p.tail_point_initialized || p.tail_point != Point::default() => {
-            p.tail_point = f(p.tail_point);
-            p.tail_point_initialized = true;
-        }
-        Kind::SpeechBalloon(p) => {
-            let has = p.tail_point_initialized || p.tail_point != Point::default();
-            let effective = if has { p.tail_point } else { balloon_default.unwrap_or_default() };
-            if p.tail_point_placed || has {
-                p.tail_point = f(effective);
-                p.tail_point_initialized = true;
-            }
-        }
-        _ => {}
-    }
-}
-
-/// `CutOutAnnotation.AdjustAnnotation`: false when the annotation is inside
-/// the cut and goes.
-fn adjust_for_cut_out(a: &mut Annotation, start: i32, end: i32, vertical: bool) -> bool {
-    let b = geometry::bounds(a);
-    let (lead, trail) = if vertical { (b.l, b.r) } else { (b.t, b.b) };
-    let (start, end) = (start as f32, end as f32);
-    if lead >= start && trail <= end {
-        return false;
-    }
-    let after = lead >= end;
-    if !(after || trail > end) {
-        return true;
-    }
-    let cut = end - start;
-    let shift = |p: Point| {
-        let mut pos = if vertical { p.x } else { p.y };
-        if !after && pos > start && pos < end {
-            pos = start;
-        }
-        pos -= cut;
-        if vertical { Point::new(pos, p.y) } else { Point::new(p.x, pos) }
-    };
-    a.common.start_point = shift(a.common.start_point);
-    a.common.end_point = shift(a.common.end_point);
-    let collapse = |p: Point| {
-        let mut pos = if vertical { p.x } else { p.y };
-        if pos >= end {
-            pos -= cut;
-        } else if pos > start {
-            pos = start;
-        }
-        if vertical { Point::new(pos, p.y) } else { Point::new(p.x, pos) }
-    };
-    transform_additional_points(a, &collapse);
-    true
-}
-
-/// `ImageHelpers.CutOut`: the columns (vertical) or rows between `start`
-/// and `end` removed.
-fn cut_out_pixels(src: &Pixmap, start: i32, end: i32, vertical: bool) -> Pixmap {
-    let (w, h) = (src.width() as i32, src.height() as i32);
-    let cut = end - start;
-    let (nw, nh) = if vertical { (w - cut, h) } else { (w, h - cut) };
-    let mut out = Pixmap::new(nw as u32, nh as u32);
-    for y in 0..nh {
-        for x in 0..nw {
-            let (sx, sy) = if vertical {
-                (if x < start { x } else { x + cut }, y)
-            } else {
-                (x, if y < start { y } else { y + cut })
-            };
-            *out.pixel_mut(x, y) = src.pixel(sx, sy);
-        }
-    }
-    out
-}
-
-fn sub_pixmap(src: &Pixmap, x: i32, y: i32, w: i32, h: i32) -> Pixmap {
-    let mut out = Pixmap::new(w as u32, h as u32);
-    for row in 0..h {
-        for col in 0..w {
-            *out.pixel_mut(col, row) = src.pixel(x + col, y + row);
-        }
-    }
-    out
-}
-
 /// Unpremultiplied ARGB of a premultiplied pixel (`SKBitmap.GetPixel`).
 fn unpremul(c: u32) -> u32 {
     let a = c >> 24;
@@ -306,7 +207,7 @@ impl Workspace {
     /// The pixels of an image annotation (inserted image, clone).
     pub fn image(&self, id: &str) -> Option<&Pixmap> {
         let i = self.find(id)?;
-        match &self.annotations[i].kind {
+        match &self.core.annotations[i].kind {
             Kind::Image(p) => p.bitmap.as_deref(),
             _ => None,
         }
@@ -362,8 +263,8 @@ impl Workspace {
     }
 
     /// A clone offset by 20px (`OffsetClonedAnnotation`), added and
-    /// selected. ShareX keeps the clone's `Id`; ids name annotations here,
-    /// so it gets a new one.
+    /// selected. It keeps the original's `Id` (`Annotation.Clone`) and gets
+    /// its own key.
     fn add_clone(&mut self, mut a: Annotation) {
         self.commit_text();
         const OFFSET: f32 = 20.0;
@@ -378,10 +279,10 @@ impl Workspace {
             }
             _ => {}
         }
-        a.common.id = self.new_id();
-        let id = a.common.id.clone();
+        a.common.key = crate::model::Key::fresh();
+        let id = a.common.key.0.clone();
         self.annotations_memento(false);
-        self.annotations.push(a);
+        self.core.annotations.push(a);
         self.history_changed();
         self.set_selected(id);
     }
@@ -410,65 +311,30 @@ impl Workspace {
 
     // Image operations.
 
-    /// Replaces the image (`ApplyImageOperation`): a canvas memento first,
-    /// the annotations kept or cleared.
-    fn replace_source(&mut self, image: Pixmap, clear_annotations: bool) {
-        let m = self.canvas_memento();
-        self.history.add(m);
-        self.source = image;
-        self.cache = render::Cache::default();
-        if clear_annotations {
-            self.annotations.clear();
-            self.selected = None;
-            self.hovered = None;
-            self.number_counter = 1;
-        }
-        self.history_changed();
-    }
-
-    /// `FlattenImage` (Ctrl+Shift+F): the annotations drawn into the image.
+    /// `FlattenImage` (Ctrl+Shift+F): the annotations drawn into the image
+    /// (`EditorCore.FlattenImage`).
     pub fn flatten(&mut self) -> bool {
         self.commit_text();
-        if self.annotations.is_empty() {
+        if self.core.annotations.is_empty() {
             return false;
         }
         self.clear_selection();
         let composite = self.composite().clone();
-        self.replace_source(composite, true);
+        if !self.core.flatten_image(composite) {
+            return false;
+        }
+        self.image_changed();
         true
     }
 
     /// `EditorCore.Crop`: the image cut to the rectangle, annotations
     /// outside it dropped and the rest moved with it.
     pub fn crop_image(&mut self, x: f64, y: f64, w: f64, h: f64) -> bool {
-        let (sw, sh) = (self.source.width() as i32, self.source.height() as i32);
-        let x = x.max(0.0) as i32;
-        let y = y.max(0.0) as i32;
-        let width = ((sw - x) as f64).min(w) as i32;
-        let height = ((sh - y) as f64).min(h) as i32;
-        if width <= 0 || height <= 0 || (x == 0 && y == 0 && width == sw && height == sh) {
+        let r = geometry::Rect::new(x as f32, y as f32, (x + w) as f32, (y + h) as f32);
+        if !self.core.crop(r) {
             return false;
         }
-        let m = self.canvas_memento();
-        self.history.add(m);
-        let cropped = sub_pixmap(&self.source, x, y, width, height);
-        let (fx, fy, fw, fh) = (x as f32, y as f32, width as f32, height as f32);
-        let mut i = self.annotations.len();
-        while i > 0 {
-            i -= 1;
-            if matches!(self.annotations[i].kind, Kind::Crop) {
-                continue;
-            }
-            let b = geometry::bounds(&self.annotations[i]);
-            if b.r < fx || b.l > fx + fw || b.b < fy || b.t > fy + fh {
-                self.annotations.remove(i);
-                continue;
-            }
-            transform_points(&mut self.annotations[i], &|p| Point::new(p.x - fx, p.y - fy));
-        }
-        self.source = cropped;
-        self.cache = render::Cache::default();
-        self.after_image_change();
+        self.image_changed();
         true
     }
 
@@ -476,33 +342,19 @@ impl Workspace {
     /// (columns when `vertical`), annotations in it dropped and the rest
     /// moved up or left.
     pub fn cut_out_image(&mut self, start: i32, end: i32, vertical: bool) -> bool {
-        let (start, end) = if start > end { (end, start) } else { (start, end) };
-        let len = if vertical { self.source.width() } else { self.source.height() } as i32;
-        if start < 0 || end > len || start >= end {
+        if !self.core.cut_out(start, end, vertical) {
             return false;
         }
-        let m = self.canvas_memento();
-        self.history.add(m);
-        if end - start >= len {
-            return false;
-        }
-        let cut = cut_out_pixels(&self.source, start, end, vertical);
-        let mut i = self.annotations.len();
-        while i > 0 {
-            i -= 1;
-            if !adjust_for_cut_out(&mut self.annotations[i], start, end, vertical) {
-                self.annotations.remove(i);
-            }
-        }
-        self.source = cut;
-        self.cache = render::Cache::default();
-        self.after_image_change();
+        self.image_changed();
         true
     }
 
-    fn after_image_change(&mut self) {
-        if self.selected.as_ref().is_some_and(|id| self.find(id).is_none()) {
-            self.selected = None;
+    /// The image changed through `EditorCore` (with its canvas memento):
+    /// the effect caches go, the selection if its annotation went.
+    pub(super) fn image_changed(&mut self) {
+        self.cache = render::Cache::default();
+        if self.core.selected.as_ref().is_some_and(|id| self.find(id).is_none()) {
+            self.core.selected = None;
         }
         self.hovered = None;
         self.drag = None;
@@ -512,16 +364,14 @@ impl Workspace {
     /// `CloneRegion`: the image's pixels in `r` become an image annotation
     /// at the same place, selected, the Clone tool kept.
     pub(super) fn clone_region(&mut self, r: (f64, f64, f64, f64)) {
-        let (sw, sh) = (self.source.width() as f64, self.source.height() as f64);
-        let (l, t) = (r.0.max(0.0), r.1.max(0.0));
-        let (rr, b) = ((r.0 + r.2).min(sw), (r.1 + r.3).min(sh));
-        if rr <= l || b <= t {
-            return;
+        self.commit_text();
+        let tool = std::mem::replace(&mut self.core.active_tool, self.tool.clone());
+        let key = self.core.clone_region(r);
+        self.core.active_tool = tool;
+        if let Some(key) = key {
+            self.history_changed();
+            self.set_selected(key);
         }
-        let (left, top) = (l.floor() as i32, t.floor() as i32);
-        let (right, bottom) = (rr.ceil() as i32, b.ceil() as i32);
-        let pm = sub_pixmap(&self.source, left, top, right - left, bottom - top);
-        self.insert_image_annotation(pm, (left as f64, top as f64), EditorTool::Clone, true);
     }
 
     /// `InsertImageAnnotationCore`: an image annotation with its top-left
@@ -533,13 +383,13 @@ impl Workspace {
         a.common.tool_type = tool.clone();
         a.common.start_point = sk(at);
         a.common.end_point = sk((at.0 + pm.width() as f64, at.1 + pm.height() as f64));
-        a.common.id = self.new_id();
+        a.common.id = crate::editor::editor_core::new_annotation_id();
         if let Kind::Image(p) = &mut a.kind {
             p.set_image(pm);
         }
-        let id = a.common.id.clone();
+        let id = a.common.key.0.clone();
         self.annotations_memento(false);
-        self.annotations.push(a);
+        self.core.annotations.push(a);
         self.history_changed();
         if select {
             if tool != EditorTool::Clone {
@@ -565,30 +415,46 @@ impl Workspace {
         let mut a = Annotation::new("Image").expect("Image");
         a.common.start_point = sk(pos);
         a.common.end_point = sk((pos.0 + pm.width() as f64, pos.1 + pm.height() as f64));
-        a.common.id = self.new_id();
+        a.common.id = crate::editor::editor_core::new_annotation_id();
         if let Kind::Image(p) = &mut a.kind {
             p.set_image(pm);
         }
-        let id = a.common.id.clone();
+        let id = a.common.key.0.clone();
         self.annotations_memento(false);
-        self.annotations.push(a);
+        self.core.annotations.push(a);
         self.history_changed();
         self.set_selected(id.clone());
         id
     }
 
-    /// Replaces an image annotation's pixels (a double click's picker),
-    /// keeping its top-left corner.
+    /// Replaces an image annotation's pixels (a double click's picker,
+    /// `ReplaceImageAnnotationFromFilePickerAsync`), keeping its centre;
+    /// not an undo step, as in ShareX.
     pub fn replace_image(&mut self, id: &str, pm: Pixmap) {
         let Some(i) = self.find(id) else { return };
-        self.annotations_memento(false);
-        let a = &mut self.annotations[i];
-        let s = a.common.start_point;
-        a.common.end_point = Point::new(s.x + pm.width() as f32, s.y + pm.height() as f32);
+        let a = &mut self.core.annotations[i];
+        let b = geometry::bounds(a);
+        let (cx, cy) = (b.mid_x(), b.mid_y());
+        let (w, h) = (pm.width() as f32, pm.height() as f32);
+        a.common.start_point = Point::new(cx - w / 2.0, cy - h / 2.0);
+        a.common.end_point = Point::new(cx + w / 2.0, cy + h / 2.0);
         if let Kind::Image(p) = &mut a.kind {
             p.set_image(pm);
         }
-        self.history_changed();
+        self.dirty = true;
+        self.changed();
+    }
+
+    /// `EditorCore.ResizeCanvas`: room added on each side (negative crops),
+    /// filled with `color` (straight RGBA), the annotations moved with the
+    /// image.
+    pub fn resize_canvas(&mut self, top: i32, right: i32, bottom: i32, left: i32, color: [u8; 4]) -> bool {
+        self.commit_text();
+        if !self.core.resize_canvas(top, right, bottom, left, color) {
+            return false;
+        }
+        self.image_changed();
+        true
     }
 
     /// `InsertEmojiAnnotation`: a 160px emoji with its top-left at `at`,
@@ -601,10 +467,10 @@ impl Workspace {
         }
         a.common.start_point = sk(at);
         a.common.end_point = sk((at.0 + EMOJI_SIZE, at.1 + EMOJI_SIZE));
-        a.common.id = self.new_id();
-        let id = a.common.id.clone();
+        a.common.key = crate::model::Key::fresh();
+        let id = a.common.key.0.clone();
         self.annotations_memento(false);
-        self.annotations.push(a);
+        self.core.annotations.push(a);
         self.history_changed();
         self.select_tool(EditorTool::Select);
         self.set_selected(id.clone());
@@ -615,28 +481,19 @@ impl Workspace {
     pub fn replace_emoji(&mut self, id: &str, unicode_sequence: &str, display_name: &str) {
         let Some(i) = self.find(id) else { return };
         self.annotations_memento(false);
-        if let Kind::Emoji(e) = &mut self.annotations[i].kind {
+        if let Kind::Emoji(e) = &mut self.core.annotations[i].kind {
             *e = EmojiProps { unicode_sequence: unicode_sequence.into(), display_name: display_name.into() };
         }
         self.history_changed();
     }
 
-    /// A cursor annotation with its top-left at `at`, sized to the
-    /// cursor image, not counted as an edit: what region capture inserts
-    /// for a shown pointer.
-    pub fn insert_cursor_annotation(&mut self, cursor_type: CursorType, at: P) -> Option<String> {
-        let pm = render::cursor::cursor_bitmap(&cursor_type)?;
-        let mut a = Annotation::new("Cursor").expect("Cursor");
-        if let Kind::Cursor(c) = &mut a.kind {
-            c.cursor_type = cursor_type;
-        }
-        a.common.start_point = sk(at);
-        a.common.end_point = sk((at.0 + pm.width() as f64, at.1 + pm.height() as f64));
-        a.common.id = self.new_id();
-        let id = a.common.id.clone();
-        self.annotations.push(a);
-        self.changed();
-        Some(id)
+    /// `InsertWorkspaceImageAnnotation`: an image annotation of `pm` with
+    /// its top-left at `at`, not selected and not marking the editor dirty
+    /// (region capture's shown pointer, `CursorData.ToBitmap`).
+    pub fn insert_workspace_image(&mut self, pm: Pixmap, at: P) -> String {
+        let key = self.insert_image_annotation(pm, at, EditorTool::Image, false);
+        self.dirty = false;
+        key
     }
 
     /// `SampleCanvasColor`: `#RRGGBB` of the image with its annotations at
@@ -654,7 +511,7 @@ impl Workspace {
     // Region tools.
 
     fn canvas_size(&self) -> (f64, f64) {
-        (self.source.width() as f64, self.source.height() as f64)
+        (self.core.source.width() as f64, self.core.source.height() as f64)
     }
 
     /// `ClampPointToCanvasBounds`.
@@ -749,7 +606,10 @@ impl Workspace {
             return;
         }
         let (x, y, w, h) = (round(x), round(y), round(w), round(h));
-        self.crop_image(x as f64, y as f64, w as f64, h as f64);
+        if self.crop_image(x as f64, y as f64, w as f64, h as f64) {
+            let (width, height) = self.size();
+            self.requests.push(Request::Cropped { width, height });
+        }
         self.changed();
     }
 
@@ -822,7 +682,10 @@ impl Workspace {
                     && let Some(vertical) = r.cut_vertical
                 {
                     let (a, b) = if vertical { (r.rect.0, r.rect.0 + w) } else { (r.rect.1, r.rect.1 + h) };
-                    self.cut_out_image(round(a), round(b), vertical);
+                    if self.cut_out_image(round(a), round(b), vertical) {
+                        let (width, height) = self.size();
+                        self.requests.push(Request::CutOut { width, height });
+                    }
                 }
             }
             EditorTool::Clone if w >= MIN_SHAPE_SIZE && h >= MIN_SHAPE_SIZE => self.clone_region(r.rect),
@@ -905,8 +768,8 @@ impl Workspace {
             return RightClick::ContextMenu;
         }
         if let Some(i) = self.hit(p) {
-            let id = self.annotations[i].common.id.clone();
-            if self.selected.as_deref() != Some(id.as_str()) {
+            let id = self.core.annotations[i].common.key.0.clone();
+            if self.core.selected.as_deref() != Some(id.as_str()) {
                 self.set_selected(id);
             }
         }

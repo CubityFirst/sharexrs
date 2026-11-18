@@ -145,6 +145,16 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// The image editor's colour popups' screen colour picker
+    /// (`ScreenColorPickerWindow.PickAsync(owner)`): over the window, its
+    /// colour handed back through [`Dialog::screen_color`].
+    PickScreenColorOverWindow,
+    /// The image editor's New from screenshot (`OnNewFromScreenshotRequested`):
+    /// the window hidden for 250 ms, a region (`RegionCaptureTasks.
+    /// GetRegionImageAsync`) or the full screen (`CaptureFullscreen`) with
+    /// these task settings, shown again, the image handed back through
+    /// [`Dialog::replace_image`].
+    EditorCapture { fullscreen: bool, task: Box<TaskSettings> },
     /// The colour picker's Pick color from screen: minimized, the screen
     /// colour picker, restored, its colour handed back through
     /// [`Dialog::screen_color`].
@@ -565,6 +575,8 @@ impl App {
                 Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
                 Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::PickScreenColorOverWindow => self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id)),
+                Effect::EditorCapture { fullscreen, task } => self.editor_capture(id, fullscreen, *task),
                 Effect::PickScreenColor => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         d.window.window.set_minimized(true);

@@ -2,10 +2,6 @@
 //! (`EditorMemento`), with the image itself for the destructive operations
 //! (crop, cut out, rotate, resize...: [`super::editor_core::CoreMemento`]).
 
-use sharex_skia::Pixmap;
-
-use crate::model::Annotation;
-
 /// `EditorHistory.MaxMementos`.
 const MAX_MEMENTOS: usize = 50;
 
@@ -20,24 +16,8 @@ pub trait Snapshot {
     }
 }
 
-/// The workspace's `EditorMemento`: the annotations, and the image for
-/// the operations that change it (crop, cut out, flatten:
-/// `CreateCanvasMemento`).
-#[derive(Clone, Debug)]
-pub struct Memento {
-    pub annotations: Vec<Annotation>,
-    pub selected: Option<String>,
-    /// The image, for a canvas memento.
-    pub canvas: Option<Pixmap>,
-}
-
-impl Snapshot for Memento {
-    fn has_canvas(&self) -> bool {
-        self.canvas.is_some()
-    }
-}
-
-pub struct History<M = Memento> {
+/// `EditorHistory` of `M` snapshots (`CoreMemento`).
+pub struct History<M> {
     undo: Vec<M>,
     redo: Vec<M>,
 }
@@ -96,12 +76,6 @@ impl<M: Snapshot> History<M> {
     /// The snapshot `redo` would restore.
     pub fn peek_redo(&self) -> Option<&M> {
         self.redo.last()
-    }
-
-    /// `ClearAll(resetHistory: true)`: a new history.
-    pub fn reset(&mut self) {
-        self.undo.clear();
-        self.redo.clear();
     }
 
     /// `Undo`: the current state goes on the redo stack.
