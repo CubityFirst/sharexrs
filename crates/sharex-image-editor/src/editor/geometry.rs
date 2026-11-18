@@ -581,3 +581,48 @@ mod tests {
         assert_eq!(p.curve_point, Point::new(55.0, 5.0));
     }
 }
+
+/// `Annotation.TransformAdditionalPoints` of each type: a freehand's
+/// points, a step's tail (once it has one), a balloon's tail (its
+/// effective point, kept placed or set when it has one). A line's or an
+/// arrow's curve point isn't transformed, as in ShareX.
+pub fn transform_additional_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
+    match &mut a.kind {
+        Kind::Freehand(p) => p.points.iter_mut().for_each(|q| *q = f(*q)),
+        Kind::Number(p) => {
+            if p.tail_point_initialized {
+                p.tail_point = f(p.tail_point);
+            }
+        }
+        Kind::SpeechBalloon(_) => {
+            let body = bounds(a);
+            let Kind::SpeechBalloon(p) = &mut a.kind else {
+                unreachable!()
+            };
+            let has_tail = p.tail_point_initialized || p.tail_point != Point::default();
+            let transformed = f(balloon_effective_tail_point(&body, p));
+            // SetPlacedTailPoint keeps it placed; SetTailPoint sets it.
+            if p.tail_point_placed || has_tail {
+                p.tail_point = transformed;
+                p.tail_point_initialized = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// `Annotation.TransformPoints`: the end points, then the type's own.
+pub fn transform_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
+    a.common.start_point = f(a.common.start_point);
+    a.common.end_point = f(a.common.end_point);
+    transform_additional_points(a, f);
+}
+
+/// `Annotation.Scale` (and `TextAnnotation.Scale`, which scales its font).
+pub fn scale(a: &mut Annotation, sx: f32, sy: f32) {
+    transform_points(a, &|p| Point::new(p.x * sx, p.y * sy));
+    a.common.stroke_width *= sx.min(sy);
+    if let Kind::Text(t) = &mut a.kind {
+        t.font_size *= sy;
+    }
+}
