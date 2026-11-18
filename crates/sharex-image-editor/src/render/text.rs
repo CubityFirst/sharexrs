@@ -553,6 +553,63 @@ fn union_with_tail(
 /// bounds (`GetInteractionBounds`: the circle and the tail). The number is
 /// drawn from Inter's outlines; ShareX draws it as glyph masks rasterised
 /// by DirectWrite, so its edges differ.
+/// The `StepControl`'s arranged size and transform (its body and tail's
+/// bounds), as a drop shadow needs them.
+pub(super) fn step_frame(c: &crate::model::Common, p: &crate::model::NumberProps) -> ((f64, f64), super::layout::AMatrix) {
+    use crate::editor::geometry::{Rect, step_tail_points, triangle_bounds};
+    let r = step_radius(p);
+    let (sx, sy) = (c.start_point.x, c.start_point.y);
+    let body_bounds = Rect::new(sx - r, sy - r, sx + r, sy + r);
+    let render_bounds = match step_tail_points(c.start_point, r, p) {
+        Some((s, t, e)) => body_bounds.union(&triangle_bounds(s, t, e)),
+        None => body_bounds,
+    };
+    let a = super::layout::arrange(
+        render_bounds.l as f64,
+        render_bounds.t as f64,
+        render_bounds.width() as f64,
+        render_bounds.height() as f64,
+    );
+    ((a.width, a.height), super::layout::visual_transform(&a, 0.0))
+}
+
+/// The `SpeechBalloonControl`'s arranged size and transform (rotated about
+/// its body's centre when it has a tail), as a drop shadow needs them.
+pub(super) fn balloon_frame(
+    c: &crate::model::Common,
+    p: &crate::model::SpeechBalloonProps,
+) -> ((f64, f64), super::layout::AMatrix) {
+    use crate::editor::geometry::{Rect, balloon_tail_points, triangle_bounds};
+    let (l, t, r, b) = super::shapes::bounds(c);
+    let body_bounds = Rect::new(l, t, r, b);
+    let tail = balloon_tail_points(&body_bounds, p);
+    let render_bounds = match tail {
+        Some((s, tt, e)) => body_bounds.union(&triangle_bounds(s, tt, e)),
+        None => body_bounds,
+    };
+    let a = super::layout::arrange(
+        render_bounds.l as f64,
+        render_bounds.t as f64,
+        render_bounds.width() as f64,
+        render_bounds.height() as f64,
+    );
+    let ctm = if tail.is_some() {
+        let (rw, rh) = (render_bounds.width(), render_bounds.height());
+        let origin = if rw <= 0.0 || rh <= 0.0 {
+            (0.5, 0.5)
+        } else {
+            (
+                ((body_bounds.mid_x() - render_bounds.l) / rw) as f64,
+                ((body_bounds.mid_y() - render_bounds.t) / rh) as f64,
+            )
+        };
+        super::layout::visual_transform_origin(&a, c.rotation_angle, origin)
+    } else {
+        super::layout::visual_transform(&a, c.rotation_angle)
+    };
+    ((a.width, a.height), ctm)
+}
+
 pub fn draw_step(
     pm: &mut sharex_skia::Pixmap,
     c: &crate::model::Common,
