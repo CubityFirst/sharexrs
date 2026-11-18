@@ -288,7 +288,7 @@ mod tests {
         let a = super::page_image(300);
         assert_eq!(a, super::page_image(300));
         // No two text lines alike (so stitching has one answer).
-        let rows: std::collections::HashSet<Vec<u8>> = (0..super::PAGE_HEIGHT / 22).map(|l| a.view(0, l * 22 + 8, 300, 1).to_image().into_raw()).collect();
+        let rows: std::collections::HashSet<Vec<u8>> = (0..super::PAGE_HEIGHT / 22).map(|l| image::imageops::crop_imm(&a, 0, l * 22 + 8, 300, 1).to_image().into_raw()).collect();
         assert!(rows.len() > 100);
     }
 }
