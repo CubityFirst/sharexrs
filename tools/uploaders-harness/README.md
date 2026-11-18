@@ -22,6 +22,8 @@ cases is made up.
 | `../../crates/sharex-uploaders/examples/sharex_uploaders_mock_servers.rs` | the FTP, FTPS (explicit, implicit), SFTP and SMTP mocks on fixed ports (18821–18825) with a control port (18820) both harnesses reset and read like the HTTP mock's |
 | `dotnet/OAuthCases.cs` | the sign-in cases on the ShareX side (ShareX's own `IOAuth*` classes, MEGA's `LoginAsync`) |
 | `extract_fixtures.py` | writes `crates/sharex-uploaders/tests/fixtures/servers.sharex.json` (ShareX's FTP/SFTP/SMTP logs) for `tests/servers.rs` |
+| `dotnet/RemoteCases.cs` | the remote storage browser cases (ShareX.dll's providers, by reflection) and the listing cases (Imgur's albums, MEGA's folders) on the ShareX side |
+| `make_sftp_keys.py` | writes the made-up SFTP test keys in every format (`crates/sharex-uploaders/tests/fixtures/sftp_test_*`) |
 | `run.sh` | all of it |
 | `after_upload_cases.json` | `UploadInfoParser.Parse` and `Regex.Replace` cases: `UploadersHarness --after-upload after_upload_cases.json <out>` runs them through ShareX's own `ShareX.dll`; the output is `crates/sharexrs/src/upload/fixtures/after_upload.sharex.json`, which ShareXrs's tests compare against |
 
@@ -75,12 +77,16 @@ with and without non-ASCII elsewhere), and ported in
 
 ## Results
 
-217 cases, all identical (requests byte for byte, server dialogues,
-results, error texts): 28 custom uploader cases, 153 built-in destination
-cases (every destination ShareX has), 18 sign-in cases (OAuth 2 code and
+289 cases, all identical (requests byte for byte, server dialogues,
+results, error texts): 26 custom uploader cases, 143 built-in destination
+cases (every destination ShareX has), 17 sign-in cases (OAuth 2 code and
 PIN exchanges, refreshes, Google's user info, OAuth 1.0a tokens, MEGA's
-login) and, against the mock servers, 15 FTP/FTPS, 11 SFTP and 5 SMTP
-cases. See `docs/UPLOADERS.md` for the per-destination table.
+login), 5 listing cases (Imgur's albums and an album's images, MEGA's
+folders), 25 remote storage browser cases (ShareX's own FTP, SFTP and
+Amazon S3 providers, step by step) and, against the mock servers, 20
+FTP/FTPS, 46 SFTP (keys in every format SSH.NET reads, each key exchange,
+the other ciphers and MACs) and 7 SMTP cases. See `docs/UPLOADERS.md` for
+the per-destination table.
 
 What can't be equal is checked, then normalised:
 - Azure SharedKey signatures and OAuth 1.0a HMAC-SHA1 signatures are

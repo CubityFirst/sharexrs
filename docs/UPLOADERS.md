@@ -7,8 +7,9 @@ Validation: [tools/uploaders-harness](../tools/uploaders-harness/README.md)
 runs ShareX's own DLL and ShareXrs against a local mock server and diffs
 requests byte for byte and results (and, for FTP, SFTP and SMTP, every
 command and reply on mock servers); every case listed below as validated
-is identical (217 of 217 cases). Uploads as tasks (`crates/sharexrs/src/upload`)
-are under [Upload tasks](#upload-tasks).
+is identical (289 of 289 cases). Uploads as tasks (`crates/sharexrs/src/upload`)
+are under [Upload tasks](#upload-tasks); the remote storage browser's data
+side under [Remote storage browser](#remote-storage-browser).
 
 ## Layers
 
@@ -43,9 +44,13 @@ Uploader.SendRequest*/GetResponseAsync ─ HttpClientFactory (HelpersLib) ─ Ht
 | `OAuth/OAuth2ProofKey`, `OAuthListener`, `GoogleOAuth2`, `IOAuth*` | `oauth2` (traits `OAuth2Client`, `OAuth2Loopback`, `OAuth1Client`) |
 | `Presentation/DestinationSettings/DestinationSettingsAccounts.cs` (the sign-in logic), `UploaderOAuthClientFactory` | `signin` |
 | FluentFTP (`FtpClient` as ShareX uses it), `FileUploaders/FTP.cs`, `FTPAccount.cs` | `destinations::ftp` |
+| FluentFTP's listings (`GetListing`, `FtpListParser`, `Helpers/Parsers/*`, `SanitizerModule`, the server handlers) | `destinations::ftp_list` |
 | SSH.NET (`SftpClient`), `FileUploaders/SFTP.cs` | `ssh`, `sftp`, `destinations::sftp` |
+| SSH.NET's key exchanges (`KeyExchange*`) | `ssh_kex` |
+| SSH.NET's `PrivateKeyFile` (OpenSSH, PKCS#1, PKCS#8, PuTTY, SSH.COM) | `destinations::sftp_keys` |
+| `ShareX.Tools/RemoteStorageBrowser/RemoteStorageContracts.cs`, `ShareX/RemoteStorage/*RemoteStorageProvider.cs`, `TaskHelpers.OpenRemoteStorageBrowser` | `remote_storage` |
 | `System.Net.Mail` (`SmtpClient`, `MailMessage`), `FileUploaders/Email.cs`, `EmailSharingService.cs` | `destinations::email` |
-| (test servers) | `testing::{ftp, sftp, smtp}`, the `sharex_uploaders_mock_servers` example |
+| (test servers) | `testing::{ftp, sftp, smtp}`, the `sharex_uploaders_mock_servers` example; `testing::remote` runs a remote storage case |
 | `CustomUploader/*` | `custom` |
 
 ## The HTTP layer
@@ -241,7 +246,7 @@ destination enums is ported (`factory::tests::every_destination_is_ported`).
 ### Image
 | Destination | Needs | Status |
 |---|---|---|
-| Imgur (default) | app client ID (`APIKeys`, empty in source builds); user: OAuth 2 PIN | ✅ anonymous, not-direct link + thumbnail size, video (`video` form field, gifv, trailing-dot link), error string, error object, user + album, user not signed in; sign-in 2. Album list/images not ported |
+| Imgur (default) | app client ID (`APIKeys`, empty in source builds); user: OAuth 2 PIN | ✅ anonymous, not-direct link + thumbnail size, video (`video` form field, gifv, trailing-dot link), error string, error object, user + album, user not signed in; sign-in 2. Album list and an album's images (`Imgur::{get_albums, get_album_images}`, `ImgurAlbumData`/`ImgurImageData` in Newtonsoft's shape): 3 listing cases (pages, refreshed token, error texts, not signed in) |
 | ImageShack | API key + auth token (login) | ✅ 2 (upload, error) |
 | Flickr | OAuth 1.0a | ✅ 2 (upload with OAuth form fields + `flickr.photos.getSizes`, `fail` response); sign-in 2 |
 | Photobucket | OAuth 1.0a | ✅ 2 (upload to the subdomain, album index out of range); sign-in 1 |
@@ -264,15 +269,15 @@ destination enums is ported (`factory::tests::every_destination_is_ported`).
 | Destination | Needs | Status |
 |---|---|---|
 | Dropbox (default) | OAuth 2 | ✅ 4 (direct link, link already exists → listed, no link, API error); sign-in 2. Metadata, copy, move, delete, create folder, list links ported (remote storage browser) |
-| FTP / FTPS / SFTP | FluentFTP / SSH.NET | ✅ 26 (15 FTP/FTPS, 11 SFTP): see [FTP, FTPS and SFTP](#ftp-ftps-and-sftp) |
+| FTP / FTPS / SFTP | FluentFTP / SSH.NET | ✅ 66 (20 FTP/FTPS, 46 SFTP: keys, key exchanges, ciphers): see [FTP, FTPS and SFTP](#ftp-ftps-and-sftp) |
 | OneDrive | OAuth 2 + PKCE | ✅ 6 (folder + link, root + web URL + escaped name, chunk error → session deleted, expired token refreshed, refresh refused, not signed in); sign-in 1. Folder listing (`get_path_info`) ported |
 | Google Drive | Google OAuth 2 loopback | ✅ 5 (public + direct link, folder in a shared drive, shared drive root, expired token refreshed, error); sign-in 1. Folder and drive listings ported |
 | Google Cloud Storage | Google OAuth 2 loopback | ✅ 3 (ACL + extension removed, custom domain, error); sign-in 1 |
 | YouTube | Google OAuth 2 loopback | ✅ 2 (unlisted, short link + rejected); sign-in 1. The video options window is a hook (`set_youtube_options_ui`) |
 | puush | API key | ✅ success, authentication error, garbage response; login ported |
 | Box | OAuth 2 | ✅ 4 (share, no share → folder link, refresh refused, not signed in); sign-in 2. Folder listing (`get_files`) ported |
-| MEGA | MEGA's API and crypto | ✅ 5 (Cloud Drive root, chosen folder with a non-ASCII name, expired session, not logged in, hashcash proof of work) + login 2; compare.py decrypts each side's chunk, checks its MAC, name and key. Folder listing not ported |
-| Amazon S3 (and compatible) | access key + secret, SigV4 | ✅ single PUT, signed payload + path style + storage class + region, custom domain + no extension, 403 error, multipart (parallel parts, ETag, complete), complete error + abort; signatures verified on both sides. List/download/copy (remote storage browser) not ported; delete ported |
+| MEGA | MEGA's API and crypto | ✅ 5 (Cloud Drive root, chosen folder with a non-ASCII name, expired session, not logged in, hashcash proof of work) + login 2; compare.py decrypts each side's chunk, checks its MAC, name and key. Folder listing (`Mega::get_folders`, names decrypted, `MegaFolderInfo`): 2 listing cases |
+| Amazon S3 (and compatible) | access key + secret, SigV4 | ✅ single PUT, signed payload + path style + storage class + region, custom domain + no extension, 403 error, multipart (parallel parts, ETag, complete), complete error + abort; signatures verified on both sides. List (V2, continuation tokens), download, upload, copy, delete for the remote storage browser: 3 cases (24 signed requests) |
 | Azure Storage | SharedKey (HMAC-SHA256) | ✅ 4 (sub folder + cache control, `$root` + custom domain + other cloud, 403, missing account); signatures verified on both sides |
 | Backblaze B2 | key + SHA1 per file | ✅ 7 (bucket lookup, key restricted to a bucket + 503 retry + custom URL, auth errors JSON and not, name prefix refused, no bucket, upload error) |
 | ownCloud / Nextcloud | basic auth, WebDAV + OCS share | ✅ direct link + file name, preview + expiring share (3.x URL form), no share, share error, PUT error |
@@ -326,17 +331,54 @@ record every command and reply) with ShareX's own uploaders talking to it.
   path, `CWD` back; then `MKD`), and the upload again; `QUIT`. Errors read
   as FluentFTP's (`Code: 530 Message: Login incorrect.`, `Failed to connect
   to host.`). The server's certificate is accepted when it doesn't
-  validate, as ShareX does; a client certificate (`FTPSCertificateLocation`)
-  isn't sent. `FTPAccount`'s URL (`GetUriPath`, its `UriBuilder` and
-  `HttpHomePath` rules), FTP path and previews are ported.
+  validate, as ShareX does, unless a client certificate file is set
+  (`FTPSCertificateLocation`): ShareX then adds it and doesn't install its
+  lenient handler, so a server certificate that doesn't validate is
+  "rejected by the provided RemoteCertificateValidationCallback"; a PEM or
+  DER certificate is read as `X509CertificateLoader` reads it, anything else
+  (a PFX) fails the uploader with "Cannot find the requested object.". The
+  certificate holds no private key, so it isn't presented (ShareX's .NET
+  finds the key in the Windows certificate store; the OS TLS library here
+  can't be handed one). `FTPAccount`'s URL (`GetUriPath`, its `UriBuilder`
+  and `HttpHomePath` rules), FTP path and previews are ported.
+- **FTP listings and the browser's other calls** (`destinations::ftp_list`,
+  `FtpClient::{get_listing, download, delete_file, delete_directory,
+  rename, create_directory}`): `LIST` or, when `FEAT` lists `MLST`, `MLSD`
+  (`TYPE I` first, a 550 is an empty listing); the lines as FluentFTP reads
+  them (`ReadAllLines`: a last line without its newline is dropped, ASCII
+  `?` for non-ASCII bytes until the server lists `UTF8`); its parsers
+  (Unix, Windows/IIS, MLSD with UTC dates, VMS, Tandem NonStop, OS/400 with
+  its process-wide date format, z/OS with `XDSS`) and their detection (from
+  `SYST`, the server, else the first line any parser validates);
+  `DateTime.ParseExact` for their formats; the directory itself and `.`/`..`
+  left out (`IsItemSelf`); `SanitizePath` with its defaults, which throw on
+  `%`, `;`, `|`, control characters, `..` and bidi controls; the server
+  handlers (welcome or `SYST`) that change what's sent: Pure-FTPd and
+  ProFTPD list recursively (`LIST -R`), ProFTPD's `SITE MKDIR`/`SITE
+  RMDIR`, Serv-U's `RMDA`, IIS's parser; `GetFileSize` only with `SIZE`
+  listed; capabilities as `ServerFeatureModule.Detect` reads `FEAT`.
 - **SFTP** (`destinations::sftp` on `ssh` + `sftp`, SSH-2 and SFTP v3
-  written for this on RustCrypto crates: curve25519-sha256,
-  ssh-ed25519 / ecdsa-sha2-nistp256 / rsa-sha2 host keys, aes-ctr,
-  hmac-sha2; russh needs ring or aws-lc, C code that doesn't cross-check
-  for macOS): the `none` login then the password or the key (RSA keys as
-  `ssh-rsa` then `rsa-sha2-512`, each asked first; OpenSSH keys, encrypted
-  ones with the passphrase, and unencrypted PEM RSA keys), a refused login
-  dropping the connection; `INIT 3`, `REALPATH .`; SSH.NET's canonical
+  written for this on RustCrypto crates; russh needs ring or aws-lc, C code
+  that doesn't cross-check for macOS). SSH.NET's algorithms in its order:
+  key exchanges (`ssh_kex`) curve25519-sha256, ecdh-sha2-nistp256/384/521,
+  diffie-hellman-group-exchange-sha256/sha1 (2048/4096/8192 asked, a
+  private exponent of twice the hash's bits), group16/18-sha512,
+  group14-sha256/sha1, group1-sha1, each hashing and deriving keys with its
+  own hash; host keys ssh-ed25519, ecdsa-sha2-nistp256/384/521,
+  rsa-sha2-512/256, ssh-rsa (signature checked); ciphers aes-ctr, aes-cbc,
+  3des-cbc; MACs hmac-sha2-256/512, hmac-sha1 and their encrypt-then-MAC
+  forms. Key files as `PrivateKeyFile` reads them (`sftp_keys`): OpenSSH
+  (bcrypt KDF; Ed25519, ECDSA incl. P-521, RSA), PEM `RSA PRIVATE KEY` and
+  `EC PRIVATE KEY` encrypted with AES-128/192/256-CBC or DES-EDE3-CBC
+  (`DEK-Info`, `EVP_BytesToKey`), PKCS#8 plain and encrypted (PBES2), PuTTY
+  `.ppk` v2 and v3 (Argon2i/d/id), SSH.COM (RSA, 3des-cbc), with SSH.NET's
+  texts ("Private key is encrypted but passphrase is empty.", "Padding is
+  invalid and cannot be removed.", "pad block corrupted", "MAC verification
+  failed for PuTTY key file", the OpenSSH check numbers…) and its quirk of
+  reading an encrypted PKCS#8 Ed25519 key from its wrapped bytes. The `none`
+  login then the password or the key (RSA keys as `ssh-rsa` then
+  `rsa-sha2-512`, each asked first), a refused login dropping the
+  connection; `INIT 3`, `REALPATH .`; SSH.NET's canonical
   paths (`REALPATH` of the full path, else of its parent); `OPEN`
   (write|create|truncate), `WRITE`s of the buffer size less the request's
   other fields, `CLOSE`; for a missing directory ShareX's
@@ -344,7 +386,10 @@ record every command and reply) with ShareX's own uploaders talking to it.
   denied ignored). Errors as SSH.NET's (`Permission denied (password).`,
   `No such file. Path: '…'.`, `Key file does not exist.`). Host keys
   aren't checked against a known list (ShareX doesn't either); their
-  signatures are.
+  signatures are. Not offered: SSH.NET's post-quantum
+  `mlkem768x25519-sha256` and `sntrup761x25519-sha512` (a server that has
+  them has curve25519 too), AES-GCM and ChaCha20-Poly1305 transport
+  ciphers, certificates.
 
 Cases (identical: every command and reply in order, the stored files,
 results and errors): FTP passive with directories created, existing,
@@ -355,8 +400,12 @@ path, connection refused; FTPS explicit, implicit, explicit active. SFTP
 password with directories created, existing (several writes), ed25519 key,
 passphrase-protected RSA key, PEM RSA key, wrong password, missing key
 file, no credentials, `MKDIR` refused, `OPEN` failing, absolute path with a
-non-ASCII name. `tests/servers.rs` replays them in-process on every
-platform against ShareX's logs (`tests/fixtures/servers.sharex.json`).
+non-ASCII name; each key format and its errors (23), each key exchange
+(10), CBC/3DES ciphers and SHA-1/ETM MACs (6), FTPS client certificates
+(5). `tests/servers.rs` replays them, and the FTP/SFTP remote storage
+cases, in-process on every platform against ShareX's logs
+(`tests/fixtures/servers.sharex.json`). The test keys are made up
+(`tools/uploaders-harness/make_sftp_keys.py`).
 
 ## Email
 
@@ -365,7 +414,10 @@ ShareX's settings (`EHLO`, `STARTTLS`, `EHLO`, `AUTH login <user>` +
 password, `MAIL FROM`, `RCPT TO` per address, `DATA`, `QUIT` only on
 success; a refused login goes on to `MAIL FROM`, as .NET does) and the
 message `MailMessage` writes (`MIME-Version`, `From`, `To`, `Date`,
-`Subject` as `=?utf-8?B?…?=` when not ASCII; the body us-ascii
+`Subject` in base64 encoded words of whole characters when not ASCII, a
+new word on a new line before 70 columns (`Base64Encoder`), every header
+folded at a space before 76 (`BaseWriter.WriteAndFold`), the message made
+after `DATA`; the body us-ascii
 quoted-printable or utf-8 base64; with a file, `multipart/mixed` with
 `--boundary_<n>_<guid>` (n counting per process, as .NET's) and the file as
 `application/octet-stream; name=…` in 68-column base64; parameters folded
@@ -373,8 +425,9 @@ at 76 columns). The server certificate is checked (the tests accept the
 mock's). Without automatic sending, the email window is a hook
 (`email::set_email_ui`); `EmailLastTo` is remembered. Cases (identical
 dialogue and mail, Date and boundary GUID normalised): attachment, non-ASCII
-subject/body/name, login refused, invalid sender address, URL shared by
-email; replayed in-process by `tests/servers.rs`.
+subject/body/name, long non-ASCII and ASCII subjects, login refused,
+invalid sender address, URL shared by email; replayed in-process by
+`tests/servers.rs`.
 
 ## UploadersConfig
 
@@ -405,16 +458,66 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 
 - The windows: see [What the Destination settings window still
   needs](#what-the-destination-settings-window-still-needs).
-- MEGA's folder listing (`GetFoldersAsync`, node name decryption), Imgur's
-  album list, FTP's directory listing (FluentFTP's `LIST` parsing), the
-  S3/Azure/B2/GCS listings: the remote storage browser's data side.
-- FTPS client certificates (`FTPSCertificateLocation`); SFTP: encrypted PEM
-  keys (convert to the OpenSSH format), PuTTY keys, Diffie-Hellman key
-  exchange (servers without curve25519, OpenSSH before 6.5), other ciphers
-  than AES-CTR and other MACs than HMAC-SHA2.
-- Long non-ASCII email subjects are one encoded word (.NET folds them).
-- `UploadersConfigValidator`.
+- FTPS: presenting the client certificate (see above). SFTP: the
+  post-quantum key exchanges, AES-GCM/ChaCha20 transport ciphers and
+  certificates SSH.NET also has.
+- Azure, B2 and Google Cloud Storage listings: ShareX 22.4 has none (its
+  remote storage browser has FTP, SFTP and Amazon S3 providers only).
+- Classes ShareX compiles but nothing reaches (no destination value, no
+  caller): `ImageBin`, `ImmioUploader`, `FileSonic`, `UploadScreenshot`,
+  `DropIO`, `Pastebin_ca`, `Copy`, `LocalhostAccount`.
 - What upload tasks don't do yet: see [Upload tasks](#upload-tasks).
+
+## Remote storage browser
+
+Tools › Remote storage browser (and Destination settings' button) shows
+what `TaskHelpers.OpenRemoteStorageBrowser` builds: the data side is
+`remote_storage`, ShareX's `IRemoteStorageProvider` and its three
+providers, each validated step by step against ShareX's own provider
+classes (`ShareX.dll`, by reflection) on the mocks: 25 cases identical
+(17 FTP/FTPS, 5 SFTP, 3 Amazon S3), the FTP/SFTP ones also replayed
+in-process by `tests/servers.rs`.
+
+| Call | FTP/FTPS (`FTPRemoteStorageProvider`) | SFTP (`SFTPRemoteStorageProvider`) | Amazon S3 (`AmazonS3RemoteStorageProvider`) |
+|---|---|---|---|
+| list | FluentFTP `GetListing` (above) | SSH.NET `ListDirectoryAsync` (`OPENDIR`, `READDIR`…, `CLOSE`) | `ListObjectsV2` with `/` as delimiter, every page |
+| download | `SIZE` (if listed), `TYPE I`, `RETR` | `OPEN`, `FSTAT`, SSH.NET's read-ahead `READ`s, `CLOSE` | `GET` the object |
+| upload | ShareX's `FTP.UploadData` (folders made on 550/553) | `OPEN` (write, create, truncate), `WRITE`s, `CLOSE` | `UploadObjectAsync` (multipart when set) |
+| create folder | FluentFTP `CreateDirectory` (forced) | `MKDIR` | an empty `name/` object |
+| rename | `RNFR`, `RNTO` | `RENAME` | copy then delete (a folder object by object, undone if a copy fails) |
+| delete | ShareX's `FTP.DeleteDirectory` / `DELE` | what's in it first, then `RMDIR` / `REMOVE` | each object under the prefix / the object |
+| has children | a listing with something in it | `READDIR` until an entry (closes early) | `max-keys=2` |
+| URL | `FTPAccount.GetUriPath` | same | `GenerateURL` |
+
+Paths are the providers' own (no leading slash; S3 folders end with `/`),
+display paths `ftp://host:port/dir`, `sftp://…`, `s3://bucket/prefix/`;
+items come folders first, then by name (current culture, ignoring case).
+Errors carry ShareX's texts (`RemoteStorageError`: `Argument` → "The name
+is not valid. (Parameter 'name')", `InvalidOperation` → "Uploading is
+disabled.", "Creating the folder failed.", S3's uploader errors, `Failed`
+→ the library's message). Each FTP/SFTP provider keeps one connection
+(`dispose` ends it, also on drop).
+
+The API the window calls (`sharex_uploaders::remote_storage`):
+
+- `providers(&UploadersConfig, allow_upload: bool) -> Vec<Box<dyn RemoteStorageProvider>>`
+  (S3 when its settings are complete, then each usable FTP account,
+  `validator::is_valid_remote_storage_account`; empty: show
+  `TaskHelpers_RemoteStorageNotConfigured`; `allow_upload` is
+  `!SystemOptions.DisableUpload`);
+- `RemoteStorageProvider`: `display_name()`, `root_display_name()`,
+  `root_path()`, `capabilities()` (`Capabilities::{DOWNLOAD, UPLOAD, RENAME,
+  DELETE, URL, CREATE_FOLDER}`), `get_display_path(path)`,
+  `get_parent_path(path)`, `get_items(path, &CancelToken)`,
+  `download(&item, &mut dyn Write, &CancelToken)`, `upload(dir, name,
+  &mut dyn Read, &CancelToken)`, `create_folder(dir, name, &CancelToken)`,
+  `rename(&item, new_name, &CancelToken)`, `has_children(&folder,
+  &CancelToken)`, `delete(&item, &CancelToken)`, `get_url(&item)`,
+  `dispose()`;
+- `RemoteStorageItem { name, path, is_folder, size, modified }`,
+  `CancelToken` (`cancel()`), `RemoteStorageError` (`Display` is ShareX's
+  text). Every call blocks: run them on a worker thread, one at a time per
+  provider (ShareX awaits them).
 
 ## What the Destination settings window still needs
 
@@ -435,23 +538,29 @@ thread and save `UploadersConfig` after a change, as the other cards do.
     token), status "Connected as {0}" from `connected_as`;
   - OAuth 1 cards (flickr, photobucket): `open_authorization_oauth1`,
     `complete_authorization_oauth1`, `disconnect`;
-  - user/password cards: Pastebin `Pastebin::login`, puush
-    `Puush::login`, LobFile `LobFile::fetch_api_key`, ImageShack
-    `ImageShack::get_access_token` (+ `write_back`), MEGA `Mega::login`
-    (on `MegaError::Api(-26)` ask for the two-factor code with the input
-    box and call it again; save `session_id`/`master_key` into
-    `MegaSessionID`/`MegaMasterKey`), Seafile's token, account info and
-    library buttons (`Seafile::*`), Pushbullet "Get device list"
+  - account cards: Paste.ee "Get user key" → open `paste_ee_authorization_url()`;
+    ImageShack "Log in" → `login_image_shack` (`false`:
+    `DestinationSettings_Login_failed`); Pastebin "Log in" →
+    `login_pastebin`; MEGA "Log in" → `mega_login(config, None)`, on
+    `MegaError::Api(-26)` ask the code
+    (`DestinationSettings_Enter_current_two_factor_authentication_code`) and
+    `mega_login(config, Some(code))`; MEGA "Disconnect" (and an email or
+    password edit) → `mega_disconnect`; puush `Puush::login`, LobFile
+    `LobFile::fetch_api_key` (the key into `PuushAPIKey` /
+    `LithiioSettings.UserAPIKey`); Seafile's token, account info and library
+    buttons (`Seafile::*`); Pushbullet "Get device list"
     (`Pushbullet::get_device_list`).
-- **Pickers**: Imgur albums (not ported: album list request), OneDrive
-  folders (`OneDrive::get_path_info`), Box folders (`BoxUploader::get_files`),
-  Google Drive folders and shared drives (`GoogleDrive::{get_folders,
-  get_drives}`), MEGA folders (listing not ported), Pushbullet devices
-  (above), Seafile libraries (`Seafile::get_libraries`).
-- **Remote storage browser** (Tools › Remote storage browser): SFTP has
-  `SftpSession::{list_directory, delete_file, delete_directory, rename,
-  stat}`; Dropbox has metadata/copy/move/delete/create folder; S3 has
-  delete; the FTP/S3/Azure/B2/GCS listings aren't ported.
+- **Pickers**: Imgur "Refresh albums" → `signin::refresh_imgur_albums`
+  (`None`: `DestinationSettings_Connect_Imgur_account_first`; saved as
+  `ImgurAlbumList`, the choice is `ImgurSelectedAlbum`), MEGA folders →
+  `signin::mega_folders(config, parent)` (a tree node's children; the root
+  is `MegaFolderInfo::root()`; saved as `MegaSelectedFolder`), OneDrive
+  folders (`OneDrive::get_path_info`), Box folders
+  (`BoxUploader::get_files`), Google Drive folders and shared drives
+  (`GoogleDrive::{get_folders, get_drives}`), Pushbullet devices (above),
+  Seafile libraries (`Seafile::get_libraries`).
+- **Remote storage browser**: `remote_storage` (above); the window is
+  `ShareX.Tools/RemoteStorageBrowser`.
 - **Dialog hooks** the app must set: `email::set_email_ui` (the email
   window when automatic sending is off: to, subject, body; `None`
   cancels), `oauth_services::set_youtube_options_ui` (title, description,
