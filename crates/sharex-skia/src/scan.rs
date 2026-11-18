@@ -296,7 +296,12 @@ pub fn anti_frame_rect(r: Rect, stroke_x: f32, stroke_y: f32, blitter: &mut dyn 
         align(&mut inner_b, &mut outer_b);
     }
     antifilldot8(outer_l, outer_t, outer_r, outer_b, blitter, false);
-    let (ol, ot, or, ob) = (ceil8(outer_l), ceil8(outer_t), floor8(outer_r), floor8(outer_b));
+    let (ol, ot, or, ob) = (
+        ceil8(outer_l),
+        ceil8(outer_t),
+        floor8(outer_r),
+        floor8(outer_b),
+    );
     let fillcheck = |l: i32, t: i32, r: i32, b: i32, blitter: &mut dyn Blitter| {
         if l < r && t < b {
             blitter.blit_rect(l, t, r - l, b - t);
@@ -305,7 +310,12 @@ pub fn anti_frame_rect(r: Rect, stroke_x: f32, stroke_y: f32, blitter: &mut dyn 
     if inner_l >= inner_r || inner_t >= inner_b {
         fillcheck(ol, ot, or, ob, blitter);
     } else {
-        let (il, it, ir, ib) = (floor8(inner_l), floor8(inner_t), ceil8(inner_r), ceil8(inner_b));
+        let (il, it, ir, ib) = (
+            floor8(inner_l),
+            floor8(inner_t),
+            ceil8(inner_r),
+            ceil8(inner_b),
+        );
         fillcheck(ol, ot, or, it, blitter);
         fillcheck(ol, it, il, ib, blitter);
         fillcheck(ir, it, or, ib, blitter);

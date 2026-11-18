@@ -10,22 +10,30 @@ pub struct HexagonalPixelateImageEffect {
 
 impl Default for HexagonalPixelateImageEffect {
     fn default() -> Self {
-        HexagonalPixelateImageEffect {
-            size: 16,
-        }
+        HexagonalPixelateImageEffect { size: 16 }
     }
 }
 
 impl EffectImpl for HexagonalPixelateImageEffect {
     fn info() -> Info {
-        Info::new("hexagonal_pixelate", "Hexagonal pixelate", EffectCategory::Filters, "image-effect/hexagon")
-            .desc("Pixelates the image using hexagonal tiles.")
+        Info::new(
+            "hexagonal_pixelate",
+            "Hexagonal pixelate",
+            EffectCategory::Filters,
+            "image-effect/hexagon",
+        )
+        .desc("Pixelates the image using hexagonal tiles.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("size", "Size", 4, 100, 16, |e: &mut Self, v| e.size = v),
-        ]
+        vec![int_slider::<Self>(
+            "size",
+            "Size",
+            4,
+            100,
+            16,
+            |e: &mut Self, v| e.size = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

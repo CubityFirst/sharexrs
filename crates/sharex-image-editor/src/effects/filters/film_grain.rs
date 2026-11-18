@@ -20,14 +20,23 @@ impl Default for FilmGrainImageEffect {
 
 impl EffectImpl for FilmGrainImageEffect {
     fn info() -> Info {
-        Info::new("film_grain", "Film grain", EffectCategory::Filters, "app/film")
-            .desc("Adds organic film-like grain texture.")
+        Info::new(
+            "film_grain",
+            "Film grain",
+            EffectCategory::Filters,
+            "app/film",
+        )
+        .desc("Adds organic film-like grain texture.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("amount", "Amount", 1, 100, 30, |e: &mut Self, v| e.amount = v),
-            bool_param::<Self>("monochrome", "Monochrome", true, |e: &mut Self, v| e.monochrome = v),
+            int_slider::<Self>("amount", "Amount", 1, 100, 30, |e: &mut Self, v| {
+                e.amount = v
+            }),
+            bool_param::<Self>("monochrome", "Monochrome", true, |e: &mut Self, v| {
+                e.monochrome = v
+            }),
         ]
     }
 
@@ -40,7 +49,12 @@ impl EffectImpl for FilmGrainImageEffect {
             .map(|c| {
                 if self.monochrome {
                     let n = rng.next_range(-range, range + 1);
-                    SkColor::rgba(cb(c.r as i32 + n), cb(c.g as i32 + n), cb(c.b as i32 + n), c.a)
+                    SkColor::rgba(
+                        cb(c.r as i32 + n),
+                        cb(c.g as i32 + n),
+                        cb(c.b as i32 + n),
+                        c.a,
+                    )
                 } else {
                     let r = cb(c.r as i32 + rng.next_range(-range, range + 1));
                     let g = cb(c.g as i32 + rng.next_range(-range, range + 1));

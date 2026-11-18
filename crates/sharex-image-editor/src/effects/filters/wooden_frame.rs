@@ -26,16 +26,47 @@ impl Default for WoodenFrameImageEffect {
 
 impl EffectImpl for WoodenFrameImageEffect {
     fn info() -> Info {
-        Info::new("wooden_frame", "Wooden frame", EffectCategory::Filters, "image-effect/frame")
-            .desc("Adds a procedural wooden frame around the image.")
+        Info::new(
+            "wooden_frame",
+            "Wooden frame",
+            EffectCategory::Filters,
+            "image-effect/frame",
+        )
+        .desc("Adds a procedural wooden frame around the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("frame_width", "Frame width", 2, 300, 48, |e: &mut Self, v| e.frame_width = v),
-            float_slider::<Self>("grain_strength", "Grain strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.grain_strength = v),
-            float_slider::<Self>("bevel_strength", "Bevel strength", 0.0, 100.0, 65.0, |e: &mut Self, v| e.bevel_strength = v),
-            color_param::<Self>("wood_color", "Wood color", SkColor::argb(0xFF8B5E3C), |e: &mut Self, v| e.wood_color = v),
+            int_numeric::<Self>(
+                "frame_width",
+                "Frame width",
+                2,
+                300,
+                48,
+                |e: &mut Self, v| e.frame_width = v,
+            ),
+            float_slider::<Self>(
+                "grain_strength",
+                "Grain strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.grain_strength = v,
+            ),
+            float_slider::<Self>(
+                "bevel_strength",
+                "Bevel strength",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.bevel_strength = v,
+            ),
+            color_param::<Self>(
+                "wood_color",
+                "Wood color",
+                SkColor::argb(0xFF8B5E3C),
+                |e: &mut Self, v| e.wood_color = v,
+            ),
         ]
     }
 
@@ -58,13 +89,41 @@ impl EffectImpl for WoodenFrameImageEffect {
                     continue;
                 }
                 let (side, along, across, outer, inner, bseed) = if top {
-                    (0, x as f32, y as f32, y as f32, ((fw - 1) - y) as f32, seed ^ 0x1C3)
+                    (
+                        0,
+                        x as f32,
+                        y as f32,
+                        y as f32,
+                        ((fw - 1) - y) as f32,
+                        seed ^ 0x1C3,
+                    )
                 } else if bottom {
-                    (1, x as f32, (y - (fw + ih)) as f32, ((nh - 1) - y) as f32, (y - (fw + ih)) as f32, seed ^ 0x29B)
+                    (
+                        1,
+                        x as f32,
+                        (y - (fw + ih)) as f32,
+                        ((nh - 1) - y) as f32,
+                        (y - (fw + ih)) as f32,
+                        seed ^ 0x29B,
+                    )
                 } else if left {
-                    (2, y as f32, x as f32, x as f32, ((fw - 1) - x) as f32, seed ^ 0x35F)
+                    (
+                        2,
+                        y as f32,
+                        x as f32,
+                        x as f32,
+                        ((fw - 1) - x) as f32,
+                        seed ^ 0x35F,
+                    )
                 } else {
-                    (3, y as f32, (x - (fw + iw)) as f32, ((nw - 1) - x) as f32, (x - (fw + iw)) as f32, seed ^ 0x41D)
+                    (
+                        3,
+                        y as f32,
+                        (x - (fw + iw)) as f32,
+                        ((nw - 1) - x) as f32,
+                        (x - (fw + iw)) as f32,
+                        seed ^ 0x41D,
+                    )
                 };
                 let span = 1f32.max(fw as f32 - 1.0);
                 let ratio = across / span;
@@ -75,7 +134,12 @@ impl EffectImpl for WoodenFrameImageEffect {
                 let red = wc.r as f32 * (1.0 + grain + shade + 0.03);
                 let green = wc.g as f32 * (1.0 + (grain * 0.82) + shade);
                 let blue = wc.b as f32 * (1.0 + (grain * 0.48) + shade - 0.03);
-                dst[(y * nw + x) as usize] = SkColor::rgba(clamp_to_byte(red), clamp_to_byte(green), clamp_to_byte(blue), 255);
+                dst[(y * nw + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(red),
+                    clamp_to_byte(green),
+                    clamp_to_byte(blue),
+                    255,
+                );
             }
         }
         let mut out = from_pixels(nw as u32, nh as u32, &dst);

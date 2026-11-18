@@ -4,21 +4,24 @@ use crate::effects::prelude::*;
 
 /// `PolaroidImageEffect`.
 #[derive(Clone, Debug)]
-pub struct PolaroidImageEffect {
-}
+pub struct PolaroidImageEffect {}
 
 impl Default for PolaroidImageEffect {
     fn default() -> Self {
-        PolaroidImageEffect {
-        }
+        PolaroidImageEffect {}
     }
 }
 
 impl EffectImpl for PolaroidImageEffect {
     fn info() -> Info {
-        Info::new("polaroid", "Polaroid", EffectCategory::Adjustments, "app/camera")
-            .desc("Applies a Polaroid effect.")
-            .immediate()
+        Info::new(
+            "polaroid",
+            "Polaroid",
+            EffectCategory::Adjustments,
+            "app/camera",
+        )
+        .desc("Applies a Polaroid effect.")
+        .immediate()
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

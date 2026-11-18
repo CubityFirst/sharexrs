@@ -28,17 +28,57 @@ impl Default for VintagePrintDamageImageEffect {
 
 impl EffectImpl for VintagePrintDamageImageEffect {
     fn info() -> Info {
-        Info::new("vintage_print_damage", "Vintage print damage", EffectCategory::Filters, "image-effect/newspaper")
-            .desc("Simulates aged print damage with sepia toning, grain, scratches, and dust.")
+        Info::new(
+            "vintage_print_damage",
+            "Vintage print damage",
+            EffectCategory::Filters,
+            "image-effect/newspaper",
+        )
+        .desc("Simulates aged print damage with sepia toning, grain, scratches, and dust.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("sepia_amount", "Sepia amount", 0.0, 100.0, 65.0, |e: &mut Self, v| e.sepia_amount = v),
-            float_slider::<Self>("fade_amount", "Fade amount", 0.0, 100.0, 30.0, |e: &mut Self, v| e.fade_amount = v),
-            float_slider::<Self>("grain_amount", "Grain amount", 0.0, 100.0, 25.0, |e: &mut Self, v| e.grain_amount = v),
-            float_slider::<Self>("scratch_amount", "Scratch amount", 0.0, 100.0, 25.0, |e: &mut Self, v| e.scratch_amount = v),
-            float_slider::<Self>("dust_amount", "Dust amount", 0.0, 100.0, 20.0, |e: &mut Self, v| e.dust_amount = v),
+            float_slider::<Self>(
+                "sepia_amount",
+                "Sepia amount",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.sepia_amount = v,
+            ),
+            float_slider::<Self>(
+                "fade_amount",
+                "Fade amount",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.fade_amount = v,
+            ),
+            float_slider::<Self>(
+                "grain_amount",
+                "Grain amount",
+                0.0,
+                100.0,
+                25.0,
+                |e: &mut Self, v| e.grain_amount = v,
+            ),
+            float_slider::<Self>(
+                "scratch_amount",
+                "Scratch amount",
+                0.0,
+                100.0,
+                25.0,
+                |e: &mut Self, v| e.scratch_amount = v,
+            ),
+            float_slider::<Self>(
+                "dust_amount",
+                "Dust amount",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.dust_amount = v,
+            ),
         ]
     }
 
@@ -58,7 +98,7 @@ impl EffectImpl for VintagePrintDamageImageEffect {
         let cy = (height - 1) as f32 * 0.5;
         let inv_cx = if cx > 0.0 { 1.0 / cx } else { 1.0 };
         let inv_cy = if cy > 0.0 { 1.0 / cy } else { 1.0 };
-        const INV_SQRT2: f32 = 0.70710678;
+        const INV_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
         let dust_cell = 8f32.max(26.0 - (dust * 18.0));
         let seed = self.seed;
         for y in 0..height {
@@ -68,7 +108,8 @@ impl EffectImpl for VintagePrintDamageImageEffect {
             for x in 0..width {
                 let xf = x as f32;
                 let s = src[(row + x) as usize];
-                let (mut r, mut g, mut b) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
+                let (mut r, mut g, mut b) =
+                    (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
                 let sr = (r * 0.393) + (g * 0.769) + (b * 0.189);
                 let sg = (r * 0.349) + (g * 0.686) + (b * 0.168);
                 let sb = (r * 0.272) + (g * 0.534) + (b * 0.131);
@@ -121,7 +162,8 @@ impl EffectImpl for VintagePrintDamageImageEffect {
                     if chance > 0.988 - (dust * 0.23) {
                         let sx = (cell_x as f32 + hash01(cell_x, cell_y, seed ^ 577)) * dust_cell;
                         let sy = (cell_y as f32 + hash01(cell_x, cell_y, seed ^ 653)) * dust_cell;
-                        let radius = dust_cell * (0.10 + (0.24 * hash01(cell_x, cell_y, seed ^ 997)));
+                        let radius =
+                            dust_cell * (0.10 + (0.24 * hash01(cell_x, cell_y, seed ^ 997)));
                         let dx = xf - sx;
                         let dy = yf - sy;
                         let dist = ((dx * dx) + (dy * dy)).sqrt();
@@ -139,12 +181,17 @@ impl EffectImpl for VintagePrintDamageImageEffect {
                 }
                 let dxn = (xf - cx) * inv_cx;
                 let d01 = ((dxn * dxn) + (dyn_ * dyn_)).sqrt() * INV_SQRT2;
-                let burn = smooth_step(0.62, 1.0, d01) * (0.10 + (fade * 0.32) + (scratches * 0.18));
+                let burn =
+                    smooth_step(0.62, 1.0, d01) * (0.10 + (fade * 0.32) + (scratches * 0.18));
                 r *= 1.0 - burn;
                 g *= 1.0 - burn;
                 b *= 1.0 - burn;
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

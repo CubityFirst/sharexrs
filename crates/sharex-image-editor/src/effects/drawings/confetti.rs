@@ -26,17 +26,32 @@ impl Default for ConfettiImageEffect {
 
 impl EffectImpl for ConfettiImageEffect {
     fn info() -> Info {
-        Info::new("confetti", "Confetti", EffectCategory::Drawings, "image-effect/party-popper")
-            .desc("Scatters colorful confetti pieces over the image.")
+        Info::new(
+            "confetti",
+            "Confetti",
+            EffectCategory::Drawings,
+            "image-effect/party-popper",
+        )
+        .desc("Scatters colorful confetti pieces over the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("count", "Count", 10, 1000, 150, |e: &mut Self, v| e.count = v),
-            int_slider::<Self>("min_size", "Min size", 2, 40, 4, |e: &mut Self, v| e.min_size = v),
-            int_slider::<Self>("max_size", "Max size", 4, 80, 12, |e: &mut Self, v| e.max_size = v),
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 90.0, |e: &mut Self, v| e.opacity = v),
-            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| e.background = v),
+            int_slider::<Self>("count", "Count", 10, 1000, 150, |e: &mut Self, v| {
+                e.count = v
+            }),
+            int_slider::<Self>("min_size", "Min size", 2, 40, 4, |e: &mut Self, v| {
+                e.min_size = v
+            }),
+            int_slider::<Self>("max_size", "Max size", 4, 80, 12, |e: &mut Self, v| {
+                e.max_size = v
+            }),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 90.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
+            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| {
+                e.background = v
+            }),
         ]
     }
 
@@ -86,7 +101,12 @@ impl EffectImpl for ConfettiImageEffect {
             canvas.rotate(angle);
             match shape {
                 0 => sk::draw_rect_xywh(&mut canvas, -w / 2.0, -h / 2.0, w, h, &paint, None),
-                1 => sk::draw_oval(&mut canvas, RRect::ltrb(0.0 - w / 2.0, 0.0 - h / 2.0, 0.0 + w / 2.0, 0.0 + h / 2.0), &paint, None),
+                1 => sk::draw_oval(
+                    &mut canvas,
+                    RRect::ltrb(0.0 - w / 2.0, 0.0 - h / 2.0, 0.0 + w / 2.0, 0.0 + h / 2.0),
+                    &paint,
+                    None,
+                ),
                 _ => {
                     let mut path = SkPath::new();
                     path.move_to(0.0, -h / 2.0);

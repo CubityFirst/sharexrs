@@ -10,22 +10,30 @@ pub struct SharpenImageEffect {
 
 impl Default for SharpenImageEffect {
     fn default() -> Self {
-        SharpenImageEffect {
-            strength: 50,
-        }
+        SharpenImageEffect { strength: 50 }
     }
 }
 
 impl EffectImpl for SharpenImageEffect {
     fn info() -> Info {
-        Info::new("sharpen", "Sharpen", EffectCategory::Filters, "app/crosshair")
-            .desc("Sharpens the image.")
+        Info::new(
+            "sharpen",
+            "Sharpen",
+            EffectCategory::Filters,
+            "app/crosshair",
+        )
+        .desc("Sharpens the image.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("strength", "Strength", 0, 100, 50, |e: &mut Self, v| e.strength = v),
-        ]
+        vec![int_slider::<Self>(
+            "strength",
+            "Strength",
+            0,
+            100,
+            50,
+            |e: &mut Self, v| e.strength = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

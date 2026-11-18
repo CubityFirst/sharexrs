@@ -18,7 +18,11 @@ pub fn data_dir() -> PathBuf {
 /// A PNG of premultiplied bytes stored as they are.
 pub fn load_premul_png(path: &Path) -> Option<Bitmap> {
     let img = image::open(path).ok()?.into_rgba8();
-    Some(Bitmap::from_premultiplied(img.width(), img.height(), img.into_raw()))
+    Some(Bitmap::from_premultiplied(
+        img.width(),
+        img.height(),
+        img.into_raw(),
+    ))
 }
 
 pub fn save_premul_png(b: &Bitmap, path: &Path) {
@@ -86,17 +90,23 @@ pub fn run_cases(filter: Option<&str>, out_dir: Option<&Path>) -> Vec<CaseResult
         let input = case["input"].as_str().unwrap();
         let source = input_cache
             .entry(input.to_string())
-            .or_insert_with(|| load_premul_png(&inputs.join(format!("{input}.png"))).expect("input"))
+            .or_insert_with(|| {
+                load_premul_png(&inputs.join(format!("{input}.png"))).expect("input")
+            })
             .clone();
         let mut values = def.default_values();
         if let Some(params) = case["params"].as_object() {
             for p in &def.parameters {
                 let Some(v) = params.get(p.key) else { continue };
                 let value = match &p.kind {
-                    ParamKind::Slider { .. } | ParamKind::Numeric { .. } => ParamValue::Number(v.as_f64().unwrap()),
+                    ParamKind::Slider { .. } | ParamKind::Numeric { .. } => {
+                        ParamValue::Number(v.as_f64().unwrap())
+                    }
                     ParamKind::Checkbox { .. } => ParamValue::Bool(v.as_bool().unwrap()),
                     ParamKind::Enum { .. } => ParamValue::Choice(v.as_u64().unwrap() as usize),
-                    ParamKind::Color { .. } => ParamValue::Color(SkColor::from_hex(v.as_str().unwrap()).unwrap()),
+                    ParamKind::Color { .. } => {
+                        ParamValue::Color(SkColor::from_hex(v.as_str().unwrap()).unwrap())
+                    }
                     ParamKind::Text { .. } => ParamValue::Text(v.as_str().unwrap().to_string()),
                     ParamKind::FilePath { .. } => ParamValue::Text(
                         v.as_str()
@@ -184,7 +194,11 @@ fn compare(got: &Bitmap, expected_path: &Path) -> Outcome {
     }
     let mut max = 0u8;
     let mut differing = 0usize;
-    for (a, b) in got.data().chunks_exact(4).zip(expected.data().chunks_exact(4)) {
+    for (a, b) in got
+        .data()
+        .chunks_exact(4)
+        .zip(expected.data().chunks_exact(4))
+    {
         let d = a.iter().zip(b).map(|(x, y)| x.abs_diff(*y)).max().unwrap();
         if d > 0 {
             differing += 1;
@@ -205,7 +219,8 @@ fn compare(got: &Bitmap, expected_path: &Path) -> Outcome {
 /// Per category: identical (incl. both threw), different, pending.
 pub fn summary(results: &[CaseResult]) -> String {
     let mut s = String::new();
-    let mut effects_by_cat: BTreeMap<EffectCategory, BTreeMap<&str, Vec<&Outcome>>> = BTreeMap::new();
+    let mut effects_by_cat: BTreeMap<EffectCategory, BTreeMap<&str, Vec<&Outcome>>> =
+        BTreeMap::new();
     for r in results {
         effects_by_cat
             .entry(r.category)
@@ -223,7 +238,10 @@ pub fn summary(results: &[CaseResult]) -> String {
                 .iter()
                 .filter(|o| matches!(o, Outcome::Identical | Outcome::BothThrew))
                 .count();
-            let pend = outcomes.iter().filter(|o| matches!(o, Outcome::Pending)).count();
+            let pend = outcomes
+                .iter()
+                .filter(|o| matches!(o, Outcome::Pending))
+                .count();
             same += ok;
             pending += pend;
             if ok == outcomes.len() {

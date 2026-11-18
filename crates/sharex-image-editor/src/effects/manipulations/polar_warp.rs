@@ -32,17 +32,59 @@ impl Default for PolarWarpImageEffect {
 
 impl EffectImpl for PolarWarpImageEffect {
     fn info() -> Info {
-        Info::new("polar_warp", "Polar warp", EffectCategory::Manipulations, "image-effect/orbit")
-            .desc("Converts between Cartesian and polar coordinate systems.")
+        Info::new(
+            "polar_warp",
+            "Polar warp",
+            EffectCategory::Manipulations,
+            "image-effect/orbit",
+        )
+        .desc("Converts between Cartesian and polar coordinate systems.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, PolarWarpMode>("mode", "Mode", PolarWarpMode::CartesianToPolar, |e: &mut Self, v| e.mode = v, &[("Cartesian to polar", PolarWarpMode::CartesianToPolar), ("Polar to Cartesian", PolarWarpMode::PolarToCartesian)]),
-            float_slider::<Self>("rotation", "Rotation", -360.0, 360.0, 0.0, |e: &mut Self, v| e.rotation = v),
-            float_slider::<Self>("radius_scale", "Radius scale", 20.0, 200.0, 100.0, |e: &mut Self, v| e.radius_scale = v),
-            float_slider::<Self>("center_x_percentage", "Center X %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            enum_param::<Self, PolarWarpMode>(
+                "mode",
+                "Mode",
+                PolarWarpMode::CartesianToPolar,
+                |e: &mut Self, v| e.mode = v,
+                &[
+                    ("Cartesian to polar", PolarWarpMode::CartesianToPolar),
+                    ("Polar to Cartesian", PolarWarpMode::PolarToCartesian),
+                ],
+            ),
+            float_slider::<Self>(
+                "rotation",
+                "Rotation",
+                -360.0,
+                360.0,
+                0.0,
+                |e: &mut Self, v| e.rotation = v,
+            ),
+            float_slider::<Self>(
+                "radius_scale",
+                "Radius scale",
+                20.0,
+                200.0,
+                100.0,
+                |e: &mut Self, v| e.radius_scale = v,
+            ),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 
@@ -65,7 +107,8 @@ impl EffectImpl for PolarWarpImageEffect {
             for x in 0..width {
                 let i = (row + x) as usize;
                 if self.mode == PolarWarpMode::CartesianToPolar {
-                    let polar_angle = ((x as f32 / width_range) * std::f32::consts::PI * 2.0) + rotation;
+                    let polar_angle =
+                        ((x as f32 / width_range) * std::f32::consts::PI * 2.0) + rotation;
                     let radius = (y as f32 / height_range) * max_radius;
                     let sx = cx + (polar_angle.cos() * radius);
                     let sy = cy + (polar_angle.sin() * radius);

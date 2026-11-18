@@ -26,17 +26,52 @@ impl Default for VhsTapeDamageImageEffect {
 
 impl EffectImpl for VhsTapeDamageImageEffect {
     fn info() -> Info {
-        Info::new("vhs_tape_damage", "VHS tape damage", EffectCategory::Filters, "image-effect/videotape")
-            .desc("Simulates VHS tape degradation with distortion, noise, and color bleeding.")
+        Info::new(
+            "vhs_tape_damage",
+            "VHS tape damage",
+            EffectCategory::Filters,
+            "image-effect/videotape",
+        )
+        .desc("Simulates VHS tape degradation with distortion, noise, and color bleeding.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("distortion", "Distortion", 0.0, 100.0, 55.0, |e: &mut Self, v| e.distortion = v),
-            float_slider::<Self>("noise", "Noise", 0.0, 100.0, 28.0, |e: &mut Self, v| e.noise = v),
-            float_slider::<Self>("color_bleed", "Color bleed", 0.0, 100.0, 30.0, |e: &mut Self, v| e.color_bleed = v),
-            float_slider::<Self>("tracking", "Tracking", 0.0, 100.0, 24.0, |e: &mut Self, v| e.tracking = v),
-            float_slider::<Self>("scanlines", "Scanlines", 0.0, 100.0, 48.0, |e: &mut Self, v| e.scanlines = v),
+            float_slider::<Self>(
+                "distortion",
+                "Distortion",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.distortion = v,
+            ),
+            float_slider::<Self>("noise", "Noise", 0.0, 100.0, 28.0, |e: &mut Self, v| {
+                e.noise = v
+            }),
+            float_slider::<Self>(
+                "color_bleed",
+                "Color bleed",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.color_bleed = v,
+            ),
+            float_slider::<Self>(
+                "tracking",
+                "Tracking",
+                0.0,
+                100.0,
+                24.0,
+                |e: &mut Self, v| e.tracking = v,
+            ),
+            float_slider::<Self>(
+                "scanlines",
+                "Scanlines",
+                0.0,
+                100.0,
+                48.0,
+                |e: &mut Self, v| e.scanlines = v,
+            ),
         ]
     }
 
@@ -46,7 +81,12 @@ impl EffectImpl for VhsTapeDamageImageEffect {
         let bleed = clampf(self.color_bleed, 0.0, 100.0) / 100.0;
         let tracking = clampf(self.tracking, 0.0, 100.0) / 100.0;
         let scanlines = clampf(self.scanlines, 0.0, 100.0) / 100.0;
-        if distortion <= 0.0001 && noise <= 0.0001 && bleed <= 0.0001 && tracking <= 0.0001 && scanlines <= 0.0001 {
+        if distortion <= 0.0001
+            && noise <= 0.0001
+            && bleed <= 0.0001
+            && tracking <= 0.0001
+            && scanlines <= 0.0001
+        {
             return Ok(source.clone());
         }
         let (width, height) = (source.width() as i32, source.height() as i32);
@@ -56,7 +96,11 @@ impl EffectImpl for VhsTapeDamageImageEffect {
             let row = y * width;
             let yf = y as f32;
             let rn = (hash01(y, 0, 1703) * 2.0) - 1.0;
-            let shift = (((yf * 0.085) + 0.7).sin() * 0.55 + ((yf * 0.024) - 1.6).cos() * 0.45 + (rn * 0.65)) * distortion * 10.0;
+            let shift = (((yf * 0.085) + 0.7).sin() * 0.55
+                + ((yf * 0.024) - 1.6).cos() * 0.45
+                + (rn * 0.65))
+                * distortion
+                * 10.0;
             let mut dropout = 0f32;
             if hash01(y / 3, 4, 4201) > 0.987 {
                 dropout = 0.35 + (tracking * 0.45);
@@ -88,7 +132,12 @@ impl EffectImpl for VhsTapeDamageImageEffect {
                 r *= scan;
                 g *= scan;
                 b *= scan;
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

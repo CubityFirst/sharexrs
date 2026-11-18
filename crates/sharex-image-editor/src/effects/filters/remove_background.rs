@@ -22,15 +22,44 @@ impl Default for RemoveBackgroundImageEffect {
 
 impl EffectImpl for RemoveBackgroundImageEffect {
     fn info() -> Info {
-        Info::new("remove_background", "Remove background", EffectCategory::Manipulations, "app/scissors")
-            .desc("Removes border-connected background colors and turns them transparent.")
+        Info::new(
+            "remove_background",
+            "Remove background",
+            EffectCategory::Manipulations,
+            "app/scissors",
+        )
+        .desc("Removes border-connected background colors and turns them transparent.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("sensitivity", "Sensitivity (%)", 0.0, 100.0, 60.0, |e: &mut Self, v| e.sensitivity = v),
-            float_slider::<Self>("center_protection", "Center protection (%)", 0.0, 100.0, 65.0, |e: &mut Self, v| e.center_protection = v),
-            float_slider::<Self>("edge_feather", "Edge feather (px)", 0.0, 24.0, 4.0, |e: &mut Self, v| e.edge_feather = v).tick(0.5).snap(false).format("{}{0:0.#}"),
+            float_slider::<Self>(
+                "sensitivity",
+                "Sensitivity (%)",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.sensitivity = v,
+            ),
+            float_slider::<Self>(
+                "center_protection",
+                "Center protection (%)",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.center_protection = v,
+            ),
+            float_slider::<Self>(
+                "edge_feather",
+                "Edge feather (px)",
+                0.0,
+                24.0,
+                4.0,
+                |e: &mut Self, v| e.edge_feather = v,
+            )
+            .tick(0.5)
+            .snap(false)
+            .format("{}{0:0.#}"),
         ]
     }
 
@@ -50,7 +79,11 @@ impl EffectImpl for RemoveBackgroundImageEffect {
         let scale = 1f32.min(256.0 / width.max(height) as f32);
         let pw = 1.max((width as f32 * scale).round_ties_even() as i32);
         let ph = 1.max((height as f32 * scale).round_ties_even() as i32);
-        let working = if scale < 0.999 { resize(source, pw, ph) } else { source.clone() };
+        let working = if scale < 0.999 {
+            resize(source, pw, ph)
+        } else {
+            source.clone()
+        };
         let wp = pixels(&working);
         let n = (pw * ph) as usize;
         let mut features = Vec::with_capacity(n);
@@ -92,7 +125,11 @@ impl EffectImpl for RemoveBackgroundImageEffect {
         let fg_samples = select_foreground(&center, &bg_protos);
         let fg_protos = build_prototypes(&fg_samples, 3);
         let bg_scale = affinity_scale(&border, &bg_protos, 0.045);
-        let fg_scale = if !fg_protos.is_empty() { affinity_scale(&fg_samples, &fg_protos, 0.055) } else { 0.08 };
+        let fg_scale = if !fg_protos.is_empty() {
+            affinity_scale(&fg_samples, &fg_protos, 0.055)
+        } else {
+            0.08
+        };
         let edges = edge_magnitude(&luma, pw, ph);
         let mut likelihood = vec![0f32; n];
         let mut penalty = vec![0f32; n];
@@ -106,14 +143,23 @@ impl EffectImpl for RemoveBackgroundImageEffect {
                 }
                 let f = features[i];
                 let bd = nearest_distance(&f, &bg_protos);
-                let fd = if !fg_protos.is_empty() { nearest_distance(&f, &fg_protos) } else { bd + 0.16 };
+                let fd = if !fg_protos.is_empty() {
+                    nearest_distance(&f, &fg_protos)
+                } else {
+                    bd + 0.16
+                };
                 let ba = (-bd / bg_scale).exp();
-                let fa = if !fg_protos.is_empty() { (-fd / fg_scale).exp() } else { 0.16 };
+                let fa = if !fg_protos.is_empty() {
+                    (-fd / fg_scale).exp()
+                } else {
+                    0.16
+                };
                 let l = ba / (ba + fa + 0.0001);
                 likelihood[i] = l;
                 let cw = center_weight(x, y, pw, ph);
                 let lift = 1.0 - (alpha[i] as f32 / 255.0);
-                let p = ((1.0 - l) * 0.72) + (edges[i] * 0.18) + (cw * center_protection * 0.22) - (lift * 0.12);
+                let p = ((1.0 - l) * 0.72) + (edges[i] * 0.18) + (cw * center_protection * 0.22)
+                    - (lift * 0.12);
                 penalty[i] = 0f32.max(p);
             }
         }
@@ -126,13 +172,28 @@ impl EffectImpl for RemoveBackgroundImageEffect {
             })
             .collect();
         let small_bmp = from_pixels(pw as u32, ph as u32, &small);
-        let scaled = if pw == width && ph == height { small_bmp } else { resize(&small_bmp, width, height) };
-        let final_mask = if feather > 0.05 { transparent_blur(&scaled, feather) } else { scaled };
+        let scaled = if pw == width && ph == height {
+            small_bmp
+        } else {
+            resize(&small_bmp, width, height)
+        };
+        let final_mask = if feather > 0.05 {
+            transparent_blur(&scaled, feather)
+        } else {
+            scaled
+        };
         let mp = pixels(&final_mask);
         let out: Vec<SkColor> = src
             .iter()
             .zip(&mp)
-            .map(|(s, m)| SkColor::rgba(s.r, s.g, s.b, clamp_to_byte(s.a as f32 * (m.a as f32 / 255.0))))
+            .map(|(s, m)| {
+                SkColor::rgba(
+                    s.r,
+                    s.g,
+                    s.b,
+                    clamp_to_byte(s.a as f32 * (m.a as f32 / 255.0)),
+                )
+            })
             .collect();
         Ok(from_pixels(width as u32, height as u32, &out))
     }
@@ -197,7 +258,11 @@ fn nearest_distance(f: &Feature, protos: &[Feature]) -> f32 {
 }
 
 fn select_by_cutoff(c: &[Feature], d: &[f32], cutoff: f32) -> Vec<Feature> {
-    c.iter().zip(d).filter(|(_, d)| **d >= cutoff).map(|(f, _)| *f).collect()
+    c.iter()
+        .zip(d)
+        .filter(|(_, d)| **d >= cutoff)
+        .map(|(f, _)| *f)
+        .collect()
 }
 
 fn select_foreground(candidates: &[Feature], bg: &[Feature]) -> Vec<Feature> {
@@ -221,7 +286,11 @@ fn select_foreground(candidates: &[Feature], bg: &[Feature]) -> Vec<Feature> {
         return selected;
     }
     let selected = select_by_cutoff(candidates, &distances, average);
-    if selected.len() >= 8 { selected } else { candidates.to_vec() }
+    if selected.len() >= 8 {
+        selected
+    } else {
+        candidates.to_vec()
+    }
 }
 
 fn build_prototypes(samples: &[Feature], max_count: usize) -> Vec<Feature> {
@@ -307,25 +376,38 @@ fn edge_magnitude(luma: &[f32], width: i32, height: i32) -> Vec<f32> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn flood(alpha: &[u8], likelihood: &[f32], edges: &[f32], penalty: &[f32], width: i32, height: i32, sensitivity: f32) -> Vec<bool> {
+fn flood(
+    alpha: &[u8],
+    likelihood: &[f32],
+    edges: &[f32],
+    penalty: &[f32],
+    width: i32,
+    height: i32,
+    sensitivity: f32,
+) -> Vec<bool> {
     const THRESHOLD: u8 = 20;
     let mut visited = vec![false; penalty.len()];
     let mut queue = std::collections::VecDeque::new();
     let base = 0.19 + (sensitivity * 0.28);
     let seed = base + 0.04;
     let boost = 0.04 + (sensitivity * 0.06);
-    let mut try_seed = |i: usize, visited: &mut Vec<bool>, queue: &mut std::collections::VecDeque<usize>| {
-        if visited[i] {
-            return;
-        }
-        if alpha[i] <= THRESHOLD || penalty[i] <= seed || likelihood[i] >= 0.82 {
-            visited[i] = true;
-            queue.push_back(i);
-        }
-    };
+    let try_seed =
+        |i: usize, visited: &mut Vec<bool>, queue: &mut std::collections::VecDeque<usize>| {
+            if visited[i] {
+                return;
+            }
+            if alpha[i] <= THRESHOLD || penalty[i] <= seed || likelihood[i] >= 0.82 {
+                visited[i] = true;
+                queue.push_back(i);
+            }
+        };
     for x in 0..width {
         try_seed(x as usize, &mut visited, &mut queue);
-        try_seed(((height - 1) * width + x) as usize, &mut visited, &mut queue);
+        try_seed(
+            ((height - 1) * width + x) as usize,
+            &mut visited,
+            &mut queue,
+        );
     }
     for y in 1..height - 1 {
         try_seed((y * width) as usize, &mut visited, &mut queue);
@@ -383,7 +465,13 @@ fn resize(source: &Bitmap, width: i32, height: i32) -> Bitmap {
     let mut out = Bitmap::new(width as u32, height as u32);
     let mut paint = Paint::shader(Shader::Color([0, 0, 0, 255]));
     paint.anti_alias = true;
-    Canvas::new(&mut out).draw_image_rect(source, None, RRect::ltrb(0.0, 0.0, width as f32, height as f32), Sampling::CatmullRom, Some(&paint));
+    Canvas::new(&mut out).draw_image_rect(
+        source,
+        None,
+        RRect::ltrb(0.0, 0.0, width as f32, height as f32),
+        Sampling::CatmullRom,
+        Some(&paint),
+    );
     out
 }
 

@@ -34,12 +34,52 @@ impl EffectImpl for MosaicTileBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 12, 300, 48, |e: &mut Self, v| e.border_size = v),
-            float_slider::<Self>("tile_size", "Tile size", 4.0, 60.0, 14.0, |e: &mut Self, v| e.tile_size = v),
-            color_param::<Self>("grout_color", "Grout color", SkColor::argb(0xFFD2CDC3), |e: &mut Self, v| e.grout_color = v),
-            float_slider::<Self>("grout_width", "Grout width", 0.5, 8.0, 2.0, |e: &mut Self, v| e.grout_width = v),
-            float_slider::<Self>("color_variety", "Color variety", 0.0, 100.0, 70.0, |e: &mut Self, v| e.color_variety = v),
-            float_slider::<Self>("saturation", "Saturation", 0.0, 100.0, 85.0, |e: &mut Self, v| e.saturation = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                12,
+                300,
+                48,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            float_slider::<Self>(
+                "tile_size",
+                "Tile size",
+                4.0,
+                60.0,
+                14.0,
+                |e: &mut Self, v| e.tile_size = v,
+            ),
+            color_param::<Self>(
+                "grout_color",
+                "Grout color",
+                SkColor::argb(0xFFD2CDC3),
+                |e: &mut Self, v| e.grout_color = v,
+            ),
+            float_slider::<Self>(
+                "grout_width",
+                "Grout width",
+                0.5,
+                8.0,
+                2.0,
+                |e: &mut Self, v| e.grout_width = v,
+            ),
+            float_slider::<Self>(
+                "color_variety",
+                "Color variety",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.color_variety = v,
+            ),
+            float_slider::<Self>(
+                "saturation",
+                "Saturation",
+                0.0,
+                100.0,
+                85.0,
+                |e: &mut Self, v| e.saturation = v,
+            ),
         ]
     }
 
@@ -81,7 +121,9 @@ impl EffectImpl for MosaicTileBorderImageEffect {
                 let hue = hash01(col, row, SEED) * 360.0 * variety;
                 let bh = hash01(col ^ 0x55, row ^ 0xAA, SEED ^ 0x17);
                 let tc = SkColor::from_hsv(hue, sat, 55.0 + bh * 40.0, 255);
-                let dist = (wx - half).min(tile - half - wx).min((wy - half).min(tile - half - wy));
+                let dist = (wx - half)
+                    .min(tile - half - wx)
+                    .min((wy - half).min(tile - half - wy));
                 let bevel = smooth_step(tile * 0.15, 0.0, dist) * 0.2;
                 let noise = (hash01(x, y, SEED ^ 0x99) - 0.5) * 0.06;
                 let f = |v: u8| clamp_to_byte((v as f32 / 255.0 - bevel + noise) * 255.0);
@@ -94,7 +136,11 @@ impl EffectImpl for MosaicTileBorderImageEffect {
         let mut paint = Paint::fill(self.grout_color.rgba_array());
         paint.anti_alias = false;
         let b = border as f32 - grout_w * 0.5;
-        canvas.stroke_rect(RRect::xywh(b, b, iw as f32 + grout_w, ih as f32 + grout_w), grout_w, &paint);
+        canvas.stroke_rect(
+            RRect::xywh(b, b, iw as f32 + grout_w, ih as f32 + grout_w),
+            grout_w,
+            &paint,
+        );
         Ok(out)
     }
 }

@@ -32,9 +32,15 @@ pub(crate) mod draw;
 pub(crate) mod helpers;
 pub(crate) mod text;
 
+// Each effect's Default spells out ShareX's property initializers, even
+// where they're the type's own defaults.
+#[allow(clippy::derivable_impls)]
 mod adjustments;
+#[allow(clippy::derivable_impls)]
 mod drawings;
+#[allow(clippy::derivable_impls)]
 mod filters;
+#[allow(clippy::derivable_impls)]
 mod manipulations;
 
 use std::any::Any;
@@ -42,25 +48,29 @@ use std::sync::LazyLock;
 
 pub use color::SkColor;
 pub use params::{EffectValues, ParamDef, ParamKind, ParamValue};
-pub use sharex_skia::raster::Bitmap;
 use sharex_skia::Pixmap;
+pub use sharex_skia::raster::Bitmap;
 
 use crate::editor::EditorCore;
 
 /// What the effects' modules share.
 pub(crate) mod prelude {
-    pub(crate) use super::text::{Align, Font, Typeface};
+    pub(crate) use super::color::{self, SkColor, from_pixels, get_pixel, pixels};
     pub(crate) use super::draw::{self as sk, Pen, solid};
-    pub(crate) use sharex_skia::{Cap, Join, Path as SkPath};
-    pub(crate) use super::color::{self, SkColor, from_pixels, get_pixel, pixels, set_pixels};
     pub(crate) use super::helpers::*;
     pub(crate) use super::params::{
-        bool_param, color_param, double_numeric, enum_param, file_param, float_slider, int_numeric, int_slider,
-        text_param,
+        bool_param, color_param, double_numeric, enum_param, file_param, float_slider, int_numeric,
+        int_slider, text_param,
     };
     pub(crate) use super::random;
-    pub(crate) use super::{Bitmap, EffectCategory, EffectError, EffectImpl, EffectResult, Info, ParamDef};
-    pub(crate) use sharex_skia::raster::{Blend, Canvas, Matrix, Paint, Rect as RRect, Sampling, Shader, TileMode};
+    pub(crate) use super::text::{Align, Font, Typeface};
+    pub(crate) use super::{
+        Bitmap, EffectCategory, EffectError, EffectImpl, EffectResult, Info, ParamDef,
+    };
+    pub(crate) use sharex_skia::raster::{
+        Blend, Canvas, Matrix, Paint, Rect as RRect, Sampling, Shader, TileMode,
+    };
+    pub(crate) use sharex_skia::{Cap, Join, Path as SkPath};
 
     /// `SKPointI`.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -86,11 +96,6 @@ pub(crate) mod prelude {
         pub const fn new(width: i32, height: i32) -> Self {
             SizeI { width, height }
         }
-    }
-
-    /// What an effect not ported yet returns.
-    pub(crate) fn not_ported() -> EffectResult {
-        Err(EffectError(super::NOT_PORTED.to_string()))
     }
 
     /// `ArgumentNullException`/`ArgumentException` messages as .NET words them.
@@ -160,7 +165,12 @@ pub struct Info {
 }
 
 impl Info {
-    pub const fn new(id: &'static str, name: &'static str, category: EffectCategory, icon: &'static str) -> Self {
+    pub const fn new(
+        id: &'static str,
+        name: &'static str,
+        category: EffectCategory,
+        icon: &'static str,
+    ) -> Self {
         Info {
             id,
             name,
@@ -307,8 +317,13 @@ impl EffectDefinition {
     }
 
     /// [`apply`](Self::apply) on the editor's pixmap.
-    pub fn apply_pixmap(&self, source: &Pixmap, values: &EffectValues) -> Result<Pixmap, EffectError> {
-        self.apply(&to_bitmap(source), values).map(|b| to_pixmap(&b))
+    pub fn apply_pixmap(
+        &self,
+        source: &Pixmap,
+        values: &EffectValues,
+    ) -> Result<Pixmap, EffectError> {
+        self.apply(&to_bitmap(source), values)
+            .map(|b| to_pixmap(&b))
     }
 
     /// The `EditorOperationCatalog` routing of this effect, if any.
@@ -408,7 +423,10 @@ impl EditorOperation {
 }
 
 fn number(values: &EffectValues, key: &str) -> f64 {
-    values.get(key).and_then(ParamValue::as_number).unwrap_or(0.0)
+    values
+        .get(key)
+        .and_then(ParamValue::as_number)
+        .unwrap_or(0.0)
 }
 
 /// Commits an effect to the editor, with undo, as ShareX's effect browser
@@ -416,7 +434,11 @@ fn number(values: &EffectValues, key: &str) -> f64 {
 /// `EditorCore` (annotations moved with the image), every other effect
 /// through `ApplyImageEffect` (annotations kept). Returns whether the image
 /// changed; an effect that throws in ShareX changes nothing.
-pub fn apply_to_core(core: &mut EditorCore, def: &EffectDefinition, values: &EffectValues) -> Result<bool, EffectError> {
+pub fn apply_to_core(
+    core: &mut EditorCore,
+    def: &EffectDefinition,
+    values: &EffectValues,
+) -> Result<bool, EffectError> {
     match def.editor_operation() {
         Some(EditorOperation::AutoCropImage) => {
             let tolerance = number(values, "tolerance").round_ties_even() as i32;
@@ -425,7 +447,10 @@ pub fn apply_to_core(core: &mut EditorCore, def: &EffectDefinition, values: &Eff
         Some(EditorOperation::CropImage) => {
             // (int)(n.Value ?? 0): truncation.
             let (x, y) = (number(values, "x") as i32, number(values, "y") as i32);
-            let (w, h) = (number(values, "width") as i32, number(values, "height") as i32);
+            let (w, h) = (
+                number(values, "width") as i32,
+                number(values, "height") as i32,
+            );
             Ok(crop_image(core, x, y, w, h))
         }
         Some(EditorOperation::ResizeImage) => {
@@ -434,7 +459,8 @@ pub fn apply_to_core(core: &mut EditorCore, def: &EffectDefinition, values: &Eff
                 .as_any()
                 .downcast_ref::<manipulations::resize_image::ResizeImageEffect>()
                 .expect("resize_image is a ResizeImageEffect");
-            let (w, h) = resize.target_size(core.source().width() as i32, core.source().height() as i32);
+            let (w, h) =
+                resize.target_size(core.source().width() as i32, core.source().height() as i32);
             if w <= 0 || h <= 0 {
                 return Ok(false);
             }
@@ -446,7 +472,13 @@ pub fn apply_to_core(core: &mut EditorCore, def: &EffectDefinition, values: &Eff
                 Some(ParamValue::Color(c)) => *c,
                 _ => color::TRANSPARENT,
             };
-            Ok(core.resize_canvas(side("top"), side("right"), side("bottom"), side("left"), color.rgba_array()))
+            Ok(core.resize_canvas(
+                side("top"),
+                side("right"),
+                side("bottom"),
+                side("left"),
+                color.rgba_array(),
+            ))
         }
         Some(EditorOperation::RotateCustomAngle) => {
             let angle = number(values, "angle") as f32;
@@ -504,7 +536,11 @@ impl EffectPreview {
 
     /// `PreviewEffect`: the effect on the image before the effect; the
     /// result is what the canvas shows (the editor's image is unchanged).
-    pub fn preview(&mut self, def: &EffectDefinition, values: &EffectValues) -> Result<&Bitmap, EffectError> {
+    pub fn preview(
+        &mut self,
+        def: &EffectDefinition,
+        values: &EffectValues,
+    ) -> Result<&Bitmap, EffectError> {
         let result = def.apply(&self.pre_effect, values)?;
         self.latest = Some(result);
         Ok(self.latest.as_ref().expect("just set"))
@@ -518,7 +554,12 @@ impl EffectPreview {
     /// Applies (the dialog's Apply): editor operations through
     /// [`apply_to_core`], other effects commit the latest preview (or run
     /// the effect if there's none) with undo.
-    pub fn apply(self, core: &mut EditorCore, def: &EffectDefinition, values: &EffectValues) -> Result<bool, EffectError> {
+    pub fn apply(
+        self,
+        core: &mut EditorCore,
+        def: &EffectDefinition,
+        values: &EffectValues,
+    ) -> Result<bool, EffectError> {
         if def.editor_operation().is_some() {
             return apply_to_core(core, def, values);
         }

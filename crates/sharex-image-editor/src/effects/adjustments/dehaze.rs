@@ -10,22 +10,30 @@ pub struct DehazeImageEffect {
 
 impl Default for DehazeImageEffect {
     fn default() -> Self {
-        DehazeImageEffect {
-            amount: 50.0,
-        }
+        DehazeImageEffect { amount: 50.0 }
     }
 }
 
 impl EffectImpl for DehazeImageEffect {
     fn info() -> Info {
-        Info::new("dehaze", "Dehaze", EffectCategory::Adjustments, "image-effect/sunset")
-            .desc("Removes or adds atmospheric haze.")
+        Info::new(
+            "dehaze",
+            "Dehaze",
+            EffectCategory::Adjustments,
+            "image-effect/sunset",
+        )
+        .desc("Removes or adds atmospheric haze.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Amount", -100.0, 100.0, 50.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Amount",
+            -100.0,
+            100.0,
+            50.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -53,9 +61,21 @@ impl EffectImpl for DehazeImageEffect {
                 atm_count += 1;
             }
         }
-        let atm_r = if atm_count > 0 { sum_r / atm_count as f32 } else { 200.0 };
-        let atm_g = if atm_count > 0 { sum_g / atm_count as f32 } else { 200.0 };
-        let atm_b = if atm_count > 0 { sum_b / atm_count as f32 } else { 200.0 };
+        let atm_r = if atm_count > 0 {
+            sum_r / atm_count as f32
+        } else {
+            200.0
+        };
+        let atm_g = if atm_count > 0 {
+            sum_g / atm_count as f32
+        } else {
+            200.0
+        };
+        let atm_b = if atm_count > 0 {
+            sum_b / atm_count as f32
+        } else {
+            200.0
+        };
         let result: Vec<SkColor> = px
             .iter()
             .map(|c| {

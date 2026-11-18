@@ -10,22 +10,30 @@ pub struct ColorHalftoneImageEffect {
 
 impl Default for ColorHalftoneImageEffect {
     fn default() -> Self {
-        ColorHalftoneImageEffect {
-            dot_size: 8,
-        }
+        ColorHalftoneImageEffect { dot_size: 8 }
     }
 }
 
 impl EffectImpl for ColorHalftoneImageEffect {
     fn info() -> Info {
-        Info::new("color_halftone", "Color halftone", EffectCategory::Filters, "image-effect/circle-dot")
-            .desc("Simulates CMYK color halftone printing with rotated dot grids.")
+        Info::new(
+            "color_halftone",
+            "Color halftone",
+            EffectCategory::Filters,
+            "image-effect/circle-dot",
+        )
+        .desc("Simulates CMYK color halftone printing with rotated dot grids.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("size", "Dot size", 4, 30, 8, |e: &mut Self, v| e.dot_size = v),
-        ]
+        vec![int_slider::<Self>(
+            "size",
+            "Dot size",
+            4,
+            30,
+            8,
+            |e: &mut Self, v| e.dot_size = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -52,7 +60,8 @@ impl EffectImpl for ColorHalftoneImageEffect {
                     let sy = gy.clamp(0, h - 1);
                     let sc = src[(sy * w + sx) as usize];
                     let v = if color.r == 0 && color.g == 0 && color.b == 0 {
-                        1.0 - (0.2126 * sc.r as f32 + 0.7152 * sc.g as f32 + 0.0722 * sc.b as f32) / 255.0
+                        1.0 - (0.2126 * sc.r as f32 + 0.7152 * sc.g as f32 + 0.0722 * sc.b as f32)
+                            / 255.0
                     } else if color.r == 0 {
                         1.0 - sc.r as f32 / 255.0
                     } else if color.g == 0 {

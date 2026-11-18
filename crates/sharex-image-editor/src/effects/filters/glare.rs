@@ -30,19 +30,61 @@ impl Default for GlareImageEffect {
 
 impl EffectImpl for GlareImageEffect {
     fn info() -> Info {
-        Info::new("glare", "Glare", EffectCategory::Filters, "image-effect/sparkle")
-            .desc("Adds a bright glare/light flare at a specified position.")
+        Info::new(
+            "glare",
+            "Glare",
+            EffectCategory::Filters,
+            "image-effect/sparkle",
+        )
+        .desc("Adds a bright glare/light flare at a specified position.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("position_x", "Position X (%)", 0.0, 100.0, 50.0, |e: &mut Self, v| e.position_x = v),
-            float_slider::<Self>("position_y", "Position Y (%)", 0.0, 100.0, 30.0, |e: &mut Self, v| e.position_y = v),
-            float_slider::<Self>("radius", "Radius", 5.0, 100.0, 30.0, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 80.0, |e: &mut Self, v| e.intensity = v),
-            int_slider::<Self>("ray_count", "Ray count", 0, 12, 6, |e: &mut Self, v| e.ray_count = v),
-            float_slider::<Self>("ray_length", "Ray length", 0.0, 100.0, 50.0, |e: &mut Self, v| e.ray_length = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.color = v),
+            float_slider::<Self>(
+                "position_x",
+                "Position X (%)",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.position_x = v,
+            ),
+            float_slider::<Self>(
+                "position_y",
+                "Position Y (%)",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.position_y = v,
+            ),
+            float_slider::<Self>("radius", "Radius", 5.0, 100.0, 30.0, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                80.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            int_slider::<Self>("ray_count", "Ray count", 0, 12, 6, |e: &mut Self, v| {
+                e.ray_count = v
+            }),
+            float_slider::<Self>(
+                "ray_length",
+                "Ray length",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.ray_length = v,
+            ),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.color = v,
+            ),
         ]
     }
 
@@ -64,7 +106,13 @@ impl EffectImpl for GlareImageEffect {
         let center = SkColor::rgba(c.r, c.g, c.b, ga);
         let edge = SkColor::rgba(c.r, c.g, c.b, 0);
         let mid = SkColor::rgba(c.r, c.g, c.b, (ga as f32 * 0.4) as u8);
-        let mut glare = sk::radial_gradient((cx, cy), radius_px, &[center, mid, edge], Some(&[0.0, 0.4, 1.0]), true);
+        let mut glare = sk::radial_gradient(
+            (cx, cy),
+            radius_px,
+            &[center, mid, edge],
+            Some(&[0.0, 0.4, 1.0]),
+            true,
+        );
         glare.blend = Blend::Screen;
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, w as f32, h as f32, &glare, None);
         let rays = self.ray_count.clamp(0, 12);
@@ -75,7 +123,13 @@ impl EffectImpl for GlareImageEffect {
                 let angle = i as f32 * step * std::f32::consts::PI / 180.0;
                 let ex = cx + angle.cos() * ray_len;
                 let ey = cy + angle.sin() * ray_len;
-                let mut paint = sk::linear_gradient((cx, cy), (ex, ey), &[center, edge], Some(&[0.0, 1.0]), true);
+                let mut paint = sk::linear_gradient(
+                    (cx, cy),
+                    (ex, ey),
+                    &[center, edge],
+                    Some(&[0.0, 1.0]),
+                    true,
+                );
                 paint.blend = Blend::Screen;
                 let pen = Pen::new(ray_w).cap(Cap::Round);
                 sk::draw_line(&mut canvas, cx, cy, ex, ey, &pen, &paint);

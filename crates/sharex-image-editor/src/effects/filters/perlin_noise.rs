@@ -26,17 +26,47 @@ impl Default for PerlinNoiseImageEffect {
 
 impl EffectImpl for PerlinNoiseImageEffect {
     fn info() -> Info {
-        Info::new("perlin_noise", "Perlin noise", EffectCategory::Filters, "image-effect/waves")
-            .desc("Generates a Perlin noise pattern and blends it with the image.")
+        Info::new(
+            "perlin_noise",
+            "Perlin noise",
+            EffectCategory::Filters,
+            "image-effect/waves",
+        )
+        .desc("Generates a Perlin noise pattern and blends it with the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("scale", "Scale", 1.0, 500.0, 64.0, |e: &mut Self, v| e.scale = v).snap(false),
-            int_slider::<Self>("octaves", "Octaves", 1, 8, 4, |e: &mut Self, v| e.octaves = v),
-            float_slider::<Self>("persistence", "Persistence", 0.0, 1.0, 0.5, |e: &mut Self, v| e.persistence = v).tick(0.01).snap(false).format("{}{0:0.00}"),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.strength = v).snap(false),
-            bool_param::<Self>("monochrome", "Monochrome", true, |e: &mut Self, v| e.monochrome = v),
+            float_slider::<Self>("scale", "Scale", 1.0, 500.0, 64.0, |e: &mut Self, v| {
+                e.scale = v
+            })
+            .snap(false),
+            int_slider::<Self>("octaves", "Octaves", 1, 8, 4, |e: &mut Self, v| {
+                e.octaves = v
+            }),
+            float_slider::<Self>(
+                "persistence",
+                "Persistence",
+                0.0,
+                1.0,
+                0.5,
+                |e: &mut Self, v| e.persistence = v,
+            )
+            .tick(0.01)
+            .snap(false)
+            .format("{}{0:0.00}"),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.strength = v,
+            )
+            .snap(false),
+            bool_param::<Self>("monochrome", "Monochrome", true, |e: &mut Self, v| {
+                e.monochrome = v
+            }),
         ]
     }
 
@@ -74,7 +104,12 @@ impl EffectImpl for PerlinNoiseImageEffect {
                 let r = pl(s.r as f32 / 255.0, nr, strength);
                 let g = pl(s.g as f32 / 255.0, ng, strength);
                 let b = pl(s.b as f32 / 255.0, nb, strength);
-                dst[i] = SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

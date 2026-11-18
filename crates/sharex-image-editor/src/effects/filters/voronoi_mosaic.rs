@@ -24,16 +24,45 @@ impl Default for VoronoiMosaicImageEffect {
 
 impl EffectImpl for VoronoiMosaicImageEffect {
     fn info() -> Info {
-        Info::new("voronoi_mosaic", "Voronoi Mosaic", EffectCategory::Filters, "image-effect/hexagon")
-            .desc("Divides the image into Voronoi cells colored by average region color.")
+        Info::new(
+            "voronoi_mosaic",
+            "Voronoi Mosaic",
+            EffectCategory::Filters,
+            "image-effect/hexagon",
+        )
+        .desc("Divides the image into Voronoi cells colored by average region color.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("cell_count", "Cell Count", 10, 2000, 300, |e: &mut Self, v| e.cell_count = v),
-            bool_param::<Self>("draw_edges", "Draw Edges", true, |e: &mut Self, v| e.draw_edges = v),
-            float_slider::<Self>("edge_thickness", "Edge Thickness", 0.5, 5.0, 1.0, |e: &mut Self, v| e.edge_thickness = v).tick(0.5).snap(false).format("{}{0:0.0}"),
-            color_param::<Self>("edge_color", "Edge Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.edge_color = v),
+            int_slider::<Self>(
+                "cell_count",
+                "Cell Count",
+                10,
+                2000,
+                300,
+                |e: &mut Self, v| e.cell_count = v,
+            ),
+            bool_param::<Self>("draw_edges", "Draw Edges", true, |e: &mut Self, v| {
+                e.draw_edges = v
+            }),
+            float_slider::<Self>(
+                "edge_thickness",
+                "Edge Thickness",
+                0.5,
+                5.0,
+                1.0,
+                |e: &mut Self, v| e.edge_thickness = v,
+            )
+            .tick(0.5)
+            .snap(false)
+            .format("{}{0:0.0}"),
+            color_param::<Self>(
+                "edge_color",
+                "Edge Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.edge_color = v,
+            ),
         ]
     }
 
@@ -110,7 +139,9 @@ impl EffectImpl for VoronoiMosaicImageEffect {
                 }
             })
             .collect();
-        let mut result: Vec<SkColor> = (0..px.len()).map(|i| colors[assign[i]].with_alpha(px[i].a)).collect();
+        let mut result: Vec<SkColor> = (0..px.len())
+            .map(|i| colors[assign[i]].with_alpha(px[i].a))
+            .collect();
         if self.draw_edges {
             let edge_dist = 1.max(self.edge_thickness.ceil() as i32);
             for y in 0..height {

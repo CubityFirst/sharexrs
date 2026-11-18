@@ -28,25 +28,51 @@ impl Default for ShadowImageEffect {
 
 impl EffectImpl for ShadowImageEffect {
     fn info() -> Info {
-        Info::new("shadow", "Shadow", EffectCategory::Filters, "image-effect/cloud-moon")
-            .desc("Adds a drop shadow to the image.")
+        Info::new(
+            "shadow",
+            "Shadow",
+            EffectCategory::Filters,
+            "image-effect/cloud-moon",
+        )
+        .desc("Adds a drop shadow to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 80.0, |e: &mut Self, v| e.opacity = v).snap(false).format("{}{0:0}%"),
-            int_slider::<Self>("size", "Size", 0, 100, 20, |e: &mut Self, v| e.size = v).snap(false),
-            int_numeric::<Self>("offset_x", "Offset X", -1000, 1000, 5, |e: &mut Self, v| e.offset_x = v),
-            int_numeric::<Self>("offset_y", "Offset Y", -1000, 1000, 5, |e: &mut Self, v| e.offset_y = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.color = v),
-            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| e.auto_resize = v),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 80.0, |e: &mut Self, v| {
+                e.opacity = v
+            })
+            .snap(false)
+            .format("{}{0:0}%"),
+            int_slider::<Self>("size", "Size", 0, 100, 20, |e: &mut Self, v| e.size = v)
+                .snap(false),
+            int_numeric::<Self>("offset_x", "Offset X", -1000, 1000, 5, |e: &mut Self, v| {
+                e.offset_x = v
+            }),
+            int_numeric::<Self>("offset_y", "Offset Y", -1000, 1000, 5, |e: &mut Self, v| {
+                e.offset_y = v
+            }),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.color = v,
+            ),
+            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| {
+                e.auto_resize = v
+            }),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let pad = self.size;
         let (l, r, t, b) = if self.auto_resize {
-            (0.max(-self.offset_x) + pad, 0.max(self.offset_x) + pad, 0.max(-self.offset_y) + pad, 0.max(self.offset_y) + pad)
+            (
+                0.max(-self.offset_x) + pad,
+                0.max(self.offset_x) + pad,
+                0.max(-self.offset_y) + pad,
+                0.max(self.offset_y) + pad,
+            )
         } else {
             (0, 0, 0, 0)
         };

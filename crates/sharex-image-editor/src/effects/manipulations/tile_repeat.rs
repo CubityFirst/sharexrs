@@ -20,13 +20,20 @@ impl Default for TileRepeatImageEffect {
 
 impl EffectImpl for TileRepeatImageEffect {
     fn info() -> Info {
-        Info::new("tile_repeat", "Tile repeat", EffectCategory::Manipulations, "app/split")
-            .desc("Tiles the image into a grid of smaller copies.")
+        Info::new(
+            "tile_repeat",
+            "Tile repeat",
+            EffectCategory::Manipulations,
+            "app/split",
+        )
+        .desc("Tiles the image into a grid of smaller copies.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("columns", "Columns", 2, 10, 3, |e: &mut Self, v| e.columns = v),
+            int_slider::<Self>("columns", "Columns", 2, 10, 3, |e: &mut Self, v| {
+                e.columns = v
+            }),
             int_slider::<Self>("rows", "Rows", 2, 10, 3, |e: &mut Self, v| e.rows = v),
         ]
     }

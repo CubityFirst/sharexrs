@@ -26,16 +26,28 @@ impl Default for TileShuffleImageEffect {
 
 impl EffectImpl for TileShuffleImageEffect {
     fn info() -> Info {
-        Info::new("tile_shuffle", "Tile Shuffle", EffectCategory::Manipulations, "image-effect/shuffle")
-            .desc("Divides the image into a grid and randomly rearranges the tiles.")
+        Info::new(
+            "tile_shuffle",
+            "Tile Shuffle",
+            EffectCategory::Manipulations,
+            "image-effect/shuffle",
+        )
+        .desc("Divides the image into a grid and randomly rearranges the tiles.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("columns", "Columns", 2, 20, 4, |e: &mut Self, v| e.columns = v),
+            int_slider::<Self>("columns", "Columns", 2, 20, 4, |e: &mut Self, v| {
+                e.columns = v
+            }),
             int_slider::<Self>("rows", "Rows", 2, 20, 4, |e: &mut Self, v| e.rows = v),
             float_slider::<Self>("gap", "Gap", 0.0, 10.0, 0.0, |e: &mut Self, v| e.gap = v),
-            color_param::<Self>("gap_color", "Gap Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.gap_color = v),
+            color_param::<Self>(
+                "gap_color",
+                "Gap Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.gap_color = v,
+            ),
         ]
     }
 

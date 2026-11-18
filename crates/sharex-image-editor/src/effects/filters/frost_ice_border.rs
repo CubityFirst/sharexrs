@@ -26,17 +26,50 @@ impl Default for FrostIceBorderImageEffect {
 
 impl EffectImpl for FrostIceBorderImageEffect {
     fn info() -> Info {
-        Info::new("frost_ice_border", "Frost ice border", EffectCategory::Filters, "image-effect/snowflake")
-            .desc("Adds a frosted ice crystal border with rime buildup and icy blue highlights.")
+        Info::new(
+            "frost_ice_border",
+            "Frost ice border",
+            EffectCategory::Filters,
+            "image-effect/snowflake",
+        )
+        .desc("Adds a frosted ice crystal border with rime buildup and icy blue highlights.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 10, 300, 55, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("ice_color", "Ice color", SkColor::argb(0xFFC8E1FF), |e: &mut Self, v| e.ice_color = v),
-            float_slider::<Self>("crystallization", "Crystallization", 0.0, 100.0, 65.0, |e: &mut Self, v| e.crystallization = v),
-            float_slider::<Self>("transparency", "Transparency", 0.0, 80.0, 25.0, |e: &mut Self, v| e.transparency = v),
-            bool_param::<Self>("sparkle", "Ice sparkle", true, |e: &mut Self, v| e.sparkle = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                10,
+                300,
+                55,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "ice_color",
+                "Ice color",
+                SkColor::argb(0xFFC8E1FF),
+                |e: &mut Self, v| e.ice_color = v,
+            ),
+            float_slider::<Self>(
+                "crystallization",
+                "Crystallization",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.crystallization = v,
+            ),
+            float_slider::<Self>(
+                "transparency",
+                "Transparency",
+                0.0,
+                80.0,
+                25.0,
+                |e: &mut Self, v| e.transparency = v,
+            ),
+            bool_param::<Self>("sparkle", "Ice sparkle", true, |e: &mut Self, v| {
+                e.sparkle = v
+            }),
         ]
     }
 
@@ -48,7 +81,11 @@ impl EffectImpl for FrostIceBorderImageEffect {
         let (iw, ih) = (source.width() as i32, source.height() as i32);
         let (nw, nh) = (iw + border * 2, ih + border * 2);
         let ic = self.ice_color;
-        let (ir, ig, ib) = (ic.r as f32 / 255.0, ic.g as f32 / 255.0, ic.b as f32 / 255.0);
+        let (ir, ig, ib) = (
+            ic.r as f32 / 255.0,
+            ic.g as f32 / 255.0,
+            ic.b as f32 / 255.0,
+        );
         let mut dst = vec![color::EMPTY; (nw * nh) as usize];
         for y in 0..nh {
             let top = y < border;
@@ -62,9 +99,14 @@ impl EffectImpl for FrostIceBorderImageEffect {
                 let cross = cross_ratio(x, y, border, iw, ih);
                 let thick = smooth_step(0.0, 0.5, cross);
                 let coarse = fractal_noise(x as f32 * 0.02, y as f32 * 0.02, 4, 2.5, 0.45, SEED);
-                let fine = fractal_noise(x as f32 * 0.08, y as f32 * 0.08, 3, 2.0, 0.5, SEED ^ 0x3F);
+                let fine =
+                    fractal_noise(x as f32 * 0.08, y as f32 * 0.08, 3, 2.0, 0.5, SEED ^ 0x3F);
                 let pattern = coarse + fine * 0.5;
-                let cz = if crystal > 0.0 { clampf(pattern, 0.0, 1.0).powf(1.0 - crystal * 0.7) } else { pattern };
+                let cz = if crystal > 0.0 {
+                    clampf(pattern, 0.0, 1.0).powf(1.0 - crystal * 0.7)
+                } else {
+                    pattern
+                };
                 let hl = smooth_step(0.55, 0.75, cz);
                 let mut r = lerp(ir, 1.0, hl * 0.6);
                 let mut g = lerp(ig, 1.0, hl * 0.5);
@@ -94,12 +136,16 @@ impl EffectImpl for FrostIceBorderImageEffect {
                 let hs = hash01(i, SEED ^ 0xCC, SEED ^ 0x22);
                 let sx = (hx * nw as f32) as i32;
                 let sy = (hy * nh as f32) as i32;
-                let in_border = sx < border || sx >= border + iw || sy < border || sy >= border + ih;
+                let in_border =
+                    sx < border || sx >= border + iw || sy < border || sy >= border + ih;
                 if !in_border {
                     continue;
                 }
                 let radius = 0.8 + hs * 2.2;
-                let paint = solid(SkColor::rgba(255, 255, 255, (140.0 + hs * 115.0) as u8), true);
+                let paint = solid(
+                    SkColor::rgba(255, 255, 255, (140.0 + hs * 115.0) as u8),
+                    true,
+                );
                 let (fx, fy) = (sx as f32, sy as f32);
                 sk::draw_circle(&mut canvas, fx, fy, radius, &paint, None);
                 if hs > 0.5 {

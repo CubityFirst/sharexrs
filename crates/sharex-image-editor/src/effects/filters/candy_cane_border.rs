@@ -28,18 +28,54 @@ impl Default for CandyCaneBorderImageEffect {
 
 impl EffectImpl for CandyCaneBorderImageEffect {
     fn info() -> Info {
-        Info::new("candy_cane_border", "Candy Cane Border", EffectCategory::Drawings, "image-effect/candy-cane")
-            .desc("Adds a candy cane striped border around the image.")
+        Info::new(
+            "candy_cane_border",
+            "Candy Cane Border",
+            EffectCategory::Drawings,
+            "image-effect/candy-cane",
+        )
+        .desc("Adds a candy cane striped border around the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("border_width", "Border Width", 1, 200, 10, |e: &mut Self, v| e.border_width = v),
-            float_slider::<Self>("stripe_width", "Stripe Width", 2.0, 60.0, 12.0, |e: &mut Self, v| e.stripe_width = v),
-            color_param::<Self>("color_a", "Color A", SkColor::argb(0xFFDC1414), |e: &mut Self, v| e.color_a = v),
-            color_param::<Self>("color_b", "Color B", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.color_b = v),
-            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 50.0, |e: &mut Self, v| e.gloss = v),
-            bool_param::<Self>("rounded_corners", "Rounded Corners", true, |e: &mut Self, v| e.rounded_corners = v),
+            int_slider::<Self>(
+                "border_width",
+                "Border Width",
+                1,
+                200,
+                10,
+                |e: &mut Self, v| e.border_width = v,
+            ),
+            float_slider::<Self>(
+                "stripe_width",
+                "Stripe Width",
+                2.0,
+                60.0,
+                12.0,
+                |e: &mut Self, v| e.stripe_width = v,
+            ),
+            color_param::<Self>(
+                "color_a",
+                "Color A",
+                SkColor::argb(0xFFDC1414),
+                |e: &mut Self, v| e.color_a = v,
+            ),
+            color_param::<Self>(
+                "color_b",
+                "Color B",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.color_b = v,
+            ),
+            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 50.0, |e: &mut Self, v| {
+                e.gloss = v
+            }),
+            bool_param::<Self>(
+                "rounded_corners",
+                "Rounded Corners",
+                true,
+                |e: &mut Self, v| e.rounded_corners = v,
+            ),
         ]
     }
 
@@ -50,10 +86,22 @@ impl EffectImpl for CandyCaneBorderImageEffect {
         let (iw, ih) = (source.width() as i32, source.height() as i32);
         let (nw, nh) = (iw + bw * 2, ih + bw * 2);
         let (ca, cb) = (self.color_a, self.color_b);
-        let (ar, ag, ab) = (ca.r as f32 / 255.0, ca.g as f32 / 255.0, ca.b as f32 / 255.0);
-        let (br, bg, bb) = (cb.r as f32 / 255.0, cb.g as f32 / 255.0, cb.b as f32 / 255.0);
+        let (ar, ag, ab) = (
+            ca.r as f32 / 255.0,
+            ca.g as f32 / 255.0,
+            ca.b as f32 / 255.0,
+        );
+        let (br, bg, bb) = (
+            cb.r as f32 / 255.0,
+            cb.g as f32 / 255.0,
+            cb.b as f32 / 255.0,
+        );
         let mut dst = vec![color::EMPTY; (nw * nh) as usize];
-        let corner = if self.rounded_corners { bw as f32 * 0.4 } else { 0.0 };
+        let corner = if self.rounded_corners {
+            bw as f32 * 0.4
+        } else {
+            0.0
+        };
         let bwf = bw as f32;
         let (inner_l, inner_t) = (bwf, bwf);
         let inner_r = (bw + iw - 1) as f32;
@@ -95,8 +143,16 @@ impl EffectImpl for CandyCaneBorderImageEffect {
                     let in_cx = xf < corner || xf > (nw - 1) as f32 - corner;
                     let in_cy = yf < corner || yf > (nh - 1) as f32 - corner;
                     if in_cx && in_cy {
-                        let ocx = if xf < corner { corner } else { (nw - 1) as f32 - corner };
-                        let ocy = if yf < corner { corner } else { (nh - 1) as f32 - corner };
+                        let ocx = if xf < corner {
+                            corner
+                        } else {
+                            (nw - 1) as f32 - corner
+                        };
+                        let ocy = if yf < corner {
+                            corner
+                        } else {
+                            (nh - 1) as f32 - corner
+                        };
                         if ((xf - ocx) * (xf - ocx) + (yf - ocy) * (yf - ocy)).sqrt() > corner {
                             dst[i] = color::TRANSPARENT;
                             continue;
@@ -105,7 +161,11 @@ impl EffectImpl for CandyCaneBorderImageEffect {
                 }
                 let phase = (along + cross * bwf) / sw;
                 let mut t = ((phase * std::f32::consts::PI * 2.0).sin() + 1.0) * 0.5;
-                t = if t < 0.5 { smooth_step(0.15, 0.45, t) } else { 1.0 - smooth_step(0.55, 0.85, 1.0 - t) };
+                t = if t < 0.5 {
+                    smooth_step(0.15, 0.45, t)
+                } else {
+                    1.0 - smooth_step(0.55, 0.85, 1.0 - t)
+                };
                 let mut r = lerp(ar, br, t);
                 let mut g = lerp(ag, bg, t);
                 let mut b = lerp(ab, bb, t);

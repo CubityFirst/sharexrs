@@ -26,17 +26,33 @@ impl Default for StripeOverlayImageEffect {
 
 impl EffectImpl for StripeOverlayImageEffect {
     fn info() -> Info {
-        Info::new("stripe_overlay", "Stripe overlay", EffectCategory::Filters, "image-effect/blinds")
-            .desc("Overlays diagonal stripes on the image.")
+        Info::new(
+            "stripe_overlay",
+            "Stripe overlay",
+            EffectCategory::Filters,
+            "image-effect/blinds",
+        )
+        .desc("Overlays diagonal stripes on the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("width", "Stripe width", 2, 50, 10, |e: &mut Self, v| e.stripe_width = v),
-            int_slider::<Self>("gap", "Gap width", 2, 50, 10, |e: &mut Self, v| e.gap_width = v),
+            int_slider::<Self>("width", "Stripe width", 2, 50, 10, |e: &mut Self, v| {
+                e.stripe_width = v
+            }),
+            int_slider::<Self>("gap", "Gap width", 2, 50, 10, |e: &mut Self, v| {
+                e.gap_width = v
+            }),
             int_slider::<Self>("angle", "Angle", 0, 180, 45, |e: &mut Self, v| e.angle = v),
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 40.0, |e: &mut Self, v| e.opacity = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.color = v),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 40.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.color = v,
+            ),
         ]
     }
 
@@ -53,12 +69,25 @@ impl EffectImpl for StripeOverlayImageEffect {
         let paint = solid(self.color.with_alpha(a), true);
         let diagonal = ((w * w + h * h) as f32).sqrt();
         let count = (diagonal / period as f32) as i32 + 2;
-        sk::rotate_about(&mut canvas, self.angle as f32, w as f32 / 2.0, h as f32 / 2.0);
+        sk::rotate_about(
+            &mut canvas,
+            self.angle as f32,
+            w as f32 / 2.0,
+            h as f32 / 2.0,
+        );
         let start_x = -diagonal / 2.0 + w as f32 / 2.0;
         let start_y = -diagonal / 2.0 + h as f32 / 2.0;
         for i in 0..count {
             let x = start_x + (i * period) as f32;
-            sk::draw_rect_xywh(&mut canvas, x, start_y, self.stripe_width as f32, diagonal * 2.0, &paint, None);
+            sk::draw_rect_xywh(
+                &mut canvas,
+                x,
+                start_y,
+                self.stripe_width as f32,
+                diagonal * 2.0,
+                &paint,
+                None,
+            );
         }
         drop(canvas);
         Ok(out)

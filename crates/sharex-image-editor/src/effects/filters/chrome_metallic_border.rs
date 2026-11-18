@@ -34,12 +34,42 @@ impl EffectImpl for ChromeMetallicBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 4, 300, 36, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("tint_color", "Tint color", SkColor::argb(0xFFC8CDD2), |e: &mut Self, v| e.tint_color = v),
-            float_slider::<Self>("reflectivity", "Reflectivity", 0.0, 100.0, 80.0, |e: &mut Self, v| e.reflectivity = v),
-            float_slider::<Self>("bevel_strength", "Bevel strength", 0.0, 100.0, 70.0, |e: &mut Self, v| e.bevel_strength = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
-            bool_param::<Self>("outer_line", "Outer line", true, |e: &mut Self, v| e.outer_line = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                4,
+                300,
+                36,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "tint_color",
+                "Tint color",
+                SkColor::argb(0xFFC8CDD2),
+                |e: &mut Self, v| e.tint_color = v,
+            ),
+            float_slider::<Self>(
+                "reflectivity",
+                "Reflectivity",
+                0.0,
+                100.0,
+                80.0,
+                |e: &mut Self, v| e.reflectivity = v,
+            ),
+            float_slider::<Self>(
+                "bevel_strength",
+                "Bevel strength",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.bevel_strength = v,
+            ),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
+            bool_param::<Self>("outer_line", "Outer line", true, |e: &mut Self, v| {
+                e.outer_line = v
+            }),
         ]
     }
 
@@ -50,7 +80,11 @@ impl EffectImpl for ChromeMetallicBorderImageEffect {
         let (iw, ih) = (source.width() as i32, source.height() as i32);
         let (nw, nh) = (iw + border * 2, ih + border * 2);
         let tc = self.tint_color;
-        let (tr, tg, tb) = (tc.r as f32 / 200.0, tc.g as f32 / 200.0, tc.b as f32 / 200.0);
+        let (tr, tg, tb) = (
+            tc.r as f32 / 200.0,
+            tc.g as f32 / 200.0,
+            tc.b as f32 / 200.0,
+        );
         let mut dst = vec![color::EMPTY; (nw * nh) as usize];
         for y in 0..nh {
             let top = y < border;
@@ -66,7 +100,12 @@ impl EffectImpl for ChromeMetallicBorderImageEffect {
                 let side = side_variation(x, y, border, iw, ih, bevel);
                 v = clampf(v + side * 0.12, 0.0, 1.0);
                 let br = v * 255.0;
-                dst[(y * nw + x) as usize] = SkColor::rgba(clamp_to_byte(br * tr), clamp_to_byte(br * tg), clamp_to_byte(br * tb), 255);
+                dst[(y * nw + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(br * tr),
+                    clamp_to_byte(br * tg),
+                    clamp_to_byte(br * tb),
+                    255,
+                );
             }
         }
         let mut out = from_pixels(nw as u32, nh as u32, &dst);
@@ -79,7 +118,11 @@ impl EffectImpl for ChromeMetallicBorderImageEffect {
         }
         if self.outer_line {
             let p = Paint::fill([20, 20, 22, 255]);
-            canvas.stroke_rect(RRect::xywh(0.75, 0.75, nw as f32 - 1.5, nh as f32 - 1.5), 1.5, &p);
+            canvas.stroke_rect(
+                RRect::xywh(0.75, 0.75, nw as f32 - 1.5, nh as f32 - 1.5),
+                1.5,
+                &p,
+            );
         }
         Ok(out)
     }

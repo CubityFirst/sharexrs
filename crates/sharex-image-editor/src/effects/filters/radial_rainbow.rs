@@ -20,14 +20,28 @@ impl Default for RadialRainbowImageEffect {
 
 impl EffectImpl for RadialRainbowImageEffect {
     fn info() -> Info {
-        Info::new("radial_rainbow", "Radial rainbow", EffectCategory::Filters, "image-effect/rainbow")
-            .desc("Applies a rainbow hue shift based on angle from center.")
+        Info::new(
+            "radial_rainbow",
+            "Radial rainbow",
+            EffectCategory::Filters,
+            "image-effect/rainbow",
+        )
+        .desc("Applies a rainbow hue shift based on angle from center.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.strength = v),
-            int_slider::<Self>("rotations", "Rotations", 1, 5, 1, |e: &mut Self, v| e.rotations = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            int_slider::<Self>("rotations", "Rotations", 1, 5, 1, |e: &mut Self, v| {
+                e.rotations = v
+            }),
         ]
     }
 

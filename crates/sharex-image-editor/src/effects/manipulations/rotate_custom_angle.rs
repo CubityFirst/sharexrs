@@ -20,19 +20,32 @@ impl Default for RotateImageEffect {
 
 impl EffectImpl for RotateImageEffect {
     fn info() -> Info {
-        Info::new("rotate_custom_angle", "Rotate", EffectCategory::Manipulations, "image-effect/rotate-clockwise")
-            .desc("Rotates the image by a custom angle.")
+        Info::new(
+            "rotate_custom_angle",
+            "Rotate",
+            EffectCategory::Manipulations,
+            "image-effect/rotate-clockwise",
+        )
+        .desc("Rotates the image by a custom angle.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("angle", "Angle", -360.0, 360.0, 0.0, |e: &mut Self, v| e.angle = v),
-            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| e.auto_resize = v),
+            float_slider::<Self>("angle", "Angle", -360.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
+            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| {
+                e.auto_resize = v
+            }),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let p = crate::editor::image_ops::rotate(&crate::effects::to_pixmap(source), self.angle, self.auto_resize);
+        let p = crate::editor::image_ops::rotate(
+            &crate::effects::to_pixmap(source),
+            self.angle,
+            self.auto_resize,
+        );
         Ok(crate::effects::to_bitmap(&p))
     }
 }

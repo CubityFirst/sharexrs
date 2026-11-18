@@ -40,16 +40,46 @@ impl Default for BorderImageEffect {
 
 impl EffectImpl for BorderImageEffect {
     fn info() -> Info {
-        Info::new("border", "Border", EffectCategory::Drawings, "image-effect/frame")
-            .desc("Adds a border to the image.")
+        Info::new(
+            "border",
+            "Border",
+            EffectCategory::Drawings,
+            "image-effect/frame",
+        )
+        .desc("Adds a border to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, BorderType>("type", "Type", BorderType::Outside, |e: &mut Self, v| e.r#type = v, &[("Outside", BorderType::Outside), ("Inside", BorderType::Inside)]),
+            enum_param::<Self, BorderType>(
+                "type",
+                "Type",
+                BorderType::Outside,
+                |e: &mut Self, v| e.r#type = v,
+                &[
+                    ("Outside", BorderType::Outside),
+                    ("Inside", BorderType::Inside),
+                ],
+            ),
             int_slider::<Self>("size", "Size", 1, 100, 5, |e: &mut Self, v| e.size = v),
-            enum_param::<Self, DashStyle>("dash_style", "Dash style", DashStyle::Solid, |e: &mut Self, v| e.dash_style = v, &[("Solid", DashStyle::Solid), ("Dash", DashStyle::Dash), ("Dot", DashStyle::Dot), ("Dash Dot", DashStyle::DashDot)]),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.color = v),
+            enum_param::<Self, DashStyle>(
+                "dash_style",
+                "Dash style",
+                DashStyle::Solid,
+                |e: &mut Self, v| e.dash_style = v,
+                &[
+                    ("Solid", DashStyle::Solid),
+                    ("Dash", DashStyle::Dash),
+                    ("Dot", DashStyle::Dot),
+                    ("Dash Dot", DashStyle::DashDot),
+                ],
+            ),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.color = v,
+            ),
         ]
     }
 

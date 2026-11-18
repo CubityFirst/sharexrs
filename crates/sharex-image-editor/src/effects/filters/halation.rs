@@ -24,16 +24,41 @@ impl Default for HalationImageEffect {
 
 impl EffectImpl for HalationImageEffect {
     fn info() -> Info {
-        Info::new("halation", "Halation", EffectCategory::Filters, "image-effect/sunrise")
-            .desc("Simulates film halation where bright areas bleed warm light into surrounding regions.")
+        Info::new(
+            "halation",
+            "Halation",
+            EffectCategory::Filters,
+            "image-effect/sunrise",
+        )
+        .desc(
+            "Simulates film halation where bright areas bleed warm light into surrounding regions.",
+        )
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("threshold", "Threshold", 0.0, 100.0, 72.0, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 18.0, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 150.0, 60.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 70.0, |e: &mut Self, v| e.warmth = v),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                100.0,
+                72.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 18.0, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                150.0,
+                60.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 70.0, |e: &mut Self, v| {
+                e.warmth = v
+            }),
         ]
     }
 
@@ -54,7 +79,8 @@ impl EffectImpl for HalationImageEffect {
         let halo_src: Vec<SkColor> = src
             .iter()
             .map(|c| {
-                let l = ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+                let l =
+                    ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
                 let mask = smooth_step(low, high, l);
                 if mask <= 0.0 {
                     return color::EMPTY;
@@ -68,7 +94,10 @@ impl EffectImpl for HalationImageEffect {
                 )
             })
             .collect();
-        let halo = pixels(&create_blurred_clamp(&from_pixels(source.width(), source.height(), &halo_src), radius));
+        let halo = pixels(&create_blurred_clamp(
+            &from_pixels(source.width(), source.height(), &halo_src),
+            radius,
+        ));
         let ch = |s: u8, h: f32| {
             let s = s as f32 / 255.0;
             let mut v = 1.0 - ((1.0 - s) * (1.0 - clampf(h, 0.0, 1.0)));

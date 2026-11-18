@@ -22,15 +22,26 @@ impl Default for UnsharpMaskImageEffect {
 
 impl EffectImpl for UnsharpMaskImageEffect {
     fn info() -> Info {
-        Info::new("unsharp_mask", "Unsharp mask", EffectCategory::Filters, "app/magic-wand")
-            .desc("Sharpens the image using an unsharp mask technique.")
+        Info::new(
+            "unsharp_mask",
+            "Unsharp mask",
+            EffectCategory::Filters,
+            "app/magic-wand",
+        )
+        .desc("Sharpens the image using an unsharp mask technique.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 5.0, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("amount", "Amount", 0.0, 500.0, 150.0, |e: &mut Self, v| e.amount = v),
-            int_slider::<Self>("threshold", "Threshold", 0, 255, 0, |e: &mut Self, v| e.threshold = v),
+            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 5.0, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>("amount", "Amount", 0.0, 500.0, 150.0, |e: &mut Self, v| {
+                e.amount = v
+            }),
+            int_slider::<Self>("threshold", "Threshold", 0, 255, 0, |e: &mut Self, v| {
+                e.threshold = v
+            }),
         ]
     }
 

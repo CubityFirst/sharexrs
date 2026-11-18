@@ -26,16 +26,49 @@ impl Default for RainyWindowImageEffect {
 
 impl EffectImpl for RainyWindowImageEffect {
     fn info() -> Info {
-        Info::new("rainy_window", "Rainy window", EffectCategory::Filters, "image-effect/cloud-rain")
-            .desc("Simulates looking through a rain-streaked window with distortion and mist.")
+        Info::new(
+            "rainy_window",
+            "Rainy window",
+            EffectCategory::Filters,
+            "image-effect/cloud-rain",
+        )
+        .desc("Simulates looking through a rain-streaked window with distortion and mist.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("distortion", "Distortion", 0.0, 30.0, 8.0, |e: &mut Self, v| e.distortion = v),
-            float_slider::<Self>("streak_density", "Streak density", 0.0, 100.0, 45.0, |e: &mut Self, v| e.streak_density = v),
-            float_slider::<Self>("mist_amount", "Mist amount", 0.0, 100.0, 25.0, |e: &mut Self, v| e.mist_amount = v),
-            float_slider::<Self>("droplet_amount", "Droplet amount", 0.0, 100.0, 35.0, |e: &mut Self, v| e.droplet_amount = v),
+            float_slider::<Self>(
+                "distortion",
+                "Distortion",
+                0.0,
+                30.0,
+                8.0,
+                |e: &mut Self, v| e.distortion = v,
+            ),
+            float_slider::<Self>(
+                "streak_density",
+                "Streak density",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.streak_density = v,
+            ),
+            float_slider::<Self>(
+                "mist_amount",
+                "Mist amount",
+                0.0,
+                100.0,
+                25.0,
+                |e: &mut Self, v| e.mist_amount = v,
+            ),
+            float_slider::<Self>(
+                "droplet_amount",
+                "Droplet amount",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.droplet_amount = v,
+            ),
         ]
     }
 
@@ -71,8 +104,11 @@ impl EffectImpl for RainyWindowImageEffect {
                     let b1 = bilinear_sample(&src, width, height, sx + 1.25, sy);
                     let b2 = bilinear_sample(&src, width, height, sx, sy - 1.25);
                     let b3 = bilinear_sample(&src, width, height, sx, sy + 1.25);
-                    let avg = |f: fn(SkColor) -> u8| ((f(b0) as i32 + f(b1) as i32 + f(b2) as i32 + f(b3) as i32) / 4) as u8;
-                    let blur = SkColor::rgba(avg(|c| c.r), avg(|c| c.g), avg(|c| c.b), avg(|c| c.a));
+                    let avg = |f: fn(SkColor) -> u8| {
+                        ((f(b0) as i32 + f(b1) as i32 + f(b2) as i32 + f(b3) as i32) / 4) as u8
+                    };
+                    let blur =
+                        SkColor::rgba(avg(|c| c.r), avg(|c| c.g), avg(|c| c.b), avg(|c| c.a));
                     base = blend(base, blur, mist * 0.45);
                 }
                 let col_noise = hash01(x / 6, 11, seed);
@@ -94,7 +130,10 @@ impl EffectImpl for RainyWindowImageEffect {
                     let dist = ((dx * dx) + (dy * dy)).sqrt();
                     drop = 1.0 - smooth_step(0.2, 1.0, dist / radius.max(0.001));
                 }
-                let lum = ((0.2126 * base.r as f32) + (0.7152 * base.g as f32) + (0.0722 * base.b as f32)) / 255.0;
+                let lum = ((0.2126 * base.r as f32)
+                    + (0.7152 * base.g as f32)
+                    + (0.0722 * base.b as f32))
+                    / 255.0;
                 let fog = SkColor::rgba(186, 196, 206, base.a);
                 let mc = blend(base, fog, mist * (0.2 + ((1.0 - lum) * 0.8)));
                 let wet = 1.0 - ((0.08 * mist) + (0.06 * streak));
@@ -102,7 +141,8 @@ impl EffectImpl for RainyWindowImageEffect {
                 let r = (mc.r as f32 * wet) + (hl * 88.0);
                 let g = (mc.g as f32 * wet) + (hl * 96.0);
                 let b = (mc.b as f32 * wet) + (hl * 116.0);
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), mc.a);
+                dst[(row + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), mc.a);
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

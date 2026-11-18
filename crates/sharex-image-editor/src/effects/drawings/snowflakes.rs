@@ -28,18 +28,33 @@ impl Default for SnowflakesImageEffect {
 
 impl EffectImpl for SnowflakesImageEffect {
     fn info() -> Info {
-        Info::new("snowflakes", "Snowflakes", EffectCategory::Drawings, "image-effect/snowflake")
-            .desc("Scatters snowflakes over the image.")
+        Info::new(
+            "snowflakes",
+            "Snowflakes",
+            EffectCategory::Drawings,
+            "image-effect/snowflake",
+        )
+        .desc("Scatters snowflakes over the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("count", "Count", 10, 500, 80, |e: &mut Self, v| e.count = v),
-            int_slider::<Self>("min_size", "Min size", 2, 20, 3, |e: &mut Self, v| e.min_size = v),
-            int_slider::<Self>("max_size", "Max size", 4, 60, 14, |e: &mut Self, v| e.max_size = v),
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 85.0, |e: &mut Self, v| e.opacity = v),
-            bool_param::<Self>("random_angle", "Random angle", true, |e: &mut Self, v| e.random_angle = v),
-            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| e.background = v),
+            int_slider::<Self>("min_size", "Min size", 2, 20, 3, |e: &mut Self, v| {
+                e.min_size = v
+            }),
+            int_slider::<Self>("max_size", "Max size", 4, 60, 14, |e: &mut Self, v| {
+                e.max_size = v
+            }),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 85.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
+            bool_param::<Self>("random_angle", "Random angle", true, |e: &mut Self, v| {
+                e.random_angle = v
+            }),
+            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| {
+                e.background = v
+            }),
         ]
     }
 
@@ -65,7 +80,11 @@ impl EffectImpl for SnowflakesImageEffect {
                 let y = r.next_range(0, sh) as f32;
                 let size = r.next_range(min_size, max_size + 1) as f32;
                 let fa = alpha * (0.5 + r.next_single() * 0.5);
-                let angle = if self.random_angle { r.next_single() * 360.0 } else { 0.0 };
+                let angle = if self.random_angle {
+                    r.next_single() * 360.0
+                } else {
+                    0.0
+                };
                 (x, y, size, fa, angle)
             });
             snowflake(&mut canvas, x, y, size, fa, angle);
@@ -94,14 +113,30 @@ fn snowflake(canvas: &mut Canvas, cx: f32, cy: f32, size: f32, alpha: f32, rotat
     for b in 0..6 {
         let angle = (b * 60) as f32 * std::f32::consts::PI / 180.0;
         let (cos, sin) = (angle.cos(), angle.sin());
-        sk::draw_line(canvas, cx, cy, cx + cos * half, cy + sin * half, &pen, &line);
+        sk::draw_line(
+            canvas,
+            cx,
+            cy,
+            cx + cos * half,
+            cy + sin * half,
+            &pen,
+            &line,
+        );
         if size >= 6.0 {
             let bl = half * 0.35;
             let mx = cx + cos * half * 0.55;
             let my = cy + sin * half * 0.55;
             for side in [-1.0f32, 1.0] {
                 let sa = angle + side * std::f32::consts::PI / 3.0;
-                sk::draw_line(canvas, mx, my, mx + sa.cos() * bl, my + sa.sin() * bl, &pen, &line);
+                sk::draw_line(
+                    canvas,
+                    mx,
+                    my,
+                    mx + sa.cos() * bl,
+                    my + sa.sin() * bl,
+                    &pen,
+                    &line,
+                );
             }
         }
     }

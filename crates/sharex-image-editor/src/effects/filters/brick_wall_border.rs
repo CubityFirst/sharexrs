@@ -34,12 +34,50 @@ impl EffectImpl for BrickWallBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 10, 300, 56, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("brick_color", "Brick color", SkColor::argb(0xFFB25A3E), |e: &mut Self, v| e.brick_color = v),
-            color_param::<Self>("mortar_color", "Mortar color", SkColor::argb(0xFFC3BCAF), |e: &mut Self, v| e.mortar_color = v),
-            float_slider::<Self>("mortar_thickness", "Mortar thickness", 1.0, 20.0, 4.0, |e: &mut Self, v| e.mortar_thickness = v),
-            float_slider::<Self>("color_variation", "Color variation", 0.0, 100.0, 40.0, |e: &mut Self, v| e.color_variation = v),
-            float_slider::<Self>("bevel_strength", "Bevel strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.bevel_strength = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                10,
+                300,
+                56,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "brick_color",
+                "Brick color",
+                SkColor::argb(0xFFB25A3E),
+                |e: &mut Self, v| e.brick_color = v,
+            ),
+            color_param::<Self>(
+                "mortar_color",
+                "Mortar color",
+                SkColor::argb(0xFFC3BCAF),
+                |e: &mut Self, v| e.mortar_color = v,
+            ),
+            float_slider::<Self>(
+                "mortar_thickness",
+                "Mortar thickness",
+                1.0,
+                20.0,
+                4.0,
+                |e: &mut Self, v| e.mortar_thickness = v,
+            ),
+            float_slider::<Self>(
+                "color_variation",
+                "Color variation",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.color_variation = v,
+            ),
+            float_slider::<Self>(
+                "bevel_strength",
+                "Bevel strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.bevel_strength = v,
+            ),
         ]
     }
 
@@ -90,13 +128,24 @@ impl EffectImpl for BrickWallBorderImageEffect {
                 let vh2 = hash01(col ^ col.wrapping_mul(13), row, SEED ^ 0x5A);
                 let red_var = (vh - 0.5) * color_var * 0.5;
                 let green_var = (vh2 - 0.5) * color_var * 0.25;
-                let bevel_frac = (row_frac - mfh).min(1.0 - row_frac).min((col_frac - mfw).min(1.0 - col_frac));
-                let bevel_shade = if bevel > 0.0 { (1.0 - smooth_step(0.0, 0.18, bevel_frac)) * bevel * 0.35 } else { 0.0 };
+                let bevel_frac = (row_frac - mfh)
+                    .min(1.0 - row_frac)
+                    .min((col_frac - mfw).min(1.0 - col_frac));
+                let bevel_shade = if bevel > 0.0 {
+                    (1.0 - smooth_step(0.0, 0.18, bevel_frac)) * bevel * 0.35
+                } else {
+                    0.0
+                };
                 let noise = hash01((lx * 2.0) as i32, (ly * 2.0) as i32, SEED ^ 0x99) * 0.08 - 0.04;
                 let r = bc.r as f32 / 255.0 + red_var + noise - bevel_shade;
                 let g = bc.g as f32 / 255.0 + green_var * 0.5 + noise * 0.4 - bevel_shade;
                 let b = bc.b as f32 / 255.0 - red_var * 0.2 - bevel_shade;
-                dst[i] = SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), 255);
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    255,
+                );
             }
         }
         let mut out = from_pixels(nw as u32, nh as u32, &dst);
@@ -105,7 +154,11 @@ impl EffectImpl for BrickWallBorderImageEffect {
         let mut paint = Paint::fill(self.mortar_color.rgba_array());
         paint.anti_alias = false;
         let b = border as f32 - mortar_t * 0.5;
-        canvas.stroke_rect(RRect::xywh(b, b, iw as f32 + mortar_t, ih as f32 + mortar_t), mortar_t, &paint);
+        canvas.stroke_rect(
+            RRect::xywh(b, b, iw as f32 + mortar_t, ih as f32 + mortar_t),
+            mortar_t,
+            &paint,
+        );
         Ok(out)
     }
 }

@@ -26,16 +26,39 @@ impl Default for CrystalPrismImageEffect {
 
 impl EffectImpl for CrystalPrismImageEffect {
     fn info() -> Info {
-        Info::new("crystal_prism", "Crystal prism", EffectCategory::Filters, "image-effect/gem")
-            .desc("Refracts and disperses light through crystal-like facets.")
+        Info::new(
+            "crystal_prism",
+            "Crystal prism",
+            EffectCategory::Filters,
+            "image-effect/gem",
+        )
+        .desc("Refracts and disperses light through crystal-like facets.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("facetSize", "Facet size", 6, 96, 24, |e: &mut Self, v| e.facet_size = v),
-            float_slider::<Self>("refraction", "Refraction", 0.0, 30.0, 8.0, |e: &mut Self, v| e.refraction = v),
-            float_slider::<Self>("dispersion", "Dispersion", 0.0, 20.0, 4.0, |e: &mut Self, v| e.dispersion = v),
-            float_slider::<Self>("sparkle", "Sparkle", 0.0, 100.0, 25.0, |e: &mut Self, v| e.sparkle = v),
+            int_slider::<Self>("facetSize", "Facet size", 6, 96, 24, |e: &mut Self, v| {
+                e.facet_size = v
+            }),
+            float_slider::<Self>(
+                "refraction",
+                "Refraction",
+                0.0,
+                30.0,
+                8.0,
+                |e: &mut Self, v| e.refraction = v,
+            ),
+            float_slider::<Self>(
+                "dispersion",
+                "Dispersion",
+                0.0,
+                20.0,
+                4.0,
+                |e: &mut Self, v| e.dispersion = v,
+            ),
+            float_slider::<Self>("sparkle", "Sparkle", 0.0, 100.0, 25.0, |e: &mut Self, v| {
+                e.sparkle = v
+            }),
         ]
     }
 
@@ -73,9 +96,21 @@ impl EffectImpl for CrystalPrismImageEffect {
                 let sx = x as f32 + (dir_x * off);
                 let sy = y as f32 + (dir_y * off);
                 let disp = dispersion * (0.25 + (0.75 * radial));
-                let cr = bilinear_sample(&src, width, height, sx + (dir_y * disp), sy - (dir_x * disp));
+                let cr = bilinear_sample(
+                    &src,
+                    width,
+                    height,
+                    sx + (dir_y * disp),
+                    sy - (dir_x * disp),
+                );
                 let cg = bilinear_sample(&src, width, height, sx, sy);
-                let cb = bilinear_sample(&src, width, height, sx - (dir_y * disp), sy + (dir_x * disp));
+                let cb = bilinear_sample(
+                    &src,
+                    width,
+                    height,
+                    sx - (dir_y * disp),
+                    sy + (dir_x * disp),
+                );
                 let shade = 0.88 + ((h3 - 0.5) * 0.30);
                 let mut pr = (cr.r as f32 / 255.0) * shade;
                 let mut pg = (cg.g as f32 / 255.0) * shade;
@@ -92,8 +127,12 @@ impl EffectImpl for CrystalPrismImageEffect {
                 let r = lerp(o.r as f32 / 255.0, pr, blend_strength);
                 let g = lerp(o.g as f32 / 255.0, pg, blend_strength);
                 let b = lerp(o.b as f32 / 255.0, pb, blend_strength);
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), o.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    o.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

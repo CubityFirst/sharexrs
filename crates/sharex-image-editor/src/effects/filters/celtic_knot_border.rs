@@ -28,18 +28,56 @@ impl Default for CelticKnotBorderImageEffect {
 
 impl EffectImpl for CelticKnotBorderImageEffect {
     fn info() -> Info {
-        Info::new("celtic_knot_border", "Celtic knot border", EffectCategory::Filters, "image-effect/clover")
-            .desc("Adds an interweaving Celtic knot pattern border inspired by Insular art manuscripts.")
+        Info::new(
+            "celtic_knot_border",
+            "Celtic knot border",
+            EffectCategory::Filters,
+            "image-effect/clover",
+        )
+        .desc(
+            "Adds an interweaving Celtic knot pattern border inspired by Insular art manuscripts.",
+        )
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 16, 200, 52, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("knot_color", "Knot color", SkColor::argb(0xFFB48C3C), |e: &mut Self, v| e.knot_color = v),
-            color_param::<Self>("bg_color", "Background color", SkColor::argb(0xFF233719), |e: &mut Self, v| e.bg_color = v),
-            float_slider::<Self>("strand_width", "Strand width", 10.0, 80.0, 35.0, |e: &mut Self, v| e.strand_width = v),
-            bool_param::<Self>("outline_strands", "Outline strands", true, |e: &mut Self, v| e.outline_strands = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                16,
+                200,
+                52,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "knot_color",
+                "Knot color",
+                SkColor::argb(0xFFB48C3C),
+                |e: &mut Self, v| e.knot_color = v,
+            ),
+            color_param::<Self>(
+                "bg_color",
+                "Background color",
+                SkColor::argb(0xFF233719),
+                |e: &mut Self, v| e.bg_color = v,
+            ),
+            float_slider::<Self>(
+                "strand_width",
+                "Strand width",
+                10.0,
+                80.0,
+                35.0,
+                |e: &mut Self, v| e.strand_width = v,
+            ),
+            bool_param::<Self>(
+                "outline_strands",
+                "Outline strands",
+                true,
+                |e: &mut Self, v| e.outline_strands = v,
+            ),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
         ]
     }
 
@@ -55,7 +93,15 @@ impl EffectImpl for CelticKnotBorderImageEffect {
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, nwf, bf, &bg, None);
         sk::draw_rect_xywh(&mut canvas, 0.0, (nh - border) as f32, nwf, bf, &bg, None);
         sk::draw_rect_xywh(&mut canvas, 0.0, bf, bf, ih as f32, &bg, None);
-        sk::draw_rect_xywh(&mut canvas, (nw - border) as f32, bf, bf, ih as f32, &bg, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            &bg,
+            None,
+        );
         let strand_w = bf * frac;
         let knot = solid(self.knot_color, true);
         let knot_pen = Pen::new(strand_w).cap(Cap::Round).join(Join::Round);
@@ -63,16 +109,76 @@ impl EffectImpl for CelticKnotBorderImageEffect {
         let outline_pen = Pen::new(strand_w + 3.0).cap(Cap::Round).join(Join::Round);
         let o = self.outline_strands.then_some((&outline, &outline_pen));
         let cell = bf * 1.2;
-        band_knots(&mut canvas, &knot, &knot_pen, o, 0.0, 0.0, nwf, bf, true, cell);
-        band_knots(&mut canvas, &knot, &knot_pen, o, 0.0, (nh - border) as f32, nwf, bf, true, cell);
-        band_knots(&mut canvas, &knot, &knot_pen, o, 0.0, bf, bf, ih as f32, false, cell);
-        band_knots(&mut canvas, &knot, &knot_pen, o, (nw - border) as f32, bf, bf, ih as f32, false, cell);
+        band_knots(
+            &mut canvas,
+            &knot,
+            &knot_pen,
+            o,
+            0.0,
+            0.0,
+            nwf,
+            bf,
+            true,
+            cell,
+        );
+        band_knots(
+            &mut canvas,
+            &knot,
+            &knot_pen,
+            o,
+            0.0,
+            (nh - border) as f32,
+            nwf,
+            bf,
+            true,
+            cell,
+        );
+        band_knots(
+            &mut canvas,
+            &knot,
+            &knot_pen,
+            o,
+            0.0,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            cell,
+        );
+        band_knots(
+            &mut canvas,
+            &knot,
+            &knot_pen,
+            o,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            cell,
+        );
         canvas.draw_bitmap(source, bf, bf, None);
         if self.inner_line {
             let pen = Pen::new(2.5);
-            sk::draw_rect_xywh(&mut canvas, bf - 1.25, bf - 1.25, iw as f32 + 2.5, ih as f32 + 2.5, &knot, Some(&pen));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                bf - 1.25,
+                bf - 1.25,
+                iw as f32 + 2.5,
+                ih as f32 + 2.5,
+                &knot,
+                Some(&pen),
+            );
         }
-        sk::draw_rect_xywh(&mut canvas, 1.0, 1.0, nwf - 2.0, nhf - 2.0, &knot, Some(&Pen::new(2.0)));
+        sk::draw_rect_xywh(
+            &mut canvas,
+            1.0,
+            1.0,
+            nwf - 2.0,
+            nhf - 2.0,
+            &knot,
+            Some(&Pen::new(2.0)),
+        );
         drop(canvas);
         Ok(out)
     }
@@ -95,7 +201,11 @@ fn band_knots(
 ) {
     sk::with_clip_rect(canvas, RRect::ltrb(rx, ry, rx + rw, ry + rh), |canvas| {
         let primary = if horizontal { rw } else { rh };
-        let mid = if horizontal { ry + rh * 0.5 } else { rx + rw * 0.5 };
+        let mid = if horizontal {
+            ry + rh * 0.5
+        } else {
+            rx + rw * 0.5
+        };
         let amplitude = if horizontal { rh * 0.25 } else { rw * 0.25 };
         let cells = 2.max((primary / cell) as i32 + 1);
         for strand in 0..2 {
@@ -107,7 +217,11 @@ fn band_knots(
                 let along = s as f32 * seg_len;
                 let angle = (along / cell) * std::f32::consts::PI * 2.0 + phase;
                 let wave = angle.sin() * amplitude;
-                let (px, py) = if horizontal { (rx + along, mid + wave) } else { (mid + wave, ry + along) };
+                let (px, py) = if horizontal {
+                    (rx + along, mid + wave)
+                } else {
+                    (mid + wave, ry + along)
+                };
                 if s == 0 {
                     path.move_to(px, py);
                 } else {

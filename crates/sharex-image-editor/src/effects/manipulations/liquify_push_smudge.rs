@@ -28,18 +28,55 @@ impl Default for LiquifyPushSmudgeImageEffect {
 
 impl EffectImpl for LiquifyPushSmudgeImageEffect {
     fn info() -> Info {
-        Info::new("liquify_push_smudge", "Liquify push / smudge", EffectCategory::Manipulations, "image-effect/droplet")
-            .desc("Pushes and smudges pixels in a direction.")
+        Info::new(
+            "liquify_push_smudge",
+            "Liquify push / smudge",
+            EffectCategory::Manipulations,
+            "image-effect/droplet",
+        )
+        .desc("Pushes and smudges pixels in a direction.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("angle", "Angle", 0.0, 360.0, 0.0, |e: &mut Self, v| e.angle = v),
-            float_slider::<Self>("distance", "Distance", -200.0, 200.0, 40.0, |e: &mut Self, v| e.distance = v),
-            float_slider::<Self>("radius_percentage", "Radius percentage", 1.0, 100.0, 25.0, |e: &mut Self, v| e.radius_percentage = v),
-            float_slider::<Self>("smudge", "Smudge", 0.0, 100.0, 35.0, |e: &mut Self, v| e.smudge = v),
-            float_slider::<Self>("center_x_percentage", "Center X percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            float_slider::<Self>("angle", "Angle", 0.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
+            float_slider::<Self>(
+                "distance",
+                "Distance",
+                -200.0,
+                200.0,
+                40.0,
+                |e: &mut Self, v| e.distance = v,
+            ),
+            float_slider::<Self>(
+                "radius_percentage",
+                "Radius percentage",
+                1.0,
+                100.0,
+                25.0,
+                |e: &mut Self, v| e.radius_percentage = v,
+            ),
+            float_slider::<Self>("smudge", "Smudge", 0.0, 100.0, 35.0, |e: &mut Self, v| {
+                e.smudge = v
+            }),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 
@@ -49,7 +86,8 @@ impl EffectImpl for LiquifyPushSmudgeImageEffect {
             return Ok(source.clone());
         }
         let (width, height) = (source.width() as i32, source.height() as i32);
-        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let radius =
+            1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
         let smudge01 = clampf(self.smudge, 0.0, 100.0) / 100.0;
         let samples = 1 + (smudge01 * 5.0).round_ties_even() as i32;
         let angle = self.angle * (std::f32::consts::PI / 180.0);
@@ -74,14 +112,30 @@ impl EffectImpl for LiquifyPushSmudgeImageEffect {
                 influence *= influence;
                 let push = distance * influence;
                 if samples <= 1 {
-                    dst[i] = bilinear_sample(&src, width, height, x as f32 - (dir_x * push), y as f32 - (dir_y * push));
+                    dst[i] = bilinear_sample(
+                        &src,
+                        width,
+                        height,
+                        x as f32 - (dir_x * push),
+                        y as f32 - (dir_y * push),
+                    );
                     continue;
                 }
                 let (mut sr, mut sg, mut sb, mut sa) = (0f32, 0f32, 0f32, 0f32);
                 for k in 0..samples {
-                    let t = if samples == 1 { 0.0 } else { k as f32 / (samples - 1) as f32 };
+                    let t = if samples == 1 {
+                        0.0
+                    } else {
+                        k as f32 / (samples - 1) as f32
+                    };
                     let offset = push * (1.0 - (t * smudge01));
-                    let s = bilinear_sample(&src, width, height, x as f32 - (dir_x * offset), y as f32 - (dir_y * offset));
+                    let s = bilinear_sample(
+                        &src,
+                        width,
+                        height,
+                        x as f32 - (dir_x * offset),
+                        y as f32 - (dir_y * offset),
+                    );
                     sr += s.r as f32;
                     sg += s.g as f32;
                     sb += s.b as f32;

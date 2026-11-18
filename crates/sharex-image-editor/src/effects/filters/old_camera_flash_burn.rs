@@ -30,19 +30,63 @@ impl Default for OldCameraFlashBurnImageEffect {
 
 impl EffectImpl for OldCameraFlashBurnImageEffect {
     fn info() -> Info {
-        Info::new("old_camera_flash_burn", "Old camera flash burn", EffectCategory::Filters, "image-effect/flashlight")
-            .desc("Simulates an old camera flash burn with warm glow and edge burn effects.")
+        Info::new(
+            "old_camera_flash_burn",
+            "Old camera flash burn",
+            EffectCategory::Filters,
+            "image-effect/flashlight",
+        )
+        .desc("Simulates an old camera flash burn with warm glow and edge burn effects.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("flash_strength", "Flash strength", 0.0, 100.0, 70.0, |e: &mut Self, v| e.flash_strength = v),
-            float_slider::<Self>("flash_radius", "Flash radius", 20.0, 100.0, 68.0, |e: &mut Self, v| e.flash_radius = v),
-            float_slider::<Self>("edge_burn", "Edge burn", 0.0, 100.0, 45.0, |e: &mut Self, v| e.edge_burn = v),
-            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 35.0, |e: &mut Self, v| e.warmth = v),
-            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 20.0, |e: &mut Self, v| e.grain = v),
-            float_slider::<Self>("center_x", "Center X", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x = v),
-            float_slider::<Self>("center_y", "Center Y", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y = v),
+            float_slider::<Self>(
+                "flash_strength",
+                "Flash strength",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.flash_strength = v,
+            ),
+            float_slider::<Self>(
+                "flash_radius",
+                "Flash radius",
+                20.0,
+                100.0,
+                68.0,
+                |e: &mut Self, v| e.flash_radius = v,
+            ),
+            float_slider::<Self>(
+                "edge_burn",
+                "Edge burn",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.edge_burn = v,
+            ),
+            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 35.0, |e: &mut Self, v| {
+                e.warmth = v
+            }),
+            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 20.0, |e: &mut Self, v| {
+                e.grain = v
+            }),
+            float_slider::<Self>(
+                "center_x",
+                "Center X",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x = v,
+            ),
+            float_slider::<Self>(
+                "center_y",
+                "Center Y",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y = v,
+            ),
         ]
     }
 
@@ -102,7 +146,12 @@ impl EffectImpl for OldCameraFlashBurnImageEffect {
                     g += noise;
                     b += noise * 0.9;
                 }
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

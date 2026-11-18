@@ -28,18 +28,56 @@ impl Default for MarbleBorderImageEffect {
 
 impl EffectImpl for MarbleBorderImageEffect {
     fn info() -> Info {
-        Info::new("marble_border", "Marble border", EffectCategory::Filters, "image-effect/gem")
-            .desc("Adds a procedural marble-veined texture border around the image.")
+        Info::new(
+            "marble_border",
+            "Marble border",
+            EffectCategory::Filters,
+            "image-effect/gem",
+        )
+        .desc("Adds a procedural marble-veined texture border around the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 2, 300, 50, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("base_color", "Base color", SkColor::argb(0xFFEBE6DC), |e: &mut Self, v| e.base_color = v),
-            color_param::<Self>("vein_color", "Vein color", SkColor::argb(0xFF5A5046), |e: &mut Self, v| e.vein_color = v),
-            float_slider::<Self>("vein_strength", "Vein strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.vein_strength = v),
-            float_slider::<Self>("vein_scale", "Vein scale", 5.0, 100.0, 30.0, |e: &mut Self, v| e.vein_scale = v),
-            bool_param::<Self>("inner_bevel", "Inner bevel", true, |e: &mut Self, v| e.inner_bevel = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                2,
+                300,
+                50,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "base_color",
+                "Base color",
+                SkColor::argb(0xFFEBE6DC),
+                |e: &mut Self, v| e.base_color = v,
+            ),
+            color_param::<Self>(
+                "vein_color",
+                "Vein color",
+                SkColor::argb(0xFF5A5046),
+                |e: &mut Self, v| e.vein_color = v,
+            ),
+            float_slider::<Self>(
+                "vein_strength",
+                "Vein strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.vein_strength = v,
+            ),
+            float_slider::<Self>(
+                "vein_scale",
+                "Vein scale",
+                5.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.vein_scale = v,
+            ),
+            bool_param::<Self>("inner_bevel", "Inner bevel", true, |e: &mut Self, v| {
+                e.inner_bevel = v
+            }),
         ]
     }
 
@@ -88,7 +126,12 @@ fn marble_color(x: i32, y: i32, scale: f32, vein: f32, base: SkColor, vc: SkColo
     m = (m + 1.0) * 0.5;
     m = m.powf(1.5);
     let l = |a: u8, b: u8| a as f32 + (b as f32 - a as f32) * m;
-    SkColor::rgba(clamp_to_byte(l(base.r, vc.r)), clamp_to_byte(l(base.g, vc.g)), clamp_to_byte(l(base.b, vc.b)), 255)
+    SkColor::rgba(
+        clamp_to_byte(l(base.r, vc.r)),
+        clamp_to_byte(l(base.g, vc.g)),
+        clamp_to_byte(l(base.b, vc.b)),
+        255,
+    )
 }
 
 fn inner_bevel(x: i32, y: i32, border: i32, sw: i32, sh: i32) -> f32 {

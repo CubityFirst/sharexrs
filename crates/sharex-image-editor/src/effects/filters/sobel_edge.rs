@@ -20,14 +20,28 @@ impl Default for SobelEdgeImageEffect {
 
 impl EffectImpl for SobelEdgeImageEffect {
     fn info() -> Info {
-        Info::new("sobel_edge", "Sobel edge", EffectCategory::Filters, "app/region")
-            .desc("Detects edges using the Sobel operator.")
+        Info::new(
+            "sobel_edge",
+            "Sobel edge",
+            EffectCategory::Filters,
+            "app/region",
+        )
+        .desc("Detects edges using the Sobel operator.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", 0.10000000149011612, 5.0, 1.2000000476837158, |e: &mut Self, v| e.strength = v),
-            int_slider::<Self>("threshold", "Threshold", 0, 255, 20, |e: &mut Self, v| e.threshold = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.10000000149011612,
+                5.0,
+                1.2000000476837158,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            int_slider::<Self>("threshold", "Threshold", 0, 255, 20, |e: &mut Self, v| {
+                e.threshold = v
+            }),
         ]
     }
 
@@ -53,7 +67,11 @@ impl EffectImpl for SobelEdgeImageEffect {
                 let gx = (-p00 + p02) + (-2 * p10 + 2 * p12) + (-p20 + p22);
                 let gy = (-p00 - 2 * p01 - p02) + (p20 + 2 * p21 + p22);
                 let m = (((gx * gx) + (gy * gy)) as f32).sqrt() * strength;
-                let e = if m >= threshold as f32 { clamp_to_byte(m) } else { 0 };
+                let e = if m >= threshold as f32 {
+                    clamp_to_byte(m)
+                } else {
+                    0
+                };
                 let i = (y * width + x) as usize;
                 dst[i] = SkColor::rgba(e, e, e, src[i].a);
             }

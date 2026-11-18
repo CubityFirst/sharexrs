@@ -10,9 +10,7 @@ pub struct ClarityImageEffect {
 
 impl Default for ClarityImageEffect {
     fn default() -> Self {
-        ClarityImageEffect {
-            amount: 0.0,
-        }
+        ClarityImageEffect { amount: 0.0 }
     }
 }
 
@@ -23,9 +21,14 @@ impl EffectImpl for ClarityImageEffect {
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Amount", -100.0, 100.0, 0.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Amount",
+            -100.0,
+            100.0,
+            0.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

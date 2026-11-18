@@ -10,22 +10,30 @@ pub struct TrianglePixelateImageEffect {
 
 impl Default for TrianglePixelateImageEffect {
     fn default() -> Self {
-        TrianglePixelateImageEffect {
-            size: 24,
-        }
+        TrianglePixelateImageEffect { size: 24 }
     }
 }
 
 impl EffectImpl for TrianglePixelateImageEffect {
     fn info() -> Info {
-        Info::new("triangle_pixelate", "Triangle pixelate", EffectCategory::Filters, "image-effect/triangle")
-            .desc("Pixelates the image using triangular tiles.")
+        Info::new(
+            "triangle_pixelate",
+            "Triangle pixelate",
+            EffectCategory::Filters,
+            "image-effect/triangle",
+        )
+        .desc("Pixelates the image using triangular tiles.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("size", "Size", 8, 100, 24, |e: &mut Self, v| e.size = v),
-        ]
+        vec![int_slider::<Self>(
+            "size",
+            "Size",
+            8,
+            100,
+            24,
+            |e: &mut Self, v| e.size = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

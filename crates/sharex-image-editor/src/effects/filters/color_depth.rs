@@ -18,14 +18,24 @@ impl Default for ColorDepthImageEffect {
 
 impl EffectImpl for ColorDepthImageEffect {
     fn info() -> Info {
-        Info::new("color_depth", "Color depth", EffectCategory::Filters, "app/layers")
-            .desc("Reduces the number of bits per color channel.")
+        Info::new(
+            "color_depth",
+            "Color depth",
+            EffectCategory::Filters,
+            "app/layers",
+        )
+        .desc("Reduces the number of bits per color channel.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("bitsPerChannel", "Bits per channel", 1, 8, 4, |e: &mut Self, v| e.bits_per_channel = v),
-        ]
+        vec![int_slider::<Self>(
+            "bitsPerChannel",
+            "Bits per channel",
+            1,
+            8,
+            4,
+            |e: &mut Self, v| e.bits_per_channel = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -35,7 +45,8 @@ impl EffectImpl for ColorDepthImageEffect {
         }
         let colors = 2f64.powf(bits as f64);
         let interval = 255.0 / (colors - 1.0);
-        let remap = |c: u8| ((c as f64 / interval).round_ties_even() * interval).round_ties_even() as u8;
+        let remap =
+            |c: u8| ((c as f64 / interval).round_ties_even() * interval).round_ties_even() as u8;
         let dst: Vec<SkColor> = pixels(source)
             .iter()
             .map(|c| SkColor::rgba(remap(c.r), remap(c.g), remap(c.b), c.a))

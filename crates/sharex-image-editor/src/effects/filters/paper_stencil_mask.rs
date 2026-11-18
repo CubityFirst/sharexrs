@@ -30,18 +30,58 @@ impl Default for PaperStencilMaskImageEffect {
 
 impl EffectImpl for PaperStencilMaskImageEffect {
     fn info() -> Info {
-        Info::new("paper_stencil_mask", "Paper stencil mask", EffectCategory::Filters, "app/stamp")
-            .desc("Applies a paper stencil mask effect with adjustable threshold and edge strength.")
+        Info::new(
+            "paper_stencil_mask",
+            "Paper stencil mask",
+            EffectCategory::Filters,
+            "app/stamp",
+        )
+        .desc("Applies a paper stencil mask effect with adjustable threshold and edge strength.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("threshold", "Threshold", 0.0, 255.0, 140.0, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("feather_radius", "Feather radius", 0.0, 200.0, 8.0, |e: &mut Self, v| e.feather_radius = v),
-            float_slider::<Self>("edge_strength", "Edge strength", 0.0, 100.0, 70.0, |e: &mut Self, v| e.edge_strength = v),
-            float_slider::<Self>("background_dim", "Background dim", 0.0, 100.0, 35.0, |e: &mut Self, v| e.background_dim = v),
-            bool_param::<Self>("invert_mask", "Invert mask", false, |e: &mut Self, v| e.invert_mask = v),
-            color_param::<Self>("stencil_color", "Stencil color", SkColor::argb(0xDC000000), |e: &mut Self, v| e.stencil_color = v),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                255.0,
+                140.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>(
+                "feather_radius",
+                "Feather radius",
+                0.0,
+                200.0,
+                8.0,
+                |e: &mut Self, v| e.feather_radius = v,
+            ),
+            float_slider::<Self>(
+                "edge_strength",
+                "Edge strength",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.edge_strength = v,
+            ),
+            float_slider::<Self>(
+                "background_dim",
+                "Background dim",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.background_dim = v,
+            ),
+            bool_param::<Self>("invert_mask", "Invert mask", false, |e: &mut Self, v| {
+                e.invert_mask = v
+            }),
+            color_param::<Self>(
+                "stencil_color",
+                "Stencil color",
+                SkColor::argb(0xDC000000),
+                |e: &mut Self, v| e.stencil_color = v,
+            ),
         ]
     }
 
@@ -57,7 +97,11 @@ impl EffectImpl for PaperStencilMaskImageEffect {
         let dim = clamp01(1.0 - clampf(self.background_dim, 0.0, 100.0) / 100.0);
         let sc = self.stencil_color;
         let cap = (sc.a as f32 / 255.0) * edge;
-        let (sr, sg, sb) = (sc.r as f32 / 255.0, sc.g as f32 / 255.0, sc.b as f32 / 255.0);
+        let (sr, sg, sb) = (
+            sc.r as f32 / 255.0,
+            sc.g as f32 / 255.0,
+            sc.b as f32 / 255.0,
+        );
         if source.is_empty() {
             return Ok(source.clone());
         }
@@ -68,9 +112,11 @@ impl EffectImpl for PaperStencilMaskImageEffect {
             for x in 0..width {
                 let i = (y * width + x) as usize;
                 let s = src[i];
-                let l = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                let l =
+                    ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
                 let jitter = (hash01(x, y, self.seed ^ 0xCAFE) * 2.0 - 1.0) * 0.003;
-                let mut mask = smooth_step(threshold - range + jitter, threshold + range + jitter, l);
+                let mut mask =
+                    smooth_step(threshold - range + jitter, threshold + range + jitter, l);
                 if self.invert_mask {
                     mask = 1.0 - mask;
                 }
@@ -78,7 +124,12 @@ impl EffectImpl for PaperStencilMaskImageEffect {
                 let r = lerp((s.r as f32 / 255.0) * dim, sr, mix);
                 let g = lerp((s.g as f32 / 255.0) * dim, sg, mix);
                 let b = lerp((s.b as f32 / 255.0) * dim, sb, mix);
-                dst[i] = SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

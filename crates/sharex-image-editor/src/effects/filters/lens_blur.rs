@@ -22,15 +22,34 @@ impl Default for LensBlurImageEffect {
 
 impl EffectImpl for LensBlurImageEffect {
     fn info() -> Info {
-        Info::new("lens_blur", "Lens blur (bokeh)", EffectCategory::Filters, "image-effect/aperture")
-            .desc("Applies a disc-shaped lens blur with highlight boost.")
+        Info::new(
+            "lens_blur",
+            "Lens blur (bokeh)",
+            EffectCategory::Filters,
+            "image-effect/aperture",
+        )
+        .desc("Applies a disc-shaped lens blur with highlight boost.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("radius", "Radius", 1, 15, 8, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("highlight_threshold", "Highlight threshold", 0.0, 100.0, 70.0, |e: &mut Self, v| e.highlight_threshold = v),
-            float_slider::<Self>("highlight_boost", "Highlight boost", 0.0, 200.0, 85.0, |e: &mut Self, v| e.highlight_boost = v),
+            float_slider::<Self>(
+                "highlight_threshold",
+                "Highlight threshold",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.highlight_threshold = v,
+            ),
+            float_slider::<Self>(
+                "highlight_boost",
+                "Highlight boost",
+                0.0,
+                200.0,
+                85.0,
+                |e: &mut Self, v| e.highlight_boost = v,
+            ),
         ]
     }
 
@@ -62,7 +81,9 @@ impl EffectImpl for LensBlurImageEffect {
         }
         let lum: Vec<f32> = src
             .iter()
-            .map(|c| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0)
+            .map(|c| {
+                ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+            })
             .collect();
         for y in 0..height {
             let row = y * width;
@@ -93,7 +114,12 @@ impl EffectImpl for LensBlurImageEffect {
                     continue;
                 }
                 let inv = 1.0 / sw;
-                dst[i] = SkColor::rgba(clamp_to_byte(sr * inv), clamp_to_byte(sg * inv), clamp_to_byte(sb * inv), clamp_to_byte(sa * inv));
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(sr * inv),
+                    clamp_to_byte(sg * inv),
+                    clamp_to_byte(sb * inv),
+                    clamp_to_byte(sa * inv),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

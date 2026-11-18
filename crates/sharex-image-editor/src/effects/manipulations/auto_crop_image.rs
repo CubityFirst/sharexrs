@@ -21,14 +21,24 @@ impl Default for AutoCropImageEffect {
 
 impl EffectImpl for AutoCropImageEffect {
     fn info() -> Info {
-        Info::new("auto_crop_image", "Auto crop image", EffectCategory::Manipulations, "app/region")
-            .desc("Automatically crops the image using tolerance on edge pixels.")
+        Info::new(
+            "auto_crop_image",
+            "Auto crop image",
+            EffectCategory::Manipulations,
+            "app/region",
+        )
+        .desc("Automatically crops the image using tolerance on edge pixels.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("tolerance", "Tolerance", 0, 255, 0, |e: &mut Self, v| e.tolerance = v),
-        ]
+        vec![int_slider::<Self>(
+            "tolerance",
+            "Tolerance",
+            0,
+            255,
+            0,
+            |e: &mut Self, v| e.tolerance = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -44,7 +54,11 @@ impl EffectImpl for AutoCropImageEffect {
             for x in 0..width {
                 let c = get_pixel(source, x, y);
                 let m = |a: u8, b: u8| (a as i32 - b as i32).abs() <= tol;
-                if !(m(c.r, match_color.r) && m(c.g, match_color.g) && m(c.b, match_color.b) && m(c.a, match_color.a)) {
+                if !(m(c.r, match_color.r)
+                    && m(c.g, match_color.g)
+                    && m(c.b, match_color.b)
+                    && m(c.a, match_color.a))
+                {
                     min_x = min_x.min(x as i32);
                     min_y = min_y.min(y as i32);
                     max_x = max_x.max(x as i32);
@@ -56,6 +70,12 @@ impl EffectImpl for AutoCropImageEffect {
             // CropToContentBounds(null): a new 1x1 bitmap.
             return Ok(Bitmap::new(1, 1));
         }
-        Ok(crop_copy(source, min_x, min_y, max_x + 1 - min_x, max_y + 1 - min_y))
+        Ok(crop_copy(
+            source,
+            min_x,
+            min_y,
+            max_x + 1 - min_x,
+            max_y + 1 - min_y,
+        ))
     }
 }

@@ -1,6 +1,6 @@
 //! `Core/ImageEffects/Filters`.
 
-use super::{def, EffectDefinition};
+use super::{EffectDefinition, def};
 
 pub(crate) mod add_noise;
 pub(crate) mod anaglyph_3d;
@@ -209,7 +209,9 @@ pub(crate) fn register(list: &mut Vec<EffectDefinition>) {
     list.push(def::<film_strip_frame::FilmStripFrameImageEffect>());
     list.push(def::<frost_ice_border::FrostIceBorderImageEffect>());
     list.push(def::<frosted_glass::FrostedGlassImageEffect>());
-    list.push(def::<frosted_glass_ice_edges::FrostedGlassIceEdgesImageEffect>());
+    list.push(def::<
+        frosted_glass_ice_edges::FrostedGlassIceEdgesImageEffect,
+    >());
     list.push(def::<gaussian_blur::GaussianBlurImageEffect>());
     list.push(def::<ghost_trail::GhostTrailImageEffect>());
     list.push(def::<glare::GlareImageEffect>());
@@ -223,7 +225,9 @@ pub(crate) fn register(list: &mut Vec<EffectDefinition>) {
     list.push(def::<heat_map::HeatMapImageEffect>());
     list.push(def::<hexagonal_pixelate::HexagonalPixelateImageEffect>());
     list.push(def::<hologram_scan::HologramScanImageEffect>());
-    list.push(def::<holographic_foil_shimmer::HolographicFoilShimmerImageEffect>());
+    list.push(def::<
+        holographic_foil_shimmer::HolographicFoilShimmerImageEffect,
+    >());
     list.push(def::<infrared_false_color::InfraredFalseColorImageEffect>());
     list.push(def::<ink_splatter_drips::InkSplatterDripsImageEffect>());
     list.push(def::<inner_shadow::InnerShadowImageEffect>());
@@ -233,7 +237,9 @@ pub(crate) fn register(list: &mut Vec<EffectDefinition>) {
     list.push(def::<light_leak::LightLeakImageEffect>());
     list.push(def::<liquid_glass::LiquidGlassImageEffect>());
     list.push(def::<liquid_mercury::LiquidMercuryImageEffect>());
-    list.push(def::<luminance_contour_lines::LuminanceContourLinesImageEffect>());
+    list.push(def::<
+        luminance_contour_lines::LuminanceContourLinesImageEffect,
+    >());
     list.push(def::<macos_window::MacOSWindowImageEffect>());
     list.push(def::<marble_border::MarbleBorderImageEffect>());
     list.push(def::<matrix_digital_rain::MatrixDigitalRainImageEffect>());

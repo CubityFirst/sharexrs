@@ -30,16 +30,41 @@ impl Default for WindStreaksImageEffect {
 
 impl EffectImpl for WindStreaksImageEffect {
     fn info() -> Info {
-        Info::new("wind_streaks", "Wind streaks", EffectCategory::Filters, "image-effect/wind")
-            .desc("Adds directional wind streak trails to bright areas.")
+        Info::new(
+            "wind_streaks",
+            "Wind streaks",
+            EffectCategory::Filters,
+            "image-effect/wind",
+        )
+        .desc("Adds directional wind streak trails to bright areas.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("length", "Streak length", 5, 100, 30, |e: &mut Self, v| e.length = v),
-            int_slider::<Self>("threshold", "Brightness threshold", 100, 254, 200, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 40.0, |e: &mut Self, v| e.opacity = v),
-            enum_param::<Self, WindDirection>("direction", "Direction", WindDirection::Right, |e: &mut Self, v| e.direction = v, &[("Left", WindDirection::Left), ("Right", WindDirection::Right)]),
+            int_slider::<Self>("length", "Streak length", 5, 100, 30, |e: &mut Self, v| {
+                e.length = v
+            }),
+            int_slider::<Self>(
+                "threshold",
+                "Brightness threshold",
+                100,
+                254,
+                200,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 40.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
+            enum_param::<Self, WindDirection>(
+                "direction",
+                "Direction",
+                WindDirection::Right,
+                |e: &mut Self, v| e.direction = v,
+                &[
+                    ("Left", WindDirection::Left),
+                    ("Right", WindDirection::Right),
+                ],
+            ),
         ]
     }
 
@@ -49,7 +74,11 @@ impl EffectImpl for WindStreaksImageEffect {
         let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
         let src = pixels(source);
         let mut dst = src.clone();
-        let dir = if self.direction == WindDirection::Right { 1 } else { -1 };
+        let dir = if self.direction == WindDirection::Right {
+            1
+        } else {
+            -1
+        };
         let th = self.threshold as f32;
         for y in 0..h {
             for x in 0..w {
@@ -67,8 +96,10 @@ impl EffectImpl for WindStreaksImageEffect {
                     let fade = 1.0 - s as f32 / len as f32;
                     let blend = sa * fade;
                     let e = dst[(y * w + tx) as usize];
-                    let f = |ev: u8, cv: u8| (ev as f32 + (cv as i32 - ev as i32) as f32 * blend) as u8;
-                    dst[(y * w + tx) as usize] = SkColor::rgba(f(e.r, c.r), f(e.g, c.g), f(e.b, c.b), e.a);
+                    let f =
+                        |ev: u8, cv: u8| (ev as f32 + (cv as i32 - ev as i32) as f32 * blend) as u8;
+                    dst[(y * w + tx) as usize] =
+                        SkColor::rgba(f(e.r, c.r), f(e.g, c.g), f(e.b, c.b), e.a);
                 }
             }
         }

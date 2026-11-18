@@ -26,17 +26,47 @@ impl Default for KaleidoscopeImageEffect {
 
 impl EffectImpl for KaleidoscopeImageEffect {
     fn info() -> Info {
-        Info::new("kaleidoscope", "Kaleidoscope", EffectCategory::Manipulations, "image-effect/pinwheel")
-            .desc("Creates a kaleidoscope mirror pattern.")
+        Info::new(
+            "kaleidoscope",
+            "Kaleidoscope",
+            EffectCategory::Manipulations,
+            "image-effect/pinwheel",
+        )
+        .desc("Creates a kaleidoscope mirror pattern.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("segments", "Segments", 2, 24, 8, |e: &mut Self, v| e.segments = v),
-            float_slider::<Self>("rotation", "Rotation", 0.0, 360.0, 0.0, |e: &mut Self, v| e.rotation = v),
-            float_slider::<Self>("zoom", "Zoom", 20.0, 300.0, 100.0, |e: &mut Self, v| e.zoom = v),
-            float_slider::<Self>("center_x_percentage", "Center X percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            int_slider::<Self>("segments", "Segments", 2, 24, 8, |e: &mut Self, v| {
+                e.segments = v
+            }),
+            float_slider::<Self>(
+                "rotation",
+                "Rotation",
+                0.0,
+                360.0,
+                0.0,
+                |e: &mut Self, v| e.rotation = v,
+            ),
+            float_slider::<Self>("zoom", "Zoom", 20.0, 300.0, 100.0, |e: &mut Self, v| {
+                e.zoom = v
+            }),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 

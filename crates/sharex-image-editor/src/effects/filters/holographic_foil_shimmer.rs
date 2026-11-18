@@ -28,17 +28,42 @@ impl Default for HolographicFoilShimmerImageEffect {
 
 impl EffectImpl for HolographicFoilShimmerImageEffect {
     fn info() -> Info {
-        Info::new("holographic_foil_shimmer", "Holographic foil shimmer", EffectCategory::Filters, "image-effect/rainbow")
-            .desc("Overlays a rainbow holographic foil shimmer effect.")
+        Info::new(
+            "holographic_foil_shimmer",
+            "Holographic foil shimmer",
+            EffectCategory::Filters,
+            "image-effect/rainbow",
+        )
+        .desc("Overlays a rainbow holographic foil shimmer effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 65.0, |e: &mut Self, v| e.intensity = v),
-            float_slider::<Self>("scale", "Scale", 40.0, 300.0, 120.0, |e: &mut Self, v| e.scale = v),
-            float_slider::<Self>("shift", "Shift", 0.0, 360.0, 0.0, |e: &mut Self, v| e.shift = v),
-            float_slider::<Self>("specular", "Specular", 0.0, 100.0, 45.0, |e: &mut Self, v| e.specular = v),
-            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 20.0, |e: &mut Self, v| e.grain = v),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            float_slider::<Self>("scale", "Scale", 40.0, 300.0, 120.0, |e: &mut Self, v| {
+                e.scale = v
+            }),
+            float_slider::<Self>("shift", "Shift", 0.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.shift = v
+            }),
+            float_slider::<Self>(
+                "specular",
+                "Specular",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.specular = v,
+            ),
+            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 20.0, |e: &mut Self, v| {
+                e.grain = v
+            }),
         ]
     }
 
@@ -59,7 +84,12 @@ impl EffectImpl for HolographicFoilShimmerImageEffect {
             let row = y * width;
             for x in 0..width {
                 let s = src[(row + x) as usize];
-                let (sr, sg, sb, sa) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0, s.a as f32);
+                let (sr, sg, sb, sa) = (
+                    s.r as f32 / 255.0,
+                    s.g as f32 / 255.0,
+                    s.b as f32 / 255.0,
+                    s.a as f32,
+                );
                 let lum = (0.2126 * sr) + (0.7152 * sg) + (0.0722 * sb);
                 let u = x as f32 * inv_scale;
                 let v = y as f32 * inv_scale;

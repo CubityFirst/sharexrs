@@ -26,24 +26,43 @@ impl Default for InnerShadowImageEffect {
 
 impl EffectImpl for InnerShadowImageEffect {
     fn info() -> Info {
-        Info::new("inner_shadow", "Inner shadow", EffectCategory::Filters, "image-effect/square-dashed")
-            .desc("Adds an inner shadow along the edges of opaque regions.")
+        Info::new(
+            "inner_shadow",
+            "Inner shadow",
+            EffectCategory::Filters,
+            "image-effect/square-dashed",
+        )
+        .desc("Adds an inner shadow along the edges of opaque regions.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 70.0, |e: &mut Self, v| e.opacity = v),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 70.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
             int_slider::<Self>("size", "Size", 0, 300, 20, |e: &mut Self, v| e.size = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.color = v),
-            int_numeric::<Self>("offset_x", "Offset X", -300, 300, 0, |e: &mut Self, v| e.offset_x = v),
-            int_numeric::<Self>("offset_y", "Offset Y", -300, 300, 0, |e: &mut Self, v| e.offset_y = v),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.color = v,
+            ),
+            int_numeric::<Self>("offset_x", "Offset X", -300, 300, 0, |e: &mut Self, v| {
+                e.offset_x = v
+            }),
+            int_numeric::<Self>("offset_y", "Offset Y", -300, 300, 0, |e: &mut Self, v| {
+                e.offset_y = v
+            }),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let opacity = clampf(self.opacity, 0.0, 100.0) / 100.0;
         let size = self.size.clamp(0, 300);
-        if opacity <= 0.0 || (size <= 0 && self.offset_x == 0 && self.offset_y == 0) || self.color.a == 0 {
+        if opacity <= 0.0
+            || (size <= 0 && self.offset_x == 0 && self.offset_y == 0)
+            || self.color.a == 0
+        {
             return Ok(source.clone());
         }
         if source.is_empty() {
@@ -51,10 +70,18 @@ impl EffectImpl for InnerShadowImageEffect {
         }
         let (w, h) = (source.width(), source.height());
         let src = pixels(source);
-        let mask: Vec<SkColor> = src.iter().map(|c| SkColor::rgba(c.a, c.a, c.a, c.a)).collect();
+        let mask: Vec<SkColor> = src
+            .iter()
+            .map(|c| SkColor::rgba(c.a, c.a, c.a, c.a))
+            .collect();
         let mask_bmp = from_pixels(w, h, &mask);
         let mut shifted = Bitmap::new(w, h);
-        draw_bitmap(&mut shifted, &mask_bmp, -self.offset_x as f32, -self.offset_y as f32);
+        draw_bitmap(
+            &mut shifted,
+            &mask_bmp,
+            -self.offset_x as f32,
+            -self.offset_y as f32,
+        );
         let blurred = if size > 0 {
             let radius = size as f32 / 2.0;
             if radius <= 0.01 {

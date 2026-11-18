@@ -26,17 +26,53 @@ impl Default for RopeBorderImageEffect {
 
 impl EffectImpl for RopeBorderImageEffect {
     fn info() -> Info {
-        Info::new("rope_border", "Rope border", EffectCategory::Filters, "app/link")
-            .desc("Adds a twisted rope/cord border with braided fiber detail and shading.")
+        Info::new(
+            "rope_border",
+            "Rope border",
+            EffectCategory::Filters,
+            "app/link",
+        )
+        .desc("Adds a twisted rope/cord border with braided fiber detail and shading.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 12, 200, 40, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("rope_color", "Rope color", SkColor::argb(0xFFB4915A), |e: &mut Self, v| e.rope_color = v),
-            color_param::<Self>("bg_color", "Background color", SkColor::argb(0xFF3C2D1E), |e: &mut Self, v| e.bg_color = v),
-            float_slider::<Self>("twist_density", "Twist density", 10.0, 100.0, 50.0, |e: &mut Self, v| e.twist_density = v),
-            float_slider::<Self>("fiber_detail", "Fiber detail", 0.0, 100.0, 55.0, |e: &mut Self, v| e.fiber_detail = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                12,
+                200,
+                40,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "rope_color",
+                "Rope color",
+                SkColor::argb(0xFFB4915A),
+                |e: &mut Self, v| e.rope_color = v,
+            ),
+            color_param::<Self>(
+                "bg_color",
+                "Background color",
+                SkColor::argb(0xFF3C2D1E),
+                |e: &mut Self, v| e.bg_color = v,
+            ),
+            float_slider::<Self>(
+                "twist_density",
+                "Twist density",
+                10.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.twist_density = v,
+            ),
+            float_slider::<Self>(
+                "fiber_detail",
+                "Fiber detail",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.fiber_detail = v,
+            ),
         ]
     }
 
@@ -48,7 +84,11 @@ impl EffectImpl for RopeBorderImageEffect {
         let (iw, ih) = (source.width() as i32, source.height() as i32);
         let (nw, nh) = (iw + border * 2, ih + border * 2);
         let rc = self.rope_color;
-        let (rr, rg, rb) = (rc.r as f32 / 255.0, rc.g as f32 / 255.0, rc.b as f32 / 255.0);
+        let (rr, rg, rb) = (
+            rc.r as f32 / 255.0,
+            rc.g as f32 / 255.0,
+            rc.b as f32 / 255.0,
+        );
         let mut dst = vec![color::EMPTY; (nw * nh) as usize];
         let radius = border as f32 * 0.42;
         let pi = std::f32::consts::PI;
@@ -65,11 +105,19 @@ impl EffectImpl for RopeBorderImageEffect {
                 let (along, across, seed) = if top {
                     (x as f32, y as f32 - center, SEED ^ 0x1A)
                 } else if bottom {
-                    ((nw - x) as f32, -(((y - (nh - border)) as f32) - (border as f32 - center)), SEED ^ 0x2B)
+                    (
+                        (nw - x) as f32,
+                        -(((y - (nh - border)) as f32) - (border as f32 - center)),
+                        SEED ^ 0x2B,
+                    )
                 } else if left {
                     ((nh - y) as f32, x as f32 - center, SEED ^ 0x3C)
                 } else {
-                    (y as f32, -(((x - (nw - border)) as f32) - (border as f32 - center)), SEED ^ 0x4D)
+                    (
+                        y as f32,
+                        -(((x - (nw - border)) as f32) - (border as f32 - center)),
+                        SEED ^ 0x4D,
+                    )
                 };
                 let mut best = f32::MAX;
                 let mut best_shade = 0f32;
@@ -87,7 +135,9 @@ impl EffectImpl for RopeBorderImageEffect {
                 let i = (y * nw + x) as usize;
                 if best < radius * 0.38 {
                     let fn_ = if fiber > 0.0 {
-                        (hash01((along * 1.5) as i32, (across * 3.0) as i32, seed) * 2.0 - 1.0) * fiber * 0.18
+                        (hash01((along * 1.5) as i32, (across * 3.0) as i32, seed) * 2.0 - 1.0)
+                            * fiber
+                            * 0.18
                     } else {
                         0.0
                     };

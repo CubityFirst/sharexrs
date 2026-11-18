@@ -26,17 +26,57 @@ impl Default for CartoonStickerCutoutImageEffect {
 
 impl EffectImpl for CartoonStickerCutoutImageEffect {
     fn info() -> Info {
-        Info::new("cartoon_sticker_cutout", "Cartoon sticker cutout", EffectCategory::Filters, "image-effect/sticker")
-            .desc("Applies a cartoon sticker cutout effect with quantized colors and ink edges.")
+        Info::new(
+            "cartoon_sticker_cutout",
+            "Cartoon sticker cutout",
+            EffectCategory::Filters,
+            "image-effect/sticker",
+        )
+        .desc("Applies a cartoon sticker cutout effect with quantized colors and ink edges.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("colorLevels", "Color levels", 2, 20, 8, |e: &mut Self, v| e.color_levels = v),
-            int_slider::<Self>("edgeThreshold", "Edge threshold", 5, 120, 32, |e: &mut Self, v| e.edge_threshold = v),
-            float_slider::<Self>("inkStrength", "Ink strength", 0.0, 100.0, 85.0, |e: &mut Self, v| e.ink_strength = v),
-            int_slider::<Self>("stickerBorder", "Sticker border", 0, 10, 3, |e: &mut Self, v| e.sticker_border = v),
-            float_slider::<Self>("borderStrength", "Border strength", 0.0, 100.0, 90.0, |e: &mut Self, v| e.border_strength = v),
+            int_slider::<Self>(
+                "colorLevels",
+                "Color levels",
+                2,
+                20,
+                8,
+                |e: &mut Self, v| e.color_levels = v,
+            ),
+            int_slider::<Self>(
+                "edgeThreshold",
+                "Edge threshold",
+                5,
+                120,
+                32,
+                |e: &mut Self, v| e.edge_threshold = v,
+            ),
+            float_slider::<Self>(
+                "inkStrength",
+                "Ink strength",
+                0.0,
+                100.0,
+                85.0,
+                |e: &mut Self, v| e.ink_strength = v,
+            ),
+            int_slider::<Self>(
+                "stickerBorder",
+                "Sticker border",
+                0,
+                10,
+                3,
+                |e: &mut Self, v| e.sticker_border = v,
+            ),
+            float_slider::<Self>(
+                "borderStrength",
+                "Border strength",
+                0.0,
+                100.0,
+                90.0,
+                |e: &mut Self, v| e.border_strength = v,
+            ),
         ]
     }
 
@@ -51,7 +91,10 @@ impl EffectImpl for CartoonStickerCutoutImageEffect {
         let src = pixels(source);
         let step = 255.0 / (levels - 1) as f32;
         let q = |v: u8| clamp_to_byte((v as f32 / step).round_ties_even() * step);
-        let quantized: Vec<SkColor> = src.iter().map(|c| SkColor::rgba(q(c.r), q(c.g), q(c.b), c.a)).collect();
+        let quantized: Vec<SkColor> = src
+            .iter()
+            .map(|c| SkColor::rgba(q(c.r), q(c.g), q(c.b), c.a))
+            .collect();
         let mut edge_mask = vec![0u8; src.len()];
         for y in 0..height {
             let row = y * width;

@@ -34,12 +34,43 @@ impl EffectImpl for ArtDecoBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 20, 300, 64, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("bg_color", "Background color", SkColor::argb(0xFF0F0F19), |e: &mut Self, v| e.bg_color = v),
-            color_param::<Self>("accent_color", "Accent color", SkColor::argb(0xFFD4AF37), |e: &mut Self, v| e.accent_color = v),
-            float_slider::<Self>("fan_spacing", "Fan spacing", 30.0, 200.0, 80.0, |e: &mut Self, v| e.fan_spacing = v),
-            int_slider::<Self>("fan_rays", "Fan rays", 3, 12, 7, |e: &mut Self, v| e.fan_rays = v),
-            bool_param::<Self>("inner_lines", "Inner stepped lines", true, |e: &mut Self, v| e.inner_lines = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                20,
+                300,
+                64,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "bg_color",
+                "Background color",
+                SkColor::argb(0xFF0F0F19),
+                |e: &mut Self, v| e.bg_color = v,
+            ),
+            color_param::<Self>(
+                "accent_color",
+                "Accent color",
+                SkColor::argb(0xFFD4AF37),
+                |e: &mut Self, v| e.accent_color = v,
+            ),
+            float_slider::<Self>(
+                "fan_spacing",
+                "Fan spacing",
+                30.0,
+                200.0,
+                80.0,
+                |e: &mut Self, v| e.fan_spacing = v,
+            ),
+            int_slider::<Self>("fan_rays", "Fan rays", 3, 12, 7, |e: &mut Self, v| {
+                e.fan_rays = v
+            }),
+            bool_param::<Self>(
+                "inner_lines",
+                "Inner stepped lines",
+                true,
+                |e: &mut Self, v| e.inner_lines = v,
+            ),
         ]
     }
 
@@ -58,24 +89,117 @@ impl EffectImpl for ArtDecoBorderImageEffect {
         let accent_fill = solid(SkColor::rgba(ac.r, ac.g, ac.b, 40), true);
         let bf = border as f32;
         let fan_r = bf * 0.65;
-        fan_row(&mut canvas, &accent, &accent_pen, &accent_fill, spacing, fan_r, rays, bf, bf * 0.5, (nw - border) as f32, false);
-        fan_row(&mut canvas, &accent, &accent_pen, &accent_fill, spacing, fan_r, rays, bf, nh as f32 - bf * 0.5, (nw - border) as f32, true);
-        fan_column(&mut canvas, &accent, &accent_pen, &accent_fill, spacing, fan_r, rays, bf * 0.5, bf, (nh - border) as f32, false);
-        fan_column(&mut canvas, &accent, &accent_pen, &accent_fill, spacing, fan_r, rays, nw as f32 - bf * 0.5, bf, (nh - border) as f32, true);
+        fan_row(
+            &mut canvas,
+            &accent,
+            &accent_pen,
+            &accent_fill,
+            spacing,
+            fan_r,
+            rays,
+            bf,
+            bf * 0.5,
+            (nw - border) as f32,
+            false,
+        );
+        fan_row(
+            &mut canvas,
+            &accent,
+            &accent_pen,
+            &accent_fill,
+            spacing,
+            fan_r,
+            rays,
+            bf,
+            nh as f32 - bf * 0.5,
+            (nw - border) as f32,
+            true,
+        );
+        fan_column(
+            &mut canvas,
+            &accent,
+            &accent_pen,
+            &accent_fill,
+            spacing,
+            fan_r,
+            rays,
+            bf * 0.5,
+            bf,
+            (nh - border) as f32,
+            false,
+        );
+        fan_column(
+            &mut canvas,
+            &accent,
+            &accent_pen,
+            &accent_fill,
+            spacing,
+            fan_r,
+            rays,
+            nw as f32 - bf * 0.5,
+            bf,
+            (nh - border) as f32,
+            true,
+        );
         let line_pen = Pen::new(2.0);
-        sk::draw_rect_xywh(&mut canvas, 2.0, 2.0, (nw - 4) as f32, (nh - 4) as f32, &accent, Some(&line_pen));
-        sk::draw_rect_xywh(&mut canvas, 6.0, 6.0, (nw - 12) as f32, (nh - 12) as f32, &accent, Some(&line_pen));
-        sk::draw_rect_xywh(&mut canvas, (border - 2) as f32, (border - 2) as f32, (iw + 4) as f32, (ih + 4) as f32, &accent, Some(&line_pen));
+        sk::draw_rect_xywh(
+            &mut canvas,
+            2.0,
+            2.0,
+            (nw - 4) as f32,
+            (nh - 4) as f32,
+            &accent,
+            Some(&line_pen),
+        );
+        sk::draw_rect_xywh(
+            &mut canvas,
+            6.0,
+            6.0,
+            (nw - 12) as f32,
+            (nh - 12) as f32,
+            &accent,
+            Some(&line_pen),
+        );
+        sk::draw_rect_xywh(
+            &mut canvas,
+            (border - 2) as f32,
+            (border - 2) as f32,
+            (iw + 4) as f32,
+            (ih + 4) as f32,
+            &accent,
+            Some(&line_pen),
+        );
         if self.inner_lines {
             let thin = solid(SkColor::rgba(ac.r, ac.g, ac.b, 100), true);
             let thin_pen = Pen::new(1.0);
             let inset = bf * 0.25;
-            sk::draw_rect_xywh(&mut canvas, inset, inset, nw as f32 - inset * 2.0, nh as f32 - inset * 2.0, &thin, Some(&thin_pen));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                inset,
+                inset,
+                nw as f32 - inset * 2.0,
+                nh as f32 - inset * 2.0,
+                &thin,
+                Some(&thin_pen),
+            );
             let inset2 = bf * 0.75;
-            sk::draw_rect_xywh(&mut canvas, inset2, inset2, nw as f32 - inset2 * 2.0, nh as f32 - inset2 * 2.0, &thin, Some(&thin_pen));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                inset2,
+                inset2,
+                nw as f32 - inset2 * 2.0,
+                nh as f32 - inset2 * 2.0,
+                &thin,
+                Some(&thin_pen),
+            );
         }
         let ds = bf * 0.3;
-        for (cx, cy) in [(4.0, 4.0), ((nw - 4) as f32, 4.0), (4.0, (nh - 4) as f32), ((nw - 4) as f32, (nh - 4) as f32)] {
+        for (cx, cy) in [
+            (4.0, 4.0),
+            ((nw - 4) as f32, 4.0),
+            (4.0, (nh - 4) as f32),
+            ((nw - 4) as f32, (nh - 4) as f32),
+        ] {
             let mut d = SkPath::new();
             d.move_to(cx, cy - ds);
             d.line_to(cx + ds, cy);
@@ -116,7 +240,12 @@ fn fan_row(
             path.move_to(cx, center_y);
             path.line_to(cx + a.cos() * radius, center_y + a.sin() * radius);
         }
-        let oval = sharex_skia::Rect::from_ltrb(cx - radius, center_y - radius, cx + radius, center_y + radius);
+        let oval = sharex_skia::Rect::from_ltrb(
+            cx - radius,
+            center_y - radius,
+            cx + radius,
+            center_y + radius,
+        );
         path.add_arc(oval, if flip { 0.0 } else { 180.0 }, 180.0);
         canvas.fill_sk_path(&path, fill);
         sk::stroke_path(canvas, &path, pen, stroke);
@@ -148,7 +277,12 @@ fn fan_column(
             path.move_to(center_x, cy);
             path.line_to(center_x + a.cos() * radius, cy + a.sin() * radius);
         }
-        let oval = sharex_skia::Rect::from_ltrb(center_x - radius, cy - radius, center_x + radius, cy + radius);
+        let oval = sharex_skia::Rect::from_ltrb(
+            center_x - radius,
+            cy - radius,
+            center_x + radius,
+            cy + radius,
+        );
         path.add_arc(oval, if flip { 270.0 } else { 90.0 }, 180.0);
         canvas.fill_sk_path(&path, fill);
         sk::stroke_path(canvas, &path, pen, stroke);

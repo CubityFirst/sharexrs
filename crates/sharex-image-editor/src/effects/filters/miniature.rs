@@ -24,16 +24,49 @@ impl Default for MiniatureImageEffect {
 
 impl EffectImpl for MiniatureImageEffect {
     fn info() -> Info {
-        Info::new("miniature", "Miniature", EffectCategory::Filters, "image-effect/cube")
-            .desc("Creates a toy miniature look by blurring top and bottom with boosted saturation.")
+        Info::new(
+            "miniature",
+            "Miniature",
+            EffectCategory::Filters,
+            "image-effect/cube",
+        )
+        .desc("Creates a toy miniature look by blurring top and bottom with boosted saturation.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("blur_radius", "Blur radius", 2, 40, 15, |e: &mut Self, v| e.blur_radius = v),
-            float_slider::<Self>("focus_position", "Focus position %", 10.0, 90.0, 50.0, |e: &mut Self, v| e.focus_position = v),
-            float_slider::<Self>("focus_band", "Focus band %", 5.0, 50.0, 20.0, |e: &mut Self, v| e.focus_band = v),
-            float_slider::<Self>("saturation", "Saturation boost", 0.0, 50.0, 20.0, |e: &mut Self, v| e.saturation_boost = v),
+            int_slider::<Self>(
+                "blur_radius",
+                "Blur radius",
+                2,
+                40,
+                15,
+                |e: &mut Self, v| e.blur_radius = v,
+            ),
+            float_slider::<Self>(
+                "focus_position",
+                "Focus position %",
+                10.0,
+                90.0,
+                50.0,
+                |e: &mut Self, v| e.focus_position = v,
+            ),
+            float_slider::<Self>(
+                "focus_band",
+                "Focus band %",
+                5.0,
+                50.0,
+                20.0,
+                |e: &mut Self, v| e.focus_band = v,
+            ),
+            float_slider::<Self>(
+                "saturation",
+                "Saturation boost",
+                0.0,
+                50.0,
+                20.0,
+                |e: &mut Self, v| e.saturation_boost = v,
+            ),
         ]
     }
 

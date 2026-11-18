@@ -26,17 +26,52 @@ impl Default for HalftoneImageEffect {
 
 impl EffectImpl for HalftoneImageEffect {
     fn info() -> Info {
-        Info::new("halftone", "Halftone", EffectCategory::Filters, "image-effect/circle-dot")
-            .desc("Converts the image into a CMYK halftone dot pattern.")
+        Info::new(
+            "halftone",
+            "Halftone",
+            EffectCategory::Filters,
+            "image-effect/circle-dot",
+        )
+        .desc("Converts the image into a CMYK halftone dot pattern.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("cell_size", "Cell size", 3, 24, 8, |e: &mut Self, v| e.cell_size = v),
-            float_slider::<Self>("dot_softness", "Dot softness", 0.0, 100.0, 18.0, |e: &mut Self, v| e.dot_softness = v),
-            float_slider::<Self>("ink_strength", "Ink strength", 0.0, 100.0, 90.0, |e: &mut Self, v| e.ink_strength = v),
-            float_slider::<Self>("source_blend", "Source blend", 0.0, 100.0, 20.0, |e: &mut Self, v| e.source_blend = v),
-            float_slider::<Self>("angle_offset", "Angle offset", -45.0, 45.0, 0.0, |e: &mut Self, v| e.angle_offset = v),
+            int_slider::<Self>("cell_size", "Cell size", 3, 24, 8, |e: &mut Self, v| {
+                e.cell_size = v
+            }),
+            float_slider::<Self>(
+                "dot_softness",
+                "Dot softness",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.dot_softness = v,
+            ),
+            float_slider::<Self>(
+                "ink_strength",
+                "Ink strength",
+                0.0,
+                100.0,
+                90.0,
+                |e: &mut Self, v| e.ink_strength = v,
+            ),
+            float_slider::<Self>(
+                "source_blend",
+                "Source blend",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.source_blend = v,
+            ),
+            float_slider::<Self>(
+                "angle_offset",
+                "Angle offset",
+                -45.0,
+                45.0,
+                0.0,
+                |e: &mut Self, v| e.angle_offset = v,
+            ),
         ]
     }
 
@@ -107,8 +142,12 @@ impl EffectImpl for HalftoneImageEffect {
                 let or = lerp(o.0, r, source_blend);
                 let og = lerp(o.1, g, source_blend);
                 let ob = lerp(o.2, b, source_blend);
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(or * 255.0), clamp_to_byte(og * 255.0), clamp_to_byte(ob * 255.0), s.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(or * 255.0),
+                    clamp_to_byte(og * 255.0),
+                    clamp_to_byte(ob * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

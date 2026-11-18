@@ -20,14 +20,28 @@ impl Default for TemperatureTintImageEffect {
 
 impl EffectImpl for TemperatureTintImageEffect {
     fn info() -> Info {
-        Info::new("temperature_tint", "Temperature / Tint", EffectCategory::Adjustments, "image-effect/thermometer")
-            .desc("Adjusts the color temperature and tint.")
+        Info::new(
+            "temperature_tint",
+            "Temperature / Tint",
+            EffectCategory::Adjustments,
+            "image-effect/thermometer",
+        )
+        .desc("Adjusts the color temperature and tint.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("temperature", "Temperature", -100.0, 100.0, 0.0, |e: &mut Self, v| e.temperature = v),
-            float_slider::<Self>("tint", "Tint", -100.0, 100.0, 0.0, |e: &mut Self, v| e.tint = v),
+            float_slider::<Self>(
+                "temperature",
+                "Temperature",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.temperature = v,
+            ),
+            float_slider::<Self>("tint", "Tint", -100.0, 100.0, 0.0, |e: &mut Self, v| {
+                e.tint = v
+            }),
         ]
     }
 

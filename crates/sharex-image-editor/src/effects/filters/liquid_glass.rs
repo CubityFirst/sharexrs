@@ -28,17 +28,52 @@ impl Default for LiquidGlassImageEffect {
 
 impl EffectImpl for LiquidGlassImageEffect {
     fn info() -> Info {
-        Info::new("liquid_glass", "Liquid glass", EffectCategory::Filters, "image-effect/glass")
-            .desc("Distorts the image as if viewed through liquid glass.")
+        Info::new(
+            "liquid_glass",
+            "Liquid glass",
+            EffectCategory::Filters,
+            "image-effect/glass",
+        )
+        .desc("Distorts the image as if viewed through liquid glass.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("distortion", "Distortion", 0.0, 35.0, 9.0, |e: &mut Self, v| e.distortion = v),
-            float_slider::<Self>("refraction", "Refraction", 0.0, 100.0, 45.0, |e: &mut Self, v| e.refraction = v),
-            int_slider::<Self>("chroma_shift", "Chroma shift", 0, 8, 1, |e: &mut Self, v| e.chroma_shift = v),
-            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 40.0, |e: &mut Self, v| e.gloss = v),
-            float_slider::<Self>("flow_scale", "Flow scale", 40.0, 220.0, 100.0, |e: &mut Self, v| e.flow_scale = v),
+            float_slider::<Self>(
+                "distortion",
+                "Distortion",
+                0.0,
+                35.0,
+                9.0,
+                |e: &mut Self, v| e.distortion = v,
+            ),
+            float_slider::<Self>(
+                "refraction",
+                "Refraction",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.refraction = v,
+            ),
+            int_slider::<Self>(
+                "chroma_shift",
+                "Chroma shift",
+                0,
+                8,
+                1,
+                |e: &mut Self, v| e.chroma_shift = v,
+            ),
+            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 40.0, |e: &mut Self, v| {
+                e.gloss = v
+            }),
+            float_slider::<Self>(
+                "flow_scale",
+                "Flow scale",
+                40.0,
+                220.0,
+                100.0,
+                |e: &mut Self, v| e.flow_scale = v,
+            ),
         ]
     }
 
@@ -56,7 +91,9 @@ impl EffectImpl for LiquidGlassImageEffect {
         let mut dst = vec![SkColor::default(); src.len()];
         let freq_x = 0.072 / flow;
         let freq_y = 0.061 / flow;
-        let lum = |c: SkColor| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+        let lum = |c: SkColor| {
+            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+        };
         let seed = self.seed;
         for y in 0..height {
             let row = y * width;
@@ -67,14 +104,17 @@ impl EffectImpl for LiquidGlassImageEffect {
                 let x_right = if x < width - 1 { x + 1 } else { width - 1 };
                 let (xf, yf) = (x as f32, y as f32);
                 let cn = (hash01(x / 18, y / 18, seed) * 2.0) - 1.0;
-                let w1 = ((xf * freq_x) + (yf * (freq_y * 0.45)) + (cn * 2.4) + (seed as f32 * 0.001)).sin();
+                let w1 =
+                    ((xf * freq_x) + (yf * (freq_y * 0.45)) + (cn * 2.4) + (seed as f32 * 0.001))
+                        .sin();
                 let w2 = ((xf * (freq_x * 0.58)) - (yf * (freq_y * 1.12)) + (cn * 1.7)).cos();
                 let w3 = (((x + y) as f32 * (freq_x * 0.62)) + (cn * 3.1)).sin();
                 let mut ox = dist_px * ((0.52 * w1) + (0.26 * w3));
                 let mut oy = dist_px * ((0.46 * w2) - (0.22 * w3));
                 if refraction > 0.0 {
                     let gx = lum(src[(row + x_right) as usize]) - lum(src[(row + x_left) as usize]);
-                    let gy = lum(src[(y_bottom * width + x) as usize]) - lum(src[(y_top * width + x) as usize]);
+                    let gy = lum(src[(y_bottom * width + x) as usize])
+                        - lum(src[(y_top * width + x) as usize]);
                     let edge = ((gx * gx) + (gy * gy)).sqrt();
                     let boost = 1.0 + (edge * 3.2 * refraction);
                     ox = (ox * boost) + (gx * refraction * dist_px * 3.0);
@@ -104,7 +144,9 @@ impl EffectImpl for LiquidGlassImageEffect {
                     let n2 = bilinear_sample(&src, width, height, sx - 1.0, sy);
                     let n3 = bilinear_sample(&src, width, height, sx, sy + 1.0);
                     let n4 = bilinear_sample(&src, width, height, sx, sy - 1.0);
-                    let sum = |f: fn(SkColor) -> u8| (f(n1) as i32 + f(n2) as i32 + f(n3) as i32 + f(n4) as i32) as f32 * 0.25;
+                    let sum = |f: fn(SkColor) -> u8| {
+                        (f(n1) as i32 + f(n2) as i32 + f(n3) as i32 + f(n4) as i32) as f32 * 0.25
+                    };
                     let mix = 0.06 + (0.18 * refraction);
                     r = lerp(r, sum(|c| c.r), mix);
                     g = lerp(g, sum(|c| c.g), mix);
@@ -123,7 +165,8 @@ impl EffectImpl for LiquidGlassImageEffect {
                 r = lerp(r, r + 6.0, tint);
                 g = lerp(g, g + 12.0, tint);
                 b = lerp(b, b + 22.0, tint);
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), a);
+                dst[(row + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), a);
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

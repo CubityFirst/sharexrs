@@ -20,14 +20,31 @@ impl Default for ColorizeImageEffect {
 
 impl EffectImpl for ColorizeImageEffect {
     fn info() -> Info {
-        Info::new("colorize", "Colorize", EffectCategory::Adjustments, "app/palette")
-            .desc("Colorizes the image.")
+        Info::new(
+            "colorize",
+            "Colorize",
+            EffectCategory::Adjustments,
+            "app/palette",
+        )
+        .desc("Colorizes the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFFFA500), |e: &mut Self, v| e.color = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.strength = v),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFFFA500),
+                |e: &mut Self, v| e.color = v,
+            ),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
         ]
     }
 
@@ -52,7 +69,11 @@ impl EffectImpl for ColorizeImageEffect {
         // paint's alpha, the grayscale matrix then the modulate filter, src-over.
         let alpha = (strength < 100.0).then(|| r::from_byte((255.0 * (strength / 100.0)) as u8));
         let n = (source.width() * source.height()) as usize;
-        let mut out = if strength >= 100.0 { Bitmap::new(source.width(), source.height()) } else { source.clone() };
+        let mut out = if strength >= 100.0 {
+            Bitmap::new(source.width(), source.height())
+        } else {
+            source.clone()
+        };
         for i in 0..n {
             let mut c = r::load(source.px(i));
             if let Some(a) = alpha {
@@ -63,7 +84,11 @@ impl EffectImpl for ColorizeImageEffect {
             let c = r::clamp_01(c);
             let d = out.px(i);
             let inv = 1.0 - c[3];
-            out.set_px(i, [0, 1, 2, 3].map(|k| r::to_unorm(r::mad(d[k] as f32, inv, c[k] * 255.0), 1.0, 255.0)));
+            out.set_px(
+                i,
+                [0, 1, 2, 3]
+                    .map(|k| r::to_unorm(r::mad(d[k] as f32, inv, c[k] * 255.0), 1.0, 255.0)),
+            );
         }
         Ok(out)
     }

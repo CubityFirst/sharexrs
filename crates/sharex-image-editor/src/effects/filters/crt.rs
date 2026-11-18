@@ -32,10 +32,33 @@ impl EffectImpl for CRTImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("scanlineStrength", "Scanline strength", 0.0, 100.0, 35.0, |e: &mut Self, v| e.scanline_strength = v),
-            int_slider::<Self>("rgbShift", "RGB shift", 0, 8, 1, |e: &mut Self, v| e.rgb_shift = v),
-            float_slider::<Self>("noiseAmount", "Noise amount", 0.0, 100.0, 8.0, |e: &mut Self, v| e.noise_amount = v),
-            float_slider::<Self>("vignetteStrength", "Vignette strength", 0.0, 100.0, 18.0, |e: &mut Self, v| e.vignette_strength = v),
+            float_slider::<Self>(
+                "scanlineStrength",
+                "Scanline strength",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.scanline_strength = v,
+            ),
+            int_slider::<Self>("rgbShift", "RGB shift", 0, 8, 1, |e: &mut Self, v| {
+                e.rgb_shift = v
+            }),
+            float_slider::<Self>(
+                "noiseAmount",
+                "Noise amount",
+                0.0,
+                100.0,
+                8.0,
+                |e: &mut Self, v| e.noise_amount = v,
+            ),
+            float_slider::<Self>(
+                "vignetteStrength",
+                "Vignette strength",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.vignette_strength = v,
+            ),
         ]
     }
 
@@ -54,7 +77,7 @@ impl EffectImpl for CRTImageEffect {
         let cy = (height - 1) as f32 * 0.5;
         let inv_cx = if cx > 0.0 { 1.0 / cx } else { 1.0 };
         let inv_cy = if cy > 0.0 { 1.0 / cy } else { 1.0 };
-        const INV_SQRT2: f32 = 0.70710678;
+        const INV_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
         let seed = (self.seed as u32).wrapping_mul(747796405);

@@ -24,16 +24,39 @@ impl Default for SpinBlurImageEffect {
 
 impl EffectImpl for SpinBlurImageEffect {
     fn info() -> Info {
-        Info::new("spin_blur", "Spin blur", EffectCategory::Filters, "image-effect/rotate-clockwise")
-            .desc("Applies a rotational motion blur around a center point.")
+        Info::new(
+            "spin_blur",
+            "Spin blur",
+            EffectCategory::Filters,
+            "image-effect/rotate-clockwise",
+        )
+        .desc("Applies a rotational motion blur around a center point.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("angle", "Angle", 0.0, 180.0, 20.0, |e: &mut Self, v| e.angle = v),
-            int_slider::<Self>("samples", "Samples", 4, 64, 24, |e: &mut Self, v| e.samples = v),
-            float_slider::<Self>("center_x", "Center X", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x = v),
-            float_slider::<Self>("center_y", "Center Y", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y = v),
+            float_slider::<Self>("angle", "Angle", 0.0, 180.0, 20.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
+            int_slider::<Self>("samples", "Samples", 4, 64, 24, |e: &mut Self, v| {
+                e.samples = v
+            }),
+            float_slider::<Self>(
+                "center_x",
+                "Center X",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x = v,
+            ),
+            float_slider::<Self>(
+                "center_y",
+                "Center Y",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y = v,
+            ),
         ]
     }
 
@@ -83,7 +106,12 @@ impl EffectImpl for SpinBlurImageEffect {
                     sw += w;
                 }
                 let inv = 1.0 / 0.0001f32.max(sw);
-                dst[idx] = SkColor::rgba(clamp_to_byte(sr * inv), clamp_to_byte(sg * inv), clamp_to_byte(sb * inv), clamp_to_byte(sa * inv));
+                dst[idx] = SkColor::rgba(
+                    clamp_to_byte(sr * inv),
+                    clamp_to_byte(sg * inv),
+                    clamp_to_byte(sb * inv),
+                    clamp_to_byte(sa * inv),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

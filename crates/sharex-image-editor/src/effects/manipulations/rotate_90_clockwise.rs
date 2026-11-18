@@ -4,21 +4,24 @@ use crate::effects::prelude::*;
 
 /// `Rotate90CWImageEffect`.
 #[derive(Clone, Debug)]
-pub struct Rotate90CWImageEffect {
-}
+pub struct Rotate90CWImageEffect {}
 
 impl Default for Rotate90CWImageEffect {
     fn default() -> Self {
-        Rotate90CWImageEffect {
-        }
+        Rotate90CWImageEffect {}
     }
 }
 
 impl EffectImpl for Rotate90CWImageEffect {
     fn info() -> Info {
-        Info::new("rotate_90_clockwise", "Rotate 90° clockwise", EffectCategory::Manipulations, "image-effect/rotate-clockwise")
-            .desc("Rotates the image 90 degrees clockwise.")
-            .immediate()
+        Info::new(
+            "rotate_90_clockwise",
+            "Rotate 90° clockwise",
+            EffectCategory::Manipulations,
+            "image-effect/rotate-clockwise",
+        )
+        .desc("Rotates the image 90 degrees clockwise.")
+        .immediate()
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

@@ -30,19 +30,59 @@ impl Default for LuminanceContourLinesImageEffect {
 
 impl EffectImpl for LuminanceContourLinesImageEffect {
     fn info() -> Info {
-        Info::new("luminance_contour_lines", "Luminance contour lines", EffectCategory::Filters, "image-effect/contours")
-            .desc("Draws contour lines based on luminance quantization levels.")
+        Info::new(
+            "luminance_contour_lines",
+            "Luminance contour lines",
+            EffectCategory::Filters,
+            "image-effect/contours",
+        )
+        .desc("Draws contour lines based on luminance quantization levels.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("levels", "Levels", 2, 64, 12, |e: &mut Self, v| e.levels = v),
-            float_slider::<Self>("line_width", "Line width", 0.0, 200.0, 6.0, |e: &mut Self, v| e.line_width = v),
-            float_slider::<Self>("line_strength", "Line strength", 0.0, 100.0, 65.0, |e: &mut Self, v| e.line_strength = v),
-            float_slider::<Self>("background_strength", "Background strength", 0.0, 100.0, 20.0, |e: &mut Self, v| e.background_strength = v),
-            float_slider::<Self>("threshold", "Threshold", 0.0, 255.0, 0.0, |e: &mut Self, v| e.threshold = v),
+            int_slider::<Self>("levels", "Levels", 2, 64, 12, |e: &mut Self, v| {
+                e.levels = v
+            }),
+            float_slider::<Self>(
+                "line_width",
+                "Line width",
+                0.0,
+                200.0,
+                6.0,
+                |e: &mut Self, v| e.line_width = v,
+            ),
+            float_slider::<Self>(
+                "line_strength",
+                "Line strength",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.line_strength = v,
+            ),
+            float_slider::<Self>(
+                "background_strength",
+                "Background strength",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.background_strength = v,
+            ),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                255.0,
+                0.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
             bool_param::<Self>("invert", "Invert", false, |e: &mut Self, v| e.invert = v),
-            color_param::<Self>("line_color", "Line color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.line_color = v),
+            color_param::<Self>(
+                "line_color",
+                "Line color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.line_color = v,
+            ),
         ]
     }
 
@@ -57,14 +97,20 @@ impl EffectImpl for LuminanceContourLinesImageEffect {
         let lw = clampf(self.line_width, 0.0, 200.0) / 200.0;
         let feather = 0.04 + (0.22 * lw);
         let lc = self.line_color;
-        let (la, lr, lg, lb) = (lc.a as f32 / 255.0, lc.r as f32 / 255.0, lc.g as f32 / 255.0, lc.b as f32 / 255.0);
+        let (la, lr, lg, lb) = (
+            lc.a as f32 / 255.0,
+            lc.r as f32 / 255.0,
+            lc.g as f32 / 255.0,
+            lc.b as f32 / 255.0,
+        );
         if source.is_empty() {
             return Ok(source.clone());
         }
         let dst: Vec<SkColor> = pixels(source)
             .iter()
             .map(|s| {
-                let mut l = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                let mut l =
+                    ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
                 l = clamp01(l + bias);
                 let scaled = l * levels as f32;
                 let q = scaled.floor();

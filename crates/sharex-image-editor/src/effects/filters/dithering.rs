@@ -38,16 +38,50 @@ impl Default for DitheringImageEffect {
 
 impl EffectImpl for DitheringImageEffect {
     fn info() -> Info {
-        Info::new("dithering", "Dithering", EffectCategory::Filters, "image-effect/checkerboard")
-            .desc("Applies dithering to reduce color depth with various methods and palettes.")
+        Info::new(
+            "dithering",
+            "Dithering",
+            EffectCategory::Filters,
+            "image-effect/checkerboard",
+        )
+        .desc("Applies dithering to reduce color depth with various methods and palettes.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, DitheringMethod>("method", "Method", DitheringMethod::FloydSteinberg, |e: &mut Self, v| e.method = v, &[("Floyd-Steinberg", DitheringMethod::FloydSteinberg), ("Bayer 4x4", DitheringMethod::Bayer4x4)]),
-            enum_param::<Self, DitheringPalette>("palette", "Palette", DitheringPalette::OneBitBW, |e: &mut Self, v| e.palette = v, &[("1-bit B&W", DitheringPalette::OneBitBW), ("Web safe 216", DitheringPalette::WebSafe216), ("RGB332", DitheringPalette::RGB332), ("Grayscale 4", DitheringPalette::Grayscale4)]),
-            bool_param::<Self>("serpentine", "Serpentine", true, |e: &mut Self, v| e.serpentine = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 100.0, |e: &mut Self, v| e.strength = v),
+            enum_param::<Self, DitheringMethod>(
+                "method",
+                "Method",
+                DitheringMethod::FloydSteinberg,
+                |e: &mut Self, v| e.method = v,
+                &[
+                    ("Floyd-Steinberg", DitheringMethod::FloydSteinberg),
+                    ("Bayer 4x4", DitheringMethod::Bayer4x4),
+                ],
+            ),
+            enum_param::<Self, DitheringPalette>(
+                "palette",
+                "Palette",
+                DitheringPalette::OneBitBW,
+                |e: &mut Self, v| e.palette = v,
+                &[
+                    ("1-bit B&W", DitheringPalette::OneBitBW),
+                    ("Web safe 216", DitheringPalette::WebSafe216),
+                    ("RGB332", DitheringPalette::RGB332),
+                    ("Grayscale 4", DitheringPalette::Grayscale4),
+                ],
+            ),
+            bool_param::<Self>("serpentine", "Serpentine", true, |e: &mut Self, v| {
+                e.serpentine = v
+            }),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                100.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
         ]
     }
 
@@ -84,14 +118,24 @@ impl EffectImpl for DitheringImageEffect {
 
 // ---- port ----
 
-fn floyd_steinberg(src: &[SkColor], width: i32, height: i32, palette: DitheringPalette, serpentine: bool) -> Vec<SkColor> {
+fn floyd_steinberg(
+    src: &[SkColor],
+    width: i32,
+    height: i32,
+    palette: DitheringPalette,
+    serpentine: bool,
+) -> Vec<SkColor> {
     let mut r: Vec<f32> = src.iter().map(|c| c.r as f32).collect();
     let mut g: Vec<f32> = src.iter().map(|c| c.g as f32).collect();
     let mut b: Vec<f32> = src.iter().map(|c| c.b as f32).collect();
     let mut out = vec![SkColor::default(); src.len()];
     for y in 0..height {
         let reverse = serpentine && (y & 1) == 1;
-        let (start, end, step) = if reverse { (width - 1, -1, -1) } else { (0, width, 1) };
+        let (start, end, step) = if reverse {
+            (width - 1, -1, -1)
+        } else {
+            (0, width, 1)
+        };
         let mut x = start;
         while x != end {
             let i = (y * width + x) as usize;
@@ -128,7 +172,12 @@ fn bayer(src: &[SkColor], width: i32, height: i32, palette: DitheringPalette) ->
             let s = src[i];
             let threshold = (B4[(y & 3) as usize][(x & 3) as usize] as f32 / 16.0) - 0.5;
             let bias = threshold * 36.0;
-            let (qr, qg, qb) = quantize(s.r as f32 + bias, s.g as f32 + bias, s.b as f32 + bias, palette);
+            let (qr, qg, qb) = quantize(
+                s.r as f32 + bias,
+                s.g as f32 + bias,
+                s.b as f32 + bias,
+                palette,
+            );
             out[i] = SkColor::rgba(qr, qg, qb, s.a);
         }
     }

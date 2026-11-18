@@ -6,9 +6,16 @@ use super::enums::{DrawingImageRotateFlipType, DrawingInterpolationMode, Drawing
 use crate::effects::prelude::*;
 
 /// `GetPosition`: where an object of `object` size goes on `background`.
-pub(crate) fn get_position(placement: DrawingPlacement, offset: PointI, background: SizeI, object: SizeI) -> PointI {
-    let mid_x = (background.width as f32 / 2.0 - object.width as f32 / 2.0).round_ties_even() as i32;
-    let mid_y = (background.height as f32 / 2.0 - object.height as f32 / 2.0).round_ties_even() as i32;
+pub(crate) fn get_position(
+    placement: DrawingPlacement,
+    offset: PointI,
+    background: SizeI,
+    object: SizeI,
+) -> PointI {
+    let mid_x =
+        (background.width as f32 / 2.0 - object.width as f32 / 2.0).round_ties_even() as i32;
+    let mid_y =
+        (background.height as f32 / 2.0 - object.height as f32 / 2.0).round_ties_even() as i32;
     let right = background.width - object.width;
     let bottom = background.height - object.height;
     match placement {
@@ -39,7 +46,9 @@ pub(crate) fn apply_aspect_ratio(width: i32, height: i32, bitmap: &Bitmap) -> Si
 /// `GetSamplingOptions`. Catmull-Rom is the default (`HighQualityBicubic`).
 pub(crate) fn sampling(mode: DrawingInterpolationMode) -> Sampling {
     match mode {
-        DrawingInterpolationMode::Bicubic | DrawingInterpolationMode::HighQualityBilinear => Sampling::Mitchell,
+        DrawingInterpolationMode::Bicubic | DrawingInterpolationMode::HighQualityBilinear => {
+            Sampling::Mitchell
+        }
         DrawingInterpolationMode::Bilinear => Sampling::Linear,
         DrawingInterpolationMode::NearestNeighbor => Sampling::Nearest,
         DrawingInterpolationMode::HighQualityBicubic => Sampling::CatmullRom,
@@ -184,17 +193,40 @@ pub(crate) fn expand_text_variables(text: &str, size: SizeI) -> String {
         h12 = 12;
     }
     const MONTHS: [&str; 12] = [
-        "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
         "December",
     ];
-    const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const DAYS: [&str; 7] = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+    ];
     let month_name = MONTHS[(month as usize).clamp(1, 12) - 1];
     let day_name = DAYS[(dow as usize) % 7];
     let unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let env = |names: &[&str]| names.iter().find_map(|n| std::env::var(n).ok()).unwrap_or_default();
+    let env = |names: &[&str]| {
+        names
+            .iter()
+            .find_map(|n| std::env::var(n).ok())
+            .unwrap_or_default()
+    };
     let user = env(&["USERNAME", "USER"]);
     let machine = env(&["COMPUTERNAME", "HOSTNAME"]);
     let domain = std::env::var("USERDOMAIN").unwrap_or_else(|_| machine.clone());

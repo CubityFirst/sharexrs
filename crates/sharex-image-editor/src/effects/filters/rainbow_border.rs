@@ -28,18 +28,60 @@ impl Default for RainbowBorderImageEffect {
 
 impl EffectImpl for RainbowBorderImageEffect {
     fn info() -> Info {
-        Info::new("rainbow_border", "Rainbow border", EffectCategory::Filters, "image-effect/rainbow")
-            .desc("Adds a vivid rainbow gradient border that cycles through the full color spectrum.")
+        Info::new(
+            "rainbow_border",
+            "Rainbow border",
+            EffectCategory::Filters,
+            "image-effect/rainbow",
+        )
+        .desc("Adds a vivid rainbow gradient border that cycles through the full color spectrum.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 2, 300, 24, |e: &mut Self, v| e.border_size = v),
-            float_slider::<Self>("saturation", "Saturation", 0.0, 100.0, 100.0, |e: &mut Self, v| e.saturation = v),
-            float_slider::<Self>("brightness", "Brightness", 0.0, 100.0, 95.0, |e: &mut Self, v| e.brightness = v),
-            float_slider::<Self>("hue_offset", "Hue offset", 0.0, 360.0, 0.0, |e: &mut Self, v| e.hue_offset = v),
-            float_slider::<Self>("glow_strength", "Glow", 0.0, 100.0, 40.0, |e: &mut Self, v| e.glow_strength = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                2,
+                300,
+                24,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            float_slider::<Self>(
+                "saturation",
+                "Saturation",
+                0.0,
+                100.0,
+                100.0,
+                |e: &mut Self, v| e.saturation = v,
+            ),
+            float_slider::<Self>(
+                "brightness",
+                "Brightness",
+                0.0,
+                100.0,
+                95.0,
+                |e: &mut Self, v| e.brightness = v,
+            ),
+            float_slider::<Self>(
+                "hue_offset",
+                "Hue offset",
+                0.0,
+                360.0,
+                0.0,
+                |e: &mut Self, v| e.hue_offset = v,
+            ),
+            float_slider::<Self>(
+                "glow_strength",
+                "Glow",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.glow_strength = v,
+            ),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
         ]
     }
 
@@ -66,7 +108,11 @@ impl EffectImpl for RainbowBorderImageEffect {
                 }
                 let hue = perimeter_hue(x, y, nw, nh, total, perim_w, perim_h, hue_off);
                 let cross = cross_ratio(x, y, border, iw, ih);
-                let scale = if glow > 0.0 { 1.0 - smooth_step(0.6, 1.0, cross) * glow * 0.5 } else { 1.0 };
+                let scale = if glow > 0.0 {
+                    1.0 - smooth_step(0.6, 1.0, cross) * glow * 0.5
+                } else {
+                    1.0
+                };
                 dst[(y * nw + x) as usize] = SkColor::from_hsv(hue, sat, brightness * scale, 255);
             }
         }

@@ -28,15 +28,43 @@ impl Default for CylinderWrapImageEffect {
 
 impl EffectImpl for CylinderWrapImageEffect {
     fn info() -> Info {
-        Info::new("cylinder_wrap", "Cylinder wrap", EffectCategory::Manipulations, "image-effect/cylinder")
-            .desc("Wraps the image around a cylindrical surface.")
+        Info::new(
+            "cylinder_wrap",
+            "Cylinder wrap",
+            EffectCategory::Manipulations,
+            "image-effect/cylinder",
+        )
+        .desc("Wraps the image around a cylindrical surface.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, CylinderWrapOrientation>("orientation", "Orientation", CylinderWrapOrientation::Vertical, |e: &mut Self, v| e.orientation = v, &[("Vertical", CylinderWrapOrientation::Vertical), ("Horizontal", CylinderWrapOrientation::Horizontal)]),
-            float_slider::<Self>("curvature", "Curvature", 0.0, 100.0, 65.0, |e: &mut Self, v| e.curvature = v),
-            float_slider::<Self>("edge_shading", "Edge shading", 0.0, 100.0, 35.0, |e: &mut Self, v| e.edge_shading = v),
+            enum_param::<Self, CylinderWrapOrientation>(
+                "orientation",
+                "Orientation",
+                CylinderWrapOrientation::Vertical,
+                |e: &mut Self, v| e.orientation = v,
+                &[
+                    ("Vertical", CylinderWrapOrientation::Vertical),
+                    ("Horizontal", CylinderWrapOrientation::Horizontal),
+                ],
+            ),
+            float_slider::<Self>(
+                "curvature",
+                "Curvature",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.curvature = v,
+            ),
+            float_slider::<Self>(
+                "edge_shading",
+                "Edge shading",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.edge_shading = v,
+            ),
         ]
     }
 

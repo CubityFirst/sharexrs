@@ -10,22 +10,30 @@ pub struct LomoImageEffect {
 
 impl Default for LomoImageEffect {
     fn default() -> Self {
-        LomoImageEffect {
-            strength: 100.0,
-        }
+        LomoImageEffect { strength: 100.0 }
     }
 }
 
 impl EffectImpl for LomoImageEffect {
     fn info() -> Info {
-        Info::new("lomo", "Lomo", EffectCategory::Adjustments, "image-effect/aperture")
-            .desc("Applies a lomography look with high contrast, warm tones, and vignette.")
+        Info::new(
+            "lomo",
+            "Lomo",
+            EffectCategory::Adjustments,
+            "image-effect/aperture",
+        )
+        .desc("Applies a lomography look with high contrast, warm tones, and vignette.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 100.0, |e: &mut Self, v| e.strength = v),
-        ]
+        vec![float_slider::<Self>(
+            "strength",
+            "Strength",
+            0.0,
+            100.0,
+            100.0,
+            |e: &mut Self, v| e.strength = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -48,7 +56,10 @@ impl EffectImpl for LomoImageEffect {
         let paint = sk::radial_gradient(
             (cx, cy),
             radius,
-            &[color::TRANSPARENT, SkColor::rgba(0, 0, 0, (180.0 * s) as u8)],
+            &[
+                color::TRANSPARENT,
+                SkColor::rgba(0, 0, 0, (180.0 * s) as u8),
+            ],
             Some(&[0.5, 1.0]),
             false,
         );

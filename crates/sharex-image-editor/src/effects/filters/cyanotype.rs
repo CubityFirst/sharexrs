@@ -28,17 +28,47 @@ impl Default for CyanotypeImageEffect {
 
 impl EffectImpl for CyanotypeImageEffect {
     fn info() -> Info {
-        Info::new("cyanotype", "Cyanotype", EffectCategory::Filters, "app/swatches")
-            .desc("Simulates a cyanotype photographic printing process with blue-toned output.")
+        Info::new(
+            "cyanotype",
+            "Cyanotype",
+            EffectCategory::Filters,
+            "app/swatches",
+        )
+        .desc("Simulates a cyanotype photographic printing process with blue-toned output.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 118.0, |e: &mut Self, v| e.contrast = v),
-            float_slider::<Self>("paper_texture", "Paper texture", 0.0, 100.0, 34.0, |e: &mut Self, v| e.paper_texture = v),
-            float_slider::<Self>("stain", "Stain", 0.0, 100.0, 28.0, |e: &mut Self, v| e.stain = v),
-            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 12.0, |e: &mut Self, v| e.grain = v),
-            float_slider::<Self>("vignette", "Vignette", 0.0, 100.0, 20.0, |e: &mut Self, v| e.vignette = v),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                118.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            float_slider::<Self>(
+                "paper_texture",
+                "Paper texture",
+                0.0,
+                100.0,
+                34.0,
+                |e: &mut Self, v| e.paper_texture = v,
+            ),
+            float_slider::<Self>("stain", "Stain", 0.0, 100.0, 28.0, |e: &mut Self, v| {
+                e.stain = v
+            }),
+            float_slider::<Self>("grain", "Grain", 0.0, 100.0, 12.0, |e: &mut Self, v| {
+                e.grain = v
+            }),
+            float_slider::<Self>(
+                "vignette",
+                "Vignette",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.vignette = v,
+            ),
         ]
     }
 
@@ -70,7 +100,8 @@ impl EffectImpl for CyanotypeImageEffect {
                 } else {
                     lerp_color(mid, deep, (ink - 0.36) / 0.64)
                 };
-                let pn = (fractal_noise(xf * 0.022, yf * 0.022, 4, 2.1, 0.55, seed) - 0.5) * paper_tex;
+                let pn =
+                    (fractal_noise(xf * 0.022, yf * 0.022, 4, 2.1, 0.55, seed) - 0.5) * paper_tex;
                 let sn = fractal_noise(xf * 0.006, yf * 0.006, 5, 2.0, 0.5, seed ^ 901);
                 let sm = smooth_step(0.56, 0.92, sn) * stain;
                 let gn = ((hash01(x, y, seed ^ 2111) * 2.0) - 1.0) * grain * 0.08;
@@ -79,8 +110,12 @@ impl EffectImpl for CyanotypeImageEffect {
                 let r = clamp01(((tone.r as f32 / 255.0) + (pn * 0.08) + (sm * 0.06) + gn) * vm);
                 let g = clamp01(((tone.g as f32 / 255.0) + (pn * 0.10) + (sm * 0.08) + gn) * vm);
                 let b = clamp01(((tone.b as f32 / 255.0) + (pn * 0.14) + (sm * 0.10) + gn) * vm);
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

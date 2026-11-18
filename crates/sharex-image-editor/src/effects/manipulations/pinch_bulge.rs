@@ -24,23 +24,57 @@ impl Default for PinchBulgeImageEffect {
 
 impl EffectImpl for PinchBulgeImageEffect {
     fn info() -> Info {
-        Info::new("pinch_bulge", "Pinch / bulge", EffectCategory::Manipulations, "app/expand")
-            .desc("Applies a pinch or bulge distortion to the image.")
+        Info::new(
+            "pinch_bulge",
+            "Pinch / bulge",
+            EffectCategory::Manipulations,
+            "app/expand",
+        )
+        .desc("Applies a pinch or bulge distortion to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", -100.0, 100.0, 35.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("radius_percentage", "Radius %", 1.0, 100.0, 50.0, |e: &mut Self, v| e.radius_percentage = v),
-            float_slider::<Self>("center_x_percentage", "Center X %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                -100.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>(
+                "radius_percentage",
+                "Radius %",
+                1.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.radius_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let (width, height) = (source.width() as i32, source.height() as i32);
         let (right, bottom) = (width - 1, height - 1);
-        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let radius =
+            1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
         let cx = clampf(self.center_x_percentage, 0.0, 100.0) / 100.0 * right as f32;
         let cy = clampf(self.center_y_percentage, 0.0, 100.0) / 100.0 * bottom as f32;
         let strength = clampf(self.strength, -100.0, 100.0) / 100.0;

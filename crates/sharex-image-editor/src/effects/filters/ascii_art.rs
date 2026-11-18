@@ -28,18 +28,47 @@ impl Default for ASCIIArtImageEffect {
 
 impl EffectImpl for ASCIIArtImageEffect {
     fn info() -> Info {
-        Info::new("ascii_art", "ASCII art", EffectCategory::Filters, "app/terminal")
-            .desc("Converts the image into ASCII character art.")
+        Info::new(
+            "ascii_art",
+            "ASCII art",
+            EffectCategory::Filters,
+            "app/terminal",
+        )
+        .desc("Converts the image into ASCII character art.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("cell_size", "Cell size", 4, 24, 8, |e: &mut Self, v| e.cell_size = v),
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 110.0, |e: &mut Self, v| e.contrast = v),
-            text_param::<Self>("character_set", "Character set", "@%#*+=-:. ", |e: &mut Self, v| e.character_set = v),
+            int_slider::<Self>("cell_size", "Cell size", 4, 24, 8, |e: &mut Self, v| {
+                e.cell_size = v
+            }),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                110.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            text_param::<Self>(
+                "character_set",
+                "Character set",
+                "@%#*+=-:. ",
+                |e: &mut Self, v| e.character_set = v,
+            ),
             bool_param::<Self>("invert", "Invert", false, |e: &mut Self, v| e.invert = v),
-            bool_param::<Self>("dark_background", "Dark background", true, |e: &mut Self, v| e.dark_background = v),
-            bool_param::<Self>("use_source_color", "Use source color", true, |e: &mut Self, v| e.use_source_color = v),
+            bool_param::<Self>(
+                "dark_background",
+                "Dark background",
+                true,
+                |e: &mut Self, v| e.dark_background = v,
+            ),
+            bool_param::<Self>(
+                "use_source_color",
+                "Use source color",
+                true,
+                |e: &mut Self, v| e.use_source_color = v,
+            ),
         ]
     }
 
@@ -54,8 +83,15 @@ impl EffectImpl for ASCIIArtImageEffect {
         let src = pixels(source);
         let mut out = Bitmap::new(source.width(), source.height());
         let mut canvas = Canvas::new(&mut out);
-        canvas.clear(if self.dark_background { [12, 12, 12, 255] } else { [255, 255, 255, 255] });
-        let font = Font::new(Typeface::from_family("Consolas", 400, false), cell as f32 * 1.02);
+        canvas.clear(if self.dark_background {
+            [12, 12, 12, 255]
+        } else {
+            [255, 255, 255, 255]
+        });
+        let font = Font::new(
+            Typeface::from_family("Consolas", 400, false),
+            cell as f32 * 1.02,
+        );
         let columns = ((width as f32 / cell as f32) as f64).ceil() as i32;
         let rows = ((height as f32 / cell as f32) as f64).ceil() as i32;
         let baseline = cell as f32 * 0.90;
@@ -100,7 +136,14 @@ impl EffectImpl for ASCIIArtImageEffect {
                     let v = clamp_to_byte((0.10 + (0.55 * (1.0 - lum))) * 255.0);
                     SkColor::rgba(v, v, v, aa)
                 };
-                font.draw(&mut canvas, &c.to_string(), x0 as f32, y0 as f32 + baseline, Align::Left, &solid(color, true));
+                font.draw(
+                    &mut canvas,
+                    &c.to_string(),
+                    x0 as f32,
+                    y0 as f32 + baseline,
+                    Align::Left,
+                    &solid(color, true),
+                );
             }
         }
         drop(canvas);

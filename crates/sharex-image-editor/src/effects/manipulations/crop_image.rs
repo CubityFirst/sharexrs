@@ -24,16 +24,25 @@ impl Default for CropImageEffect {
 
 impl EffectImpl for CropImageEffect {
     fn info() -> Info {
-        Info::new("crop_image", "Crop image", EffectCategory::Manipulations, "app/crop")
-            .desc("Crops the image.")
+        Info::new(
+            "crop_image",
+            "Crop image",
+            EffectCategory::Manipulations,
+            "app/crop",
+        )
+        .desc("Crops the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_numeric::<Self>("x", "X", 0, 100000, 0, |e: &mut Self, v| e.x = v),
             int_numeric::<Self>("y", "Y", 0, 100000, 0, |e: &mut Self, v| e.y = v),
-            int_numeric::<Self>("width", "Width", 1, 100000, 100, |e: &mut Self, v| e.width = v),
-            int_numeric::<Self>("height", "Height", 1, 100000, 100, |e: &mut Self, v| e.height = v),
+            int_numeric::<Self>("width", "Width", 1, 100000, 100, |e: &mut Self, v| {
+                e.width = v
+            }),
+            int_numeric::<Self>("height", "Height", 1, 100000, 100, |e: &mut Self, v| {
+                e.height = v
+            }),
         ]
     }
 

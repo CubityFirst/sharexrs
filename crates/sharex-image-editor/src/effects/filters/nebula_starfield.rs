@@ -32,19 +32,63 @@ impl Default for NebulaStarfieldImageEffect {
 
 impl EffectImpl for NebulaStarfieldImageEffect {
     fn info() -> Info {
-        Info::new("nebula_starfield", "Nebula starfield", EffectCategory::Filters, "app/sparkles")
-            .desc("Generates a procedural nebula and starfield overlay.")
+        Info::new(
+            "nebula_starfield",
+            "Nebula starfield",
+            EffectCategory::Filters,
+            "app/sparkles",
+        )
+        .desc("Generates a procedural nebula and starfield overlay.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 70.0, |e: &mut Self, v| e.intensity = v),
-            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 80.0, |e: &mut Self, v| e.scale = v),
-            float_slider::<Self>("hue_shift", "Hue shift", -180.0, 180.0, -15.0, |e: &mut Self, v| e.hue_shift = v),
-            float_slider::<Self>("star_density", "Star density", 0.0, 100.0, 55.0, |e: &mut Self, v| e.star_density = v),
-            float_slider::<Self>("star_size", "Star size", 0.0, 200.0, 10.0, |e: &mut Self, v| e.star_size = v),
-            float_slider::<Self>("twinkle", "Twinkle", 0.0, 100.0, 40.0, |e: &mut Self, v| e.twinkle = v),
-            float_slider::<Self>("vignette_strength", "Vignette strength", 0.0, 100.0, 18.0, |e: &mut Self, v| e.vignette_strength = v),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 80.0, |e: &mut Self, v| {
+                e.scale = v
+            }),
+            float_slider::<Self>(
+                "hue_shift",
+                "Hue shift",
+                -180.0,
+                180.0,
+                -15.0,
+                |e: &mut Self, v| e.hue_shift = v,
+            ),
+            float_slider::<Self>(
+                "star_density",
+                "Star density",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.star_density = v,
+            ),
+            float_slider::<Self>(
+                "star_size",
+                "Star size",
+                0.0,
+                200.0,
+                10.0,
+                |e: &mut Self, v| e.star_size = v,
+            ),
+            float_slider::<Self>("twinkle", "Twinkle", 0.0, 100.0, 40.0, |e: &mut Self, v| {
+                e.twinkle = v
+            }),
+            float_slider::<Self>(
+                "vignette_strength",
+                "Vignette strength",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.vignette_strength = v,
+            ),
         ]
     }
 
@@ -69,7 +113,9 @@ impl EffectImpl for NebulaStarfieldImageEffect {
         let cx = hash01(seed, 1, seed ^ 31) * (width - 1) as f32;
         let cy = hash01(seed, 2, seed ^ 47) * (height - 1) as f32;
         let max_dist = 1f32.max(
-            (((width - 1) as f32 * (width - 1) as f32) + ((height - 1) as f32 * (height - 1) as f32)).sqrt(),
+            (((width - 1) as f32 * (width - 1) as f32)
+                + ((height - 1) as f32 * (height - 1) as f32))
+                .sqrt(),
         );
         let base_hue = (hue_shift + 180.0) * (1.0 / 360.0);
         let (neb_r, neb_g, neb_b) = nebula_hsv(base_hue, 0.85, 1.0);
@@ -110,7 +156,13 @@ impl EffectImpl for NebulaStarfieldImageEffect {
                     let dy = yf - scy;
                     let mut d01 = ((dx * dx) + (dy * dy)).sqrt() / (cell as f32 * 0.5);
                     let ts = hash01(cell_x, cell_y, seed ^ 0x51A7);
-                    let tw = 0.5 + (0.5 * ((ts * pi * 10.0) + phase + (cell_x as f32 * 0.91) + (cell_y as f32 * 1.37)).sin());
+                    let tw = 0.5
+                        + (0.5
+                            * ((ts * pi * 10.0)
+                                + phase
+                                + (cell_x as f32 * 0.91)
+                                + (cell_y as f32 * 1.37))
+                                .sin());
                     let tr = lerp(1.0, 0.82 + (tw * 0.70), twinkle);
                     let ti = lerp(1.0, 0.35 + (tw * 1.65), twinkle);
                     d01 /= 0.35f32.max(tr);
@@ -137,7 +189,12 @@ impl EffectImpl for NebulaStarfieldImageEffect {
                 let or = ((sr * rem) + (neb_r * neb) + (neb_r * star_strength)) * vign;
                 let og = ((sg * rem) + (neb_g * neb) + (neb_g * star_strength)) * vign;
                 let ob = ((sb * rem) + (neb_b * neb) + (neb_b * star_strength)) * vign;
-                dst[idx] = SkColor::rgba(clamp_to_byte(or * 255.0), clamp_to_byte(og * 255.0), clamp_to_byte(ob * 255.0), s.a);
+                dst[idx] = SkColor::rgba(
+                    clamp_to_byte(or * 255.0),
+                    clamp_to_byte(og * 255.0),
+                    clamp_to_byte(ob * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

@@ -26,17 +26,52 @@ impl Default for AnamorphicLensFlareImageEffect {
 
 impl EffectImpl for AnamorphicLensFlareImageEffect {
     fn info() -> Info {
-        Info::new("anamorphic_lens_flare", "Anamorphic lens flare", EffectCategory::Filters, "image-effect/sparkle")
-            .desc("Adds cinematic horizontal lens flare streaks to bright areas.")
+        Info::new(
+            "anamorphic_lens_flare",
+            "Anamorphic lens flare",
+            EffectCategory::Filters,
+            "image-effect/sparkle",
+        )
+        .desc("Adds cinematic horizontal lens flare streaks to bright areas.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 60.0, |e: &mut Self, v| e.intensity = v),
-            float_slider::<Self>("threshold", "Threshold", 0.0, 100.0, 72.0, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("streak_length", "Streak length", 0.0, 100.0, 55.0, |e: &mut Self, v| e.streak_length = v),
-            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 45.0, |e: &mut Self, v| e.warmth = v),
-            float_slider::<Self>("ghosting", "Ghosting", 0.0, 100.0, 35.0, |e: &mut Self, v| e.ghosting = v),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                100.0,
+                72.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>(
+                "streak_length",
+                "Streak length",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.streak_length = v,
+            ),
+            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 45.0, |e: &mut Self, v| {
+                e.warmth = v
+            }),
+            float_slider::<Self>(
+                "ghosting",
+                "Ghosting",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.ghosting = v,
+            ),
         ]
     }
 
@@ -58,7 +93,8 @@ impl EffectImpl for AnamorphicLensFlareImageEffect {
         let steps = 5 + (streak * 4.0).round_ties_even() as i32;
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
-        let lum = |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
+        let lum =
+            |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
         let screen = |s: f32, o: f32| {
             let o = 1f32.min(0f32.max(o));
             1.0 - ((1.0 - s) * (1.0 - o))
@@ -80,10 +116,12 @@ impl EffectImpl for AnamorphicLensFlareImageEffect {
                     let weight = 1.0 / (1.0 + ((i as f32).abs() * 0.7));
                     flare += bright * weight;
                 }
-                let ghost_x = ((width - 1) - x) as f32 + ((x as f32 - cx) * (0.40 + (ghosting * 0.85)));
+                let ghost_x =
+                    ((width - 1) - x) as f32 + ((x as f32 - cx) * (0.40 + (ghosting * 0.85)));
                 let gs = bilinear_sample(&src, width, height, ghost_x, y as f32);
                 let gl = lum(gs) / 255.0;
-                let mut ghost = clamp01((gl - (threshold * 0.82)) / 0.0001f32.max(1.0 - (threshold * 0.82)));
+                let mut ghost =
+                    clamp01((gl - (threshold * 0.82)) / 0.0001f32.max(1.0 - (threshold * 0.82)));
                 ghost *= intensity * ghosting * 0.55 * profile;
                 let fs = flare * intensity * 0.12 * profile;
                 let warm_r = 1.0f32;

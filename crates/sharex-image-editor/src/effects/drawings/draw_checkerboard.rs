@@ -23,15 +23,32 @@ impl Default for DrawCheckerboardEffect {
 
 impl EffectImpl for DrawCheckerboardEffect {
     fn info() -> Info {
-        Info::new("draw_checkerboard", "Checkerboard", EffectCategory::Drawings, "image-effect/checkerboard")
-            .desc("Draws a checkerboard pattern behind the image.")
+        Info::new(
+            "draw_checkerboard",
+            "Checkerboard",
+            EffectCategory::Drawings,
+            "image-effect/checkerboard",
+        )
+        .desc("Draws a checkerboard pattern behind the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("size", "Size", 1, 100, 10, |e: &mut Self, v| e.size = v.max(1)),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFD3D3D3), |e: &mut Self, v| e.color = v),
-            color_param::<Self>("color2", "Color 2", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.color2 = v),
+            int_numeric::<Self>("size", "Size", 1, 100, 10, |e: &mut Self, v| {
+                e.size = v.max(1)
+            }),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFD3D3D3),
+                |e: &mut Self, v| e.color = v,
+            ),
+            color_param::<Self>(
+                "color2",
+                "Color 2",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.color2 = v,
+            ),
         ]
     }
 
@@ -50,7 +67,15 @@ impl EffectImpl for DrawCheckerboardEffect {
         let mut out = Bitmap::new(source.width(), source.height());
         let mut canvas = Canvas::new(&mut out);
         let paint = Paint::texture(&pattern, TileMode::Repeat);
-        sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, source.width() as f32, source.height() as f32, &paint, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            0.0,
+            0.0,
+            source.width() as f32,
+            source.height() as f32,
+            &paint,
+            None,
+        );
         canvas.draw_bitmap(source, 0.0, 0.0, None);
         drop(canvas);
         Ok(out)

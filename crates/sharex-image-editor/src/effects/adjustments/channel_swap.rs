@@ -27,14 +27,29 @@ impl Default for ChannelSwapImageEffect {
 
 impl EffectImpl for ChannelSwapImageEffect {
     fn info() -> Info {
-        Info::new("channel_swap", "Channel swap", EffectCategory::Adjustments, "image-effect/shuffle")
-            .desc("Swaps color channels for creative color effects.")
+        Info::new(
+            "channel_swap",
+            "Channel swap",
+            EffectCategory::Adjustments,
+            "image-effect/shuffle",
+        )
+        .desc("Swaps color channels for creative color effects.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            enum_param::<Self, ChannelSwapMode>("mode", "Swap mode", ChannelSwapMode::RedGreen, |e: &mut Self, v| e.mode = v, &[("Red ↔ Green", ChannelSwapMode::RedGreen), ("Red ↔ Blue", ChannelSwapMode::RedBlue), ("Green ↔ Blue", ChannelSwapMode::GreenBlue), ("Rotate R→G→B", ChannelSwapMode::RotateRGB), ("Rotate B→G→R", ChannelSwapMode::RotateBGR)]),
-        ]
+        vec![enum_param::<Self, ChannelSwapMode>(
+            "mode",
+            "Swap mode",
+            ChannelSwapMode::RedGreen,
+            |e: &mut Self, v| e.mode = v,
+            &[
+                ("Red ↔ Green", ChannelSwapMode::RedGreen),
+                ("Red ↔ Blue", ChannelSwapMode::RedBlue),
+                ("Green ↔ Blue", ChannelSwapMode::GreenBlue),
+                ("Rotate R→G→B", ChannelSwapMode::RotateRGB),
+                ("Rotate B→G→R", ChannelSwapMode::RotateBGR),
+            ],
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

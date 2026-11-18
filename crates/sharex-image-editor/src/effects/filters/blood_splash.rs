@@ -26,17 +26,52 @@ impl Default for BloodSplashImageEffect {
 
 impl EffectImpl for BloodSplashImageEffect {
     fn info() -> Info {
-        Info::new("blood_splash", "Blood splash", EffectCategory::Filters, "image-effect/droplet")
-            .desc("Overlays procedural blood splash and drip effects.")
+        Info::new(
+            "blood_splash",
+            "Blood splash",
+            EffectCategory::Filters,
+            "image-effect/droplet",
+        )
+        .desc("Overlays procedural blood splash and drip effects.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("splash_amount", "Splash amount", 0.0, 100.0, 52.0, |e: &mut Self, v| e.splash_amount = v),
-            float_slider::<Self>("drip_length", "Drip length", 0.0, 100.0, 48.0, |e: &mut Self, v| e.drip_length = v),
-            float_slider::<Self>("spread", "Spread", 0.0, 100.0, 42.0, |e: &mut Self, v| e.spread = v),
-            float_slider::<Self>("darkness", "Darkness", 0.0, 100.0, 58.0, |e: &mut Self, v| e.darkness = v),
-            float_slider::<Self>("wet_shine", "Wet shine", 0.0, 100.0, 30.0, |e: &mut Self, v| e.wet_shine = v),
+            float_slider::<Self>(
+                "splash_amount",
+                "Splash amount",
+                0.0,
+                100.0,
+                52.0,
+                |e: &mut Self, v| e.splash_amount = v,
+            ),
+            float_slider::<Self>(
+                "drip_length",
+                "Drip length",
+                0.0,
+                100.0,
+                48.0,
+                |e: &mut Self, v| e.drip_length = v,
+            ),
+            float_slider::<Self>("spread", "Spread", 0.0, 100.0, 42.0, |e: &mut Self, v| {
+                e.spread = v
+            }),
+            float_slider::<Self>(
+                "darkness",
+                "Darkness",
+                0.0,
+                100.0,
+                58.0,
+                |e: &mut Self, v| e.darkness = v,
+            ),
+            float_slider::<Self>(
+                "wet_shine",
+                "Wet shine",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.wet_shine = v,
+            ),
         ]
     }
 
@@ -66,12 +101,27 @@ impl EffectImpl for BloodSplashImageEffect {
             for x in 0..width {
                 let s = src[(row + x) as usize];
                 let (mut r, mut g, mut b, a) = (s.r as f32, s.g as f32, s.b as f32, s.a as f32);
-                let splash = splash_mask(x, y, splash_cell, splash_radius, splash_density, seed ^ 991);
-                let spray = droplet_field(x, y, spray_cell, spray_radius, spray_density, seed ^ 2081);
-                let drips = drip_mask(x, y, height, drip_cell, drip_probability, drip_length, spread, seed ^ 4201);
-                let mist = hash01(x, y, seed ^ 6311).powf(24.0) * splash_amount * (0.18 + (spread * 0.45));
-                let mask = clampf((splash * 0.98) + (spray * 0.58) + (drips * 0.88) + (mist * 0.32), 0.0, 1.0)
-                    * (0.52 + (splash_amount * 0.48));
+                let splash =
+                    splash_mask(x, y, splash_cell, splash_radius, splash_density, seed ^ 991);
+                let spray =
+                    droplet_field(x, y, spray_cell, spray_radius, spray_density, seed ^ 2081);
+                let drips = drip_mask(
+                    x,
+                    y,
+                    height,
+                    drip_cell,
+                    drip_probability,
+                    drip_length,
+                    spread,
+                    seed ^ 4201,
+                );
+                let mist =
+                    hash01(x, y, seed ^ 6311).powf(24.0) * splash_amount * (0.18 + (spread * 0.45));
+                let mask = clampf(
+                    (splash * 0.98) + (spray * 0.58) + (drips * 0.88) + (mist * 0.32),
+                    0.0,
+                    1.0,
+                ) * (0.52 + (splash_amount * 0.48));
                 if mask > 0.0001 {
                     let clot = 0f32.max(splash - 0.32) * (0.85 + (darkness * 0.35));
                     let pooled = clot.max(drips * 0.28);
@@ -88,8 +138,13 @@ impl EffectImpl for BloodSplashImageEffect {
                     g *= 1.0 - (absorb * 0.34);
                     b *= 1.0 - (absorb * 0.38);
                     if wet_shine > 0.0001 {
-                        let sn = hash01((x as f32 * 0.28) as i32, (y as f32 * 0.28) as i32, seed ^ 7607);
-                        let sm = smooth_step(0.76, 0.985, sn) * smooth_step(0.22, 0.82, splash.max(drips));
+                        let sn = hash01(
+                            (x as f32 * 0.28) as i32,
+                            (y as f32 * 0.28) as i32,
+                            seed ^ 7607,
+                        );
+                        let sm = smooth_step(0.76, 0.985, sn)
+                            * smooth_step(0.22, 0.82, splash.max(drips));
                         let shine = sm * wet_shine * (0.25 + (0.75 * splash.max(drips)));
                         if shine > 0.0001 {
                             r = lerp(r, 255.0, shine * 0.24);
@@ -98,7 +153,12 @@ impl EffectImpl for BloodSplashImageEffect {
                         }
                     }
                 }
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))
@@ -129,11 +189,13 @@ fn splash_mask(x: i32, y: i32, cell: f32, radius: f32, density: f32, seed: i32) 
                     continue;
                 }
                 let angle = hash01((nx * 23) + i, (ny * 29) + i, seed ^ 1601) * TAU;
-                let orbit = local * (0.32 + (hash01((nx * 31) + i, (ny * 37) + i, seed ^ 1907) * 1.12));
+                let orbit =
+                    local * (0.32 + (hash01((nx * 31) + i, (ny * 37) + i, seed ^ 1907) * 1.12));
                 let sx = cx + (angle.cos() * orbit);
                 let sy = cy + (angle.sin() * orbit * (0.72 + (chance * 0.55)));
                 let sr = local * (0.16 + (chance * 0.32));
-                strongest = strongest.max(droplet(x as f32, y as f32, sx, sy, sr, seed ^ (2401 + i)));
+                strongest =
+                    strongest.max(droplet(x as f32, y as f32, sx, sy, sr, seed ^ (2401 + i)));
             }
         }
     }
@@ -169,7 +231,16 @@ fn droplet(x: f32, y: f32, cx: f32, cy: f32, radius: f32, seed: i32) -> f32 {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn drip_mask(x: i32, y: i32, height: i32, cell_w: f32, probability: f32, drip_length: f32, spread: f32, seed: i32) -> f32 {
+fn drip_mask(
+    x: i32,
+    y: i32,
+    height: i32,
+    cell_w: f32,
+    probability: f32,
+    drip_length: f32,
+    spread: f32,
+    seed: i32,
+) -> f32 {
     let column = (x as f32 / cell_w).floor() as i32;
     let mut strongest = 0f32;
     let (xf, yf) = (x as f32, y as f32);
@@ -179,7 +250,9 @@ fn drip_mask(x: i32, y: i32, height: i32, cell_w: f32, probability: f32, drip_le
         }
         let base_x = (c as f32 + hash01(c, 1, seed ^ 191)) * cell_w;
         let start_y = hash01(c, 2, seed ^ 487) * height as f32 * 0.58;
-        let length = (0.12 + (drip_length * 0.9)) * (0.36 + (hash01(c, 3, seed ^ 761) * 0.88)) * height as f32;
+        let length = (0.12 + (drip_length * 0.9))
+            * (0.36 + (hash01(c, 3, seed ^ 761) * 0.88))
+            * height as f32;
         let thickness = (1.15 + (spread * 3.8)) * (0.68 + (hash01(c, 4, seed ^ 1033) * 0.85));
         let dy = yf - start_y;
         if dy < 0.0 || dy > length {

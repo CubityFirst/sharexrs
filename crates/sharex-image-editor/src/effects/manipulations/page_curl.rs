@@ -34,23 +34,66 @@ impl Default for PageCurlImageEffect {
 
 impl EffectImpl for PageCurlImageEffect {
     fn info() -> Info {
-        Info::new("page_curl", "Page curl", EffectCategory::Manipulations, "image-effect/page-curl")
-            .desc("Simulates a page curl at a corner of the image.")
+        Info::new(
+            "page_curl",
+            "Page curl",
+            EffectCategory::Manipulations,
+            "image-effect/page-curl",
+        )
+        .desc("Simulates a page curl at a corner of the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, PageCurlCorner>("corner", "Corner", PageCurlCorner::BottomRight, |e: &mut Self, v| e.corner = v, &[("Top left", PageCurlCorner::TopLeft), ("Top right", PageCurlCorner::TopRight), ("Bottom right", PageCurlCorner::BottomRight), ("Bottom left", PageCurlCorner::BottomLeft)]),
-            float_slider::<Self>("curl_size", "Curl size", 5.0, 80.0, 28.0, |e: &mut Self, v| e.curl_size = v),
-            float_slider::<Self>("curl_depth", "Curl depth", 0.0, 100.0, 55.0, |e: &mut Self, v| e.curl_depth = v),
-            float_slider::<Self>("shadow_strength", "Shadow strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.shadow_strength = v),
-            color_param::<Self>("back_color", "Back color", SkColor::argb(0xFFF8F4EC), |e: &mut Self, v| e.back_color = v),
+            enum_param::<Self, PageCurlCorner>(
+                "corner",
+                "Corner",
+                PageCurlCorner::BottomRight,
+                |e: &mut Self, v| e.corner = v,
+                &[
+                    ("Top left", PageCurlCorner::TopLeft),
+                    ("Top right", PageCurlCorner::TopRight),
+                    ("Bottom right", PageCurlCorner::BottomRight),
+                    ("Bottom left", PageCurlCorner::BottomLeft),
+                ],
+            ),
+            float_slider::<Self>(
+                "curl_size",
+                "Curl size",
+                5.0,
+                80.0,
+                28.0,
+                |e: &mut Self, v| e.curl_size = v,
+            ),
+            float_slider::<Self>(
+                "curl_depth",
+                "Curl depth",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.curl_depth = v,
+            ),
+            float_slider::<Self>(
+                "shadow_strength",
+                "Shadow strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.shadow_strength = v,
+            ),
+            color_param::<Self>(
+                "back_color",
+                "Back color",
+                SkColor::argb(0xFFF8F4EC),
+                |e: &mut Self, v| e.back_color = v,
+            ),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let (width, height) = (source.width() as i32, source.height() as i32);
-        let curl_size = 12f32.max(width.min(height) as f32 * clampf(self.curl_size, 5.0, 80.0) / 100.0);
+        let curl_size =
+            12f32.max(width.min(height) as f32 * clampf(self.curl_size, 5.0, 80.0) / 100.0);
         let depth01 = clampf(self.curl_depth, 0.0, 100.0) / 100.0;
         let shadow01 = clampf(self.shadow_strength, 0.0, 100.0) / 100.0;
         let fold_line = curl_size * (0.78 + (depth01 * 0.22));
@@ -71,9 +114,11 @@ impl EffectImpl for PageCurlImageEffect {
                         let (rx, ry) = (fold_line - ly, fold_line - lx);
                         let (sx, sy) = corner_local(corner, width, height, rx, ry);
                         let reflected = bilinear_sample(&src, width, height, sx, sy);
-                        let curl_mix = 0.28 + (depth01 * 0.28) + ((1.0 - (diagonal / fold_line)) * 0.18);
+                        let curl_mix =
+                            0.28 + (depth01 * 0.28) + ((1.0 - (diagonal / fold_line)) * 0.18);
                         let curled = blend(reflected, self.back_color, curl_mix);
-                        let highlight = (0.05 + (depth01 * 0.09)) * smooth_step(fold_line * 0.55, 0.0, diagonal);
+                        let highlight = (0.05 + (depth01 * 0.09))
+                            * smooth_step(fold_line * 0.55, 0.0, diagonal);
                         blend(curled, SkColor::rgba(255, 255, 255, curled.a), highlight)
                     } else if diagonal < fold_line + shadow_width {
                         let fade = 1.0 - ((diagonal - fold_line) / shadow_width);

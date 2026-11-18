@@ -30,19 +30,28 @@ impl Default for TornEdgeImageEffect {
 
 impl EffectImpl for TornEdgeImageEffect {
     fn info() -> Info {
-        Info::new("torn_edge", "Torn edge", EffectCategory::Filters, "image-effect/torn-edge")
-            .desc("Adds a torn edge border effect.")
+        Info::new(
+            "torn_edge",
+            "Torn edge",
+            EffectCategory::Filters,
+            "image-effect/torn-edge",
+        )
+        .desc("Adds a torn edge border effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("depth", "Depth", 1, 100, 20, |e: &mut Self, v| e.depth = v).snap(false),
-            int_slider::<Self>("range", "Range", 1, 100, 20, |e: &mut Self, v| e.range = v).snap(false),
+            int_slider::<Self>("depth", "Depth", 1, 100, 20, |e: &mut Self, v| e.depth = v)
+                .snap(false),
+            int_slider::<Self>("range", "Range", 1, 100, 20, |e: &mut Self, v| e.range = v)
+                .snap(false),
             bool_param::<Self>("top", "Top", true, |e: &mut Self, v| e.top = v),
             bool_param::<Self>("right", "Right", true, |e: &mut Self, v| e.right = v),
             bool_param::<Self>("bottom", "Bottom", true, |e: &mut Self, v| e.bottom = v),
             bool_param::<Self>("left", "Left", true, |e: &mut Self, v| e.left = v),
-            bool_param::<Self>("curved", "Curved edges", false, |e: &mut Self, v| e.curved = v),
+            bool_param::<Self>("curved", "Curved edges", false, |e: &mut Self, v| {
+                e.curved = v
+            }),
         ]
     }
 
@@ -65,7 +74,11 @@ impl EffectImpl for TornEdgeImageEffect {
         random::shared(|rand| {
             if self.top && h_count > 1 {
                 let start = if self.left && v_count > 1 { depth } else { 0 };
-                let end = if self.right && v_count > 1 { sw - depth } else { sw };
+                let end = if self.right && v_count > 1 {
+                    sw - depth
+                } else {
+                    sw
+                };
                 let mut x = start;
                 while x < end {
                     pts.push(p(x, rand.next_range(0, depth + 1)));
@@ -77,7 +90,11 @@ impl EffectImpl for TornEdgeImageEffect {
             }
             if self.right && v_count > 1 {
                 let start = if self.top && h_count > 1 { depth } else { 0 };
-                let end = if self.bottom && h_count > 1 { sh - depth } else { sh };
+                let end = if self.bottom && h_count > 1 {
+                    sh - depth
+                } else {
+                    sh
+                };
                 let mut y = start;
                 while y < end {
                     pts.push(p(sw - depth + rand.next_range(0, depth + 1), y));
@@ -88,7 +105,11 @@ impl EffectImpl for TornEdgeImageEffect {
                 pts.push(p(sw, sh));
             }
             if self.bottom && h_count > 1 {
-                let start = if self.right && v_count > 1 { sw - depth } else { sw };
+                let start = if self.right && v_count > 1 {
+                    sw - depth
+                } else {
+                    sw
+                };
                 let end = if self.left && v_count > 1 { depth } else { 0 };
                 let mut x = start;
                 while x >= end {
@@ -100,7 +121,11 @@ impl EffectImpl for TornEdgeImageEffect {
                 pts.push(p(0, sh));
             }
             if self.left && v_count > 1 {
-                let start = if self.bottom && h_count > 1 { sh - depth } else { sh };
+                let start = if self.bottom && h_count > 1 {
+                    sh - depth
+                } else {
+                    sh
+                };
                 let end = if self.top && h_count > 1 { depth } else { 0 };
                 let mut y = start;
                 while y >= end {

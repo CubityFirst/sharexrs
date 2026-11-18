@@ -20,14 +20,33 @@ impl Default for ShadowsHighlightsImageEffect {
 
 impl EffectImpl for ShadowsHighlightsImageEffect {
     fn info() -> Info {
-        Info::new("shadows_highlights", "Shadows / Highlights", EffectCategory::Adjustments, "app/theme")
-            .desc("Adjusts shadows and highlights.")
+        Info::new(
+            "shadows_highlights",
+            "Shadows / Highlights",
+            EffectCategory::Adjustments,
+            "app/theme",
+        )
+        .desc("Adjusts shadows and highlights.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("shadows", "Shadows", -100.0, 100.0, 0.0, |e: &mut Self, v| e.shadows = v),
-            float_slider::<Self>("highlights", "Highlights", -100.0, 100.0, 0.0, |e: &mut Self, v| e.highlights = v),
+            float_slider::<Self>(
+                "shadows",
+                "Shadows",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.shadows = v,
+            ),
+            float_slider::<Self>(
+                "highlights",
+                "Highlights",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.highlights = v,
+            ),
         ]
     }
 

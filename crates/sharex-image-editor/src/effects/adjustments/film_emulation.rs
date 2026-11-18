@@ -37,17 +37,62 @@ impl Default for FilmEmulationImageEffect {
 
 impl EffectImpl for FilmEmulationImageEffect {
     fn info() -> Info {
-        Info::new("film_emulation", "Film emulation", EffectCategory::Adjustments, "app/film")
-            .desc("Applies cinematic analog film looks with grain and fade.")
+        Info::new(
+            "film_emulation",
+            "Film emulation",
+            EffectCategory::Adjustments,
+            "app/film",
+        )
+        .desc("Applies cinematic analog film looks with grain and fade.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, FilmEmulationPreset>("preset", "Preset", FilmEmulationPreset::Classic, |e: &mut Self, v| e.preset = v, &[("Classic", FilmEmulationPreset::Classic), ("Warm", FilmEmulationPreset::Warm), ("Cool", FilmEmulationPreset::Cool), ("Faded", FilmEmulationPreset::Faded), ("Cross processed", FilmEmulationPreset::CrossProcessed)]),
-            float_slider::<Self>("tone_strength", "Tone strength", 0.0, 100.0, 65.0, |e: &mut Self, v| e.tone_strength = v),
-            float_slider::<Self>("grain_amount", "Grain amount", 0.0, 100.0, 12.0, |e: &mut Self, v| e.grain_amount = v),
-            float_slider::<Self>("fade_amount", "Fade amount", 0.0, 100.0, 10.0, |e: &mut Self, v| e.fade_amount = v),
-            float_slider::<Self>("contrast_amount", "Contrast amount", 50.0, 150.0, 110.0, |e: &mut Self, v| e.contrast_amount = v),
+            enum_param::<Self, FilmEmulationPreset>(
+                "preset",
+                "Preset",
+                FilmEmulationPreset::Classic,
+                |e: &mut Self, v| e.preset = v,
+                &[
+                    ("Classic", FilmEmulationPreset::Classic),
+                    ("Warm", FilmEmulationPreset::Warm),
+                    ("Cool", FilmEmulationPreset::Cool),
+                    ("Faded", FilmEmulationPreset::Faded),
+                    ("Cross processed", FilmEmulationPreset::CrossProcessed),
+                ],
+            ),
+            float_slider::<Self>(
+                "tone_strength",
+                "Tone strength",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.tone_strength = v,
+            ),
+            float_slider::<Self>(
+                "grain_amount",
+                "Grain amount",
+                0.0,
+                100.0,
+                12.0,
+                |e: &mut Self, v| e.grain_amount = v,
+            ),
+            float_slider::<Self>(
+                "fade_amount",
+                "Fade amount",
+                0.0,
+                100.0,
+                10.0,
+                |e: &mut Self, v| e.fade_amount = v,
+            ),
+            float_slider::<Self>(
+                "contrast_amount",
+                "Contrast amount",
+                50.0,
+                150.0,
+                110.0,
+                |e: &mut Self, v| e.contrast_amount = v,
+            ),
         ]
     }
 
@@ -107,17 +152,29 @@ impl EffectImpl for FilmEmulationImageEffect {
 fn apply_preset(preset: FilmEmulationPreset, r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     let (tr, tg, tb) = match preset {
         FilmEmulationPreset::Warm => ((r * 1.10) + (g * 0.015), g * 1.04, (b * 0.88) + (r * 0.01)),
-        FilmEmulationPreset::Cool => ((r * 0.94) + (b * 0.02), (g * 1.01) + (b * 0.01), (b * 1.10) + (g * 0.01)),
+        FilmEmulationPreset::Cool => (
+            (r * 0.94) + (b * 0.02),
+            (g * 1.01) + (b * 0.01),
+            (b * 1.10) + (g * 0.01),
+        ),
         FilmEmulationPreset::Faded => {
             let lum = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-            (lerp(r, lum + 0.04, 0.22), lerp(g, lum + 0.03, 0.18), lerp(b, lum - 0.01, 0.26))
+            (
+                lerp(r, lum + 0.04, 0.22),
+                lerp(g, lum + 0.03, 0.18),
+                lerp(b, lum - 0.01, 0.26),
+            )
         }
         FilmEmulationPreset::CrossProcessed => (
             r.max(0.0001).powf(0.88) * 1.08,
             g.max(0.0001).powf(1.05) * 0.98,
             b.max(0.0001).powf(0.82) * 1.12,
         ),
-        FilmEmulationPreset::Classic => ((r * 1.05) + (g * 0.02), (g * 1.02) + (r * 0.01), (b * 0.94) + (g * 0.02)),
+        FilmEmulationPreset::Classic => (
+            (r * 1.05) + (g * 0.02),
+            (g * 1.02) + (r * 0.01),
+            (b * 0.94) + (g * 0.02),
+        ),
     };
     (clamp01(tr), clamp01(tg), clamp01(tb))
 }

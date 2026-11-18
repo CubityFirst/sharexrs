@@ -24,16 +24,27 @@ impl Default for GhostTrailImageEffect {
 
 impl EffectImpl for GhostTrailImageEffect {
     fn info() -> Info {
-        Info::new("ghost_trail", "Ghost trail", EffectCategory::Filters, "image-effect/ghost")
-            .desc("Creates fading ghost copies offset from the original image.")
+        Info::new(
+            "ghost_trail",
+            "Ghost trail",
+            EffectCategory::Filters,
+            "image-effect/ghost",
+        )
+        .desc("Creates fading ghost copies offset from the original image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("copies", "Copies", 1, 8, 3, |e: &mut Self, v| e.copies = v),
-            int_slider::<Self>("offset_x", "Offset X", -50, 50, 15, |e: &mut Self, v| e.offset_x = v),
-            int_slider::<Self>("offset_y", "Offset Y", -50, 50, 5, |e: &mut Self, v| e.offset_y = v),
-            float_slider::<Self>("fade", "Fade", 10.0, 90.0, 50.0, |e: &mut Self, v| e.fade = v),
+            int_slider::<Self>("offset_x", "Offset X", -50, 50, 15, |e: &mut Self, v| {
+                e.offset_x = v
+            }),
+            int_slider::<Self>("offset_y", "Offset Y", -50, 50, 5, |e: &mut Self, v| {
+                e.offset_y = v
+            }),
+            float_slider::<Self>("fade", "Fade", 10.0, 90.0, 50.0, |e: &mut Self, v| {
+                e.fade = v
+            }),
         ]
     }
 
@@ -52,7 +63,12 @@ impl EffectImpl for GhostTrailImageEffect {
             }
             let mut p = Paint::shader(Shader::Color([255, 255, 255, 255]));
             p.alpha = a;
-            canvas.draw_bitmap(source, self.offset_x.wrapping_mul(i) as f32, self.offset_y.wrapping_mul(i) as f32, Some(&p));
+            canvas.draw_bitmap(
+                source,
+                self.offset_x.wrapping_mul(i) as f32,
+                self.offset_y.wrapping_mul(i) as f32,
+                Some(&p),
+            );
         }
         canvas.draw_bitmap(source, 0.0, 0.0, None);
         drop(canvas);

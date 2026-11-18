@@ -31,15 +31,27 @@ impl Default for ResizeImageEffect {
 
 impl EffectImpl for ResizeImageEffect {
     fn info() -> Info {
-        Info::new("resize_image", "Resize image", EffectCategory::Manipulations, "app/resize")
-            .desc("Resizes the image.")
+        Info::new(
+            "resize_image",
+            "Resize image",
+            EffectCategory::Manipulations,
+            "app/resize",
+        )
+        .desc("Resizes the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_numeric::<Self>("width", "Width", 0, 10000, 0, |e: &mut Self, v| e.width = v),
-            int_numeric::<Self>("height", "Height", 0, 10000, 0, |e: &mut Self, v| e.height = v),
-            bool_param::<Self>("maintain_aspect_ratio", "Maintain aspect ratio", false, |e: &mut Self, v| e.maintain_aspect_ratio = v),
+            int_numeric::<Self>("height", "Height", 0, 10000, 0, |e: &mut Self, v| {
+                e.height = v
+            }),
+            bool_param::<Self>(
+                "maintain_aspect_ratio",
+                "Maintain aspect ratio",
+                false,
+                |e: &mut Self, v| e.maintain_aspect_ratio = v,
+            ),
         ]
     }
 

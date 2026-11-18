@@ -10,22 +10,30 @@ pub struct SepiaImageEffect {
 
 impl Default for SepiaImageEffect {
     fn default() -> Self {
-        SepiaImageEffect {
-            strength: 100.0,
-        }
+        SepiaImageEffect { strength: 100.0 }
     }
 }
 
 impl EffectImpl for SepiaImageEffect {
     fn info() -> Info {
-        Info::new("sepia", "Sepia", EffectCategory::Adjustments, "image-effect/coffee")
-            .desc("Applies a sepia tone effect.")
+        Info::new(
+            "sepia",
+            "Sepia",
+            EffectCategory::Adjustments,
+            "image-effect/coffee",
+        )
+        .desc("Applies a sepia tone effect.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 100.0, |e: &mut Self, v| e.strength = v),
-        ]
+        vec![float_slider::<Self>(
+            "strength",
+            "Strength",
+            0.0,
+            100.0,
+            100.0,
+            |e: &mut Self, v| e.strength = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

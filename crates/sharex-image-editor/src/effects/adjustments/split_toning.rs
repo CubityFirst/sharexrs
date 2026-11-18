@@ -24,16 +24,45 @@ impl Default for SplitToningImageEffect {
 
 impl EffectImpl for SplitToningImageEffect {
     fn info() -> Info {
-        Info::new("split_toning", "Split Toning", EffectCategory::Adjustments, "app/blend")
-            .desc("Tints shadows and highlights with different colors.")
+        Info::new(
+            "split_toning",
+            "Split Toning",
+            EffectCategory::Adjustments,
+            "app/blend",
+        )
+        .desc("Tints shadows and highlights with different colors.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            color_param::<Self>("shadow_tint", "Shadow Tint", SkColor::argb(0xFF283278), |e: &mut Self, v| e.shadow_tint = v),
-            color_param::<Self>("highlight_tint", "Highlight Tint", SkColor::argb(0xFFC8AA64), |e: &mut Self, v| e.highlight_tint = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 30.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("balance", "Balance", -100.0, 100.0, 0.0, |e: &mut Self, v| e.balance = v),
+            color_param::<Self>(
+                "shadow_tint",
+                "Shadow Tint",
+                SkColor::argb(0xFF283278),
+                |e: &mut Self, v| e.shadow_tint = v,
+            ),
+            color_param::<Self>(
+                "highlight_tint",
+                "Highlight Tint",
+                SkColor::argb(0xFFC8AA64),
+                |e: &mut Self, v| e.highlight_tint = v,
+            ),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>(
+                "balance",
+                "Balance",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.balance = v,
+            ),
         ]
     }
 
@@ -66,7 +95,12 @@ impl EffectImpl for SplitToningImageEffect {
             r = lerp(r, soft_light(r, tr), strength);
             g = lerp(g, soft_light(g, tg), strength);
             b = lerp(b, soft_light(b, tb), strength);
-            SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), c.a)
+            SkColor::rgba(
+                clamp_to_byte(r * 255.0),
+                clamp_to_byte(g * 255.0),
+                clamp_to_byte(b * 255.0),
+                c.a,
+            )
         }))
     }
 }

@@ -10,22 +10,30 @@ pub struct AlphaImageEffect {
 
 impl Default for AlphaImageEffect {
     fn default() -> Self {
-        AlphaImageEffect {
-            amount: 100.0,
-        }
+        AlphaImageEffect { amount: 100.0 }
     }
 }
 
 impl EffectImpl for AlphaImageEffect {
     fn info() -> Info {
-        Info::new("alpha", "Alpha", EffectCategory::Adjustments, "image-effect/droplet")
-            .desc("Adjusts the alpha transparency.")
+        Info::new(
+            "alpha",
+            "Alpha",
+            EffectCategory::Adjustments,
+            "image-effect/droplet",
+        )
+        .desc("Adjusts the alpha transparency.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Alpha", 0.0, 100.0, 100.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Alpha",
+            0.0,
+            100.0,
+            100.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

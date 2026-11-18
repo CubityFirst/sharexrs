@@ -24,16 +24,31 @@ impl Default for OutlineImageEffect {
 
 impl EffectImpl for OutlineImageEffect {
     fn info() -> Info {
-        Info::new("outline", "Outline", EffectCategory::Filters, "image-effect/square-dashed")
-            .desc("Applies an outline effect.")
+        Info::new(
+            "outline",
+            "Outline",
+            EffectCategory::Filters,
+            "image-effect/square-dashed",
+        )
+        .desc("Applies an outline effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("size", "Size", 1, 50, 3, |e: &mut Self, v| e.size = v).snap(false),
-            int_slider::<Self>("padding", "Padding", 0, 100, 0, |e: &mut Self, v| e.padding = v).snap(false),
-            bool_param::<Self>("outline_only", "Outline only", false, |e: &mut Self, v| e.outline_only = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.color = v),
+            int_slider::<Self>("padding", "Padding", 0, 100, 0, |e: &mut Self, v| {
+                e.padding = v
+            })
+            .snap(false),
+            bool_param::<Self>("outline_only", "Outline only", false, |e: &mut Self, v| {
+                e.outline_only = v
+            }),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.color = v,
+            ),
         ]
     }
 
@@ -51,12 +66,16 @@ impl EffectImpl for OutlineImageEffect {
         // (SkRasterPipelineSpriteBlitter, highp), src-over onto transparent.
         let outer = dilate(source, total.min(256), total, nw, nh);
         let tint = r::premul_f(r::load(self.color.rgba_array()));
-        for i in 0..n {
-            let da = r::from_byte(outer[i][3]);
+        for (i, o) in outer.iter().enumerate().take(n) {
+            let da = r::from_byte(o[3]);
             let c = r::clamp_01(tint.map(|t| t * da));
             let d = out.px(i);
             let inv = 1.0 - c[3];
-            out.set_px(i, [0, 1, 2, 3].map(|k| r::to_unorm(r::mad(d[k] as f32, inv, c[k] * 255.0), 1.0, 255.0)));
+            out.set_px(
+                i,
+                [0, 1, 2, 3]
+                    .map(|k| r::to_unorm(r::mad(d[k] as f32, inv, c[k] * 255.0), 1.0, 255.0)),
+            );
         }
         if self.padding > 0 {
             let gap = dilate(source, self.padding.min(256), total, nw, nh);
@@ -127,7 +146,10 @@ fn dilate(source: &Bitmap, radius: i32, at: i32, w: i32, h: i32) -> Vec<[u8; 4]>
 fn dst_out(out: &mut Bitmap, i: usize, s: [u8; 4]) {
     let d = out.px(i);
     let inv = 255 - s[3] as u32;
-    out.set_px(i, d.map(|v| sharex_skia::raster::div255_accurate(v as u32 * inv) as u8));
+    out.set_px(
+        i,
+        d.map(|v| sharex_skia::raster::div255_accurate(v as u32 * inv) as u8),
+    );
 }
 
 fn canvas_draw(out: &mut Bitmap, source: &Bitmap, at: i32) {

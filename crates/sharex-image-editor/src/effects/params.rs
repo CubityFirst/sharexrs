@@ -173,14 +173,22 @@ impl ParamDef {
 }
 
 fn downcast<T: 'static>(e: &mut dyn Any) -> &mut T {
-    e.downcast_mut::<T>().expect("parameter applied to another effect")
+    e.downcast_mut::<T>()
+        .expect("parameter applied to another effect")
 }
 
 fn number(v: &ParamValue) -> f64 {
     v.as_number().unwrap_or(0.0)
 }
 
-fn slider(key: &'static str, label: &'static str, min: f64, max: f64, default: f64, apply: Applier) -> ParamDef {
+fn slider(
+    key: &'static str,
+    label: &'static str,
+    min: f64,
+    max: f64,
+    default: f64,
+    apply: Applier,
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -206,8 +214,14 @@ pub fn int_slider<T: 'static>(
     default: i32,
     f: fn(&mut T, i32),
 ) -> ParamDef {
-    slider(key, label, min as f64, max as f64, default as f64,
-        Box::new(move |e, v| f(downcast::<T>(e), number(v).round_ties_even() as i32)))
+    slider(
+        key,
+        label,
+        min as f64,
+        max as f64,
+        default as f64,
+        Box::new(move |e, v| f(downcast::<T>(e), number(v).round_ties_even() as i32)),
+    )
 }
 
 /// `EffectParameters.FloatSlider`: `(float)value`.
@@ -219,11 +233,23 @@ pub fn float_slider<T: 'static>(
     default: f64,
     f: fn(&mut T, f32),
 ) -> ParamDef {
-    slider(key, label, min, max, default, Box::new(move |e, v| f(downcast::<T>(e), number(v) as f32)))
+    slider(
+        key,
+        label,
+        min,
+        max,
+        default,
+        Box::new(move |e, v| f(downcast::<T>(e), number(v) as f32)),
+    )
 }
 
 /// `EffectParameters.Bool`.
-pub fn bool_param<T: 'static>(key: &'static str, label: &'static str, default: bool, f: fn(&mut T, bool)) -> ParamDef {
+pub fn bool_param<T: 'static>(
+    key: &'static str,
+    label: &'static str,
+    default: bool,
+    f: fn(&mut T, bool),
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -265,7 +291,12 @@ pub fn enum_param<T: 'static, E: Copy + PartialEq + Send + Sync + 'static>(
 }
 
 /// `EffectParameters.Color`.
-pub fn color_param<T: 'static>(key: &'static str, label: &'static str, default: SkColor, f: fn(&mut T, SkColor)) -> ParamDef {
+pub fn color_param<T: 'static>(
+    key: &'static str,
+    label: &'static str,
+    default: SkColor,
+    f: fn(&mut T, SkColor),
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -279,7 +310,17 @@ pub fn color_param<T: 'static>(key: &'static str, label: &'static str, default: 
     }
 }
 
-fn numeric(key: &'static str, label: &'static str, min: f64, max: f64, default: f64, increment: f64, format: &'static str, apply: Applier) -> ParamDef {
+#[allow(clippy::too_many_arguments)]
+fn numeric(
+    key: &'static str,
+    label: &'static str,
+    min: f64,
+    max: f64,
+    default: f64,
+    increment: f64,
+    format: &'static str,
+    apply: Applier,
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -304,8 +345,16 @@ pub fn int_numeric<T: 'static>(
     default: i32,
     f: fn(&mut T, i32),
 ) -> ParamDef {
-    numeric(key, label, min as f64, max as f64, default as f64, 1.0, "0",
-        Box::new(move |e, v| f(downcast::<T>(e), number(v).round() as i32)))
+    numeric(
+        key,
+        label,
+        min as f64,
+        max as f64,
+        default as f64,
+        1.0,
+        "0",
+        Box::new(move |e, v| f(downcast::<T>(e), number(v).round() as i32)),
+    )
 }
 
 /// `EffectParameters.DoubleNumeric`.
@@ -317,11 +366,25 @@ pub fn double_numeric<T: 'static>(
     default: f64,
     f: fn(&mut T, f64),
 ) -> ParamDef {
-    numeric(key, label, min, max, default, 1.0, "0.0", Box::new(move |e, v| f(downcast::<T>(e), number(v))))
+    numeric(
+        key,
+        label,
+        min,
+        max,
+        default,
+        1.0,
+        "0.0",
+        Box::new(move |e, v| f(downcast::<T>(e), number(v))),
+    )
 }
 
 /// `EffectParameters.Text`.
-pub fn text_param<T: 'static>(key: &'static str, label: &'static str, default: &str, f: fn(&mut T, String)) -> ParamDef {
+pub fn text_param<T: 'static>(
+    key: &'static str,
+    label: &'static str,
+    default: &str,
+    f: fn(&mut T, String),
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -338,7 +401,12 @@ pub fn text_param<T: 'static>(key: &'static str, label: &'static str, default: &
 }
 
 /// `EffectParameters.FilePath`.
-pub fn file_param<T: 'static>(key: &'static str, label: &'static str, default: &str, f: fn(&mut T, String)) -> ParamDef {
+pub fn file_param<T: 'static>(
+    key: &'static str,
+    label: &'static str,
+    default: &str,
+    f: fn(&mut T, String),
+) -> ParamDef {
     ParamDef {
         key,
         label,
@@ -379,7 +447,10 @@ impl EffectValues {
     }
 
     pub fn get(&self, key: &str) -> Option<&ParamValue> {
-        self.keys.iter().position(|k| *k == key).map(|i| &self.values[i])
+        self.keys
+            .iter()
+            .position(|k| *k == key)
+            .map(|i| &self.values[i])
     }
 
     pub fn values(&self) -> impl Iterator<Item = (&'static str, &ParamValue)> {

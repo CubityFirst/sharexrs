@@ -32,20 +32,81 @@ impl Default for PerspectiveWarpImageEffect {
 
 impl EffectImpl for PerspectiveWarpImageEffect {
     fn info() -> Info {
-        Info::new("perspective_warp", "Perspective warp", EffectCategory::Manipulations, "image-effect/move-diagonal")
-            .desc("Applies a perspective warp transformation.")
+        Info::new(
+            "perspective_warp",
+            "Perspective warp",
+            EffectCategory::Manipulations,
+            "image-effect/move-diagonal",
+        )
+        .desc("Applies a perspective warp transformation.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("top_left_x", "Top left X", -500, 500, 0, |e: &mut Self, v| e.top_left_x = v as f32),
-            int_numeric::<Self>("top_left_y", "Top left Y", -500, 500, 0, |e: &mut Self, v| e.top_left_y = v as f32),
-            int_numeric::<Self>("top_right_x", "Top right X", -500, 500, 0, |e: &mut Self, v| e.top_right_x = v as f32),
-            int_numeric::<Self>("top_right_y", "Top right Y", -500, 500, 0, |e: &mut Self, v| e.top_right_y = v as f32),
-            int_numeric::<Self>("bottom_right_x", "Bottom right X", -500, 500, 0, |e: &mut Self, v| e.bottom_right_x = v as f32),
-            int_numeric::<Self>("bottom_right_y", "Bottom right Y", -500, 500, 0, |e: &mut Self, v| e.bottom_right_y = v as f32),
-            int_numeric::<Self>("bottom_left_x", "Bottom left X", -500, 500, 0, |e: &mut Self, v| e.bottom_left_x = v as f32),
-            int_numeric::<Self>("bottom_left_y", "Bottom left Y", -500, 500, 0, |e: &mut Self, v| e.bottom_left_y = v as f32),
+            int_numeric::<Self>(
+                "top_left_x",
+                "Top left X",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.top_left_x = v as f32,
+            ),
+            int_numeric::<Self>(
+                "top_left_y",
+                "Top left Y",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.top_left_y = v as f32,
+            ),
+            int_numeric::<Self>(
+                "top_right_x",
+                "Top right X",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.top_right_x = v as f32,
+            ),
+            int_numeric::<Self>(
+                "top_right_y",
+                "Top right Y",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.top_right_y = v as f32,
+            ),
+            int_numeric::<Self>(
+                "bottom_right_x",
+                "Bottom right X",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.bottom_right_x = v as f32,
+            ),
+            int_numeric::<Self>(
+                "bottom_right_y",
+                "Bottom right Y",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.bottom_right_y = v as f32,
+            ),
+            int_numeric::<Self>(
+                "bottom_left_x",
+                "Bottom left X",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.bottom_left_x = v as f32,
+            ),
+            int_numeric::<Self>(
+                "bottom_left_y",
+                "Bottom left Y",
+                -500,
+                500,
+                0,
+                |e: &mut Self, v| e.bottom_left_y = v as f32,
+            ),
         ]
     }
 
@@ -122,6 +183,8 @@ fn compute_homography(src: &[(f32, f32); 4], dst: &[(f32, f32); 4]) -> Option<[f
     Some(h)
 }
 
+// Gaussian elimination as ShareX writes it, by index.
+#[allow(clippy::needless_range_loop)]
 fn solve_linear_system(a: &[[f64; 8]; 8], b: &[f64; 8]) -> Option<[f64; 8]> {
     const N: usize = 8;
     let mut aug = [[0f64; N + 1]; N];

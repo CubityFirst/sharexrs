@@ -28,18 +28,54 @@ impl Default for GradientFadeBorderImageEffect {
 
 impl EffectImpl for GradientFadeBorderImageEffect {
     fn info() -> Info {
-        Info::new("gradient_fade_border", "Gradient fade border", EffectCategory::Filters, "app/blend")
-            .desc("Adds a multi-stop gradient border that smoothly fades between configurable colors.")
+        Info::new(
+            "gradient_fade_border",
+            "Gradient fade border",
+            EffectCategory::Filters,
+            "app/blend",
+        )
+        .desc("Adds a multi-stop gradient border that smoothly fades between configurable colors.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 10, 300, 50, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("outer_color", "Outer color", SkColor::argb(0xFF0A0A23), |e: &mut Self, v| e.outer_color = v),
-            color_param::<Self>("mid_color", "Mid color", SkColor::argb(0xFF3C1478), |e: &mut Self, v| e.mid_color = v),
-            color_param::<Self>("inner_color", "Inner color", SkColor::argb(0xFFB450C8), |e: &mut Self, v| e.inner_color = v),
-            float_slider::<Self>("mid_position", "Mid-color position %", 10.0, 90.0, 50.0, |e: &mut Self, v| e.mid_position = v),
-            bool_param::<Self>("glow_edge", "Inner glow edge", true, |e: &mut Self, v| e.glow_edge = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                10,
+                300,
+                50,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "outer_color",
+                "Outer color",
+                SkColor::argb(0xFF0A0A23),
+                |e: &mut Self, v| e.outer_color = v,
+            ),
+            color_param::<Self>(
+                "mid_color",
+                "Mid color",
+                SkColor::argb(0xFF3C1478),
+                |e: &mut Self, v| e.mid_color = v,
+            ),
+            color_param::<Self>(
+                "inner_color",
+                "Inner color",
+                SkColor::argb(0xFFB450C8),
+                |e: &mut Self, v| e.inner_color = v,
+            ),
+            float_slider::<Self>(
+                "mid_position",
+                "Mid-color position %",
+                10.0,
+                90.0,
+                50.0,
+                |e: &mut Self, v| e.mid_position = v,
+            ),
+            bool_param::<Self>("glow_edge", "Inner glow edge", true, |e: &mut Self, v| {
+                e.glow_edge = v
+            }),
         ]
     }
 
@@ -85,7 +121,13 @@ impl EffectImpl for GradientFadeBorderImageEffect {
             let ic = self.inner_color;
             let paint = solid(SkColor::rgba(ic.r, ic.g, ic.b, 120), true);
             let bf = border as f32;
-            sk::draw_rect_blur(&mut canvas, RRect::xywh(bf, bf, iw as f32, ih as f32), &paint, Some(&Pen::new(3.0)), 4.0);
+            sk::draw_rect_blur(
+                &mut canvas,
+                RRect::xywh(bf, bf, iw as f32, ih as f32),
+                &paint,
+                Some(&Pen::new(3.0)),
+                4.0,
+            );
         }
         drop(canvas);
         Ok(out)

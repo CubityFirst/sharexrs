@@ -10,22 +10,30 @@ pub struct MedianFilterImageEffect {
 
 impl Default for MedianFilterImageEffect {
     fn default() -> Self {
-        MedianFilterImageEffect {
-            radius: 1,
-        }
+        MedianFilterImageEffect { radius: 1 }
     }
 }
 
 impl EffectImpl for MedianFilterImageEffect {
     fn info() -> Info {
-        Info::new("median_filter", "Median filter", EffectCategory::Filters, "app/filter")
-            .desc("Applies a median filter to reduce noise while preserving edges.")
+        Info::new(
+            "median_filter",
+            "Median filter",
+            EffectCategory::Filters,
+            "app/filter",
+        )
+        .desc("Applies a median filter to reduce noise while preserving edges.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("radius", "Radius", 1, 5, 1, |e: &mut Self, v| e.radius = v),
-        ]
+        vec![int_slider::<Self>(
+            "radius",
+            "Radius",
+            1,
+            5,
+            1,
+            |e: &mut Self, v| e.radius = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -35,7 +43,8 @@ impl EffectImpl for MedianFilterImageEffect {
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
         let n = ((radius * 2 + 1) * (radius * 2 + 1)) as usize;
-        let (mut rv, mut gv, mut bv, mut av) = (vec![0u8; n], vec![0u8; n], vec![0u8; n], vec![0u8; n]);
+        let (mut rv, mut gv, mut bv, mut av) =
+            (vec![0u8; n], vec![0u8; n], vec![0u8; n], vec![0u8; n]);
         for y in 0..height {
             for x in 0..width {
                 let mut count = 0;

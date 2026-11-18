@@ -26,17 +26,47 @@ impl Default for XRayScanImageEffect {
 
 impl EffectImpl for XRayScanImageEffect {
     fn info() -> Info {
-        Info::new("x_ray_scan", "X-ray scan", EffectCategory::Filters, "app/scan-eye")
-            .desc("Simulates an X-ray scan with edge detection and glow effects.")
+        Info::new(
+            "x_ray_scan",
+            "X-ray scan",
+            EffectCategory::Filters,
+            "app/scan-eye",
+        )
+        .desc("Simulates an X-ray scan with edge detection and glow effects.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("contrast", "Contrast", 0.0, 100.0, 70.0, |e: &mut Self, v| e.contrast = v),
-            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 60.0, |e: &mut Self, v| e.glow = v),
-            float_slider::<Self>("edge_boost", "Edge boost", 0.0, 100.0, 68.0, |e: &mut Self, v| e.edge_boost = v),
-            float_slider::<Self>("scanlines", "Scanlines", 0.0, 100.0, 40.0, |e: &mut Self, v| e.scanlines = v),
-            float_slider::<Self>("noise", "Noise", 0.0, 100.0, 14.0, |e: &mut Self, v| e.noise = v),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 60.0, |e: &mut Self, v| {
+                e.glow = v
+            }),
+            float_slider::<Self>(
+                "edge_boost",
+                "Edge boost",
+                0.0,
+                100.0,
+                68.0,
+                |e: &mut Self, v| e.edge_boost = v,
+            ),
+            float_slider::<Self>(
+                "scanlines",
+                "Scanlines",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.scanlines = v,
+            ),
+            float_slider::<Self>("noise", "Noise", 0.0, 100.0, 14.0, |e: &mut Self, v| {
+                e.noise = v
+            }),
         ]
     }
 
@@ -49,7 +79,8 @@ impl EffectImpl for XRayScanImageEffect {
         let (width, height) = (source.width() as i32, source.height() as i32);
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
-        let lum = |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
+        let lum =
+            |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
         let p = |x: i32, y: i32| src[(y * width + x) as usize];
         for y in 0..height {
             for x in 0..width {
@@ -59,17 +90,23 @@ impl EffectImpl for XRayScanImageEffect {
                 let lr = lum(p((width - 1).min(x + 1), y)) / 255.0;
                 let lt = lum(p(x, 0.max(y - 1))) / 255.0;
                 let lb = lum(p(x, (height - 1).min(y + 1))) / 255.0;
-                let edge = clamp01(((lr - ll).abs() + (lb - lt).abs()) * (0.85 + (edge_boost * 1.45)));
+                let edge =
+                    clamp01(((lr - ll).abs() + (lb - lt).abs()) * (0.85 + (edge_boost * 1.45)));
                 let density = clamp01(1.0 - l).powf(1.85 - (contrast * 1.25));
                 let energy = clamp01((density * 0.48) + (edge * 0.92));
                 let gm = clamp01((edge * (0.25 + (glow * 0.95))) + (energy * glow * 0.18));
-                let scan = 1.0 - (scanlines * 0.16 * (0.5 + (0.5 * (y as f32 * std::f32::consts::PI).sin())));
+                let scan = 1.0
+                    - (scanlines * 0.16 * (0.5 + (0.5 * (y as f32 * std::f32::consts::PI).sin())));
                 let grain = ((hash01(x, y, 8849) * 2.0) - 1.0) * noise * 0.08;
                 let r = clamp01(((energy * 0.14) + (gm * 0.08) + (grain * 0.30)) * scan);
                 let g = clamp01(((energy * 0.72) + (gm * 0.16) + (grain * 0.40)) * scan);
                 let b = clamp01(((energy * 1.00) + (gm * 0.26) + (grain * 0.48)) * scan);
-                dst[(y * width + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

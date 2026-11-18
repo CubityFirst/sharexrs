@@ -30,18 +30,65 @@ impl Default for AnimeSpeedLinesImageEffect {
 
 impl EffectImpl for AnimeSpeedLinesImageEffect {
     fn info() -> Info {
-        Info::new("anime_speed_lines", "Anime speed lines", EffectCategory::Filters, "app/scan-line")
-            .desc("Overlays radial speed lines in a manga/anime style.")
+        Info::new(
+            "anime_speed_lines",
+            "Anime speed lines",
+            EffectCategory::Filters,
+            "app/scan-line",
+        )
+        .desc("Overlays radial speed lines in a manga/anime style.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("density", "Density", 10.0, 100.0, 70.0, |e: &mut Self, v| e.density = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 65.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("focus_radius", "Focus radius", 0.0, 80.0, 18.0, |e: &mut Self, v| e.focus_radius = v),
-            float_slider::<Self>("center_x", "Center X", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x = v),
-            float_slider::<Self>("center_y", "Center Y", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y = v),
-            float_slider::<Self>("contrast", "Contrast", 0.0, 100.0, 35.0, |e: &mut Self, v| e.contrast = v),
+            float_slider::<Self>(
+                "density",
+                "Density",
+                10.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.density = v,
+            ),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>(
+                "focus_radius",
+                "Focus radius",
+                0.0,
+                80.0,
+                18.0,
+                |e: &mut Self, v| e.focus_radius = v,
+            ),
+            float_slider::<Self>(
+                "center_x",
+                "Center X",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x = v,
+            ),
+            float_slider::<Self>(
+                "center_y",
+                "Center Y",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y = v,
+            ),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
         ]
     }
 
@@ -77,7 +124,8 @@ impl EffectImpl for AnimeSpeedLinesImageEffect {
                 let dist = ((dx * dx) + (dy * dy)).sqrt();
                 let radial = smooth_step(focus_px, focus_px + feather_px, dist);
                 let theta = dy.atan2(dx);
-                let band = (dist * 0.018) + (hash01((dist * 0.12) as i32, (theta * 160.0) as i32, self.seed) * 0.85);
+                let band = (dist * 0.018)
+                    + (hash01((dist * 0.12) as i32, (theta * 160.0) as i32, self.seed) * 0.85);
                 let stripe = 0.5 + (0.5 * ((theta * freq) + band).sin());
                 let bright = stripe.powf(36.0);
                 let dark = (1.0 - stripe).powf(30.0);
@@ -90,7 +138,12 @@ impl EffectImpl for AnimeSpeedLinesImageEffect {
                 r = lerp(r, 0.0, dm);
                 g = lerp(g, 0.0, dm);
                 b = lerp(b, 0.0, dm);
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

@@ -4,21 +4,24 @@ use crate::effects::prelude::*;
 
 /// `InvertImageEffect`.
 #[derive(Clone, Debug)]
-pub struct InvertImageEffect {
-}
+pub struct InvertImageEffect {}
 
 impl Default for InvertImageEffect {
     fn default() -> Self {
-        InvertImageEffect {
-        }
+        InvertImageEffect {}
     }
 }
 
 impl EffectImpl for InvertImageEffect {
     fn info() -> Info {
-        Info::new("invert", "Invert", EffectCategory::Adjustments, "image-effect/invert")
-            .desc("Inverts image colors.")
-            .immediate()
+        Info::new(
+            "invert",
+            "Invert",
+            EffectCategory::Adjustments,
+            "image-effect/invert",
+        )
+        .desc("Inverts image colors.")
+        .immediate()
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

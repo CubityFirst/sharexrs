@@ -10,22 +10,30 @@ pub struct RoundedCornersImageEffect {
 
 impl Default for RoundedCornersImageEffect {
     fn default() -> Self {
-        RoundedCornersImageEffect {
-            corner_radius: 20,
-        }
+        RoundedCornersImageEffect { corner_radius: 20 }
     }
 }
 
 impl EffectImpl for RoundedCornersImageEffect {
     fn info() -> Info {
-        Info::new("rounded_corners", "Rounded Corners", EffectCategory::Manipulations, "image-effect/rounded-corner")
-            .desc("Rounds the corners of the image.")
+        Info::new(
+            "rounded_corners",
+            "Rounded Corners",
+            EffectCategory::Manipulations,
+            "image-effect/rounded-corner",
+        )
+        .desc("Rounds the corners of the image.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("corner_radius", "Corner radius", 0, 500, 20, |e: &mut Self, v| e.corner_radius = v),
-        ]
+        vec![int_slider::<Self>(
+            "corner_radius",
+            "Corner radius",
+            0,
+            500,
+            20,
+            |e: &mut Self, v| e.corner_radius = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -42,7 +50,9 @@ impl EffectImpl for RoundedCornersImageEffect {
             r,
             sharex_skia::Direction::Cw,
         );
-        sk::with_clip_path_aa(&mut canvas, &clip, |canvas| canvas.draw_bitmap(source, 0.0, 0.0, None));
+        sk::with_clip_path_aa(&mut canvas, &clip, |canvas| {
+            canvas.draw_bitmap(source, 0.0, 0.0, None)
+        });
         drop(canvas);
         Ok(out)
     }

@@ -26,17 +26,49 @@ impl Default for PopArtGridImageEffect {
 
 impl EffectImpl for PopArtGridImageEffect {
     fn info() -> Info {
-        Info::new("pop_art_grid", "Pop art grid", EffectCategory::Filters, "app/split")
-            .desc("Creates an Andy Warhol-style 2×2 pop art grid with color variations.")
+        Info::new(
+            "pop_art_grid",
+            "Pop art grid",
+            EffectCategory::Filters,
+            "app/split",
+        )
+        .desc("Creates an Andy Warhol-style 2×2 pop art grid with color variations.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            color_param::<Self>("color1", "Color 1", SkColor::argb(0xFFFF3232), |e: &mut Self, v| e.color1 = v),
-            color_param::<Self>("color2", "Color 2", SkColor::argb(0xFF32C832), |e: &mut Self, v| e.color2 = v),
-            color_param::<Self>("color3", "Color 3", SkColor::argb(0xFF3232FF), |e: &mut Self, v| e.color3 = v),
-            color_param::<Self>("color4", "Color 4", SkColor::argb(0xFFFFC832), |e: &mut Self, v| e.color4 = v),
-            float_slider::<Self>("strength", "Color strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.strength = v),
+            color_param::<Self>(
+                "color1",
+                "Color 1",
+                SkColor::argb(0xFFFF3232),
+                |e: &mut Self, v| e.color1 = v,
+            ),
+            color_param::<Self>(
+                "color2",
+                "Color 2",
+                SkColor::argb(0xFF32C832),
+                |e: &mut Self, v| e.color2 = v,
+            ),
+            color_param::<Self>(
+                "color3",
+                "Color 3",
+                SkColor::argb(0xFF3232FF),
+                |e: &mut Self, v| e.color3 = v,
+            ),
+            color_param::<Self>(
+                "color4",
+                "Color 4",
+                SkColor::argb(0xFFFFC832),
+                |e: &mut Self, v| e.color4 = v,
+            ),
+            float_slider::<Self>(
+                "strength",
+                "Color strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
         ]
     }
 
@@ -70,7 +102,13 @@ impl EffectImpl for PopArtGridImageEffect {
             let cell = cells[i];
             let tint = tints[i];
             sk::with_clip_rect(&mut canvas, cell, |canvas| {
-                canvas.draw_image_rect(&gray, Some(RRect::ltrb(0.0, 0.0, wf, hf)), cell, Sampling::Nearest, None);
+                canvas.draw_image_rect(
+                    &gray,
+                    Some(RRect::ltrb(0.0, 0.0, wf, hf)),
+                    cell,
+                    Sampling::Nearest,
+                    None,
+                );
                 let mut tp = solid(tint.with_alpha((255.0 * s) as u8), false);
                 tp.blend = Blend::Modulate;
                 sk::draw_rect(canvas, cell, &tp, None);

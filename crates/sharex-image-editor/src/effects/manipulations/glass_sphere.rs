@@ -20,14 +20,36 @@ impl Default for GlassSphereImageEffect {
 
 impl EffectImpl for GlassSphereImageEffect {
     fn info() -> Info {
-        Info::new("glass_sphere", "Glass sphere", EffectCategory::Manipulations, "image-effect/sphere")
-            .desc("Applies a spherical glass lens distortion at the center.")
+        Info::new(
+            "glass_sphere",
+            "Glass sphere",
+            EffectCategory::Manipulations,
+            "image-effect/sphere",
+        )
+        .desc("Applies a spherical glass lens distortion at the center.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("radius", "Radius %", 10.0, 100.0, 50.0, |e: &mut Self, v| e.radius_percent = v),
-            float_slider::<Self>("refraction", "Refraction", 0.1, 2.0, 1.5, |e: &mut Self, v| e.refraction = v).tick(0.05).snap(false).format("{}{0:0.00}"),
+            float_slider::<Self>(
+                "radius",
+                "Radius %",
+                10.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.radius_percent = v,
+            ),
+            float_slider::<Self>(
+                "refraction",
+                "Refraction",
+                0.1,
+                2.0,
+                1.5,
+                |e: &mut Self, v| e.refraction = v,
+            )
+            .tick(0.05)
+            .snap(false)
+            .format("{}{0:0.00}"),
         ]
     }
 

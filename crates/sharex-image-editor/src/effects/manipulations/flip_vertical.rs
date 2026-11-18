@@ -4,21 +4,24 @@ use crate::effects::prelude::*;
 
 /// `FlipVerticalImageEffect`.
 #[derive(Clone, Debug)]
-pub struct FlipVerticalImageEffect {
-}
+pub struct FlipVerticalImageEffect {}
 
 impl Default for FlipVerticalImageEffect {
     fn default() -> Self {
-        FlipVerticalImageEffect {
-        }
+        FlipVerticalImageEffect {}
     }
 }
 
 impl EffectImpl for FlipVerticalImageEffect {
     fn info() -> Info {
-        Info::new("flip_vertical", "Flip vertical", EffectCategory::Manipulations, "image-effect/flip-vertical")
-            .desc("Flips the image vertically.")
-            .immediate()
+        Info::new(
+            "flip_vertical",
+            "Flip vertical",
+            EffectCategory::Manipulations,
+            "image-effect/flip-vertical",
+        )
+        .desc("Flips the image vertically.")
+        .immediate()
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

@@ -26,16 +26,34 @@ impl Default for CrystalizeShardsImageEffect {
 
 impl EffectImpl for CrystalizeShardsImageEffect {
     fn info() -> Info {
-        Info::new("crystalize_shards", "Crystalize shards", EffectCategory::Filters, "image-effect/diamond")
-            .desc("Breaks the image into crystalline Voronoi shards with edge highlights.")
+        Info::new(
+            "crystalize_shards",
+            "Crystalize shards",
+            EffectCategory::Filters,
+            "image-effect/diamond",
+        )
+        .desc("Breaks the image into crystalline Voronoi shards with edge highlights.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("shardSize", "Shard size", 6, 80, 22, |e: &mut Self, v| e.shard_size = v),
-            float_slider::<Self>("jitter", "Jitter", 0.0, 100.0, 65.0, |e: &mut Self, v| e.jitter = v),
-            float_slider::<Self>("edgeStrength", "Edge strength", 0.0, 100.0, 75.0, |e: &mut Self, v| e.edge_strength = v),
-            float_slider::<Self>("shine", "Shine", 0.0, 100.0, 30.0, |e: &mut Self, v| e.shine = v),
+            int_slider::<Self>("shardSize", "Shard size", 6, 80, 22, |e: &mut Self, v| {
+                e.shard_size = v
+            }),
+            float_slider::<Self>("jitter", "Jitter", 0.0, 100.0, 65.0, |e: &mut Self, v| {
+                e.jitter = v
+            }),
+            float_slider::<Self>(
+                "edgeStrength",
+                "Edge strength",
+                0.0,
+                100.0,
+                75.0,
+                |e: &mut Self, v| e.edge_strength = v,
+            ),
+            float_slider::<Self>("shine", "Shine", 0.0, 100.0, 30.0, |e: &mut Self, v| {
+                e.shine = v
+            }),
         ]
     }
 
@@ -102,7 +120,12 @@ impl EffectImpl for CrystalizeShardsImageEffect {
                     g += 52.0 * glint;
                     b += 80.0 * glint;
                 }
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

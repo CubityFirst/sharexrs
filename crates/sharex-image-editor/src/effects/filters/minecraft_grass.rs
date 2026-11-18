@@ -30,19 +30,44 @@ impl Default for MinecraftGrassImageEffect {
 
 impl EffectImpl for MinecraftGrassImageEffect {
     fn info() -> Info {
-        Info::new("minecraft_grass", "Minecraft grass", EffectCategory::Filters, "image-effect/grass")
-            .desc("Adds a Minecraft-style pixelated grass border to the top or bottom of the image.")
+        Info::new(
+            "minecraft_grass",
+            "Minecraft grass",
+            EffectCategory::Filters,
+            "image-effect/grass",
+        )
+        .desc("Adds a Minecraft-style pixelated grass border to the top or bottom of the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("block_size", "Block size", 4, 64, 16, |e: &mut Self, v| e.block_size = v),
-            int_slider::<Self>("grass_rows", "Grass rows", 1, 8, 2, |e: &mut Self, v| e.grass_rows = v),
-            int_slider::<Self>("dirt_rows", "Dirt rows", 1, 16, 4, |e: &mut Self, v| e.dirt_rows = v),
-            bool_param::<Self>("top_edge", "Top edge", false, |e: &mut Self, v| e.top_edge = v),
-            int_slider::<Self>("overlap", "Overlap", 0, 8, 1, |e: &mut Self, v| e.overlap = v),
-            color_param::<Self>("grass_color", "Grass color", SkColor::argb(0xFF59B030), |e: &mut Self, v| e.grass_color = v),
-            color_param::<Self>("dirt_color", "Dirt color", SkColor::argb(0xFF866043), |e: &mut Self, v| e.dirt_color = v),
+            int_slider::<Self>("block_size", "Block size", 4, 64, 16, |e: &mut Self, v| {
+                e.block_size = v
+            }),
+            int_slider::<Self>("grass_rows", "Grass rows", 1, 8, 2, |e: &mut Self, v| {
+                e.grass_rows = v
+            }),
+            int_slider::<Self>("dirt_rows", "Dirt rows", 1, 16, 4, |e: &mut Self, v| {
+                e.dirt_rows = v
+            }),
+            bool_param::<Self>("top_edge", "Top edge", false, |e: &mut Self, v| {
+                e.top_edge = v
+            }),
+            int_slider::<Self>("overlap", "Overlap", 0, 8, 1, |e: &mut Self, v| {
+                e.overlap = v
+            }),
+            color_param::<Self>(
+                "grass_color",
+                "Grass color",
+                SkColor::argb(0xFF59B030),
+                |e: &mut Self, v| e.grass_color = v,
+            ),
+            color_param::<Self>(
+                "dirt_color",
+                "Dirt color",
+                SkColor::argb(0xFF866043),
+                |e: &mut Self, v| e.dirt_color = v,
+            ),
         ]
     }
 
@@ -70,7 +95,11 @@ impl EffectImpl for MinecraftGrassImageEffect {
             let jagged = hash01(col, 0, 42) > 0.5;
             for row in 0..total {
                 let x = col * bs;
-                let y = if self.top_edge { bh - (row + 1) * bs } else { border_y + row * bs };
+                let y = if self.top_edge {
+                    bh - (row + 1) * bs
+                } else {
+                    border_y + row * bs
+                };
                 let from_top = if self.top_edge { total - 1 - row } else { row };
                 if from_top == 0 && jagged {
                     continue;
@@ -82,21 +111,43 @@ impl EffectImpl for MinecraftGrassImageEffect {
                 let base = if from_top < grass_rows {
                     let rv = (variation * 20.0 - 10.0) as i32;
                     let gv = (variation * 30.0 - 15.0) as i32;
-                    SkColor::rgba(cl(g.r as i32 + rv), cl(g.g as i32 + gv), cl(g.b as i32 + rv), 255)
+                    SkColor::rgba(
+                        cl(g.r as i32 + rv),
+                        cl(g.g as i32 + gv),
+                        cl(g.b as i32 + rv),
+                        255,
+                    )
                 } else {
                     let dv = (variation * 24.0 - 12.0) as i32;
-                    SkColor::rgba(cl(d.r as i32 + dv), cl(d.g as i32 + dv), cl(d.b as i32 + dv + 4), 255)
+                    SkColor::rgba(
+                        cl(d.r as i32 + dv),
+                        cl(d.g as i32 + dv),
+                        cl(d.b as i32 + dv + 4),
+                        255,
+                    )
                 };
                 let draw_w = bs.min(sw - x);
                 if draw_w <= 0 {
                     continue;
                 }
-                fill(&mut canvas, base, x as f32, y as f32, draw_w as f32, bs as f32);
+                fill(
+                    &mut canvas,
+                    base,
+                    x as f32,
+                    y as f32,
+                    draw_w as f32,
+                    bs as f32,
+                );
                 if hash01(col, row + 100, 271) > 0.6 {
                     let ss = 1.max(bs / 4);
                     let sx = x as f32 + hash01(col, row, 311) * (bs - ss) as f32;
                     let sy = y as f32 + hash01(col, row, 419) * (bs - ss) as f32;
-                    let dark = SkColor::rgba(cl(base.r as i32 - 25), cl(base.g as i32 - 20), cl(base.b as i32 - 20), 255);
+                    let dark = SkColor::rgba(
+                        cl(base.r as i32 - 25),
+                        cl(base.g as i32 - 20),
+                        cl(base.b as i32 - 20),
+                        255,
+                    );
                     fill(&mut canvas, dark, sx, sy, ss as f32, ss as f32);
                 }
             }

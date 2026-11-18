@@ -24,16 +24,44 @@ impl Default for ZoomBlurImageEffect {
 
 impl EffectImpl for ZoomBlurImageEffect {
     fn info() -> Info {
-        Info::new("zoom_blur", "Zoom blur", EffectCategory::Filters, "app/zoom-in")
-            .desc("Applies a radial zoom blur emanating from a center point.")
+        Info::new(
+            "zoom_blur",
+            "Zoom blur",
+            EffectCategory::Filters,
+            "app/zoom-in",
+        )
+        .desc("Applies a radial zoom blur emanating from a center point.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 35.0, |e: &mut Self, v| e.strength = v),
-            int_slider::<Self>("samples", "Samples", 4, 64, 24, |e: &mut Self, v| e.samples = v),
-            float_slider::<Self>("center_x", "Center X", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x = v),
-            float_slider::<Self>("center_y", "Center Y", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            int_slider::<Self>("samples", "Samples", 4, 64, 24, |e: &mut Self, v| {
+                e.samples = v
+            }),
+            float_slider::<Self>(
+                "center_x",
+                "Center X",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x = v,
+            ),
+            float_slider::<Self>(
+                "center_y",
+                "Center Y",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y = v,
+            ),
         ]
     }
 
@@ -49,7 +77,9 @@ impl EffectImpl for ZoomBlurImageEffect {
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
         let inv = if n <= 1 { 1.0 } else { 1.0 / (n - 1) as f32 };
-        let factors: Vec<f32> = (0..n).map(|i| 1.0 - ((i as f32 * inv) * strength)).collect();
+        let factors: Vec<f32> = (0..n)
+            .map(|i| 1.0 - ((i as f32 * inv) * strength))
+            .collect();
         let weights: Vec<f32> = (0..n).map(|i| 1.0 - ((i as f32 * inv) * 0.6)).collect();
         for y in 0..height {
             for x in 0..width {
@@ -66,8 +96,12 @@ impl EffectImpl for ZoomBlurImageEffect {
                     sw += w;
                 }
                 let inv = 1.0 / 0.0001f32.max(sw);
-                dst[(y * width + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(sr * inv), clamp_to_byte(sg * inv), clamp_to_byte(sb * inv), clamp_to_byte(sa * inv));
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(sr * inv),
+                    clamp_to_byte(sg * inv),
+                    clamp_to_byte(sb * inv),
+                    clamp_to_byte(sa * inv),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

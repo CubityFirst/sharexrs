@@ -24,16 +24,42 @@ impl Default for EmbroideryImageEffect {
 
 impl EffectImpl for EmbroideryImageEffect {
     fn info() -> Info {
-        Info::new("embroidery", "Embroidery", EffectCategory::Filters, "app/stamp")
-            .desc("Simulates a cross-stitch embroidery pattern.")
+        Info::new(
+            "embroidery",
+            "Embroidery",
+            EffectCategory::Filters,
+            "app/stamp",
+        )
+        .desc("Simulates a cross-stitch embroidery pattern.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("stitch_size", "Stitch Size", 4, 40, 10, |e: &mut Self, v| e.stitch_size = v),
-            int_slider::<Self>("color_count", "Color Count", 2, 64, 16, |e: &mut Self, v| e.color_count = v),
-            bool_param::<Self>("show_grid", "Show Grid", true, |e: &mut Self, v| e.show_grid = v),
-            color_param::<Self>("fabric_color", "Fabric Color", SkColor::argb(0xFFF0EBDC), |e: &mut Self, v| e.fabric_color = v),
+            int_slider::<Self>(
+                "stitch_size",
+                "Stitch Size",
+                4,
+                40,
+                10,
+                |e: &mut Self, v| e.stitch_size = v,
+            ),
+            int_slider::<Self>(
+                "color_count",
+                "Color Count",
+                2,
+                64,
+                16,
+                |e: &mut Self, v| e.color_count = v,
+            ),
+            bool_param::<Self>("show_grid", "Show Grid", true, |e: &mut Self, v| {
+                e.show_grid = v
+            }),
+            color_param::<Self>(
+                "fabric_color",
+                "Fabric Color",
+                SkColor::argb(0xFFF0EBDC),
+                |e: &mut Self, v| e.fabric_color = v,
+            ),
         ]
     }
 
@@ -74,7 +100,9 @@ impl EffectImpl for EmbroideryImageEffect {
                 let margin = size as f32 * 0.1;
                 let (sx, sy) = (x0 as f32 + margin, y0 as f32 + margin);
                 let (ex, ey) = (x1 as f32 - margin, y1 as f32 - margin);
-                let pen = Pen::new(1f32.max(size as f32 * 0.15)).cap(Cap::Round).join(Join::Round);
+                let pen = Pen::new(1f32.max(size as f32 * 0.15))
+                    .cap(Cap::Round)
+                    .join(Join::Round);
                 let paint = solid(color, true);
                 sk::draw_line(&mut canvas, sx, sy, ex, ey, &pen, &paint);
                 sk::draw_line(&mut canvas, sx, ey, ex, sy, &pen, &paint);

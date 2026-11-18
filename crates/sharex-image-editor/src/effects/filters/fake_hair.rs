@@ -26,17 +26,48 @@ impl Default for FakeHairImageEffect {
 
 impl EffectImpl for FakeHairImageEffect {
     fn info() -> Info {
-        Info::new("fake_hair", "Fake Hair", EffectCategory::Drawings, "app/scissors")
-            .desc("Scatters realistic hair strands over the image to annoy your friends.")
+        Info::new(
+            "fake_hair",
+            "Fake Hair",
+            EffectCategory::Drawings,
+            "app/scissors",
+        )
+        .desc("Scatters realistic hair strands over the image to annoy your friends.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("count", "Hair Count", 1, 100, 1, |e: &mut Self, v| e.count = v),
-            float_slider::<Self>("length", "Length", 20.0, 600.0, 180.0, |e: &mut Self, v| e.length = v),
-            float_slider::<Self>("thickness", "Thickness", 0.5, 4.0, 1.0, |e: &mut Self, v| e.thickness = v).tick(0.1).snap(false).format("{}{0:0.0}"),
-            float_slider::<Self>("curliness", "Curliness", 0.0, 100.0, 30.0, |e: &mut Self, v| e.curliness = v),
-            color_param::<Self>("hair_color", "Hair Color", SkColor::argb(0xDC140F0A), |e: &mut Self, v| e.hair_color = v),
+            int_slider::<Self>("count", "Hair Count", 1, 100, 1, |e: &mut Self, v| {
+                e.count = v
+            }),
+            float_slider::<Self>("length", "Length", 20.0, 600.0, 180.0, |e: &mut Self, v| {
+                e.length = v
+            }),
+            float_slider::<Self>(
+                "thickness",
+                "Thickness",
+                0.5,
+                4.0,
+                1.0,
+                |e: &mut Self, v| e.thickness = v,
+            )
+            .tick(0.1)
+            .snap(false)
+            .format("{}{0:0.0}"),
+            float_slider::<Self>(
+                "curliness",
+                "Curliness",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.curliness = v,
+            ),
+            color_param::<Self>(
+                "hair_color",
+                "Hair Color",
+                SkColor::argb(0xDC140F0A),
+                |e: &mut Self, v| e.hair_color = v,
+            ),
         ]
     }
 
@@ -85,10 +116,20 @@ impl EffectImpl for FakeHairImageEffect {
                 path.line_to(px, py);
             }
             let pen = Pen::new(hair_t).cap(Cap::Round).join(Join::Round);
-            sk::stroke_path(&mut canvas, &path, &pen, &solid(SkColor::rgba(hr, hg, hb, ha), true));
+            sk::stroke_path(
+                &mut canvas,
+                &path,
+                &pen,
+                &solid(SkColor::rgba(hr, hg, hb, ha), true),
+            );
             if hair_t > 0.8 {
                 let sheen = solid(
-                    SkColor::rgba(to_byte(hr as f32 + 60.0), to_byte(hg as f32 + 50.0), to_byte(hb as f32 + 40.0), ha / 4),
+                    SkColor::rgba(
+                        to_byte(hr as f32 + 60.0),
+                        to_byte(hg as f32 + 50.0),
+                        to_byte(hb as f32 + 40.0),
+                        ha / 4,
+                    ),
                     true,
                 );
                 let pen = Pen::new(hair_t * 0.3).cap(Cap::Round).join(Join::Round);

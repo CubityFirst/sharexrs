@@ -34,17 +34,54 @@ impl Default for MosaicPolygonImageEffect {
 
 impl EffectImpl for MosaicPolygonImageEffect {
     fn info() -> Info {
-        Info::new("mosaic_polygon", "Mosaic polygon", EffectCategory::Filters, "image-effect/hexagon")
-            .desc("Creates a mosaic using hexagonal or triangular polygon tiles.")
+        Info::new(
+            "mosaic_polygon",
+            "Mosaic polygon",
+            EffectCategory::Filters,
+            "image-effect/hexagon",
+        )
+        .desc("Creates a mosaic using hexagonal or triangular polygon tiles.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("cell_size", "Cell size", 8, 80, 24, |e: &mut Self, v| e.cell_size = v),
-            enum_param::<Self, MosaicPolygonShape>("shape", "Shape", MosaicPolygonShape::Hexagon, |e: &mut Self, v| e.shape = v, &[("Hexagon", MosaicPolygonShape::Hexagon), ("Triangle", MosaicPolygonShape::Triangle)]),
-            float_slider::<Self>("border_width", "Border width", 0.0, 6.0, 1.0, |e: &mut Self, v| e.border_width = v),
-            float_slider::<Self>("border_opacity", "Border opacity", 0.0, 100.0, 45.0, |e: &mut Self, v| e.border_opacity = v),
-            float_slider::<Self>("randomness", "Randomness", 0.0, 100.0, 18.0, |e: &mut Self, v| e.randomness = v),
+            int_slider::<Self>("cell_size", "Cell size", 8, 80, 24, |e: &mut Self, v| {
+                e.cell_size = v
+            }),
+            enum_param::<Self, MosaicPolygonShape>(
+                "shape",
+                "Shape",
+                MosaicPolygonShape::Hexagon,
+                |e: &mut Self, v| e.shape = v,
+                &[
+                    ("Hexagon", MosaicPolygonShape::Hexagon),
+                    ("Triangle", MosaicPolygonShape::Triangle),
+                ],
+            ),
+            float_slider::<Self>(
+                "border_width",
+                "Border width",
+                0.0,
+                6.0,
+                1.0,
+                |e: &mut Self, v| e.border_width = v,
+            ),
+            float_slider::<Self>(
+                "border_opacity",
+                "Border opacity",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.border_opacity = v,
+            ),
+            float_slider::<Self>(
+                "randomness",
+                "Randomness",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.randomness = v,
+            ),
         ]
     }
 
@@ -89,7 +126,8 @@ impl EffectImpl for MosaicPolygonImageEffect {
                         let color = bilinear_sample(&src, width, height, cx, cy);
                         let mut path = SkPath::new();
                         for i in 0..6 {
-                            let a = (std::f32::consts::PI / 3.0) * i as f32 - std::f32::consts::PI / 6.0;
+                            let a = (std::f32::consts::PI / 3.0) * i as f32
+                                - std::f32::consts::PI / 6.0;
                             let (x, y) = (cx + a.cos() * radius, cy + a.sin() * radius);
                             if i == 0 {
                                 path.move_to(x, y);

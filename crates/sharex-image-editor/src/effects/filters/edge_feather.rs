@@ -10,22 +10,30 @@ pub struct EdgeFeatherImageEffect {
 
 impl Default for EdgeFeatherImageEffect {
     fn default() -> Self {
-        EdgeFeatherImageEffect {
-            radius: 12.0,
-        }
+        EdgeFeatherImageEffect { radius: 12.0 }
     }
 }
 
 impl EffectImpl for EdgeFeatherImageEffect {
     fn info() -> Info {
-        Info::new("edge_feather", "Edge feather", EffectCategory::Filters, "app/circle-dashed")
-            .desc("Softens the edges of non-transparent regions with a feathered alpha falloff.")
+        Info::new(
+            "edge_feather",
+            "Edge feather",
+            EffectCategory::Filters,
+            "app/circle-dashed",
+        )
+        .desc("Softens the edges of non-transparent regions with a feathered alpha falloff.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("radius", "Radius", 0.0, 100.0, 12.0, |e: &mut Self, v| e.radius = v),
-        ]
+        vec![float_slider::<Self>(
+            "radius",
+            "Radius",
+            0.0,
+            100.0,
+            12.0,
+            |e: &mut Self, v| e.radius = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -46,7 +54,11 @@ impl EffectImpl for EdgeFeatherImageEffect {
             .collect();
         let mask_bmp = from_pixels(source.width(), source.height(), &mask);
         let padding = 2.max((radius * 2.0).ceil() as i32);
-        let feathered = pixels(&blur_transparent_padded(&mask_bmp, padding, 0.001f32.max(radius / 3.0)));
+        let feathered = pixels(&blur_transparent_padded(
+            &mask_bmp,
+            padding,
+            0.001f32.max(radius / 3.0),
+        ));
         let dst: Vec<SkColor> = src
             .iter()
             .zip(&feathered)

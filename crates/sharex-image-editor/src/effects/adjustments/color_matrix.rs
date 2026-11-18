@@ -56,32 +56,97 @@ impl Default for ColorMatrixImageEffect {
 
 impl EffectImpl for ColorMatrixImageEffect {
     fn info() -> Info {
-        Info::new("color_matrix", "Color matrix", EffectCategory::Adjustments, "app/grid")
-            .desc("Applies a color matrix transformation.")
+        Info::new(
+            "color_matrix",
+            "Color matrix",
+            EffectCategory::Adjustments,
+            "app/grid",
+        )
+        .desc("Applies a color matrix transformation.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            double_numeric::<Self>("rr", "Rr", -5.0, 5.0, 1.0, |e: &mut Self, v| e.rr = v as f32).increment(0.1),
-            double_numeric::<Self>("rg", "Rg", -5.0, 5.0, 0.0, |e: &mut Self, v| e.rg = v as f32).increment(0.1),
-            double_numeric::<Self>("rb", "Rb", -5.0, 5.0, 0.0, |e: &mut Self, v| e.rb = v as f32).increment(0.1),
-            double_numeric::<Self>("ra", "Ra", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ra = v as f32).increment(0.1),
-            double_numeric::<Self>("ro", "Ro", -255.0, 255.0, 0.0, |e: &mut Self, v| e.ro = v as f32).format("0"),
-            double_numeric::<Self>("gr", "Gr", -5.0, 5.0, 0.0, |e: &mut Self, v| e.gr = v as f32).increment(0.1),
-            double_numeric::<Self>("gg", "Gg", -5.0, 5.0, 1.0, |e: &mut Self, v| e.gg = v as f32).increment(0.1),
-            double_numeric::<Self>("gb", "Gb", -5.0, 5.0, 0.0, |e: &mut Self, v| e.gb = v as f32).increment(0.1),
-            double_numeric::<Self>("ga", "Ga", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ga = v as f32).increment(0.1),
-            double_numeric::<Self>("go", "Go", -255.0, 255.0, 0.0, |e: &mut Self, v| e.go = v as f32).format("0"),
-            double_numeric::<Self>("br", "Br", -5.0, 5.0, 0.0, |e: &mut Self, v| e.br = v as f32).increment(0.1),
-            double_numeric::<Self>("bg", "Bg", -5.0, 5.0, 0.0, |e: &mut Self, v| e.bg = v as f32).increment(0.1),
-            double_numeric::<Self>("bb", "Bb", -5.0, 5.0, 1.0, |e: &mut Self, v| e.bb = v as f32).increment(0.1),
-            double_numeric::<Self>("ba", "Ba", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ba = v as f32).increment(0.1),
-            double_numeric::<Self>("bo", "Bo", -255.0, 255.0, 0.0, |e: &mut Self, v| e.bo = v as f32).format("0"),
-            double_numeric::<Self>("ar", "Ar", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ar = v as f32).increment(0.1),
-            double_numeric::<Self>("ag", "Ag", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ag = v as f32).increment(0.1),
-            double_numeric::<Self>("ab", "Ab", -5.0, 5.0, 0.0, |e: &mut Self, v| e.ab = v as f32).increment(0.1),
-            double_numeric::<Self>("aa", "Aa", -5.0, 5.0, 1.0, |e: &mut Self, v| e.aa = v as f32).increment(0.1),
-            double_numeric::<Self>("ao", "Ao", -255.0, 255.0, 0.0, |e: &mut Self, v| e.ao = v as f32).format("0"),
+            double_numeric::<Self>("rr", "Rr", -5.0, 5.0, 1.0, |e: &mut Self, v| {
+                e.rr = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("rg", "Rg", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.rg = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("rb", "Rb", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.rb = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ra", "Ra", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ra = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ro", "Ro", -255.0, 255.0, 0.0, |e: &mut Self, v| {
+                e.ro = v as f32
+            })
+            .format("0"),
+            double_numeric::<Self>("gr", "Gr", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.gr = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("gg", "Gg", -5.0, 5.0, 1.0, |e: &mut Self, v| {
+                e.gg = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("gb", "Gb", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.gb = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ga", "Ga", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ga = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("go", "Go", -255.0, 255.0, 0.0, |e: &mut Self, v| {
+                e.go = v as f32
+            })
+            .format("0"),
+            double_numeric::<Self>("br", "Br", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.br = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("bg", "Bg", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.bg = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("bb", "Bb", -5.0, 5.0, 1.0, |e: &mut Self, v| {
+                e.bb = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ba", "Ba", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ba = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("bo", "Bo", -255.0, 255.0, 0.0, |e: &mut Self, v| {
+                e.bo = v as f32
+            })
+            .format("0"),
+            double_numeric::<Self>("ar", "Ar", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ar = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ag", "Ag", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ag = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ab", "Ab", -5.0, 5.0, 0.0, |e: &mut Self, v| {
+                e.ab = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("aa", "Aa", -5.0, 5.0, 1.0, |e: &mut Self, v| {
+                e.aa = v as f32
+            })
+            .increment(0.1),
+            double_numeric::<Self>("ao", "Ao", -255.0, 255.0, 0.0, |e: &mut Self, v| {
+                e.ao = v as f32
+            })
+            .format("0"),
         ]
     }
 

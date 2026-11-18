@@ -20,14 +20,31 @@ impl Default for RetroSunsetImageEffect {
 
 impl EffectImpl for RetroSunsetImageEffect {
     fn info() -> Info {
-        Info::new("retro_sunset", "Retro sunset", EffectCategory::Filters, "image-effect/sunset")
-            .desc("Overlays retro 80s-style sunset gradient bands.")
+        Info::new(
+            "retro_sunset",
+            "Retro sunset",
+            EffectCategory::Filters,
+            "image-effect/sunset",
+        )
+        .desc("Overlays retro 80s-style sunset gradient bands.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.strength = v),
-            bool_param::<Self>("horizontal_lines", "Horizontal lines", true, |e: &mut Self, v| e.horizontal_lines = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            bool_param::<Self>(
+                "horizontal_lines",
+                "Horizontal lines",
+                true,
+                |e: &mut Self, v| e.horizontal_lines = v,
+            ),
         ]
     }
 
@@ -46,7 +63,13 @@ impl EffectImpl for RetroSunsetImageEffect {
             SkColor::rgba(255, 100, 0, ga),
             SkColor::rgba(255, 200, 0, ga),
         ];
-        let mut paint = sk::linear_gradient((0.0, 0.0), (0.0, h as f32), &colors, Some(&[0.0, 0.33, 0.66, 1.0]), false);
+        let mut paint = sk::linear_gradient(
+            (0.0, 0.0),
+            (0.0, h as f32),
+            &colors,
+            Some(&[0.0, 0.33, 0.66, 1.0]),
+            false,
+        );
         paint.blend = Blend::Overlay;
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, w as f32, h as f32, &paint, None);
         if self.horizontal_lines {

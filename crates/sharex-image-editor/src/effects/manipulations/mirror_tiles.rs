@@ -24,23 +24,44 @@ impl Default for MirrorTilesImageEffect {
 
 impl EffectImpl for MirrorTilesImageEffect {
     fn info() -> Info {
-        Info::new("mirror_tiles", "Mirror tiles", EffectCategory::Manipulations, "image-effect/flip-horizontal")
-            .desc("Tiles the image with alternating mirrored reflections.")
+        Info::new(
+            "mirror_tiles",
+            "Mirror tiles",
+            EffectCategory::Manipulations,
+            "image-effect/flip-horizontal",
+        )
+        .desc("Tiles the image with alternating mirrored reflections.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("columns", "Columns", 1, 16, 3, |e: &mut Self, v| e.columns = v),
+            int_slider::<Self>("columns", "Columns", 1, 16, 3, |e: &mut Self, v| {
+                e.columns = v
+            }),
             int_slider::<Self>("rows", "Rows", 1, 16, 3, |e: &mut Self, v| e.rows = v),
-            bool_param::<Self>("mirror_alternate_columns", "Mirror alternate columns", true, |e: &mut Self, v| e.mirror_alternate_columns = v),
-            bool_param::<Self>("mirror_alternate_rows", "Mirror alternate rows", true, |e: &mut Self, v| e.mirror_alternate_rows = v),
+            bool_param::<Self>(
+                "mirror_alternate_columns",
+                "Mirror alternate columns",
+                true,
+                |e: &mut Self, v| e.mirror_alternate_columns = v,
+            ),
+            bool_param::<Self>(
+                "mirror_alternate_rows",
+                "Mirror alternate rows",
+                true,
+                |e: &mut Self, v| e.mirror_alternate_rows = v,
+            ),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let columns = self.columns.clamp(1, 16);
         let rows = self.rows.clamp(1, 16);
-        if columns == 1 && rows == 1 && !self.mirror_alternate_columns && !self.mirror_alternate_rows {
+        if columns == 1
+            && rows == 1
+            && !self.mirror_alternate_columns
+            && !self.mirror_alternate_rows
+        {
             return Ok(source.clone());
         }
         let (width, height) = (source.width() as i32, source.height() as i32);

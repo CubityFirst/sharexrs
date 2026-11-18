@@ -30,16 +30,46 @@ impl Default for FoldCreaseWarpImageEffect {
 
 impl EffectImpl for FoldCreaseWarpImageEffect {
     fn info() -> Info {
-        Info::new("fold_crease_warp", "Fold crease warp", EffectCategory::Manipulations, "image-effect/newspaper")
-            .desc("Simulates a folded paper crease distortion.")
+        Info::new(
+            "fold_crease_warp",
+            "Fold crease warp",
+            EffectCategory::Manipulations,
+            "image-effect/newspaper",
+        )
+        .desc("Simulates a folded paper crease distortion.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, FoldCreaseOrientation>("orientation", "Orientation", FoldCreaseOrientation::Vertical, |e: &mut Self, v| e.orientation = v, &[("Vertical", FoldCreaseOrientation::Vertical), ("Horizontal", FoldCreaseOrientation::Horizontal)]),
-            int_slider::<Self>("fold_count", "Fold count", 1, 10, 3, |e: &mut Self, v| e.fold_count = v),
-            float_slider::<Self>("fold_depth", "Fold depth", 0.0, 100.0, 30.0, |e: &mut Self, v| e.fold_depth = v),
-            float_slider::<Self>("shadow_strength", "Shadow strength", 0.0, 100.0, 40.0, |e: &mut Self, v| e.shadow_strength = v),
+            enum_param::<Self, FoldCreaseOrientation>(
+                "orientation",
+                "Orientation",
+                FoldCreaseOrientation::Vertical,
+                |e: &mut Self, v| e.orientation = v,
+                &[
+                    ("Vertical", FoldCreaseOrientation::Vertical),
+                    ("Horizontal", FoldCreaseOrientation::Horizontal),
+                ],
+            ),
+            int_slider::<Self>("fold_count", "Fold count", 1, 10, 3, |e: &mut Self, v| {
+                e.fold_count = v
+            }),
+            float_slider::<Self>(
+                "fold_depth",
+                "Fold depth",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.fold_depth = v,
+            ),
+            float_slider::<Self>(
+                "shadow_strength",
+                "Shadow strength",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.shadow_strength = v,
+            ),
         ]
     }
 
@@ -66,8 +96,16 @@ impl EffectImpl for FoldCreaseWarpImageEffect {
                 let primary = if vertical { x as f32 } else { y as f32 };
                 let phase = (primary / 1f32.max(span)) * std::f32::consts::PI;
                 let offset = phase.sin() * displacement;
-                let sx = if vertical { x as f32 + offset } else { x as f32 };
-                let sy = if vertical { y as f32 } else { y as f32 + offset };
+                let sx = if vertical {
+                    x as f32 + offset
+                } else {
+                    x as f32
+                };
+                let sy = if vertical {
+                    y as f32
+                } else {
+                    y as f32 + offset
+                };
                 let sampled = bilinear_sample(&src, width, height, sx, sy);
                 let curvature = phase.sin().abs();
                 let slope = phase.cos();

@@ -1,7 +1,7 @@
 //! `DrawImageEffect` (`Core/ImageEffects/Drawings/DrawImageEffect.cs`).
 
-use crate::effects::prelude::*;
 use crate::effects::drawings::enums::*;
+use crate::effects::prelude::*;
 
 /// `DrawImageEffect`.
 #[derive(Clone, Debug)]
@@ -40,31 +40,158 @@ impl Default for DrawImageEffect {
 
 impl EffectImpl for DrawImageEffect {
     fn info() -> Info {
-        Info::new("draw_image", "Image", EffectCategory::Drawings, "app/image-add")
-            .desc("Draws an image overlay on the source image.")
+        Info::new(
+            "draw_image",
+            "Image",
+            EffectCategory::Drawings,
+            "app/image-add",
+        )
+        .desc("Draws an image overlay on the source image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            file_param::<Self>("image_location", "Image location", "", |e: &mut Self, v| e.image_location = v),
-            enum_param::<Self, DrawingPlacement>("placement", "Placement", DrawingPlacement::TopLeft, |e: &mut Self, v| e.placement = v, &[("Top left", DrawingPlacement::TopLeft), ("Top center", DrawingPlacement::TopCenter), ("Top right", DrawingPlacement::TopRight), ("Middle left", DrawingPlacement::MiddleLeft), ("Middle center", DrawingPlacement::MiddleCenter), ("Middle right", DrawingPlacement::MiddleRight), ("Bottom left", DrawingPlacement::BottomLeft), ("Bottom center", DrawingPlacement::BottomCenter), ("Bottom right", DrawingPlacement::BottomRight)]),
-            int_numeric::<Self>("offset_x", "Offset X", -10000, 10000, 0, |e: &mut Self, v| e.offset.x = v),
-            int_numeric::<Self>("offset_y", "Offset Y", -10000, 10000, 0, |e: &mut Self, v| e.offset.y = v),
-            enum_param::<Self, DrawingImageSizeMode>("size_mode", "Size mode", DrawingImageSizeMode::DontResize, |e: &mut Self, v| e.size_mode = v, &[("Don't resize", DrawingImageSizeMode::DontResize), ("Absolute size", DrawingImageSizeMode::AbsoluteSize), ("Percentage of watermark", DrawingImageSizeMode::PercentageOfWatermark), ("Percentage of canvas", DrawingImageSizeMode::PercentageOfCanvas)]),
-            int_numeric::<Self>("size_width", "Size width", -1, 10000, 0, |e: &mut Self, v| e.size.width = v),
-            int_numeric::<Self>("size_height", "Size height", -1, 10000, 0, |e: &mut Self, v| e.size.height = v),
-            enum_param::<Self, DrawingImageRotateFlipType>("rotate_flip", "Rotate / flip", DrawingImageRotateFlipType::None, |e: &mut Self, v| e.rotate_flip = v, &[("None", DrawingImageRotateFlipType::None), ("Rotate 90", DrawingImageRotateFlipType::Rotate90), ("Rotate 180", DrawingImageRotateFlipType::Rotate180), ("Rotate 270", DrawingImageRotateFlipType::Rotate270), ("Flip X", DrawingImageRotateFlipType::FlipX), ("Rotate 90 Flip X", DrawingImageRotateFlipType::Rotate90FlipX), ("Flip Y", DrawingImageRotateFlipType::FlipY), ("Rotate 90 Flip Y", DrawingImageRotateFlipType::Rotate90FlipY)]),
+            file_param::<Self>("image_location", "Image location", "", |e: &mut Self, v| {
+                e.image_location = v
+            }),
+            enum_param::<Self, DrawingPlacement>(
+                "placement",
+                "Placement",
+                DrawingPlacement::TopLeft,
+                |e: &mut Self, v| e.placement = v,
+                &[
+                    ("Top left", DrawingPlacement::TopLeft),
+                    ("Top center", DrawingPlacement::TopCenter),
+                    ("Top right", DrawingPlacement::TopRight),
+                    ("Middle left", DrawingPlacement::MiddleLeft),
+                    ("Middle center", DrawingPlacement::MiddleCenter),
+                    ("Middle right", DrawingPlacement::MiddleRight),
+                    ("Bottom left", DrawingPlacement::BottomLeft),
+                    ("Bottom center", DrawingPlacement::BottomCenter),
+                    ("Bottom right", DrawingPlacement::BottomRight),
+                ],
+            ),
+            int_numeric::<Self>(
+                "offset_x",
+                "Offset X",
+                -10000,
+                10000,
+                0,
+                |e: &mut Self, v| e.offset.x = v,
+            ),
+            int_numeric::<Self>(
+                "offset_y",
+                "Offset Y",
+                -10000,
+                10000,
+                0,
+                |e: &mut Self, v| e.offset.y = v,
+            ),
+            enum_param::<Self, DrawingImageSizeMode>(
+                "size_mode",
+                "Size mode",
+                DrawingImageSizeMode::DontResize,
+                |e: &mut Self, v| e.size_mode = v,
+                &[
+                    ("Don't resize", DrawingImageSizeMode::DontResize),
+                    ("Absolute size", DrawingImageSizeMode::AbsoluteSize),
+                    (
+                        "Percentage of watermark",
+                        DrawingImageSizeMode::PercentageOfWatermark,
+                    ),
+                    (
+                        "Percentage of canvas",
+                        DrawingImageSizeMode::PercentageOfCanvas,
+                    ),
+                ],
+            ),
+            int_numeric::<Self>(
+                "size_width",
+                "Size width",
+                -1,
+                10000,
+                0,
+                |e: &mut Self, v| e.size.width = v,
+            ),
+            int_numeric::<Self>(
+                "size_height",
+                "Size height",
+                -1,
+                10000,
+                0,
+                |e: &mut Self, v| e.size.height = v,
+            ),
+            enum_param::<Self, DrawingImageRotateFlipType>(
+                "rotate_flip",
+                "Rotate / flip",
+                DrawingImageRotateFlipType::None,
+                |e: &mut Self, v| e.rotate_flip = v,
+                &[
+                    ("None", DrawingImageRotateFlipType::None),
+                    ("Rotate 90", DrawingImageRotateFlipType::Rotate90),
+                    ("Rotate 180", DrawingImageRotateFlipType::Rotate180),
+                    ("Rotate 270", DrawingImageRotateFlipType::Rotate270),
+                    ("Flip X", DrawingImageRotateFlipType::FlipX),
+                    (
+                        "Rotate 90 Flip X",
+                        DrawingImageRotateFlipType::Rotate90FlipX,
+                    ),
+                    ("Flip Y", DrawingImageRotateFlipType::FlipY),
+                    (
+                        "Rotate 90 Flip Y",
+                        DrawingImageRotateFlipType::Rotate90FlipY,
+                    ),
+                ],
+            ),
             bool_param::<Self>("tile", "Tile", false, |e: &mut Self, v| e.tile = v),
-            bool_param::<Self>("auto_hide", "Auto hide", false, |e: &mut Self, v| e.auto_hide = v),
-            enum_param::<Self, DrawingInterpolationMode>("interpolation_mode", "Interpolation mode", DrawingInterpolationMode::HighQualityBicubic, |e: &mut Self, v| e.interpolation_mode = v, &[("High quality bicubic", DrawingInterpolationMode::HighQualityBicubic), ("Bicubic", DrawingInterpolationMode::Bicubic), ("High quality bilinear", DrawingInterpolationMode::HighQualityBilinear), ("Bilinear", DrawingInterpolationMode::Bilinear), ("Nearest neighbor", DrawingInterpolationMode::NearestNeighbor)]),
-            enum_param::<Self, DrawingCompositingMode>("compositing_mode", "Compositing mode", DrawingCompositingMode::SourceOver, |e: &mut Self, v| e.compositing_mode = v, &[("Source over", DrawingCompositingMode::SourceOver), ("Source copy", DrawingCompositingMode::SourceCopy)]),
-            int_slider::<Self>("opacity", "Opacity", 0, 100, 100, |e: &mut Self, v| e.opacity = v.clamp(0, 100)),
+            bool_param::<Self>("auto_hide", "Auto hide", false, |e: &mut Self, v| {
+                e.auto_hide = v
+            }),
+            enum_param::<Self, DrawingInterpolationMode>(
+                "interpolation_mode",
+                "Interpolation mode",
+                DrawingInterpolationMode::HighQualityBicubic,
+                |e: &mut Self, v| e.interpolation_mode = v,
+                &[
+                    (
+                        "High quality bicubic",
+                        DrawingInterpolationMode::HighQualityBicubic,
+                    ),
+                    ("Bicubic", DrawingInterpolationMode::Bicubic),
+                    (
+                        "High quality bilinear",
+                        DrawingInterpolationMode::HighQualityBilinear,
+                    ),
+                    ("Bilinear", DrawingInterpolationMode::Bilinear),
+                    (
+                        "Nearest neighbor",
+                        DrawingInterpolationMode::NearestNeighbor,
+                    ),
+                ],
+            ),
+            enum_param::<Self, DrawingCompositingMode>(
+                "compositing_mode",
+                "Compositing mode",
+                DrawingCompositingMode::SourceOver,
+                |e: &mut Self, v| e.compositing_mode = v,
+                &[
+                    ("Source over", DrawingCompositingMode::SourceOver),
+                    ("Source copy", DrawingCompositingMode::SourceCopy),
+                ],
+            ),
+            int_slider::<Self>("opacity", "Opacity", 0, 100, 100, |e: &mut Self, v| {
+                e.opacity = v.clamp(0, 100)
+            }),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         use super::helpers as dh;
-        if self.opacity < 1 || (self.size_mode != DrawingImageSizeMode::DontResize && self.size.width <= 0 && self.size.height <= 0) {
+        if self.opacity < 1
+            || (self.size_mode != DrawingImageSizeMode::DontResize
+                && self.size.width <= 0
+                && self.size.height <= 0)
+        {
             return Ok(source.clone());
         }
         let path = expand_environment_variables(self.image_location.trim());
@@ -83,17 +210,31 @@ impl EffectImpl for DrawImageEffect {
         let pct = |v: i32, full: f32| (v as f32 / 100.0 * full).round_ties_even() as i32;
         let size = match self.size_mode {
             DrawingImageSizeMode::AbsoluteSize => dh::apply_aspect_ratio(
-                if self.size.width == -1 { sw } else { self.size.width },
-                if self.size.height == -1 { sh } else { self.size.height },
+                if self.size.width == -1 {
+                    sw
+                } else {
+                    self.size.width
+                },
+                if self.size.height == -1 {
+                    sh
+                } else {
+                    self.size.height
+                },
                 &watermark,
             ),
-            DrawingImageSizeMode::PercentageOfWatermark => {
-                dh::apply_aspect_ratio(pct(self.size.width, ww), pct(self.size.height, wh), &watermark)
+            DrawingImageSizeMode::PercentageOfWatermark => dh::apply_aspect_ratio(
+                pct(self.size.width, ww),
+                pct(self.size.height, wh),
+                &watermark,
+            ),
+            DrawingImageSizeMode::PercentageOfCanvas => dh::apply_aspect_ratio(
+                pct(self.size.width, sw as f32),
+                pct(self.size.height, sh as f32),
+                &watermark,
+            ),
+            DrawingImageSizeMode::DontResize => {
+                SizeI::new(watermark.width() as i32, watermark.height() as i32)
             }
-            DrawingImageSizeMode::PercentageOfCanvas => {
-                dh::apply_aspect_ratio(pct(self.size.width, sw as f32), pct(self.size.height, sh as f32), &watermark)
-            }
-            DrawingImageSizeMode::DontResize => SizeI::new(watermark.width() as i32, watermark.height() as i32),
         };
         if size.width <= 0 || size.height <= 0 {
             return Ok(source.clone());
@@ -106,8 +247,19 @@ impl EffectImpl for DrawImageEffect {
         let mut out = source.clone();
         let mut canvas = Canvas::new(&mut out);
         let sampling = dh::sampling(self.interpolation_mode);
-        let blend = if self.compositing_mode == DrawingCompositingMode::SourceCopy { Blend::Src } else { Blend::SrcOver };
-        let modulate = (self.opacity < 100).then(|| [255, 255, 255, (255.0 * (self.opacity as f32 / 100.0)).round_ties_even() as u8]);
+        let blend = if self.compositing_mode == DrawingCompositingMode::SourceCopy {
+            Blend::Src
+        } else {
+            Blend::SrcOver
+        };
+        let modulate = (self.opacity < 100).then(|| {
+            [
+                255,
+                255,
+                255,
+                (255.0 * (self.opacity as f32 / 100.0)).round_ties_even() as u8,
+            ]
+        });
         if self.tile {
             let mut paint = Paint::shader(Shader::Image {
                 image: &watermark,
@@ -121,14 +273,28 @@ impl EffectImpl for DrawImageEffect {
             paint.modulate = modulate;
             let saved = canvas.matrix;
             canvas.translate(l as f32, t as f32);
-            sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, (r - l) as f32, (b - t) as f32, &paint, None);
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.0,
+                0.0,
+                (r - l) as f32,
+                (b - t) as f32,
+                &paint,
+                None,
+            );
             canvas.matrix = saved;
         } else {
             let mut paint = Paint::shader(Shader::Color([0, 0, 0, 255]));
             paint.anti_alias = true;
             paint.blend = blend;
             paint.modulate = modulate;
-            canvas.draw_image_rect(&watermark, None, RRect::ltrb(l as f32, t as f32, r as f32, b as f32), sampling, Some(&paint));
+            canvas.draw_image_rect(
+                &watermark,
+                None,
+                RRect::ltrb(l as f32, t as f32, r as f32, b as f32),
+                sampling,
+                Some(&paint),
+            );
         }
         drop(canvas);
         Ok(out)

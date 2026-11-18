@@ -26,17 +26,42 @@ impl Default for SoftDiffusionImageEffect {
 
 impl EffectImpl for SoftDiffusionImageEffect {
     fn info() -> Info {
-        Info::new("soft_diffusion", "Soft diffusion", EffectCategory::Filters, "image-effect/soft-glow")
-            .desc("Applies a soft diffusion glow with bloom and warmth.")
+        Info::new(
+            "soft_diffusion",
+            "Soft diffusion",
+            EffectCategory::Filters,
+            "image-effect/soft-glow",
+        )
+        .desc("Applies a soft diffusion glow with bloom and warmth.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("amount", "Amount", 0.0, 100.0, 52.0, |e: &mut Self, v| e.amount = v),
-            float_slider::<Self>("radius", "Radius", 0.0, 30.0, 12.0, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("highlight_bloom", "Highlight bloom", 0.0, 100.0, 40.0, |e: &mut Self, v| e.highlight_bloom = v),
-            float_slider::<Self>("contrast_softening", "Contrast softening", 0.0, 100.0, 28.0, |e: &mut Self, v| e.contrast_softening = v),
-            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 22.0, |e: &mut Self, v| e.warmth = v),
+            float_slider::<Self>("amount", "Amount", 0.0, 100.0, 52.0, |e: &mut Self, v| {
+                e.amount = v
+            }),
+            float_slider::<Self>("radius", "Radius", 0.0, 30.0, 12.0, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>(
+                "highlight_bloom",
+                "Highlight bloom",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.highlight_bloom = v,
+            ),
+            float_slider::<Self>(
+                "contrast_softening",
+                "Contrast softening",
+                0.0,
+                100.0,
+                28.0,
+                |e: &mut Self, v| e.contrast_softening = v,
+            ),
+            float_slider::<Self>("warmth", "Warmth", 0.0, 100.0, 22.0, |e: &mut Self, v| {
+                e.warmth = v
+            }),
         ]
     }
 
@@ -57,7 +82,11 @@ impl EffectImpl for SoftDiffusionImageEffect {
             .map(|i| {
                 let (s, bl) = (src[i], blur_px[i]);
                 let (sr, sg, sb) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
-                let (br, bg, bb) = (bl.r as f32 / 255.0, bl.g as f32 / 255.0, bl.b as f32 / 255.0);
+                let (br, bg, bb) = (
+                    bl.r as f32 / 255.0,
+                    bl.g as f32 / 255.0,
+                    bl.b as f32 / 255.0,
+                );
                 let bl_lum = analog_luminance01(bl);
                 let mask = 0.45 + (bloom * bl_lum.powf(1.7) * 0.85);
                 let dr = screen(sr, br * mask * (1.02 + (warmth * 0.08)));
@@ -72,7 +101,12 @@ impl EffectImpl for SoftDiffusionImageEffect {
                     g = screen(g, wm * 0.55);
                     b = lerp(b, 0f32.max(b - (wm * 0.12)), wm);
                 }
-                SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a)
+                SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                )
             })
             .collect();
         Ok(from_pixels(width as u32, height as u32, &dst))

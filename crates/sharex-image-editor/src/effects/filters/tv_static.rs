@@ -20,14 +20,24 @@ impl Default for TVStaticImageEffect {
 
 impl EffectImpl for TVStaticImageEffect {
     fn info() -> Info {
-        Info::new("tv_static", "TV static", EffectCategory::Filters, "image-effect/tv")
-            .desc("Blends black-and-white TV static noise over the image.")
+        Info::new(
+            "tv_static",
+            "TV static",
+            EffectCategory::Filters,
+            "image-effect/tv",
+        )
+        .desc("Blends black-and-white TV static noise over the image.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Amount", 0.0, 100.0, 40.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Amount",
+            0.0,
+            100.0,
+            40.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

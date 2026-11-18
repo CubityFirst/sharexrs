@@ -47,27 +47,105 @@ impl Default for DrawParticlesEffect {
 
 impl EffectImpl for DrawParticlesEffect {
     fn info() -> Info {
-        Info::new("draw_particles", "Particles", EffectCategory::Drawings, "app/sparkles")
-            .desc("Draws particle images on the source image.")
+        Info::new(
+            "draw_particles",
+            "Particles",
+            EffectCategory::Drawings,
+            "app/sparkles",
+        )
+        .desc("Draws particle images on the source image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            file_param::<Self>("image_folder", "Image folder", "", |e: &mut Self, v| e.image_folder = v),
-            int_numeric::<Self>("image_count", "Image count", 1, 1000, 1, |e: &mut Self, v| e.image_count = v.clamp(1, 1000)),
-            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| e.background = v),
-            bool_param::<Self>("random_size", "Random size", false, |e: &mut Self, v| e.random_size = v),
-            int_numeric::<Self>("random_size_min", "Random size min", 1, 10000, 64, |e: &mut Self, v| e.random_size_min = v),
-            int_numeric::<Self>("random_size_max", "Random size max", 1, 10000, 128, |e: &mut Self, v| e.random_size_max = v),
-            bool_param::<Self>("random_angle", "Random angle", false, |e: &mut Self, v| e.random_angle = v),
-            int_numeric::<Self>("random_angle_min", "Random angle min", 0, 360, 0, |e: &mut Self, v| e.random_angle_min = v),
-            int_numeric::<Self>("random_angle_max", "Random angle max", 0, 360, 360, |e: &mut Self, v| e.random_angle_max = v),
-            bool_param::<Self>("random_opacity", "Random opacity", false, |e: &mut Self, v| e.random_opacity = v),
-            int_numeric::<Self>("random_opacity_min", "Random opacity min", 0, 100, 0, |e: &mut Self, v| e.random_opacity_min = v),
-            int_numeric::<Self>("random_opacity_max", "Random opacity max", 0, 100, 100, |e: &mut Self, v| e.random_opacity_max = v),
-            bool_param::<Self>("no_overlap", "No overlap", false, |e: &mut Self, v| e.no_overlap = v),
-            int_numeric::<Self>("no_overlap_offset", "No overlap offset", 0, 1000, 0, |e: &mut Self, v| e.no_overlap_offset = v),
-            bool_param::<Self>("edge_overlap", "Edge overlap", false, |e: &mut Self, v| e.edge_overlap = v),
+            file_param::<Self>("image_folder", "Image folder", "", |e: &mut Self, v| {
+                e.image_folder = v
+            }),
+            int_numeric::<Self>(
+                "image_count",
+                "Image count",
+                1,
+                1000,
+                1,
+                |e: &mut Self, v| e.image_count = v.clamp(1, 1000),
+            ),
+            bool_param::<Self>("background", "Background", false, |e: &mut Self, v| {
+                e.background = v
+            }),
+            bool_param::<Self>("random_size", "Random size", false, |e: &mut Self, v| {
+                e.random_size = v
+            }),
+            int_numeric::<Self>(
+                "random_size_min",
+                "Random size min",
+                1,
+                10000,
+                64,
+                |e: &mut Self, v| e.random_size_min = v,
+            ),
+            int_numeric::<Self>(
+                "random_size_max",
+                "Random size max",
+                1,
+                10000,
+                128,
+                |e: &mut Self, v| e.random_size_max = v,
+            ),
+            bool_param::<Self>("random_angle", "Random angle", false, |e: &mut Self, v| {
+                e.random_angle = v
+            }),
+            int_numeric::<Self>(
+                "random_angle_min",
+                "Random angle min",
+                0,
+                360,
+                0,
+                |e: &mut Self, v| e.random_angle_min = v,
+            ),
+            int_numeric::<Self>(
+                "random_angle_max",
+                "Random angle max",
+                0,
+                360,
+                360,
+                |e: &mut Self, v| e.random_angle_max = v,
+            ),
+            bool_param::<Self>(
+                "random_opacity",
+                "Random opacity",
+                false,
+                |e: &mut Self, v| e.random_opacity = v,
+            ),
+            int_numeric::<Self>(
+                "random_opacity_min",
+                "Random opacity min",
+                0,
+                100,
+                0,
+                |e: &mut Self, v| e.random_opacity_min = v,
+            ),
+            int_numeric::<Self>(
+                "random_opacity_max",
+                "Random opacity max",
+                0,
+                100,
+                100,
+                |e: &mut Self, v| e.random_opacity_max = v,
+            ),
+            bool_param::<Self>("no_overlap", "No overlap", false, |e: &mut Self, v| {
+                e.no_overlap = v
+            }),
+            int_numeric::<Self>(
+                "no_overlap_offset",
+                "No overlap offset",
+                0,
+                1000,
+                0,
+                |e: &mut Self, v| e.no_overlap_offset = v,
+            ),
+            bool_param::<Self>("edge_overlap", "Edge overlap", false, |e: &mut Self, v| {
+                e.edge_overlap = v
+            }),
         ]
     }
 
@@ -85,7 +163,11 @@ impl EffectImpl for DrawParticlesEffect {
                 .filter(|p| {
                     p.extension()
                         .and_then(|x| x.to_str())
-                        .map(|x| ["png", "jpg", "jpeg"].iter().any(|e| e.eq_ignore_ascii_case(x)))
+                        .map(|x| {
+                            ["png", "jpg", "jpeg"]
+                                .iter()
+                                .any(|e| e.eq_ignore_ascii_case(x))
+                        })
                         .unwrap_or(false)
                 })
                 .map(|p| p.to_string_lossy().into_owned())
@@ -95,20 +177,32 @@ impl EffectImpl for DrawParticlesEffect {
         if files.is_empty() {
             return Ok(source.clone());
         }
-        let mut out = if self.background { Bitmap::new(source.width(), source.height()) } else { source.clone() };
-        let mut cache: std::collections::HashMap<String, Option<Bitmap>> = std::collections::HashMap::new();
+        let mut out = if self.background {
+            Bitmap::new(source.width(), source.height())
+        } else {
+            source.clone()
+        };
+        let mut cache: std::collections::HashMap<String, Option<Bitmap>> =
+            std::collections::HashMap::new();
         let mut rects: Vec<(i32, i32, i32, i32)> = Vec::new();
         {
             let mut canvas = Canvas::new(&mut out);
             for _ in 0..self.image_count {
-                let file = files[random::shared(|r| r.next_range(0, files.len() as i32)) as usize].clone();
+                let file =
+                    files[random::shared(|r| r.next_range(0, files.len() as i32)) as usize].clone();
                 let key = file.to_lowercase();
                 let particle = cache.entry(key).or_insert_with(|| decode_file(&file));
                 let Some(p) = particle.as_ref() else { continue };
                 if p.width() == 0 || p.height() == 0 {
                     continue;
                 }
-                self.draw_particle(&mut canvas, source.width() as i32, source.height() as i32, p, &mut rects);
+                self.draw_particle(
+                    &mut canvas,
+                    source.width() as i32,
+                    source.height() as i32,
+                    p,
+                    &mut rects,
+                );
             }
             if self.background {
                 canvas.draw_bitmap(source, 0.0, 0.0, None);
@@ -129,10 +223,20 @@ fn next_int(min: i32, max: i32) -> i32 {
 }
 
 impl DrawParticlesEffect {
-    fn draw_particle(&self, canvas: &mut Canvas, tw: i32, th: i32, particle: &Bitmap, rects: &mut Vec<(i32, i32, i32, i32)>) {
+    fn draw_particle(
+        &self,
+        canvas: &mut Canvas,
+        tw: i32,
+        th: i32,
+        particle: &Bitmap,
+        rects: &mut Vec<(i32, i32, i32, i32)>,
+    ) {
         let (pw, ph) = (particle.width() as i32, particle.height() as i32);
         let (width, height) = if self.random_size {
-            let size = next_int(self.random_size_min.min(self.random_size_max), self.random_size_min.max(self.random_size_max));
+            let size = next_int(
+                self.random_size_min.min(self.random_size_max),
+                self.random_size_min.max(self.random_size_max),
+            );
             let (mut w, mut h) = (size, size);
             if pw > ph {
                 h = (size as f64 * (ph as f64 / pw as f64)).round_ties_even() as i32;
@@ -162,9 +266,9 @@ impl DrawParticlesEffect {
             rect = (x, y, x + width, y + height);
             let o = self.no_overlap_offset;
             let inflated = (rect.0 - o, rect.1 - o, rect.2 + o, rect.3 + o);
-            let hit = rects
-                .iter()
-                .any(|r| r.0 < inflated.2 && r.2 > inflated.0 && r.1 < inflated.3 && r.3 > inflated.1);
+            let hit = rects.iter().any(|r| {
+                r.0 < inflated.2 && r.2 > inflated.0 && r.1 < inflated.3 && r.3 > inflated.1
+            });
             if !(self.no_overlap && hit) {
                 break;
             }

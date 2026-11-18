@@ -32,19 +32,64 @@ impl Default for RisoPrintImageEffect {
 
 impl EffectImpl for RisoPrintImageEffect {
     fn info() -> Info {
-        Info::new("riso_print", "Riso print", EffectCategory::Filters, "app/printer")
-            .desc("Simulates a risograph print with halftone dots and ink colors.")
+        Info::new(
+            "riso_print",
+            "Riso print",
+            EffectCategory::Filters,
+            "app/printer",
+        )
+        .desc("Simulates a risograph print with halftone dots and ink colors.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("ink_strength", "Ink strength", 0.0, 100.0, 70.0, |e: &mut Self, v| e.ink_strength = v),
-            float_slider::<Self>("paper_fade", "Paper fade", 0.0, 100.0, 25.0, |e: &mut Self, v| e.paper_fade = v),
-            float_slider::<Self>("offset", "Offset", -200.0, 200.0, 3.0, |e: &mut Self, v| e.offset = v),
-            float_slider::<Self>("dot_scale", "Dot scale", 0.0, 100.0, 18.0, |e: &mut Self, v| e.dot_scale = v),
-            float_slider::<Self>("ink_noise", "Ink noise", 0.0, 100.0, 35.0, |e: &mut Self, v| e.ink_noise = v),
-            color_param::<Self>("ink_color_a", "Ink color A", SkColor::argb(0xFFDC4646), |e: &mut Self, v| e.ink_color_a = v),
-            color_param::<Self>("ink_color_b", "Ink color B", SkColor::argb(0xFF46C8D2), |e: &mut Self, v| e.ink_color_b = v),
+            float_slider::<Self>(
+                "ink_strength",
+                "Ink strength",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.ink_strength = v,
+            ),
+            float_slider::<Self>(
+                "paper_fade",
+                "Paper fade",
+                0.0,
+                100.0,
+                25.0,
+                |e: &mut Self, v| e.paper_fade = v,
+            ),
+            float_slider::<Self>("offset", "Offset", -200.0, 200.0, 3.0, |e: &mut Self, v| {
+                e.offset = v
+            }),
+            float_slider::<Self>(
+                "dot_scale",
+                "Dot scale",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.dot_scale = v,
+            ),
+            float_slider::<Self>(
+                "ink_noise",
+                "Ink noise",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.ink_noise = v,
+            ),
+            color_param::<Self>(
+                "ink_color_a",
+                "Ink color A",
+                SkColor::argb(0xFFDC4646),
+                |e: &mut Self, v| e.ink_color_a = v,
+            ),
+            color_param::<Self>(
+                "ink_color_b",
+                "Ink color B",
+                SkColor::argb(0xFF46C8D2),
+                |e: &mut Self, v| e.ink_color_b = v,
+            ),
         ]
     }
 
@@ -86,7 +131,8 @@ impl EffectImpl for RisoPrintImageEffect {
             for x in 0..width {
                 let i = (y * width + x) as usize;
                 let s = src[i];
-                let l = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / (255.0 * 1.0);
+                let l = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32))
+                    / (255.0 * 1.0);
                 let coverage = clamp01(1.0 - l);
                 let da = dot(x, y, coverage, 0xA11);
                 let xb = (x as f32 + misreg).round_ties_even() as i32;
@@ -107,7 +153,12 @@ impl EffectImpl for RisoPrintImageEffect {
                     og = 0f32.max(og + grain * 0.92);
                     ob = 0f32.max(ob + grain * 1.06);
                 }
-                dst[i] = SkColor::rgba(clamp_to_byte(or * 255.0), clamp_to_byte(og * 255.0), clamp_to_byte(ob * 255.0), s.a);
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(or * 255.0),
+                    clamp_to_byte(og * 255.0),
+                    clamp_to_byte(ob * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

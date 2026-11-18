@@ -24,19 +24,49 @@ impl Default for CrosshatchImageEffect {
 
 impl EffectImpl for CrosshatchImageEffect {
     fn info() -> Info {
-        Info::new("crosshatch", "Crosshatch", EffectCategory::Filters, "app/hash")
-            .desc("Renders the image as a crosshatch pen drawing.")
+        Info::new(
+            "crosshatch",
+            "Crosshatch",
+            EffectCategory::Filters,
+            "app/hash",
+        )
+        .desc("Renders the image as a crosshatch pen drawing.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("lineSpacing", "Line spacing", 4, 24, 8, |e: &mut Self, v| e.line_spacing = v),
-            float_slider::<Self>("lineThickness", "Line thickness", 0.5, 4.0, 1.2000000476837158, |e: &mut Self, v| e.line_thickness = v),
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 120.0, |e: &mut Self, v| e.contrast = v),
-            int_slider::<Self>("layerCount", "Layer count", 1, 6, 4, |e: &mut Self, v| e.layer_count = v),
+            int_slider::<Self>(
+                "lineSpacing",
+                "Line spacing",
+                4,
+                24,
+                8,
+                |e: &mut Self, v| e.line_spacing = v,
+            ),
+            float_slider::<Self>(
+                "lineThickness",
+                "Line thickness",
+                0.5,
+                4.0,
+                1.2000000476837158,
+                |e: &mut Self, v| e.line_thickness = v,
+            ),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                120.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            int_slider::<Self>("layerCount", "Layer count", 1, 6, 4, |e: &mut Self, v| {
+                e.layer_count = v
+            }),
         ]
     }
 
+    // ShareX's 0.7071, not 1/sqrt(2).
+    #[allow(clippy::approx_constant)]
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let spacing = self.line_spacing.clamp(4, 24) as f32;
         let thickness = clampf(self.line_thickness, 0.5, 4.0);
@@ -60,7 +90,8 @@ impl EffectImpl for CrosshatchImageEffect {
             let row = y * width;
             for x in 0..width {
                 let s = src[(row + x) as usize];
-                let mut lum = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                let mut lum =
+                    ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
                 lum = clampf(((lum - 0.5) * contrast) + 0.5, 0.0, 1.0);
                 let dark = 1.0 - lum;
                 let (xf, yf) = (x as f32, y as f32);

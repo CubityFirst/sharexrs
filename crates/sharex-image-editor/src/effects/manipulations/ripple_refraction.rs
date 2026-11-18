@@ -28,18 +28,60 @@ impl Default for RippleRefractionImageEffect {
 
 impl EffectImpl for RippleRefractionImageEffect {
     fn info() -> Info {
-        Info::new("ripple_refraction", "Ripple refraction", EffectCategory::Manipulations, "image-effect/waves")
-            .desc("Applies a ripple refraction distortion effect.")
+        Info::new(
+            "ripple_refraction",
+            "Ripple refraction",
+            EffectCategory::Manipulations,
+            "image-effect/waves",
+        )
+        .desc("Applies a ripple refraction distortion effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("amplitude", "Amplitude", 0.0, 80.0, 12.0, |e: &mut Self, v| e.amplitude = v),
-            float_slider::<Self>("wavelength", "Wavelength", 4.0, 400.0, 32.0, |e: &mut Self, v| e.wavelength = v),
-            float_slider::<Self>("phase", "Phase", -360.0, 360.0, 0.0, |e: &mut Self, v| e.phase = v),
-            float_slider::<Self>("refraction", "Refraction", 0.0, 100.0, 35.0, |e: &mut Self, v| e.refraction = v),
-            float_slider::<Self>("center_x_percentage", "Center X %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            float_slider::<Self>(
+                "amplitude",
+                "Amplitude",
+                0.0,
+                80.0,
+                12.0,
+                |e: &mut Self, v| e.amplitude = v,
+            ),
+            float_slider::<Self>(
+                "wavelength",
+                "Wavelength",
+                4.0,
+                400.0,
+                32.0,
+                |e: &mut Self, v| e.wavelength = v,
+            ),
+            float_slider::<Self>("phase", "Phase", -360.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.phase = v
+            }),
+            float_slider::<Self>(
+                "refraction",
+                "Refraction",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.refraction = v,
+            ),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 

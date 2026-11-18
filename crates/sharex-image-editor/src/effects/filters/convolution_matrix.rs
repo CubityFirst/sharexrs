@@ -38,8 +38,13 @@ impl Default for ConvolutionMatrixImageEffect {
 
 impl EffectImpl for ConvolutionMatrixImageEffect {
     fn info() -> Info {
-        Info::new("convolution_matrix", "Convolution matrix", EffectCategory::Filters, "app/grid")
-            .desc("Applies a custom 3x3 convolution kernel to the image.")
+        Info::new(
+            "convolution_matrix",
+            "Convolution matrix",
+            EffectCategory::Filters,
+            "app/grid",
+        )
+        .desc("Applies a custom 3x3 convolution kernel to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
@@ -53,8 +58,17 @@ impl EffectImpl for ConvolutionMatrixImageEffect {
             int_numeric::<Self>("x0y2", "X0 Y2", -99, 99, 0, |e: &mut Self, v| e.x0_y2 = v),
             int_numeric::<Self>("x1y2", "X1 Y2", -99, 99, 0, |e: &mut Self, v| e.x1_y2 = v),
             int_numeric::<Self>("x2y2", "X2 Y2", -99, 99, 0, |e: &mut Self, v| e.x2_y2 = v),
-            float_slider::<Self>("factor", "Factor", 0.009999999776482582, 10.0, 1.0, |e: &mut Self, v| e.factor = v as f64),
-            int_numeric::<Self>("offset", "Offset", -255, 255, 0, |e: &mut Self, v| e.offset = v),
+            float_slider::<Self>(
+                "factor",
+                "Factor",
+                0.009999999776482582,
+                10.0,
+                1.0,
+                |e: &mut Self, v| e.factor = v as f64,
+            ),
+            int_numeric::<Self>("offset", "Offset", -255, 255, 0, |e: &mut Self, v| {
+                e.offset = v
+            }),
         ]
     }
 
@@ -72,6 +86,12 @@ impl EffectImpl for ConvolutionMatrixImageEffect {
             self.x1_y2 as f32,
             self.x2_y2 as f32,
         ];
-        Ok(matrix_convolution_3x3(source, &k, gain, self.offset as f32, false))
+        Ok(matrix_convolution_3x3(
+            source,
+            &k,
+            gain,
+            self.offset as f32,
+            false,
+        ))
     }
 }

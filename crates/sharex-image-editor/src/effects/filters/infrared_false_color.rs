@@ -26,17 +26,52 @@ impl Default for InfraredFalseColorImageEffect {
 
 impl EffectImpl for InfraredFalseColorImageEffect {
     fn info() -> Info {
-        Info::new("infrared_false_color", "Infrared false color", EffectCategory::Filters, "image-effect/flame")
-            .desc("Simulates infrared false color photography.")
+        Info::new(
+            "infrared_false_color",
+            "Infrared false color",
+            EffectCategory::Filters,
+            "image-effect/flame",
+        )
+        .desc("Simulates infrared false color photography.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 68.0, |e: &mut Self, v| e.intensity = v),
-            float_slider::<Self>("foliage_shift", "Foliage shift", 0.0, 100.0, 78.0, |e: &mut Self, v| e.foliage_shift = v),
-            float_slider::<Self>("sky_darkening", "Sky darkening", 0.0, 100.0, 44.0, |e: &mut Self, v| e.sky_darkening = v),
-            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 20.0, |e: &mut Self, v| e.glow = v),
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 118.0, |e: &mut Self, v| e.contrast = v),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                68.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            float_slider::<Self>(
+                "foliage_shift",
+                "Foliage shift",
+                0.0,
+                100.0,
+                78.0,
+                |e: &mut Self, v| e.foliage_shift = v,
+            ),
+            float_slider::<Self>(
+                "sky_darkening",
+                "Sky darkening",
+                0.0,
+                100.0,
+                44.0,
+                |e: &mut Self, v| e.sky_darkening = v,
+            ),
+            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 20.0, |e: &mut Self, v| {
+                e.glow = v
+            }),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                118.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
         ]
     }
 
@@ -51,7 +86,8 @@ impl EffectImpl for InfraredFalseColorImageEffect {
         }
         let (width, height) = (source.width() as i32, source.height() as i32);
         let src = pixels(source);
-        let glow_px = (glow > 0.01).then(|| pixels(&create_blurred_clamp(source, 6.0 + (glow * 12.0))));
+        let glow_px =
+            (glow > 0.01).then(|| pixels(&create_blurred_clamp(source, 6.0 + (glow * 12.0))));
         let gp = glow_px.as_ref().unwrap_or(&src);
         let dst: Vec<SkColor> = (0..src.len())
             .map(|i| {
@@ -84,7 +120,12 @@ impl EffectImpl for InfraredFalseColorImageEffect {
                     g = screen(g, gm * 0.18);
                     b = screen(b, gm * 0.42);
                 }
-                SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a)
+                SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                )
             })
             .collect();
         Ok(from_pixels(width as u32, height as u32, &dst))

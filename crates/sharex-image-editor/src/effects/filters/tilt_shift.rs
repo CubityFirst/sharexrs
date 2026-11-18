@@ -36,19 +36,70 @@ impl Default for TiltShiftImageEffect {
 
 impl EffectImpl for TiltShiftImageEffect {
     fn info() -> Info {
-        Info::new("tilt_shift", "Tilt-shift", EffectCategory::Filters, "image-editor/blur")
-            .desc("Simulates a tilt-shift lens with selective focus.")
+        Info::new(
+            "tilt_shift",
+            "Tilt-shift",
+            EffectCategory::Filters,
+            "image-editor/blur",
+        )
+        .desc("Simulates a tilt-shift lens with selective focus.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, TiltShiftMode>("mode", "Mode", TiltShiftMode::Linear, |e: &mut Self, v| e.mode = v, &[("Linear", TiltShiftMode::Linear), ("Radial", TiltShiftMode::Radial)]),
-            float_slider::<Self>("blur_radius", "Blur radius", 0.0, 30.0, 12.0, |e: &mut Self, v| e.blur_radius = v),
-            float_slider::<Self>("focus_size", "Focus size", 5.0, 90.0, 30.0, |e: &mut Self, v| e.focus_size = v),
-            float_slider::<Self>("focus_position_x", "Focus position X", 0.0, 100.0, 50.0, |e: &mut Self, v| e.focus_position_x = v),
-            float_slider::<Self>("focus_position_y", "Focus position Y", 0.0, 100.0, 50.0, |e: &mut Self, v| e.focus_position_y = v),
-            float_slider::<Self>("falloff", "Falloff", 1.0, 60.0, 24.0, |e: &mut Self, v| e.falloff = v),
-            float_slider::<Self>("saturation_boost", "Saturation boost", 0.0, 100.0, 35.0, |e: &mut Self, v| e.saturation_boost = v),
+            enum_param::<Self, TiltShiftMode>(
+                "mode",
+                "Mode",
+                TiltShiftMode::Linear,
+                |e: &mut Self, v| e.mode = v,
+                &[
+                    ("Linear", TiltShiftMode::Linear),
+                    ("Radial", TiltShiftMode::Radial),
+                ],
+            ),
+            float_slider::<Self>(
+                "blur_radius",
+                "Blur radius",
+                0.0,
+                30.0,
+                12.0,
+                |e: &mut Self, v| e.blur_radius = v,
+            ),
+            float_slider::<Self>(
+                "focus_size",
+                "Focus size",
+                5.0,
+                90.0,
+                30.0,
+                |e: &mut Self, v| e.focus_size = v,
+            ),
+            float_slider::<Self>(
+                "focus_position_x",
+                "Focus position X",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.focus_position_x = v,
+            ),
+            float_slider::<Self>(
+                "focus_position_y",
+                "Focus position Y",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.focus_position_y = v,
+            ),
+            float_slider::<Self>("falloff", "Falloff", 1.0, 60.0, 24.0, |e: &mut Self, v| {
+                e.falloff = v
+            }),
+            float_slider::<Self>(
+                "saturation_boost",
+                "Saturation boost",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.saturation_boost = v,
+            ),
         ]
     }
 
@@ -63,7 +114,11 @@ impl EffectImpl for TiltShiftImageEffect {
         let fy = clampf(self.focus_position_y, 0.0, 100.0) / 100.0;
         let falloff = clampf(self.falloff, 1.0, 60.0) / 100.0;
         let sat = clampf(self.saturation_boost, 0.0, 100.0) / 100.0;
-        let blurred = if blur_r > 0.01 { blur(source, blur_r, blur_r) } else { source.clone() };
+        let blurred = if blur_r > 0.01 {
+            blur(source, blur_r, blur_r)
+        } else {
+            source.clone()
+        };
         let src = pixels(source);
         let bl = pixels(&blurred);
         let mut dst = vec![SkColor::default(); src.len()];

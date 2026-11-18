@@ -26,17 +26,38 @@ impl Default for CrimsonBorderImageEffect {
 
 impl EffectImpl for CrimsonBorderImageEffect {
     fn info() -> Info {
-        Info::new("crimson_border", "Crimson border", EffectCategory::Filters, "image-effect/sword")
-            .desc("Adds a rich crimson/dark red border with an inner glow effect.")
+        Info::new(
+            "crimson_border",
+            "Crimson border",
+            EffectCategory::Filters,
+            "image-effect/sword",
+        )
+        .desc("Adds a rich crimson/dark red border with an inner glow effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("size", "Size", 2, 60, 12, |e: &mut Self, v| e.size = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFF990012), |e: &mut Self, v| e.color = v),
-            float_slider::<Self>("glow_strength", "Glow strength", 0.0, 100.0, 50.0, |e: &mut Self, v| e.glow_strength = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
-            bool_param::<Self>("outer_line", "Outer line", true, |e: &mut Self, v| e.outer_line = v),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFF990012),
+                |e: &mut Self, v| e.color = v,
+            ),
+            float_slider::<Self>(
+                "glow_strength",
+                "Glow strength",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.glow_strength = v,
+            ),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
+            bool_param::<Self>("outer_line", "Outer line", true, |e: &mut Self, v| {
+                e.outer_line = v
+            }),
         ]
     }
 
@@ -55,25 +76,95 @@ impl EffectImpl for CrimsonBorderImageEffect {
         if glow > 0.0 {
             let gw = sf * 0.7;
             let clear = base.with_alpha(0);
-            let g = |s: (f32, f32), e: (f32, f32), c: SkColor| sk::linear_gradient(s, e, &[c, clear], None, true);
+            let g = |s: (f32, f32), e: (f32, f32), c: SkColor| {
+                sk::linear_gradient(s, e, &[c, clear], None, true)
+            };
             let d200 = dark.with_alpha((200.0 * glow) as u8);
             let d180 = dark.with_alpha((180.0 * glow) as u8);
-            sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, nwf, gw, &g((0.0, 0.0), (0.0, gw), d200), None);
-            sk::draw_rect_xywh(&mut canvas, 0.0, nhf - gw, nwf, gw, &g((0.0, nhf), (0.0, nhf - gw), d200), None);
-            sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, gw, nhf, &g((0.0, 0.0), (gw, 0.0), d180), None);
-            sk::draw_rect_xywh(&mut canvas, nwf - gw, 0.0, gw, nhf, &g((nwf, 0.0), (nwf - gw, 0.0), d180), None);
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.0,
+                0.0,
+                nwf,
+                gw,
+                &g((0.0, 0.0), (0.0, gw), d200),
+                None,
+            );
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.0,
+                nhf - gw,
+                nwf,
+                gw,
+                &g((0.0, nhf), (0.0, nhf - gw), d200),
+                None,
+            );
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.0,
+                0.0,
+                gw,
+                nhf,
+                &g((0.0, 0.0), (gw, 0.0), d180),
+                None,
+            );
+            sk::draw_rect_xywh(
+                &mut canvas,
+                nwf - gw,
+                0.0,
+                gw,
+                nhf,
+                &g((nwf, 0.0), (nwf - gw, 0.0), d180),
+                None,
+            );
             let igw = sf * 0.4;
             let l120 = light.with_alpha((120.0 * glow) as u8);
-            sk::draw_rect_xywh(&mut canvas, sf, sf - igw, iw as f32, igw, &g((0.0, sf), (0.0, sf - igw), l120), None);
-            sk::draw_rect_xywh(&mut canvas, sf, (nh - size) as f32, iw as f32, igw, &g((0.0, (nh - size) as f32), (0.0, (nh - size) as f32 + igw), l120), None);
+            sk::draw_rect_xywh(
+                &mut canvas,
+                sf,
+                sf - igw,
+                iw as f32,
+                igw,
+                &g((0.0, sf), (0.0, sf - igw), l120),
+                None,
+            );
+            sk::draw_rect_xywh(
+                &mut canvas,
+                sf,
+                (nh - size) as f32,
+                iw as f32,
+                igw,
+                &g(
+                    (0.0, (nh - size) as f32),
+                    (0.0, (nh - size) as f32 + igw),
+                    l120,
+                ),
+                None,
+            );
         }
         canvas.draw_bitmap(source, sf, sf, None);
         if self.inner_line {
             let p = solid(light.with_alpha(180), true);
-            sk::draw_rect_xywh(&mut canvas, sf - 0.5, sf - 0.5, (iw + 1) as f32, (ih + 1) as f32, &p, Some(&Pen::new(1.0)));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                sf - 0.5,
+                sf - 0.5,
+                (iw + 1) as f32,
+                (ih + 1) as f32,
+                &p,
+                Some(&Pen::new(1.0)),
+            );
         }
         if self.outer_line {
-            sk::draw_rect_xywh(&mut canvas, 0.5, 0.5, (nw - 1) as f32, (nh - 1) as f32, &solid(dark, true), Some(&Pen::new(1.5)));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.5,
+                0.5,
+                (nw - 1) as f32,
+                (nh - 1) as f32,
+                &solid(dark, true),
+                Some(&Pen::new(1.5)),
+            );
         }
         drop(canvas);
         Ok(out)

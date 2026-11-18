@@ -34,12 +34,42 @@ impl EffectImpl for StainedGlassBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 20, 300, 60, |e: &mut Self, v| e.border_size = v),
-            float_slider::<Self>("panel_width", "Panel width", 10.0, 120.0, 40.0, |e: &mut Self, v| e.panel_width = v),
-            float_slider::<Self>("lead_thickness", "Lead thickness", 1.0, 12.0, 3.5, |e: &mut Self, v| e.lead_thickness = v),
-            float_slider::<Self>("glass_brightness", "Glass brightness", 30.0, 100.0, 75.0, |e: &mut Self, v| e.glass_brightness = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                20,
+                300,
+                60,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            float_slider::<Self>(
+                "panel_width",
+                "Panel width",
+                10.0,
+                120.0,
+                40.0,
+                |e: &mut Self, v| e.panel_width = v,
+            ),
+            float_slider::<Self>(
+                "lead_thickness",
+                "Lead thickness",
+                1.0,
+                12.0,
+                3.5,
+                |e: &mut Self, v| e.lead_thickness = v,
+            ),
+            float_slider::<Self>(
+                "glass_brightness",
+                "Glass brightness",
+                30.0,
+                100.0,
+                75.0,
+                |e: &mut Self, v| e.glass_brightness = v,
+            ),
             bool_param::<Self>("glow", "Glass glow", true, |e: &mut Self, v| e.glow = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
         ]
     }
 
@@ -54,19 +84,83 @@ impl EffectImpl for StainedGlassBorderImageEffect {
         let mut canvas = Canvas::new(&mut out);
         let lead = SkColor::rgb(14, 10, 8);
         let lf = solid(lead, false);
-        let (bf, nwf, nhf) = (border as f32, nw as f32, nh as f32);
+        let (bf, nwf) = (border as f32, nw as f32);
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, nwf, bf, &lf, None);
         sk::draw_rect_xywh(&mut canvas, 0.0, (nh - border) as f32, nwf, bf, &lf, None);
         sk::draw_rect_xywh(&mut canvas, 0.0, bf, bf, ih as f32, &lf, None);
-        sk::draw_rect_xywh(&mut canvas, (nw - border) as f32, bf, bf, ih as f32, &lf, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            &lf,
+            None,
+        );
         let glow = self.glow;
-        glass_panels(&mut canvas, 0.0, 0.0, nwf, bf, true, panel_w, lead_t, brightness, 0x1A, glow);
-        glass_panels(&mut canvas, 0.0, (nh - border) as f32, nwf, bf, true, panel_w, lead_t, brightness, 0x2B, glow);
-        glass_panels(&mut canvas, 0.0, bf, bf, ih as f32, false, panel_w, lead_t, brightness, 0x3C, glow);
-        glass_panels(&mut canvas, (nw - border) as f32, bf, bf, ih as f32, false, panel_w, lead_t, brightness, 0x4D, glow);
+        glass_panels(
+            &mut canvas,
+            0.0,
+            0.0,
+            nwf,
+            bf,
+            true,
+            panel_w,
+            lead_t,
+            brightness,
+            0x1A,
+            glow,
+        );
+        glass_panels(
+            &mut canvas,
+            0.0,
+            (nh - border) as f32,
+            nwf,
+            bf,
+            true,
+            panel_w,
+            lead_t,
+            brightness,
+            0x2B,
+            glow,
+        );
+        glass_panels(
+            &mut canvas,
+            0.0,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            panel_w,
+            lead_t,
+            brightness,
+            0x3C,
+            glow,
+        );
+        glass_panels(
+            &mut canvas,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            panel_w,
+            lead_t,
+            brightness,
+            0x4D,
+            glow,
+        );
         canvas.draw_bitmap(source, bf, bf, None);
         if self.inner_line {
-            sk::draw_rect_xywh(&mut canvas, bf, bf, iw as f32, ih as f32, &lf, Some(&Pen::new(lead_t * 1.5)));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                bf,
+                bf,
+                iw as f32,
+                ih as f32,
+                &lf,
+                Some(&Pen::new(lead_t * 1.5)),
+            );
         }
         drop(canvas);
         Ok(out)
@@ -116,7 +210,16 @@ fn glass_panels(
                     (rx + cs + h, ry + along + h, rx + ce - h, ry + end - h)
                 };
                 if x2 > x1 + 1.0 && y2 > y1 + 1.0 {
-                    glass_panel(canvas, x1, y1, x2, y2, SkColor::from_hsv(hue, sat, brightness, 255), lead_t, glow);
+                    glass_panel(
+                        canvas,
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        SkColor::from_hsv(hue, sat, brightness, 255),
+                        lead_t,
+                        glow,
+                    );
                 }
                 along = end;
                 index += 1;
@@ -127,13 +230,28 @@ fn glass_panels(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn glass_panel(canvas: &mut Canvas, x1: f32, y1: f32, x2: f32, y2: f32, base: SkColor, lead_t: f32, glow: bool) {
+fn glass_panel(
+    canvas: &mut Canvas,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    base: SkColor,
+    lead_t: f32,
+    glow: bool,
+) {
     let (w, h) = (x2 - x1, y2 - y1);
     if w < 1.0 || h < 1.0 {
         return;
     }
     if glow {
-        sk::draw_rect_blur(canvas, RRect::xywh(x1, y1, w, h), &solid(base.with_alpha(60), true), None, lead_t * 1.8);
+        sk::draw_rect_blur(
+            canvas,
+            RRect::xywh(x1, y1, w, h),
+            &solid(base.with_alpha(60), true),
+            None,
+            lead_t * 1.8,
+        );
     }
     let light = |v: u8| 255.min(v as i32 + (0.25f32 * 255.0) as i32) as u8;
     let dark = |v: u8| 0.max(v as i32 - (0.15f32 * 255.0) as i32) as u8;

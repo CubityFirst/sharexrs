@@ -20,14 +20,23 @@ impl Default for MotionBlurImageEffect {
 
 impl EffectImpl for MotionBlurImageEffect {
     fn info() -> Info {
-        Info::new("motion_blur", "Motion blur", EffectCategory::Filters, "app/move-horizontal")
-            .desc("Applies a directional motion blur at a specified angle.")
+        Info::new(
+            "motion_blur",
+            "Motion blur",
+            EffectCategory::Filters,
+            "app/move-horizontal",
+        )
+        .desc("Applies a directional motion blur at a specified angle.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("distance", "Distance", 1, 200, 12, |e: &mut Self, v| e.distance = v),
-            float_slider::<Self>("angle", "Angle", 0.0, 360.0, 0.0, |e: &mut Self, v| e.angle = v),
+            int_slider::<Self>("distance", "Distance", 1, 200, 12, |e: &mut Self, v| {
+                e.distance = v
+            }),
+            float_slider::<Self>("angle", "Angle", 0.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
         ]
     }
 
@@ -48,8 +57,16 @@ impl EffectImpl for MotionBlurImageEffect {
             for x in 0..width {
                 let (mut sr, mut sg, mut sb, mut sa, mut n) = (0i32, 0i32, 0i32, 0i32, 0i32);
                 for i in start..=end {
-                    let sx = clamp_int((x as f32 + (i as f32 * dx)).round_ties_even() as i32, 0, right);
-                    let sy = clamp_int((y as f32 + (i as f32 * dy)).round_ties_even() as i32, 0, bottom);
+                    let sx = clamp_int(
+                        (x as f32 + (i as f32 * dx)).round_ties_even() as i32,
+                        0,
+                        right,
+                    );
+                    let sy = clamp_int(
+                        (y as f32 + (i as f32 * dy)).round_ties_even() as i32,
+                        0,
+                        bottom,
+                    );
                     let c = src[(sy * width + sx) as usize];
                     sr += c.r as i32;
                     sg += c.g as i32;
@@ -57,7 +74,12 @@ impl EffectImpl for MotionBlurImageEffect {
                     sa += c.a as i32;
                     n += 1;
                 }
-                dst[(y * width + x) as usize] = SkColor::rgba((sr / n) as u8, (sg / n) as u8, (sb / n) as u8, (sa / n) as u8);
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    (sr / n) as u8,
+                    (sg / n) as u8,
+                    (sb / n) as u8,
+                    (sa / n) as u8,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

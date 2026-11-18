@@ -10,9 +10,7 @@ pub struct BlurImageEffect {
 
 impl Default for BlurImageEffect {
     fn default() -> Self {
-        BlurImageEffect {
-            radius: 5,
-        }
+        BlurImageEffect { radius: 5 }
     }
 }
 
@@ -23,9 +21,14 @@ impl EffectImpl for BlurImageEffect {
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("radius", "Radius", 1, 200, 10, |e: &mut Self, v| e.radius = v),
-        ]
+        vec![int_slider::<Self>(
+            "radius",
+            "Radius",
+            1,
+            200,
+            10,
+            |e: &mut Self, v| e.radius = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

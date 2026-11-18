@@ -34,21 +34,89 @@ impl Default for ColorBalanceImageEffect {
 
 impl EffectImpl for ColorBalanceImageEffect {
     fn info() -> Info {
-        Info::new("color_balance", "Color Balance", EffectCategory::Adjustments, "app/sliders")
-            .desc("Adjusts color balance in shadows, midtones, and highlights.")
+        Info::new(
+            "color_balance",
+            "Color Balance",
+            EffectCategory::Adjustments,
+            "app/sliders",
+        )
+        .desc("Adjusts color balance in shadows, midtones, and highlights.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("shadow_cyan_red", "Shadows: Cyan-Red", -100.0, 100.0, 0.0, |e: &mut Self, v| e.shadow_cyan_red = v),
-            float_slider::<Self>("shadow_magenta_green", "Shadows: Magenta-Green", -100.0, 100.0, 0.0, |e: &mut Self, v| e.shadow_magenta_green = v),
-            float_slider::<Self>("shadow_yellow_blue", "Shadows: Yellow-Blue", -100.0, 100.0, 0.0, |e: &mut Self, v| e.shadow_yellow_blue = v),
-            float_slider::<Self>("mid_cyan_red", "Midtones: Cyan-Red", -100.0, 100.0, 0.0, |e: &mut Self, v| e.mid_cyan_red = v),
-            float_slider::<Self>("mid_magenta_green", "Midtones: Magenta-Green", -100.0, 100.0, 0.0, |e: &mut Self, v| e.mid_magenta_green = v),
-            float_slider::<Self>("mid_yellow_blue", "Midtones: Yellow-Blue", -100.0, 100.0, 0.0, |e: &mut Self, v| e.mid_yellow_blue = v),
-            float_slider::<Self>("highlight_cyan_red", "Highlights: Cyan-Red", -100.0, 100.0, 0.0, |e: &mut Self, v| e.highlight_cyan_red = v),
-            float_slider::<Self>("highlight_magenta_green", "Highlights: Magenta-Green", -100.0, 100.0, 0.0, |e: &mut Self, v| e.highlight_magenta_green = v),
-            float_slider::<Self>("highlight_yellow_blue", "Highlights: Yellow-Blue", -100.0, 100.0, 0.0, |e: &mut Self, v| e.highlight_yellow_blue = v),
+            float_slider::<Self>(
+                "shadow_cyan_red",
+                "Shadows: Cyan-Red",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.shadow_cyan_red = v,
+            ),
+            float_slider::<Self>(
+                "shadow_magenta_green",
+                "Shadows: Magenta-Green",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.shadow_magenta_green = v,
+            ),
+            float_slider::<Self>(
+                "shadow_yellow_blue",
+                "Shadows: Yellow-Blue",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.shadow_yellow_blue = v,
+            ),
+            float_slider::<Self>(
+                "mid_cyan_red",
+                "Midtones: Cyan-Red",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.mid_cyan_red = v,
+            ),
+            float_slider::<Self>(
+                "mid_magenta_green",
+                "Midtones: Magenta-Green",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.mid_magenta_green = v,
+            ),
+            float_slider::<Self>(
+                "mid_yellow_blue",
+                "Midtones: Yellow-Blue",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.mid_yellow_blue = v,
+            ),
+            float_slider::<Self>(
+                "highlight_cyan_red",
+                "Highlights: Cyan-Red",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.highlight_cyan_red = v,
+            ),
+            float_slider::<Self>(
+                "highlight_magenta_green",
+                "Highlights: Magenta-Green",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.highlight_magenta_green = v,
+            ),
+            float_slider::<Self>(
+                "highlight_yellow_blue",
+                "Highlights: Yellow-Blue",
+                -100.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.highlight_yellow_blue = v,
+            ),
         ]
     }
 
@@ -69,8 +137,16 @@ impl EffectImpl for ColorBalanceImageEffect {
         if all_zero {
             return Ok(source.clone());
         }
-        let (s_cr, s_mg, s_yb) = (self.shadow_cyan_red / 100.0, self.shadow_magenta_green / 100.0, self.shadow_yellow_blue / 100.0);
-        let (m_cr, m_mg, m_yb) = (self.mid_cyan_red / 100.0, self.mid_magenta_green / 100.0, self.mid_yellow_blue / 100.0);
+        let (s_cr, s_mg, s_yb) = (
+            self.shadow_cyan_red / 100.0,
+            self.shadow_magenta_green / 100.0,
+            self.shadow_yellow_blue / 100.0,
+        );
+        let (m_cr, m_mg, m_yb) = (
+            self.mid_cyan_red / 100.0,
+            self.mid_magenta_green / 100.0,
+            self.mid_yellow_blue / 100.0,
+        );
         let (h_cr, h_mg, h_yb) = (
             self.highlight_cyan_red / 100.0,
             self.highlight_magenta_green / 100.0,

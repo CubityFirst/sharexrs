@@ -30,11 +30,20 @@ fn effects_match_sharex() {
         if let Outcome::Different { max, share, note } = &r.outcome {
             let listed = known.get(&r.name).is_some() || known.get(&r.effect).is_some();
             if !listed {
-                failures.push(format!("{}: max {max}, {:.3}% {note}", r.name, share * 100.0));
+                failures.push(format!(
+                    "{}: max {max}, {:.3}% {note}",
+                    r.name,
+                    share * 100.0
+                ));
             }
         }
     }
-    assert!(failures.is_empty(), "{} cases differ:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} cases differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 #[cfg(not(windows))]
@@ -44,19 +53,28 @@ fn effects_run_everywhere() {
     let failures: Vec<String> = results
         .iter()
         .filter_map(|r| match &r.outcome {
-            Outcome::Different { note, .. } if !note.is_empty() => Some(format!("{}: {note}", r.name)),
+            Outcome::Different { note, .. } if !note.is_empty() => {
+                Some(format!("{}: {note}", r.name))
+            }
             _ => None,
         })
         .collect();
-    assert!(failures.is_empty(), "{}", failures.join("
-"));
+    assert!(
+        failures.is_empty(),
+        "{}",
+        failures.join(
+            "
+"
+        )
+    );
 }
 
 #[test]
 fn shared_random_matches_dotnet() {
     // probe/random.txt: Random.Shared's draws after the harness set its state
     // to splitmix64(12345).
-    let text = std::fs::read_to_string(effects_runner::data_dir().join("probe/random.txt")).unwrap();
+    let text =
+        std::fs::read_to_string(effects_runner::data_dir().join("probe/random.txt")).unwrap();
     let mut r = sharex_image_editor::effects::random::Xoshiro::from_seed(12345);
     for line in text.lines() {
         let (call, value) = line.rsplit_once(' ').unwrap();
@@ -68,7 +86,9 @@ fn shared_random_matches_dotnet() {
             format!("{:?}", r.next_double())
         } else if let Some(args) = call.strip_prefix("Next(").and_then(|s| s.strip_suffix(')')) {
             match args.split_once(',') {
-                Some((lo, hi)) => r.next_range(lo.parse().unwrap(), hi.parse().unwrap()).to_string(),
+                Some((lo, hi)) => r
+                    .next_range(lo.parse().unwrap(), hi.parse().unwrap())
+                    .to_string(),
                 None => r.next_max(args.parse().unwrap()).to_string(),
             }
         } else {

@@ -112,10 +112,18 @@ impl PlanGauss {
         let pass0 = (window - 1) as usize;
         let pass1 = (window - 1) as usize;
         let pass2 = if window & 1 == 1 { window - 1 } else { window } as usize;
-        let border = if window & 1 == 1 { 3 * ((window - 1) / 2) } else { 3 * (window / 2) - 1 };
+        let border = if window & 1 == 1 {
+            3 * ((window - 1) / 2)
+        } else {
+            3 * (window / 2) - 1
+        };
         let window2 = window * window;
         let window3 = window2 * window;
-        let divisor = if window & 1 == 1 { window3 } else { window3 + window2 };
+        let divisor = if window & 1 == 1 {
+            window3
+        } else {
+            window3 + window2
+        };
         let weight = (1.0 / divisor as f64 * (1u64 << 32) as f64).round() as u64;
         PlanGauss {
             weight,
@@ -128,20 +136,40 @@ impl PlanGauss {
     }
 
     fn final_scale(&self, sum: u32) -> u8 {
-        ((self.weight.wrapping_mul(sum as u64).wrapping_add(1u64 << 31)) >> 32) as u8
+        ((self
+            .weight
+            .wrapping_mul(sum as u64)
+            .wrapping_add(1u64 << 31))
+            >> 32) as u8
     }
 
     /// `Scan::blur`: `src` read in order, written to `dst[dst_start + k * stride]`
     /// for `k` in `0..dst_count`.
     fn blur(&self, src: &[u8], dst: &mut [u8], dst_start: usize, stride: usize, dst_count: usize) {
         let src_w = src.len();
-        let no_change = if self.sliding_window as usize > src_w { self.sliding_window as usize - src_w } else { 0 };
+        let no_change = if self.sliding_window as usize > src_w {
+            self.sliding_window as usize - src_w
+        } else {
+            0
+        };
         let (b0, b1, b2) = (0usize, self.pass0, self.pass0 + self.pass1);
-        let (e0, e1, e2) = (self.pass0, self.pass0 + self.pass1, self.pass0 + self.pass1 + self.pass2);
+        let (e0, e1, e2) = (
+            self.pass0,
+            self.pass0 + self.pass1,
+            self.pass0 + self.pass1 + self.pass2,
+        );
         let mut buf = vec![0u32; e2];
         let (mut c0, mut c1, mut c2) = (b0, b1, b2);
         let (mut sum0, mut sum1, mut sum2) = (0u32, 0u32, 0u32);
-        let step = |edge: u32, buf: &mut Vec<u32>, c0: &mut usize, c1: &mut usize, c2: &mut usize, s0: &mut u32, s1: &mut u32, s2: &mut u32| -> u8 {
+        let step = |edge: u32,
+                    buf: &mut Vec<u32>,
+                    c0: &mut usize,
+                    c1: &mut usize,
+                    c2: &mut usize,
+                    s0: &mut u32,
+                    s1: &mut u32,
+                    s2: &mut u32|
+         -> u8 {
             *s0 = s0.wrapping_add(edge);
             *s1 = s1.wrapping_add(*s0);
             *s2 = s2.wrapping_add(*s1);
@@ -159,14 +187,18 @@ impl PlanGauss {
         };
         let mut k = 0usize;
         for &s in src {
-            let v = step(s as u32, &mut buf, &mut c0, &mut c1, &mut c2, &mut sum0, &mut sum1, &mut sum2);
+            let v = step(
+                s as u32, &mut buf, &mut c0, &mut c1, &mut c2, &mut sum0, &mut sum1, &mut sum2,
+            );
             if k < dst_count {
                 dst[dst_start + k * stride] = v;
             }
             k += 1;
         }
         for _ in 0..no_change {
-            let v = step(0, &mut buf, &mut c0, &mut c1, &mut c2, &mut sum0, &mut sum1, &mut sum2);
+            let v = step(
+                0, &mut buf, &mut c0, &mut c1, &mut c2, &mut sum0, &mut sum1, &mut sum2,
+            );
             if k < dst_count {
                 dst[dst_start + k * stride] = v;
             }
@@ -182,7 +214,16 @@ impl PlanGauss {
         while cursor > k {
             cursor -= 1;
             si -= 1;
-            let v = step(src[si] as u32, &mut buf, &mut c0, &mut c1, &mut c2, &mut sum0, &mut sum1, &mut sum2);
+            let v = step(
+                src[si] as u32,
+                &mut buf,
+                &mut c0,
+                &mut c1,
+                &mut c2,
+                &mut sum0,
+                &mut sum1,
+                &mut sum2,
+            );
             dst[dst_start + cursor * stride] = v;
         }
     }
@@ -217,7 +258,9 @@ pub struct MaskBlurFilter {
 
 impl MaskBlurFilter {
     pub fn new(sigma: f64) -> Self {
-        MaskBlurFilter { sigma: sigma.clamp(0.0, 135.0) }
+        MaskBlurFilter {
+            sigma: sigma.clamp(0.0, 135.0),
+        }
     }
 
     pub fn has_no_blur(&self) -> bool {
@@ -251,7 +294,10 @@ impl MaskBlurFilter {
         if self.sigma < 2.0 {
             let factors = gauss_factors(self.sigma);
             let r = factors.len() - 1;
-            let g: Vec<u16> = factors.iter().map(|d| (d * 65536.0).round() as u16).collect();
+            let g: Vec<u16> = factors
+                .iter()
+                .map(|d| (d * 65536.0).round() as u16)
+                .collect();
             let mut dst = Self::prepare(r as i32, src);
             let (sw, sh) = (src.bounds.width() as usize, src.bounds.height() as usize);
             let (dw, dh) = (dst.bounds.width() as usize, dst.bounds.height() as usize);
@@ -315,7 +361,12 @@ fn box_blur_bounds(src_bounds: IRect, sigma: f32) -> Option<(IRect, i32)> {
     }
     let m = f.margin();
     Some((
-        IRect::from_ltrb(src_bounds.left - m, src_bounds.top - m, src_bounds.right + m, src_bounds.bottom + m),
+        IRect::from_ltrb(
+            src_bounds.left - m,
+            src_bounds.top - m,
+            src_bounds.right + m,
+            src_bounds.bottom + m,
+        ),
         m,
     ))
 }
@@ -384,7 +435,12 @@ fn blur_rect(sigma: f32, src: Rect, render: bool) -> Option<(IRect, Option<Mask>
     let pad = profile_size / 2;
     let round = |v: f32| (v + 0.5).floor() as i32;
     let p = pad as f32;
-    let bounds = IRect::from_ltrb(round(src.left - p), round(src.top - p), round(src.right + p), round(src.bottom + p));
+    let bounds = IRect::from_ltrb(
+        round(src.left - p),
+        round(src.top - p),
+        round(src.right + p),
+        round(src.bottom + p),
+    );
     if !render {
         return Some((bounds, None, pad));
     }
@@ -544,8 +600,16 @@ fn filter_rects_to_nine(rects: &[Rect], sigma: f32) -> Result<Option<NinePatch>,
     } else {
         // roundIn
         let r = &rects[1];
-        let inner = IRect::from_ltrb(r.left.ceil() as i32, r.top.ceil() as i32, r.right.floor() as i32, r.bottom.floor() as i32);
-        let c = (small_w + (inner.left - src_bounds.left), small_h + (inner.top - src_bounds.top));
+        let inner = IRect::from_ltrb(
+            r.left.ceil() as i32,
+            r.top.ceil() as i32,
+            r.right.floor() as i32,
+            r.bottom.floor() as i32,
+        );
+        let c = (
+            small_w + (inner.left - src_bounds.left),
+            small_h + (inner.top - src_bounds.top),
+        );
         (inner, c)
     };
     small_w += 1;
@@ -555,7 +619,12 @@ fn filter_rects_to_nine(rects: &[Rect], sigma: f32) -> Result<Option<NinePatch>,
     if dx < 0.0 || dy < 0.0 {
         return Err(());
     }
-    let r0 = Rect::from_ltrb(rects[0].left, rects[0].top, rects[0].right - dx, rects[0].bottom - dy);
+    let r0 = Rect::from_ltrb(
+        rects[0].left,
+        rects[0].top,
+        rects[0].right - dx,
+        rects[0].bottom - dy,
+    );
     if r0.width() < 2.0 || r0.height() < 2.0 {
         return Err(());
     }
@@ -565,7 +634,12 @@ fn filter_rects_to_nine(rects: &[Rect], sigma: f32) -> Result<Option<NinePatch>,
             _ => return Ok(None),
         }
     } else {
-        let r1 = Rect::from_ltrb(rects[1].left, rects[1].top, rects[1].right - dx, rects[1].bottom - dy);
+        let r1 = Rect::from_ltrb(
+            rects[1].left,
+            rects[1].top,
+            rects[1].right - dx,
+            rects[1].bottom - dy,
+        );
         // draw_rects_into_mask: both rects, even-odd, into a mask of r0's bounds.
         let mut path = Path::new();
         path.add_rect(r0, crate::Direction::Cw, 0);
@@ -613,7 +687,12 @@ fn draw_nine(patch: &NinePatch, fill_center: bool, clip: IRect, blitter: &mut dy
     let bl = IRect::from_ltrb(mb.left, cy + 1, cx, mb.bottom);
     blit_sub(bl, outer.left, outer.bottom - bl.height(), blitter);
     let br = IRect::from_ltrb(cx + 1, cy + 1, mb.right, mb.bottom);
-    blit_sub(br, outer.right - br.width(), outer.bottom - br.height(), blitter);
+    blit_sub(
+        br,
+        outer.right - br.width(),
+        outer.bottom - br.height(),
+        blitter,
+    );
 
     let inner = IRect::from_ltrb(
         outer.left + cx - mb.left,
@@ -670,7 +749,13 @@ fn draw_nine(patch: &NinePatch, fill_center: bool, clip: IRect, blitter: &mut dy
 /// `SkMaskFilterBase::filterPath` for a normal blur of (device-space)
 /// `sigma`: a fill of `path`, or (`hairline`) its hairline. False when
 /// Skia would draw it without the filter (no effective blur).
-pub fn filter_path(path: &Path, sigma: f32, hairline: Option<crate::Cap>, clip: IRect, blitter: &mut dyn Blitter) -> bool {
+pub fn filter_path(
+    path: &Path,
+    sigma: f32,
+    hairline: Option<crate::Cap>,
+    clip: IRect,
+    blitter: &mut dyn Blitter,
+) -> bool {
     if hairline.is_none() {
         let rects: Option<Vec<Rect>> = path
             .nested_fill_rects()
@@ -696,12 +781,18 @@ pub fn filter_path(path: &Path, sigma: f32, hairline: Option<crate::Cap>, clip: 
     // DrawToMask: ComputeMaskBounds (path bounds outset by 1/2, rounded out,
     // trimmed to the clip plus the filter's margin, at most 128).
     let pb = path.bounds();
-    let mut bounds = Rect::from_ltrb(pb.left - 0.5, pb.top - 0.5, pb.right + 0.5, pb.bottom + 0.5).round_out();
+    let mut bounds =
+        Rect::from_ltrb(pb.left - 0.5, pb.top - 0.5, pb.right + 0.5, pb.bottom + 0.5).round_out();
     let Some((_, margin)) = box_blur_bounds(bounds, sigma) else {
         return false;
     };
     let m = margin.min(128);
-    if !bounds.intersect(&IRect::from_ltrb(clip.left - m, clip.top - m, clip.right + m, clip.bottom + m)) {
+    if !bounds.intersect(&IRect::from_ltrb(
+        clip.left - m,
+        clip.top - m,
+        clip.right + m,
+        clip.bottom + m,
+    )) {
         return false;
     }
     let src = draw_path_into_mask(path, bounds, hairline);
@@ -719,7 +810,14 @@ pub fn filter_path(path: &Path, sigma: f32, hairline: Option<crate::Cap>, clip: 
 /// (device) round rect: the box-blurred mask of a small copy, stretched.
 /// False when it doesn't apply (`kUnimplemented`, or no blur): draw the
 /// round rect's path through [`filter_path`] then.
-pub fn filter_rrect(rect: Rect, rx: f32, ry: f32, sigma: f32, clip: IRect, blitter: &mut dyn Blitter) -> bool {
+pub fn filter_rrect(
+    rect: Rect,
+    rx: f32,
+    ry: f32,
+    sigma: f32,
+    clip: IRect,
+    blitter: &mut dyn Blitter,
+) -> bool {
     let exceeds = |r: &Rect, v: f32| {
         r.left < -v || r.top < -v || r.right > v || r.bottom > v || r.width() > v || r.height() > v
     };

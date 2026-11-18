@@ -33,10 +33,34 @@ impl EffectImpl for BevelImageEffect {
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("size", "Size", 1, 40, 10, |e: &mut Self, v| e.size = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 70.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("light_angle", "Light angle", 0.0, 360.0, 225.0, |e: &mut Self, v| e.light_angle = v),
-            color_param::<Self>("highlight_color", "Highlight color", SkColor::argb(0xD9FFFFFF), |e: &mut Self, v| e.highlight_color = v),
-            color_param::<Self>("shadow_color", "Shadow color", SkColor::argb(0xB0000000), |e: &mut Self, v| e.shadow_color = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>(
+                "light_angle",
+                "Light angle",
+                0.0,
+                360.0,
+                225.0,
+                |e: &mut Self, v| e.light_angle = v,
+            ),
+            color_param::<Self>(
+                "highlight_color",
+                "Highlight color",
+                SkColor::argb(0xD9FFFFFF),
+                |e: &mut Self, v| e.highlight_color = v,
+            ),
+            color_param::<Self>(
+                "shadow_color",
+                "Shadow color",
+                SkColor::argb(0xB0000000),
+                |e: &mut Self, v| e.shadow_color = v,
+            ),
         ]
     }
 
@@ -90,7 +114,8 @@ impl EffectImpl for BevelImageEffect {
                 let (left, right) = (lw[x as usize], rw[x as usize]);
                 let bound = (left * -dir_x) + (right * dir_x) + (top * -dir_y) + (bottom * dir_y);
                 let presence = clamp01(
-                    left.max(right).max(top.max(bottom)) + ((left + right + top + bottom).min(1.0) * 0.35),
+                    left.max(right).max(top.max(bottom))
+                        + ((left + right + top + bottom).min(1.0) * 0.35),
                 );
                 let mut response = bound * 0.95;
                 let mut edge = presence;
@@ -98,8 +123,20 @@ impl EffectImpl for BevelImageEffect {
                     let mut ar = 0f32;
                     let mut ae = 0f32;
                     for i in 0..sample_count {
-                        let toward = sample_alpha(&src, width, height, (x + ox[i]) as f32, (y + oy[i]) as f32);
-                        let away = sample_alpha(&src, width, height, (x - ox[i]) as f32, (y - oy[i]) as f32);
+                        let toward = sample_alpha(
+                            &src,
+                            width,
+                            height,
+                            (x + ox[i]) as f32,
+                            (y + oy[i]) as f32,
+                        );
+                        let away = sample_alpha(
+                            &src,
+                            width,
+                            height,
+                            (x - ox[i]) as f32,
+                            (y - oy[i]) as f32,
+                        );
                         let delta = away - toward;
                         ar += delta * weights[i];
                         ae += delta.abs() * weights[i];
@@ -111,7 +148,8 @@ impl EffectImpl for BevelImageEffect {
                 }
                 let hm = clamp01(0f32.max(response) * 1.55 * strength) * edge * ha * oa;
                 let sm = clamp01(0f32.max(-response) * 1.55 * strength) * edge * sa * oa;
-                let (mut r, mut g, mut b) = (original.r as f32, original.g as f32, original.b as f32);
+                let (mut r, mut g, mut b) =
+                    (original.r as f32, original.g as f32, original.b as f32);
                 if sm > 0.0 {
                     r = lerp(r, sc.r as f32, sm);
                     g = lerp(g, sc.g as f32, sm);
@@ -123,8 +161,12 @@ impl EffectImpl for BevelImageEffect {
                     b = lerp(b, hc.b as f32, hm);
                 }
                 let lift = (hm - sm) * 26.0 * strength;
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r + lift), clamp_to_byte(g + lift), clamp_to_byte(b + lift), original.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r + lift),
+                    clamp_to_byte(g + lift),
+                    clamp_to_byte(b + lift),
+                    original.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

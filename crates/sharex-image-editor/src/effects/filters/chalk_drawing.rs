@@ -24,16 +24,40 @@ impl Default for ChalkDrawingImageEffect {
 
 impl EffectImpl for ChalkDrawingImageEffect {
     fn info() -> Info {
-        Info::new("chalk_drawing", "Chalk Drawing", EffectCategory::Filters, "image-effect/chalk-brush")
-            .desc("Simulates a chalk drawing on a dark surface.")
+        Info::new(
+            "chalk_drawing",
+            "Chalk Drawing",
+            EffectCategory::Filters,
+            "image-effect/chalk-brush",
+        )
+        .desc("Simulates a chalk drawing on a dark surface.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("detail", "Detail", 0.0, 100.0, 50.0, |e: &mut Self, v| e.detail = v),
-            float_slider::<Self>("roughness", "Roughness", 0.0, 100.0, 40.0, |e: &mut Self, v| e.roughness = v),
-            color_param::<Self>("chalk_color", "Chalk Color", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.chalk_color = v),
-            color_param::<Self>("board_color", "Board Color", SkColor::argb(0xFF1E3228), |e: &mut Self, v| e.board_color = v),
+            float_slider::<Self>("detail", "Detail", 0.0, 100.0, 50.0, |e: &mut Self, v| {
+                e.detail = v
+            }),
+            float_slider::<Self>(
+                "roughness",
+                "Roughness",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.roughness = v,
+            ),
+            color_param::<Self>(
+                "chalk_color",
+                "Chalk Color",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.chalk_color = v,
+            ),
+            color_param::<Self>(
+                "board_color",
+                "Board Color",
+                SkColor::argb(0xFF1E3228),
+                |e: &mut Self, v| e.board_color = v,
+            ),
         ]
     }
 
@@ -51,9 +75,12 @@ impl EffectImpl for ChalkDrawingImageEffect {
         let l = |x: i32, y: i32| lum[(y * width + x) as usize];
         for y in 1..height - 1 {
             for x in 1..width - 1 {
-                let gx = -l(x - 1, y - 1) + l(x + 1, y - 1) - 2.0 * l(x - 1, y) + 2.0 * l(x + 1, y) - l(x - 1, y + 1)
+                let gx = -l(x - 1, y - 1) + l(x + 1, y - 1) - 2.0 * l(x - 1, y) + 2.0 * l(x + 1, y)
+                    - l(x - 1, y + 1)
                     + l(x + 1, y + 1);
-                let gy = -l(x - 1, y - 1) - 2.0 * l(x, y - 1) - l(x + 1, y - 1) + l(x - 1, y + 1) + 2.0 * l(x, y + 1)
+                let gy = -l(x - 1, y - 1) - 2.0 * l(x, y - 1) - l(x + 1, y - 1)
+                    + l(x - 1, y + 1)
+                    + 2.0 * l(x, y + 1)
                     + l(x + 1, y + 1);
                 let m = (gx * gx + gy * gy).sqrt();
                 edge[(y * width + x) as usize] = m;

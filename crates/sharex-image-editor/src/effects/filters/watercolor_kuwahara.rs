@@ -22,15 +22,34 @@ impl Default for WatercolorKuwaharaImageEffect {
 
 impl EffectImpl for WatercolorKuwaharaImageEffect {
     fn info() -> Info {
-        Info::new("watercolor_kuwahara", "Watercolor / Kuwahara", EffectCategory::Filters, "image-effect/paint-brush")
-            .desc("Applies a Kuwahara filter for a watercolor painting effect.")
+        Info::new(
+            "watercolor_kuwahara",
+            "Watercolor / Kuwahara",
+            EffectCategory::Filters,
+            "image-effect/paint-brush",
+        )
+        .desc("Applies a Kuwahara filter for a watercolor painting effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("radius", "Radius", 2, 10, 4, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("saturation_boost", "Saturation boost", 0.0, 100.0, 20.0, |e: &mut Self, v| e.saturation_boost = v),
-            float_slider::<Self>("detail_blend", "Detail blend", 0.0, 100.0, 18.0, |e: &mut Self, v| e.detail_blend = v),
+            float_slider::<Self>(
+                "saturation_boost",
+                "Saturation boost",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.saturation_boost = v,
+            ),
+            float_slider::<Self>(
+                "detail_blend",
+                "Detail blend",
+                0.0,
+                100.0,
+                18.0,
+                |e: &mut Self, v| e.detail_blend = v,
+            ),
         ]
     }
 
@@ -54,7 +73,8 @@ impl EffectImpl for WatercolorKuwaharaImageEffect {
             let (mut rr, mut rg, mut rb, mut rl, mut rl2) = (0f64, 0f64, 0f64, 0f64, 0f64);
             for x in 1..=width {
                 let c = src[((y - 1) * width + (x - 1)) as usize];
-                let l = ((0.2126 * c.r as f64) + (0.7152 * c.g as f64) + (0.0722 * c.b as f64)) / 255.0;
+                let l =
+                    ((0.2126 * c.r as f64) + (0.7152 * c.g as f64) + (0.0722 * c.b as f64)) / 255.0;
                 rr += c.r as f64;
                 rg += c.g as f64;
                 rb += c.b as f64;
@@ -70,7 +90,9 @@ impl EffectImpl for WatercolorKuwaharaImageEffect {
             }
         }
         let rect = |t: &[f64], x0: i32, y0: i32, x1: i32, y1: i32| {
-            t[(y1 * stride + x1) as usize] - t[(y0 * stride + x1) as usize] - t[(y1 * stride + x0) as usize]
+            t[(y1 * stride + x1) as usize]
+                - t[(y0 * stride + x1) as usize]
+                - t[(y1 * stride + x0) as usize]
                 + t[(y0 * stride + x0) as usize]
         };
         let mut dst = vec![SkColor::default(); src.len()];
@@ -85,7 +107,12 @@ impl EffectImpl for WatercolorKuwaharaImageEffect {
                     (x, y, x + radius + 1, y + radius + 1),
                 ];
                 for (x0, y0, x1, y1) in quads {
-                    let (l, t, r, b) = (x0.clamp(0, width), y0.clamp(0, height), x1.clamp(0, width), y1.clamp(0, height));
+                    let (l, t, r, b) = (
+                        x0.clamp(0, width),
+                        y0.clamp(0, height),
+                        x1.clamp(0, width),
+                        y1.clamp(0, height),
+                    );
                     if r <= l || b <= t {
                         continue;
                     }
@@ -98,7 +125,11 @@ impl EffectImpl for WatercolorKuwaharaImageEffect {
                     let var = (rect(&il2, l, t, r, b) * inv) - (mean_l * mean_l);
                     if var < best_var {
                         best_var = var;
-                        best = (rect(&ir, l, t, r, b) * inv, rect(&ig, l, t, r, b) * inv, rect(&ib, l, t, r, b) * inv);
+                        best = (
+                            rect(&ir, l, t, r, b) * inv,
+                            rect(&ig, l, t, r, b) * inv,
+                            rect(&ib, l, t, r, b) * inv,
+                        );
                     }
                 }
                 let i = (y * width + x) as usize;

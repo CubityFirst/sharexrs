@@ -22,13 +22,23 @@ impl Default for DrawBackgroundImageEffect {
 
 impl EffectImpl for DrawBackgroundImageEffect {
     fn info() -> Info {
-        Info::new("draw_background_image", "Background image", EffectCategory::Drawings, "app/image")
-            .desc("Draws a background image behind the source image.")
+        Info::new(
+            "draw_background_image",
+            "Background image",
+            EffectCategory::Drawings,
+            "app/image",
+        )
+        .desc("Draws a background image behind the source image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            file_param::<Self>("image_file_path", "Image file path", "", |e: &mut Self, v| e.image_file_path = v),
+            file_param::<Self>(
+                "image_file_path",
+                "Image file path",
+                "",
+                |e: &mut Self, v| e.image_file_path = v,
+            ),
             bool_param::<Self>("center", "Center", true, |e: &mut Self, v| e.center = v),
             bool_param::<Self>("tile", "Tile", false, |e: &mut Self, v| e.tile = v),
         ]
@@ -66,7 +76,15 @@ impl EffectImpl for DrawBackgroundImageEffect {
             if self.center {
                 let saved = canvas.matrix;
                 canvas.translate(tx as f32, ty as f32);
-                sk::draw_rect_xywh(&mut canvas, -tx as f32, -ty as f32, rw as f32, rh as f32, &paint, None);
+                sk::draw_rect_xywh(
+                    &mut canvas,
+                    -tx as f32,
+                    -ty as f32,
+                    rw as f32,
+                    rh as f32,
+                    &paint,
+                    None,
+                );
                 canvas.matrix = saved;
             } else {
                 sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, rw as f32, rh as f32, &paint, None);

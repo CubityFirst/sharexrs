@@ -20,14 +20,23 @@ impl Default for ScanlineImageEffect {
 
 impl EffectImpl for ScanlineImageEffect {
     fn info() -> Info {
-        Info::new("scanline", "Scanlines", EffectCategory::Filters, "app/scan-line")
-            .desc("Adds retro CRT-style horizontal scanlines.")
+        Info::new(
+            "scanline",
+            "Scanlines",
+            EffectCategory::Filters,
+            "app/scan-line",
+        )
+        .desc("Adds retro CRT-style horizontal scanlines.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("spacing", "Line spacing", 2, 20, 4, |e: &mut Self, v| e.spacing = v),
-            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 50.0, |e: &mut Self, v| e.opacity = v),
+            int_slider::<Self>("spacing", "Line spacing", 2, 20, 4, |e: &mut Self, v| {
+                e.spacing = v
+            }),
+            float_slider::<Self>("opacity", "Opacity", 0.0, 100.0, 50.0, |e: &mut Self, v| {
+                e.opacity = v
+            }),
         ]
     }
 
@@ -43,7 +52,15 @@ impl EffectImpl for ScanlineImageEffect {
         let step = 2.max(self.spacing);
         let mut y = 0;
         while y < source.height() as i32 {
-            sk::draw_line(&mut canvas, 0.0, y as f32, source.width() as f32, y as f32, &pen, &paint);
+            sk::draw_line(
+                &mut canvas,
+                0.0,
+                y as f32,
+                source.width() as f32,
+                y as f32,
+                &pen,
+                &paint,
+            );
             y += step;
         }
         drop(canvas);

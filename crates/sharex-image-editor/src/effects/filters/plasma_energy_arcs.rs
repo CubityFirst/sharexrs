@@ -26,17 +26,47 @@ impl Default for PlasmaEnergyArcsImageEffect {
 
 impl EffectImpl for PlasmaEnergyArcsImageEffect {
     fn info() -> Info {
-        Info::new("plasma_energy_arcs", "Plasma energy arcs", EffectCategory::Filters, "app/zap")
-            .desc("Generates plasma-like energy arcs overlaid on the image.")
+        Info::new(
+            "plasma_energy_arcs",
+            "Plasma energy arcs",
+            EffectCategory::Filters,
+            "app/zap",
+        )
+        .desc("Generates plasma-like energy arcs overlaid on the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("energy", "Energy", 0.0, 100.0, 65.0, |e: &mut Self, v| e.energy = v),
-            float_slider::<Self>("arc_density", "Arc density", 0.0, 100.0, 46.0, |e: &mut Self, v| e.arc_density = v),
-            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 70.0, |e: &mut Self, v| e.glow = v),
-            float_slider::<Self>("turbulence", "Turbulence", 0.0, 100.0, 52.0, |e: &mut Self, v| e.turbulence = v),
-            float_slider::<Self>("thickness", "Thickness", 0.0, 100.0, 38.0, |e: &mut Self, v| e.thickness = v),
+            float_slider::<Self>("energy", "Energy", 0.0, 100.0, 65.0, |e: &mut Self, v| {
+                e.energy = v
+            }),
+            float_slider::<Self>(
+                "arc_density",
+                "Arc density",
+                0.0,
+                100.0,
+                46.0,
+                |e: &mut Self, v| e.arc_density = v,
+            ),
+            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 70.0, |e: &mut Self, v| {
+                e.glow = v
+            }),
+            float_slider::<Self>(
+                "turbulence",
+                "Turbulence",
+                0.0,
+                100.0,
+                52.0,
+                |e: &mut Self, v| e.turbulence = v,
+            ),
+            float_slider::<Self>(
+                "thickness",
+                "Thickness",
+                0.0,
+                100.0,
+                38.0,
+                |e: &mut Self, v| e.thickness = v,
+            ),
         ]
     }
 
@@ -57,7 +87,9 @@ impl EffectImpl for PlasmaEnergyArcsImageEffect {
         let line_width = 0.020 + ((1.0 - thickness) * 0.10);
         let dfreq = 16.0 + (density * 18.0);
         let tfreq = 2.0 + (turbulence * 6.0);
-        let l01 = |c: SkColor| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+        let l01 = |c: SkColor| {
+            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+        };
         let p = |x: i32, y: i32| src[(y * width + x) as usize];
         let scr = |s: f32, o: f32| 1.0 - ((1.0 - s) * (1.0 - clamp01(o)));
         for y in 0..height {
@@ -67,13 +99,20 @@ impl EffectImpl for PlasmaEnergyArcsImageEffect {
                 let s = src[(row + x) as usize];
                 let (sr, sg, sb) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
                 let u = x as f32 * inv_w;
-                let fa = ((u * dfreq) + ((v * tfreq * 2.4) + 0.7).sin() * (1.8 + turbulence * 4.5) + 0.8).sin();
-                let fb = ((v * (dfreq * 0.92)) - ((u * tfreq * 1.6) - 1.1).sin() * (1.4 + turbulence * 4.2) - 1.3).cos();
+                let fa = ((u * dfreq)
+                    + ((v * tfreq * 2.4) + 0.7).sin() * (1.8 + turbulence * 4.5)
+                    + 0.8)
+                    .sin();
+                let fb = ((v * (dfreq * 0.92))
+                    - ((u * tfreq * 1.6) - 1.1).sin() * (1.4 + turbulence * 4.2)
+                    - 1.3)
+                    .cos();
                 let fc = (((u + v) * (10.0 + density * 12.0)) + 2.1).sin();
                 let core_f = (fa * 0.46) + (fb * 0.34) + (fc * 0.20);
                 let branch_f = (fa * 0.28) - (fb * 0.44) + (fc * 0.28);
                 let core = 1.0 - smooth_step(line_width, line_width + 0.08, core_f.abs());
-                let branch = 1.0 - smooth_step(line_width * 0.70, line_width * 0.70 + 0.09, branch_f.abs());
+                let branch =
+                    1.0 - smooth_step(line_width * 0.70, line_width * 0.70 + 0.09, branch_f.abs());
                 let mut arc = core.max(branch * 0.72);
                 let edge = clamp01(
                     ((l01(p((width - 1).min(x + 1), y)) - l01(p(0.max(x - 1), y))).abs()
@@ -89,8 +128,12 @@ impl EffectImpl for PlasmaEnergyArcsImageEffect {
                 let r = lerp(scr(sr, or), 1.0, cm * 0.18);
                 let g = lerp(scr(sg, og), 1.0, cm * 0.22);
                 let b = lerp(scr(sb, ob), 1.0, cm * 0.28);
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

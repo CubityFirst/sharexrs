@@ -10,22 +10,30 @@ pub struct ContrastImageEffect {
 
 impl Default for ContrastImageEffect {
     fn default() -> Self {
-        ContrastImageEffect {
-            amount: 0.0,
-        }
+        ContrastImageEffect { amount: 0.0 }
     }
 }
 
 impl EffectImpl for ContrastImageEffect {
     fn info() -> Info {
-        Info::new("contrast", "Contrast", EffectCategory::Adjustments, "app/contrast")
-            .desc("Adjusts image contrast.")
+        Info::new(
+            "contrast",
+            "Contrast",
+            EffectCategory::Adjustments,
+            "app/contrast",
+        )
+        .desc("Adjusts image contrast.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Amount", -100.0, 100.0, 0.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Amount",
+            -100.0,
+            100.0,
+            0.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

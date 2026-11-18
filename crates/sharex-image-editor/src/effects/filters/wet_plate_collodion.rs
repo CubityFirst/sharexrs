@@ -28,17 +28,57 @@ impl Default for WetPlateCollodionImageEffect {
 
 impl EffectImpl for WetPlateCollodionImageEffect {
     fn info() -> Info {
-        Info::new("wet_plate_collodion", "Wet plate collodion", EffectCategory::Filters, "app/film")
-            .desc("Simulates the wet plate collodion photographic process with stains and silvering.")
+        Info::new(
+            "wet_plate_collodion",
+            "Wet plate collodion",
+            EffectCategory::Filters,
+            "app/film",
+        )
+        .desc("Simulates the wet plate collodion photographic process with stains and silvering.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 132.0, |e: &mut Self, v| e.contrast = v),
-            float_slider::<Self>("plate_stains", "Plate stains", 0.0, 100.0, 34.0, |e: &mut Self, v| e.plate_stains = v),
-            float_slider::<Self>("scratches", "Scratches", 0.0, 100.0, 24.0, |e: &mut Self, v| e.scratches = v),
-            float_slider::<Self>("silvering", "Silvering", 0.0, 100.0, 36.0, |e: &mut Self, v| e.silvering = v),
-            float_slider::<Self>("vignette", "Vignette", 0.0, 100.0, 58.0, |e: &mut Self, v| e.vignette = v),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                132.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            float_slider::<Self>(
+                "plate_stains",
+                "Plate stains",
+                0.0,
+                100.0,
+                34.0,
+                |e: &mut Self, v| e.plate_stains = v,
+            ),
+            float_slider::<Self>(
+                "scratches",
+                "Scratches",
+                0.0,
+                100.0,
+                24.0,
+                |e: &mut Self, v| e.scratches = v,
+            ),
+            float_slider::<Self>(
+                "silvering",
+                "Silvering",
+                0.0,
+                100.0,
+                36.0,
+                |e: &mut Self, v| e.silvering = v,
+            ),
+            float_slider::<Self>(
+                "vignette",
+                "Vignette",
+                0.0,
+                100.0,
+                58.0,
+                |e: &mut Self, v| e.vignette = v,
+            ),
         ]
     }
 
@@ -69,7 +109,8 @@ impl EffectImpl for WetPlateCollodionImageEffect {
                 let mut stain = smooth_step(0.54, 0.92, chem) * stains;
                 stain += 0f32.max(streak - 0.72) * stains * 0.45;
                 let edge_d = x.min(width - 1 - x).min(y.min(height - 1 - y)) as f32;
-                let edge01 = 1.0 - clampf(edge_d / 1f32.max(width.min(height) as f32 * 0.16), 0.0, 1.0);
+                let edge01 =
+                    1.0 - clampf(edge_d / 1f32.max(width.min(height) as f32 * 0.16), 0.0, 1.0);
                 let silver = silvering * edge01 * lum.max(0.02).powf(0.55);
                 let radial = ((xf - cx).powf(2.0) + (yf - cy).powf(2.0)).sqrt() / max_dist;
                 let vm = clamp01(1.0 - (vignette * radial.powf(1.95) * 0.78));
@@ -89,7 +130,12 @@ impl EffectImpl for WetPlateCollodionImageEffect {
                 r = clamp01((r - (stain * 0.10) + scratch) * vm);
                 g = clamp01((g - (stain * 0.08) + scratch) * vm);
                 b = clamp01((b - (stain * 0.06) + scratch) * vm);
-                dst[i] = SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

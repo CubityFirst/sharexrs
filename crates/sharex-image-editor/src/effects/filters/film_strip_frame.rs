@@ -26,17 +26,45 @@ impl Default for FilmStripFrameImageEffect {
 
 impl EffectImpl for FilmStripFrameImageEffect {
     fn info() -> Info {
-        Info::new("film_strip_frame", "Film strip frame", EffectCategory::Filters, "app/film")
-            .desc("Wraps the image in a cinema film strip frame with sprocket holes.")
+        Info::new(
+            "film_strip_frame",
+            "Film strip frame",
+            EffectCategory::Filters,
+            "app/film",
+        )
+        .desc("Wraps the image in a cinema film strip frame with sprocket holes.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("border_size", "Border size", 10, 120, 40, |e: &mut Self, v| e.border_size = v),
-            float_slider::<Self>("hole_size", "Hole size", 20.0, 80.0, 55.0, |e: &mut Self, v| e.hole_size = v),
-            color_param::<Self>("frame_color", "Frame color", SkColor::argb(0xFF0F0F0F), |e: &mut Self, v| e.frame_color = v),
-            bool_param::<Self>("side_strips", "Side strips", false, |e: &mut Self, v| e.side_strips = v),
-            bool_param::<Self>("scratches", "Scratches", true, |e: &mut Self, v| e.scratches = v),
+            int_slider::<Self>(
+                "border_size",
+                "Border size",
+                10,
+                120,
+                40,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            float_slider::<Self>(
+                "hole_size",
+                "Hole size",
+                20.0,
+                80.0,
+                55.0,
+                |e: &mut Self, v| e.hole_size = v,
+            ),
+            color_param::<Self>(
+                "frame_color",
+                "Frame color",
+                SkColor::argb(0xFF0F0F0F),
+                |e: &mut Self, v| e.frame_color = v,
+            ),
+            bool_param::<Self>("side_strips", "Side strips", false, |e: &mut Self, v| {
+                e.side_strips = v
+            }),
+            bool_param::<Self>("scratches", "Scratches", true, |e: &mut Self, v| {
+                e.scratches = v
+            }),
         ]
     }
 
@@ -50,9 +78,25 @@ impl EffectImpl for FilmStripFrameImageEffect {
         let frame = solid(self.frame_color, false);
         let (bf, nwf, nhf) = (border as f32, nw as f32, nh as f32);
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, nwf, bf, &frame, None);
-        sk::draw_rect_xywh(&mut canvas, 0.0, (nh - border) as f32, nwf, bf, &frame, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            0.0,
+            (nh - border) as f32,
+            nwf,
+            bf,
+            &frame,
+            None,
+        );
         sk::draw_rect_xywh(&mut canvas, 0.0, bf, bf, ih as f32, &frame, None);
-        sk::draw_rect_xywh(&mut canvas, (nw - border) as f32, bf, bf, ih as f32, &frame, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            &frame,
+            None,
+        );
         canvas.draw_bitmap(source, bf, bf, None);
         if self.scratches {
             let pen = Pen::new(0.7);
@@ -77,21 +121,57 @@ impl EffectImpl for FilmStripFrameImageEffect {
         while x + hole_w <= nwf - step * 0.2 {
             let top_y = margin_v;
             let bot_y = (nh - border) as f32 + margin_v;
-            sk::draw_round_rect(&mut canvas, RRect::xywh(x, top_y, hole_w, hole_h), hole_r, hole_r, &hole, None);
-            sk::draw_round_rect(&mut canvas, RRect::xywh(x, bot_y, hole_w, hole_h), hole_r, hole_r, &hole, None);
+            sk::draw_round_rect(
+                &mut canvas,
+                RRect::xywh(x, top_y, hole_w, hole_h),
+                hole_r,
+                hole_r,
+                &hole,
+                None,
+            );
+            sk::draw_round_rect(
+                &mut canvas,
+                RRect::xywh(x, bot_y, hole_w, hole_h),
+                hole_r,
+                hole_r,
+                &hole,
+                None,
+            );
             x += step;
         }
         if self.side_strips {
             let margin_h = (bf - hole_w) / 2.0;
             let mut y = bf + step * 0.4;
             while y + hole_h <= (nh - border) as f32 - step * 0.2 {
-                sk::draw_round_rect(&mut canvas, RRect::xywh(margin_h, y, hole_w, hole_h), hole_r, hole_r, &hole, None);
-                sk::draw_round_rect(&mut canvas, RRect::xywh((nw - border) as f32 + margin_h, y, hole_w, hole_h), hole_r, hole_r, &hole, None);
+                sk::draw_round_rect(
+                    &mut canvas,
+                    RRect::xywh(margin_h, y, hole_w, hole_h),
+                    hole_r,
+                    hole_r,
+                    &hole,
+                    None,
+                );
+                sk::draw_round_rect(
+                    &mut canvas,
+                    RRect::xywh((nw - border) as f32 + margin_h, y, hole_w, hole_h),
+                    hole_r,
+                    hole_r,
+                    &hole,
+                    None,
+                );
                 y += step;
             }
         }
         let line = solid(SkColor::rgb(60, 60, 60), true);
-        sk::draw_rect_xywh(&mut canvas, bf - 0.6, bf - 0.6, iw as f32 + 1.2, ih as f32 + 1.2, &line, Some(&Pen::new(1.2)));
+        sk::draw_rect_xywh(
+            &mut canvas,
+            bf - 0.6,
+            bf - 0.6,
+            iw as f32 + 1.2,
+            ih as f32 + 1.2,
+            &line,
+            Some(&Pen::new(1.2)),
+        );
         drop(canvas);
         Ok(out)
     }

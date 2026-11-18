@@ -44,19 +44,77 @@ impl Default for PixelSortingImageEffect {
 
 impl EffectImpl for PixelSortingImageEffect {
     fn info() -> Info {
-        Info::new("pixel_sorting", "Pixel sorting", EffectCategory::Filters, "image-effect/sort-descending")
-            .desc("Sorts pixels along rows or columns based on brightness or hue thresholds.")
+        Info::new(
+            "pixel_sorting",
+            "Pixel sorting",
+            EffectCategory::Filters,
+            "image-effect/sort-descending",
+        )
+        .desc("Sorts pixels along rows or columns based on brightness or hue thresholds.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, PixelSortDirection>("direction", "Direction", PixelSortDirection::Vertical, |e: &mut Self, v| e.direction = v, &[("Horizontal", PixelSortDirection::Horizontal), ("Vertical", PixelSortDirection::Vertical)]),
-            enum_param::<Self, PixelSortMetric>("metric", "Metric", PixelSortMetric::Brightness, |e: &mut Self, v| e.metric = v, &[("Brightness", PixelSortMetric::Brightness), ("Hue", PixelSortMetric::Hue)]),
-            float_slider::<Self>("threshold_low", "Threshold low", 0.0, 100.0, 12.0, |e: &mut Self, v| e.threshold_low = v),
-            float_slider::<Self>("threshold_high", "Threshold high", 0.0, 100.0, 85.0, |e: &mut Self, v| e.threshold_high = v),
-            int_slider::<Self>("min_span_length", "Min span length", 2, 256, 8, |e: &mut Self, v| e.min_span_length = v),
-            int_slider::<Self>("max_span_length", "Max span length", 2, 512, 120, |e: &mut Self, v| e.max_span_length = v),
-            float_slider::<Self>("sort_probability", "Sort probability", 0.0, 100.0, 85.0, |e: &mut Self, v| e.sort_probability = v),
+            enum_param::<Self, PixelSortDirection>(
+                "direction",
+                "Direction",
+                PixelSortDirection::Vertical,
+                |e: &mut Self, v| e.direction = v,
+                &[
+                    ("Horizontal", PixelSortDirection::Horizontal),
+                    ("Vertical", PixelSortDirection::Vertical),
+                ],
+            ),
+            enum_param::<Self, PixelSortMetric>(
+                "metric",
+                "Metric",
+                PixelSortMetric::Brightness,
+                |e: &mut Self, v| e.metric = v,
+                &[
+                    ("Brightness", PixelSortMetric::Brightness),
+                    ("Hue", PixelSortMetric::Hue),
+                ],
+            ),
+            float_slider::<Self>(
+                "threshold_low",
+                "Threshold low",
+                0.0,
+                100.0,
+                12.0,
+                |e: &mut Self, v| e.threshold_low = v,
+            ),
+            float_slider::<Self>(
+                "threshold_high",
+                "Threshold high",
+                0.0,
+                100.0,
+                85.0,
+                |e: &mut Self, v| e.threshold_high = v,
+            ),
+            int_slider::<Self>(
+                "min_span_length",
+                "Min span length",
+                2,
+                256,
+                8,
+                |e: &mut Self, v| e.min_span_length = v,
+            ),
+            int_slider::<Self>(
+                "max_span_length",
+                "Max span length",
+                2,
+                512,
+                120,
+                |e: &mut Self, v| e.max_span_length = v,
+            ),
+            float_slider::<Self>(
+                "sort_probability",
+                "Sort probability",
+                0.0,
+                100.0,
+                85.0,
+                |e: &mut Self, v| e.sort_probability = v,
+            ),
         ]
     }
 
@@ -83,8 +141,18 @@ impl EffectImpl for PixelSortingImageEffect {
             }
         };
         let horizontal = self.direction == PixelSortDirection::Horizontal;
-        let (outer, inner) = if horizontal { (height, width) } else { (width, height) };
-        let index = |o: i32, i: i32| if horizontal { (o * width + i) as usize } else { (i * width + o) as usize };
+        let (outer, inner) = if horizontal {
+            (height, width)
+        } else {
+            (width, height)
+        };
+        let index = |o: i32, i: i32| {
+            if horizontal {
+                (o * width + i) as usize
+            } else {
+                (i * width + o) as usize
+            }
+        };
         for o in 0..outer {
             let mut i = 0;
             while i < inner {
@@ -117,7 +185,8 @@ impl EffectImpl for PixelSortingImageEffect {
                         hash01(o, cursor, self.seed ^ 7723)
                     };
                     if selector <= probability {
-                        let mut seg: Vec<SkColor> = (0..length).map(|k| px[index(o, cursor + k)]).collect();
+                        let mut seg: Vec<SkColor> =
+                            (0..length).map(|k| px[index(o, cursor + k)]).collect();
                         dotnet_sort(&mut seg, &|a, b| float_compare(metric(a), metric(b)));
                         for (k, c) in seg.into_iter().enumerate() {
                             px[index(o, cursor + k as i32)] = c;

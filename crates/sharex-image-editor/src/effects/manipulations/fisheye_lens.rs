@@ -24,16 +24,49 @@ impl Default for FisheyeLensImageEffect {
 
 impl EffectImpl for FisheyeLensImageEffect {
     fn info() -> Info {
-        Info::new("fisheye_lens", "Fisheye lens", EffectCategory::Manipulations, "image-effect/gauge")
-            .desc("Applies a fisheye lens distortion effect.")
+        Info::new(
+            "fisheye_lens",
+            "Fisheye lens",
+            EffectCategory::Manipulations,
+            "image-effect/gauge",
+        )
+        .desc("Applies a fisheye lens distortion effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 58.0, |e: &mut Self, v| e.strength = v),
-            float_slider::<Self>("radius_percentage", "Radius percentage", 1.0, 100.0, 100.0, |e: &mut Self, v| e.radius_percentage = v),
-            float_slider::<Self>("center_x_percentage", "Center X percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y percentage", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                58.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
+            float_slider::<Self>(
+                "radius_percentage",
+                "Radius percentage",
+                1.0,
+                100.0,
+                100.0,
+                |e: &mut Self, v| e.radius_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y percentage",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 
@@ -43,7 +76,8 @@ impl EffectImpl for FisheyeLensImageEffect {
             return Ok(source.clone());
         }
         let (width, height) = (source.width() as i32, source.height() as i32);
-        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let radius =
+            1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
         let cx = percentage_to_x(width, self.center_x_percentage);
         let cy = percentage_to_y(height, self.center_y_percentage);
         let exponent = 1.0 + (strength01 * 2.4);

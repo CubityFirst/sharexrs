@@ -100,7 +100,15 @@ pub(crate) fn draw_path(canvas: &mut Canvas, path: &Path, paint: &Paint, pen: Op
 
 /// `SKCanvas.DrawLine`: `drawPoints(kLines)`, which strokes `moveTo/lineTo`
 /// (whatever the paint's style).
-pub(crate) fn draw_line(canvas: &mut Canvas, x0: f32, y0: f32, x1: f32, y1: f32, pen: &Pen, paint: &Paint) {
+pub(crate) fn draw_line(
+    canvas: &mut Canvas,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    pen: &Pen,
+    paint: &Paint,
+) {
     let mut path = Path::new();
     path.move_to(x0, y0);
     path.line_to(x1, y1);
@@ -116,14 +124,29 @@ pub(crate) fn draw_oval(canvas: &mut Canvas, oval: Rect, paint: &Paint, pen: Opt
         oval.top.max(oval.bottom),
     );
     let mut path = Path::new();
-    path.add_oval(sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom), Direction::Cw);
+    path.add_oval(
+        sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        Direction::Cw,
+    );
     draw_path(canvas, &path, paint, pen);
 }
 
 /// `SKCanvas.DrawCircle`: the oval of the circle's bounds.
-pub(crate) fn draw_circle(canvas: &mut Canvas, cx: f32, cy: f32, radius: f32, paint: &Paint, pen: Option<&Pen>) {
+pub(crate) fn draw_circle(
+    canvas: &mut Canvas,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    paint: &Paint,
+    pen: Option<&Pen>,
+) {
     let r = radius.max(0.0);
-    draw_oval(canvas, Rect::ltrb(cx - r, cy - r, cx + r, cy + r), paint, pen);
+    draw_oval(
+        canvas,
+        Rect::ltrb(cx - r, cy - r, cx + r, cy + r),
+        paint,
+        pen,
+    );
 }
 
 /// `SKCanvas.DrawRect` (fill or stroke): `SkDraw::drawRect`'s rect types.
@@ -147,20 +170,39 @@ pub(crate) fn draw_rect(canvas: &mut Canvas, rect: Rect, paint: &Paint, pen: Opt
                 rect.top.max(rect.bottom),
             );
             let mut path = Path::new();
-            path.add_rect(sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom), Direction::Cw, 0);
+            path.add_rect(
+                sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+                Direction::Cw,
+                0,
+            );
             stroke_path(canvas, &path, pen, paint);
         }
     }
 }
 
 /// `SKCanvas.DrawRect(x, y, w, h, paint)`.
-pub(crate) fn draw_rect_xywh(canvas: &mut Canvas, x: f32, y: f32, w: f32, h: f32, paint: &Paint, pen: Option<&Pen>) {
+pub(crate) fn draw_rect_xywh(
+    canvas: &mut Canvas,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    paint: &Paint,
+    pen: Option<&Pen>,
+) {
     draw_rect(canvas, Rect::ltrb(x, y, x + w, y + h), paint, pen);
 }
 
 /// `SKCanvas.DrawRoundRect(rect, rx, ry, paint)`: a rect when either radius is
 /// 0, an oval when `setRectXY` makes one, else `SkPath::RRect`.
-pub(crate) fn draw_round_rect(canvas: &mut Canvas, rect: Rect, rx: f32, ry: f32, paint: &Paint, pen: Option<&Pen>) {
+pub(crate) fn draw_round_rect(
+    canvas: &mut Canvas,
+    rect: Rect,
+    rx: f32,
+    ry: f32,
+    paint: &Paint,
+    pen: Option<&Pen>,
+) {
     let r = Rect::ltrb(
         rect.left.min(rect.right),
         rect.top.min(rect.bottom),
@@ -185,7 +227,12 @@ pub(crate) fn draw_round_rect(canvas: &mut Canvas, rect: Rect, rx: f32, ry: f32,
         return;
     }
     let mut path = Path::new();
-    path.add_round_rect(sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom), rx, ry, Direction::Cw);
+    path.add_round_rect(
+        sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        rx,
+        ry,
+        Direction::Cw,
+    );
     draw_path(canvas, &path, paint, pen);
 }
 
@@ -196,7 +243,17 @@ pub(crate) fn rotate_about(canvas: &mut Canvas, degrees: f32, px: f32, py: f32) 
     let snap = |v: f32| if v.abs() <= 1.0 / 4096.0 { 0.0 } else { v };
     let (s, c) = (snap(rad.sin()), snap(rad.cos()));
     let omc = 1.0 - c;
-    let m = Matrix([c, -s, s * py + omc * px, s, c, -s * px + omc * py, 0.0, 0.0, 1.0]);
+    let m = Matrix([
+        c,
+        -s,
+        s * py + omc * px,
+        s,
+        c,
+        -s * px + omc * py,
+        0.0,
+        0.0,
+        1.0,
+    ]);
     if !m.is_identity() {
         canvas.matrix = canvas.matrix.m44_pre_concat(&m);
     }
@@ -240,13 +297,15 @@ pub(crate) fn linear_gradient(
     positions: Option<&[f32]>,
     aa: bool,
 ) -> Paint<'static> {
-    let mut p = Paint::shader(Shader::Gradient(sharex_skia::raster::gradient::LinearGradient {
-        start,
-        end,
-        colors: colors.iter().map(|c| c.rgba_array()).collect(),
-        positions: positions.map(|p| p.to_vec()),
-        local: Matrix::IDENTITY,
-    }));
+    let mut p = Paint::shader(Shader::Gradient(
+        sharex_skia::raster::gradient::LinearGradient {
+            start,
+            end,
+            colors: colors.iter().map(|c| c.rgba_array()).collect(),
+            positions: positions.map(|p| p.to_vec()),
+            local: Matrix::IDENTITY,
+        },
+    ));
     p.anti_alias = aa;
     p
 }
@@ -259,13 +318,15 @@ pub(crate) fn radial_gradient(
     positions: Option<&[f32]>,
     aa: bool,
 ) -> Paint<'static> {
-    let mut p = Paint::shader(Shader::RadialGradient(sharex_skia::raster::gradient::RadialGradient {
-        center,
-        radius,
-        colors: colors.iter().map(|c| c.rgba_array()).collect(),
-        positions: positions.map(|p| p.to_vec()),
-        local: Matrix::IDENTITY,
-    }));
+    let mut p = Paint::shader(Shader::RadialGradient(
+        sharex_skia::raster::gradient::RadialGradient {
+            center,
+            radius,
+            colors: colors.iter().map(|c| c.rgba_array()).collect(),
+            positions: positions.map(|p| p.to_vec()),
+            local: Matrix::IDENTITY,
+        },
+    ));
     p.anti_alias = aa;
     p
 }
@@ -281,12 +342,24 @@ pub(crate) fn skew(canvas: &mut Canvas, sx: f32, sy: f32) {
 /// `SkDraw::drawPath` with `SKMaskFilter.CreateBlur(Normal, sigma)`: a fill,
 /// or a stroke (a hairline, its alpha scaled by the coverage, or the
 /// stroke's outline filled) through the mask filter.
-pub(crate) fn draw_path_blur(canvas: &mut Canvas, path: &Path, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+pub(crate) fn draw_path_blur(
+    canvas: &mut Canvas,
+    path: &Path,
+    paint: &Paint,
+    pen: Option<&Pen>,
+    sigma: f32,
+) {
     let Some(pen) = pen else {
         canvas.draw_path_mask_blur(path, None, sigma, paint);
         return;
     };
-    let coverage = if pen.width == 0.0 { Some(1.0) } else if paint.anti_alias { canvas.hairline_coverage(pen.width) } else { None };
+    let coverage = if pen.width == 0.0 {
+        Some(1.0)
+    } else if paint.anti_alias {
+        canvas.hairline_coverage(pen.width)
+    } else {
+        None
+    };
     if let Some(c) = coverage
         && (c == 1.0 || paint.blend == Blend::SrcOver)
     {
@@ -315,7 +388,13 @@ pub(crate) fn draw_path_blur(canvas: &mut Canvas, path: &Path, paint: &Paint, pe
 }
 
 /// `SKCanvas.DrawRect` with a blur mask filter: `SkDraw::drawRect`'s path case.
-pub(crate) fn draw_rect_blur(canvas: &mut Canvas, rect: Rect, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+pub(crate) fn draw_rect_blur(
+    canvas: &mut Canvas,
+    rect: Rect,
+    paint: &Paint,
+    pen: Option<&Pen>,
+    sigma: f32,
+) {
     let r = Rect::ltrb(
         rect.left.min(rect.right),
         rect.top.min(rect.bottom),
@@ -323,21 +402,45 @@ pub(crate) fn draw_rect_blur(canvas: &mut Canvas, rect: Rect, paint: &Paint, pen
         rect.top.max(rect.bottom),
     );
     let mut path = Path::new();
-    path.add_rect(sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom), Direction::Cw, 0);
+    path.add_rect(
+        sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+        Direction::Cw,
+        0,
+    );
     draw_path_blur(canvas, &path, paint, pen, sigma);
 }
 
 /// `SKCanvas.DrawCircle` with a blur mask filter (`drawOval` → `drawPath`).
-pub(crate) fn draw_circle_blur(canvas: &mut Canvas, cx: f32, cy: f32, radius: f32, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+pub(crate) fn draw_circle_blur(
+    canvas: &mut Canvas,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    paint: &Paint,
+    pen: Option<&Pen>,
+    sigma: f32,
+) {
     let r = radius.max(0.0);
     let mut path = Path::new();
-    path.add_oval(sharex_skia::Rect::from_ltrb(cx - r, cy - r, cx + r, cy + r), Direction::Cw);
+    path.add_oval(
+        sharex_skia::Rect::from_ltrb(cx - r, cy - r, cx + r, cy + r),
+        Direction::Cw,
+    );
     draw_path_blur(canvas, &path, paint, pen, sigma);
 }
 
 /// `SKCanvas.DrawLine` with a blur mask filter.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn draw_line_blur(canvas: &mut Canvas, x0: f32, y0: f32, x1: f32, y1: f32, pen: &Pen, paint: &Paint, sigma: f32) {
+pub(crate) fn draw_line_blur(
+    canvas: &mut Canvas,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    pen: &Pen,
+    paint: &Paint,
+    sigma: f32,
+) {
     let mut path = Path::new();
     path.move_to(x0, y0);
     path.line_to(x1, y1);

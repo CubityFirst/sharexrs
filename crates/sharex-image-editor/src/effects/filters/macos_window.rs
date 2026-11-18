@@ -33,10 +33,28 @@ impl EffectImpl for MacOSWindowImageEffect {
     fn params() -> Vec<ParamDef> {
         vec![
             text_param::<Self>("title", "Title", "", |e: &mut Self, v| e.title = v),
-            int_slider::<Self>("corner_radius", "Corner radius", 0, 30, 10, |e: &mut Self, v| e.corner_radius = v),
-            bool_param::<Self>("dark_mode", "Dark mode", false, |e: &mut Self, v| e.dark_mode = v),
-            int_slider::<Self>("shadow_size", "Shadow size", 0, 60, 20, |e: &mut Self, v| e.shadow_size = v),
-            int_slider::<Self>("padding", "Padding", 0, 100, 20, |e: &mut Self, v| e.padding = v),
+            int_slider::<Self>(
+                "corner_radius",
+                "Corner radius",
+                0,
+                30,
+                10,
+                |e: &mut Self, v| e.corner_radius = v,
+            ),
+            bool_param::<Self>("dark_mode", "Dark mode", false, |e: &mut Self, v| {
+                e.dark_mode = v
+            }),
+            int_slider::<Self>(
+                "shadow_size",
+                "Shadow size",
+                0,
+                60,
+                20,
+                |e: &mut Self, v| e.shadow_size = v,
+            ),
+            int_slider::<Self>("padding", "Padding", 0, 100, 20, |e: &mut Self, v| {
+                e.padding = v
+            }),
         ]
     }
 
@@ -57,31 +75,88 @@ impl EffectImpl for MacOSWindowImageEffect {
         let wy = (padding + shadow) as f32;
         let window = RRect::ltrb(wx, wy, wx + ww as f32, wy + wh as f32);
         if shadow > 0 {
-            canvas.draw_round_rect_mask_blur(window, corner, corner, shadow as f32 / 2.0, &solid(SkColor::rgba(0, 0, 0, 60), true));
+            canvas.draw_round_rect_mask_blur(
+                window,
+                corner,
+                corner,
+                shadow as f32 / 2.0,
+                &solid(SkColor::rgba(0, 0, 0, 60), true),
+            );
         }
         let clip = round_rect_path(window, corner);
         let dark = self.dark_mode;
         with_window_clip(&mut canvas, window, corner, &clip, |canvas| {
-            let bar = if dark { SkColor::rgb(56, 55, 57) } else { SkColor::rgb(232, 232, 232) };
-            let bar_border = if dark { SkColor::rgb(45, 44, 46) } else { SkColor::rgb(208, 208, 208) };
-            sk::draw_rect_xywh(canvas, wx, wy, ww as f32, TITLE_BAR as f32, &solid(bar, true), None);
+            let bar = if dark {
+                SkColor::rgb(56, 55, 57)
+            } else {
+                SkColor::rgb(232, 232, 232)
+            };
+            let bar_border = if dark {
+                SkColor::rgb(45, 44, 46)
+            } else {
+                SkColor::rgb(208, 208, 208)
+            };
+            sk::draw_rect_xywh(
+                canvas,
+                wx,
+                wy,
+                ww as f32,
+                TITLE_BAR as f32,
+                &solid(bar, true),
+                None,
+            );
             let ty = wy + TITLE_BAR as f32;
-            sk::draw_line(canvas, wx, ty, wx + ww as f32, ty, &Pen::new(1.0), &solid(bar_border, true));
+            sk::draw_line(
+                canvas,
+                wx,
+                ty,
+                wx + ww as f32,
+                ty,
+                &Pen::new(1.0),
+                &solid(bar_border, true),
+            );
             let by = wy + TITLE_BAR as f32 / 2.0;
             let bx = wx + BUTTON_LEFT + BUTTON_RADIUS;
             traffic_button(canvas, bx, by, SkColor::rgb(255, 95, 87));
             traffic_button(canvas, bx + BUTTON_SPACING, by, SkColor::rgb(255, 189, 46));
-            traffic_button(canvas, bx + BUTTON_SPACING * 2.0, by, SkColor::rgb(39, 201, 63));
+            traffic_button(
+                canvas,
+                bx + BUTTON_SPACING * 2.0,
+                by,
+                SkColor::rgb(39, 201, 63),
+            );
             if !is_blank(&self.title) {
-                let color = if dark { SkColor::rgb(220, 220, 220) } else { SkColor::rgb(74, 74, 74) };
+                let color = if dark {
+                    SkColor::rgb(220, 220, 220)
+                } else {
+                    SkColor::rgb(74, 74, 74)
+                };
                 let font = Font::new(Typeface::from_family("San Francisco", 500, false), 13.0);
                 let text_y = wy + (TITLE_BAR as f32 / 2.0) + (13.0 / 3.0);
-                font.draw(canvas, &self.title, wx + ww as f32 / 2.0, text_y, Align::Center, &solid(color, true));
+                font.draw(
+                    canvas,
+                    &self.title,
+                    wx + ww as f32 / 2.0,
+                    text_y,
+                    Align::Center,
+                    &solid(color, true),
+                );
             }
             canvas.draw_bitmap(source, wx, wy + TITLE_BAR as f32, None);
         });
-        let border = if dark { SkColor::rgba(70, 70, 70, 180) } else { SkColor::rgba(180, 180, 180, 180) };
-        sk::draw_round_rect(&mut canvas, window, corner, corner, &solid(border, true), Some(&Pen::new(1.0)));
+        let border = if dark {
+            SkColor::rgba(70, 70, 70, 180)
+        } else {
+            SkColor::rgba(180, 180, 180, 180)
+        };
+        sk::draw_round_rect(
+            &mut canvas,
+            window,
+            corner,
+            corner,
+            &solid(border, true),
+            Some(&Pen::new(1.0)),
+        );
         drop(canvas);
         Ok(out)
     }
@@ -92,7 +167,13 @@ impl EffectImpl for MacOSWindowImageEffect {
 /// `ClipRoundRect(SKRoundRect(rect, r, r), Intersect, antialias)`: a square
 /// round rect is `clipRect`, and an anti-aliased rect on whole pixels is an
 /// aliased clip (`SkRasterClip::op`); otherwise the round rect's path, AA.
-fn with_window_clip(canvas: &mut Canvas, rect: RRect, r: f32, path: &SkPath, draw: impl FnOnce(&mut Canvas)) {
+fn with_window_clip(
+    canvas: &mut Canvas,
+    rect: RRect,
+    r: f32,
+    path: &SkPath,
+    draw: impl FnOnce(&mut Canvas),
+) {
     let whole = |v: f32| (v - v.round()).abs() <= 1.0 / 4096.0;
     if r <= 0.0 && whole(rect.left) && whole(rect.top) && whole(rect.right) && whole(rect.bottom) {
         sk::with_clip_rect(canvas, rect, draw);

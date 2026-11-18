@@ -9,8 +9,8 @@
 
 #![allow(dead_code)]
 
-use sharex_skia::raster::{Bitmap, Canvas, Paint, Rect, Sampling, Shader, TileMode};
 use sharex_skia::Pixmap;
+use sharex_skia::raster::{Bitmap, Canvas, Paint, Rect, Sampling, Shader, TileMode};
 
 use super::color::{self, SkColor};
 
@@ -89,7 +89,11 @@ pub fn fractal_noise(x: f32, y: f32, octaves: i32, lacunarity: f32, gain: f32, s
     let mut frequency = 1f32;
     let mut normalization = 0f32;
     for i in 0..octaves {
-        value += value_noise(x * frequency, y * frequency, seed.wrapping_add(i.wrapping_mul(1619))) * amplitude;
+        value += value_noise(
+            x * frequency,
+            y * frequency,
+            seed.wrapping_add(i.wrapping_mul(1619)),
+        ) * amplitude;
         normalization += amplitude;
         frequency *= lacunarity;
         amplitude *= gain;
@@ -236,20 +240,35 @@ pub fn create_blurred_clamp(source: &Bitmap, radius: f32) -> Bitmap {
 pub fn blur_clamped(source: &Bitmap, padding: i32, sigma: f32) -> Bitmap {
     let expanded = expand_clamped(source, padding);
     let blurred = blur(&expanded, sigma, sigma);
-    crop_copy(&blurred, padding, padding, source.width() as i32, source.height() as i32)
+    crop_copy(
+        &blurred,
+        padding,
+        padding,
+        source.width() as i32,
+        source.height() as i32,
+    )
 }
 
 /// The same with transparent padding (`Clear(Transparent)` then the image
 /// drawn at `(padding, padding)`).
 pub fn blur_transparent_padded(source: &Bitmap, padding: i32, sigma: f32) -> Bitmap {
-    let mut expanded = Bitmap::new((source.width() as i32 + padding * 2) as u32, (source.height() as i32 + padding * 2) as u32);
+    let mut expanded = Bitmap::new(
+        (source.width() as i32 + padding * 2) as u32,
+        (source.height() as i32 + padding * 2) as u32,
+    );
     for y in 0..source.height() {
         for x in 0..source.width() {
             expanded.set_pixel(x + padding as u32, y + padding as u32, source.pixel(x, y));
         }
     }
     let blurred = blur(&expanded, sigma, sigma);
-    crop_copy(&blurred, padding, padding, source.width() as i32, source.height() as i32)
+    crop_copy(
+        &blurred,
+        padding,
+        padding,
+        source.width() as i32,
+        source.height() as i32,
+    )
 }
 
 // ---- DistortionEffectHelper ----
@@ -311,7 +330,11 @@ pub fn apply_color_matrix(source: &Bitmap, matrix: &[f32; 20]) -> Bitmap {
 /// as an `SKColor` (a `Bgra8888` bitmap is never unpremultiplied here).
 pub fn apply_pixel_operation(source: &Bitmap, op: impl Fn(SkColor) -> SkColor) -> Bitmap {
     let mut out = Bitmap::new(source.width(), source.height());
-    for (d, s) in out.data_mut().chunks_exact_mut(4).zip(source.data().chunks_exact(4)) {
+    for (d, s) in out
+        .data_mut()
+        .chunks_exact_mut(4)
+        .zip(source.data().chunks_exact(4))
+    {
         let c = op(SkColor::from_raw([s[0], s[1], s[2], s[3]]));
         d.copy_from_slice(&[c.r, c.g, c.b, c.a]);
     }
@@ -334,7 +357,11 @@ pub fn blur(b: &Bitmap, sigma_x: f32, sigma_y: f32) -> Bitmap {
     if b.is_empty() {
         return b.clone();
     }
-    pixmap_to_bitmap(&sharex_skia::blur::blur(&bitmap_to_pixmap(b), sigma_x, sigma_y))
+    pixmap_to_bitmap(&sharex_skia::blur::blur(
+        &bitmap_to_pixmap(b),
+        sigma_x,
+        sigma_y,
+    ))
 }
 
 /// The image grown by `padding` on every side, edge pixels repeated
@@ -382,7 +409,13 @@ pub fn draw_bitmap(dst: &mut Bitmap, image: &Bitmap, x: f32, y: f32) {
 }
 
 /// `canvas.DrawRect(rect, paint { Shader = SKShader.CreateBitmap(image, tx, ty, matrix) })`.
-pub fn fill_rect_with_image(dst: &mut Bitmap, rect: Rect, image: &Bitmap, tile: TileMode, matrix: sharex_skia::raster::Matrix) {
+pub fn fill_rect_with_image(
+    dst: &mut Bitmap,
+    rect: Rect,
+    image: &Bitmap,
+    tile: TileMode,
+    matrix: sharex_skia::raster::Matrix,
+) {
     let mut canvas = Canvas::new(dst);
     let paint = Paint::shader(Shader::Image {
         image,
@@ -398,7 +431,8 @@ pub fn fill_rect_with_image(dst: &mut Bitmap, rect: Rect, image: &Bitmap, tile: 
 /// process, Lomo).
 pub fn blend_with_identity(effect: &[f32; 20], s: f32) -> [f32; 20] {
     const IDENTITY: [f32; 20] = [
-        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        1.0, 0.0,
     ];
     let mut m = [0f32; 20];
     for i in 0..20 {
@@ -428,7 +462,10 @@ pub fn expand_environment_variables(s: &str) -> String {
         match after.find('%') {
             Some(end) => {
                 let name = &after[..end];
-                match (!name.is_empty()).then(|| std::env::var(name).ok()).flatten() {
+                match (!name.is_empty())
+                    .then(|| std::env::var(name).ok())
+                    .flatten()
+                {
                     Some(v) => {
                         out.push_str(&v);
                         rest = &after[end + 1..];
@@ -500,13 +537,22 @@ pub fn dotnet_sort<T: Copy>(keys: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::O
     }
 }
 
-fn swap_if_greater<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering, i: usize, j: usize) {
+fn swap_if_greater<T: Copy>(
+    k: &mut [T],
+    cmp: &impl Fn(&T, &T) -> std::cmp::Ordering,
+    i: usize,
+    j: usize,
+) {
     if cmp(&k[i], &k[j]).is_gt() {
         k.swap(i, j);
     }
 }
 
-fn intro_sort<T: Copy>(keys: &mut [T], mut depth: i32, cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+fn intro_sort<T: Copy>(
+    keys: &mut [T],
+    mut depth: i32,
+    cmp: &impl Fn(&T, &T) -> std::cmp::Ordering,
+) {
     let mut size = keys.len();
     while size > 1 {
         if size <= 16 {
@@ -534,7 +580,10 @@ fn intro_sort<T: Copy>(keys: &mut [T], mut depth: i32, cmp: &impl Fn(&T, &T) -> 
     }
 }
 
-fn pick_pivot_and_partition<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) -> usize {
+fn pick_pivot_and_partition<T: Copy>(
+    k: &mut [T],
+    cmp: &impl Fn(&T, &T) -> std::cmp::Ordering,
+) -> usize {
     let hi = k.len() - 1;
     let middle = hi >> 1;
     swap_if_greater(k, cmp, 0, middle);
@@ -578,7 +627,12 @@ fn heap_sort<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) 
     }
 }
 
-fn down_heap<T: Copy>(k: &mut [T], mut i: usize, n: usize, cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+fn down_heap<T: Copy>(
+    k: &mut [T],
+    mut i: usize,
+    n: usize,
+    cmp: &impl Fn(&T, &T) -> std::cmp::Ordering,
+) {
     let d = k[i - 1];
     while i <= n >> 1 {
         let mut child = 2 * i;
@@ -647,7 +701,15 @@ pub fn lowp_from_float(f: f32) -> u32 {
 /// An image placed at `(x, y)` blurred by `SKImageFilter.CreateBlur(sigma)`
 /// and cut to a `width` x `height` canvas: the filter sees the whole image
 /// (transparent beyond it), its output is clipped to the canvas.
-pub fn blurred_layer(source: &Bitmap, x: i32, y: i32, width: i32, height: i32, sigma_x: f32, sigma_y: f32) -> Bitmap {
+pub fn blurred_layer(
+    source: &Bitmap,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    sigma_x: f32,
+    sigma_y: f32,
+) -> Bitmap {
     let (sw, sh) = (source.width() as i32, source.height() as i32);
     let l = 0.min(x);
     let t = 0.min(y);
@@ -656,7 +718,11 @@ pub fn blurred_layer(source: &Bitmap, x: i32, y: i32, width: i32, height: i32, s
     let mut region = Bitmap::new((r - l) as u32, (b - t) as u32);
     for yy in 0..sh {
         for xx in 0..sw {
-            region.set_pixel((xx + x - l) as u32, (yy + y - t) as u32, source.pixel(xx as u32, yy as u32));
+            region.set_pixel(
+                (xx + x - l) as u32,
+                (yy + y - t) as u32,
+                source.pixel(xx as u32, yy as u32),
+            );
         }
     }
     let blurred = blur(&region, sigma_x, sigma_y);
@@ -669,16 +735,35 @@ pub fn blurred_layer(source: &Bitmap, x: i32, y: i32, width: i32, height: i32, s
 /// image is drawn through the colour filter into a layer (lowp:
 /// `uniform_color`, `srcin` with `div255_accurate`, onto transparent), the
 /// layer is blurred and restored with src-over (a legacy sprite blit).
-pub fn draw_src_in_blurred(dst: &mut Bitmap, image: &Bitmap, x: i32, y: i32, color: SkColor, sigma: f32) {
+pub fn draw_src_in_blurred(
+    dst: &mut Bitmap,
+    image: &Bitmap,
+    x: i32,
+    y: i32,
+    color: SkColor,
+    sigma: f32,
+) {
     let c = uniform_lowp(color);
     let mut colored = Bitmap::new(image.width(), image.height());
-    for (d, s) in colored.data_mut().chunks_exact_mut(4).zip(image.data().chunks_exact(4)) {
+    for (d, s) in colored
+        .data_mut()
+        .chunks_exact_mut(4)
+        .zip(image.data().chunks_exact(4))
+    {
         let sa = s[3] as u32;
         for i in 0..4 {
             d[i] = div255_accurate(c[i] * sa).min(255) as u8;
         }
     }
-    let layer = blurred_layer(&colored, x, y, dst.width() as i32, dst.height() as i32, sigma, sigma);
+    let layer = blurred_layer(
+        &colored,
+        x,
+        y,
+        dst.width() as i32,
+        dst.height() as i32,
+        sigma,
+        sigma,
+    );
     draw_bitmap(dst, &layer, 0.0, 0.0);
 }
 
@@ -686,9 +771,17 @@ pub fn draw_src_in_blurred(dst: &mut Bitmap, image: &Bitmap, x: i32, y: i32, col
 /// (lowp: `scale_1_float`, `load_dst`, `screen`: `s + d - div255(s * d)`).
 pub fn composite_screen(dst: &mut Bitmap, src: &Bitmap, paint_alpha: u8) {
     let scale = lowp_from_float(paint_alpha as f32 * (1.0 / 255.0));
-    for (d, s) in dst.data_mut().chunks_exact_mut(4).zip(src.data().chunks_exact(4)) {
+    for (d, s) in dst
+        .data_mut()
+        .chunks_exact_mut(4)
+        .zip(src.data().chunks_exact(4))
+    {
         for i in 0..4 {
-            let sv = if paint_alpha == 255 { s[i] as u32 } else { div255(s[i] as u32 * scale) };
+            let sv = if paint_alpha == 255 {
+                s[i] as u32
+            } else {
+                div255(s[i] as u32 * scale)
+            };
             let dv = d[i] as u32;
             d[i] = (sv + dv - div255_accurate(sv * dv)).min(255) as u8;
         }
@@ -712,7 +805,13 @@ pub fn div255_accurate(v: u32) -> u32 {
 /// order, then `sum * gain + bias / 255`, the original alpha restored (or
 /// the convolved one saturated), colour clamped to `[0, a]`, stored
 /// rounded.
-pub fn matrix_convolution_3x3(src: &Bitmap, kernel: &[f32; 9], gain: f32, bias: f32, convolve_alpha: bool) -> Bitmap {
+pub fn matrix_convolution_3x3(
+    src: &Bitmap,
+    kernel: &[f32; 9],
+    gain: f32,
+    bias: f32,
+    convolve_alpha: bool,
+) -> Bitmap {
     let (w, h) = (src.width() as i32, src.height() as i32);
     let bias = bias / 255.0;
     let mut out = Bitmap::new(src.width(), src.height());
@@ -741,7 +840,12 @@ pub fn matrix_convolution_3x3(src: &Bitmap, kernel: &[f32; 9], gain: f32, bias: 
             }
             let mut color = sum.map(|v| v * gain + bias);
             if !convolve_alpha {
-                color = [color[0] * orig_alpha, color[1] * orig_alpha, color[2] * orig_alpha, orig_alpha];
+                color = [
+                    color[0] * orig_alpha,
+                    color[1] * orig_alpha,
+                    color[2] * orig_alpha,
+                    orig_alpha,
+                ];
             } else {
                 color[3] = color[3].clamp(0.0, 1.0);
             }

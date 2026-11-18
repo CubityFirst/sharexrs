@@ -20,14 +20,21 @@ impl Default for OilPaintImageEffect {
 
 impl EffectImpl for OilPaintImageEffect {
     fn info() -> Info {
-        Info::new("oil_paint", "Oil paint", EffectCategory::Filters, "image-effect/paint-brush")
-            .desc("Simulates an oil painting by quantizing color intensity levels.")
+        Info::new(
+            "oil_paint",
+            "Oil paint",
+            EffectCategory::Filters,
+            "image-effect/paint-brush",
+        )
+        .desc("Simulates an oil painting by quantizing color intensity levels.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("radius", "Radius", 1, 6, 3, |e: &mut Self, v| e.radius = v),
-            int_slider::<Self>("levels", "Levels", 8, 64, 24, |e: &mut Self, v| e.levels = v),
+            int_slider::<Self>("levels", "Levels", 8, 64, 24, |e: &mut Self, v| {
+                e.levels = v
+            }),
         ]
     }
 
@@ -67,8 +74,12 @@ impl EffectImpl for OilPaintImageEffect {
                 }
                 let bc = 1.max(count[best]);
                 let s = sum[best];
-                dst[(y * width + x) as usize] =
-                    SkColor::rgba((s[0] / bc) as u8, (s[1] / bc) as u8, (s[2] / bc) as u8, (s[3] / bc) as u8);
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    (s[0] / bc) as u8,
+                    (s[1] / bc) as u8,
+                    (s[2] / bc) as u8,
+                    (s[3] / bc) as u8,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

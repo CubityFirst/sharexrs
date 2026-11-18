@@ -34,12 +34,48 @@ impl EffectImpl for StarfieldBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 12, 300, 60, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("bg_color", "Background color", SkColor::argb(0xFF050512), |e: &mut Self, v| e.bg_color = v),
-            color_param::<Self>("nebula_color", "Nebula tint", SkColor::argb(0xFF280A50), |e: &mut Self, v| e.nebula_color = v),
-            float_slider::<Self>("star_density", "Star density", 10.0, 100.0, 65.0, |e: &mut Self, v| e.star_density = v),
-            float_slider::<Self>("nebula_intensity", "Nebula intensity", 0.0, 100.0, 45.0, |e: &mut Self, v| e.nebula_intensity = v),
-            bool_param::<Self>("bright_stars", "Bright star glow", true, |e: &mut Self, v| e.bright_stars = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                12,
+                300,
+                60,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "bg_color",
+                "Background color",
+                SkColor::argb(0xFF050512),
+                |e: &mut Self, v| e.bg_color = v,
+            ),
+            color_param::<Self>(
+                "nebula_color",
+                "Nebula tint",
+                SkColor::argb(0xFF280A50),
+                |e: &mut Self, v| e.nebula_color = v,
+            ),
+            float_slider::<Self>(
+                "star_density",
+                "Star density",
+                10.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.star_density = v,
+            ),
+            float_slider::<Self>(
+                "nebula_intensity",
+                "Nebula intensity",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.nebula_intensity = v,
+            ),
+            bool_param::<Self>(
+                "bright_stars",
+                "Bright star glow",
+                true,
+                |e: &mut Self, v| e.bright_stars = v,
+            ),
         ]
     }
 
@@ -66,7 +102,14 @@ impl EffectImpl for StarfieldBorderImageEffect {
                 let mut g = bg.g as f32 / 255.0;
                 let mut b = bg.b as f32 / 255.0;
                 let neb1 = fractal_noise(x as f32 * scale, y as f32 * scale, 4, 2.0, 0.5, SEED);
-                let neb2 = fractal_noise(x as f32 * scale * 0.7 + 300.0, y as f32 * scale * 0.7 + 500.0, 3, 2.0, 0.5, SEED ^ 0x33);
+                let neb2 = fractal_noise(
+                    x as f32 * scale * 0.7 + 300.0,
+                    y as f32 * scale * 0.7 + 500.0,
+                    3,
+                    2.0,
+                    0.5,
+                    SEED ^ 0x33,
+                );
                 let m1 = clamp01((neb1 + 0.3) * 0.7) * neb_str;
                 let m2 = clamp01((neb2 + 0.2) * 0.5) * neb_str * 0.5;
                 r += (nc.r as f32 / 255.0) * m1 + (0.1 * m2);
@@ -82,8 +125,12 @@ impl EffectImpl for StarfieldBorderImageEffect {
                     g += sb * (0.7 + (1.0 - hue) * 0.3);
                     b += sb * 0.9;
                 }
-                dst[(y * nw + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), 255);
+                dst[(y * nw + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    255,
+                );
             }
         }
         let mut out = from_pixels(nw as u32, nh as u32, &dst);
@@ -94,7 +141,8 @@ impl EffectImpl for StarfieldBorderImageEffect {
             for i in 0..count {
                 let sx = hash01(i, 0, SEED ^ 0xDE) * nw as f32;
                 let sy = hash01(0, i, SEED ^ 0xEF) * nh as f32;
-                let in_border = sx < bf || sx >= (border + iw) as f32 || sy < bf || sy >= (border + ih) as f32;
+                let in_border =
+                    sx < bf || sx >= (border + iw) as f32 || sy < bf || sy >= (border + ih) as f32;
                 if !in_border {
                     continue;
                 }
@@ -105,8 +153,23 @@ impl EffectImpl for StarfieldBorderImageEffect {
                 let sg = clamp_to_byte(190.0 + 55.0 * br * (0.9 + temp * 0.1));
                 let sbl = clamp_to_byte(180.0 + 75.0 * br * (0.5 + temp * 0.5));
                 let alpha = clamp_to_byte(160.0 + 95.0 * br);
-                sk::draw_circle_blur(&mut canvas, sx, sy, size * 2.5, &solid(SkColor::rgba(sr, sg, sbl, alpha / 2), true), None, 3.0);
-                sk::draw_circle(&mut canvas, sx, sy, size, &solid(SkColor::rgba(sr, sg, sbl, alpha), true), None);
+                sk::draw_circle_blur(
+                    &mut canvas,
+                    sx,
+                    sy,
+                    size * 2.5,
+                    &solid(SkColor::rgba(sr, sg, sbl, alpha / 2), true),
+                    None,
+                    3.0,
+                );
+                sk::draw_circle(
+                    &mut canvas,
+                    sx,
+                    sy,
+                    size,
+                    &solid(SkColor::rgba(sr, sg, sbl, alpha), true),
+                    None,
+                );
             }
         }
         canvas.draw_bitmap(source, border as f32, border as f32, None);

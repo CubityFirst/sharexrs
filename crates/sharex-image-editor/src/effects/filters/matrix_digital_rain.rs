@@ -34,20 +34,69 @@ impl Default for MatrixDigitalRainImageEffect {
 
 impl EffectImpl for MatrixDigitalRainImageEffect {
     fn info() -> Info {
-        Info::new("matrix_digital_rain", "Matrix digital rain", EffectCategory::Filters, "app/terminal")
-            .desc("Overlays a Matrix-style digital rain effect using source luminance.")
+        Info::new(
+            "matrix_digital_rain",
+            "Matrix digital rain",
+            EffectCategory::Filters,
+            "app/terminal",
+        )
+        .desc("Overlays a Matrix-style digital rain effect using source luminance.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("cell_size", "Cell size", 6, 24, 12, |e: &mut Self, v| e.cell_size = v),
-            float_slider::<Self>("density", "Density", 0.0, 100.0, 85.0, |e: &mut Self, v| e.density = v),
-            int_slider::<Self>("trail_length", "Trail length", 3, 50, 12, |e: &mut Self, v| e.trail_length = v),
-            float_slider::<Self>("glow_amount", "Glow amount", 0.0, 100.0, 40.0, |e: &mut Self, v| e.glow_amount = v),
-            float_slider::<Self>("source_blend", "Source blend", 0.0, 100.0, 22.0, |e: &mut Self, v| e.source_blend = v),
-            float_slider::<Self>("rain_offset", "Rain offset", 0.0, 100.0, 0.0, |e: &mut Self, v| e.rain_offset = v),
-            float_slider::<Self>("luminance_influence", "Luminance influence", 0.0, 100.0, 65.0, |e: &mut Self, v| e.luminance_influence = v),
-            text_param::<Self>("character_set", "Character set", "01<>[]{}*+-/\\=#$%&", |e: &mut Self, v| e.character_set = v),
+            int_slider::<Self>("cell_size", "Cell size", 6, 24, 12, |e: &mut Self, v| {
+                e.cell_size = v
+            }),
+            float_slider::<Self>("density", "Density", 0.0, 100.0, 85.0, |e: &mut Self, v| {
+                e.density = v
+            }),
+            int_slider::<Self>(
+                "trail_length",
+                "Trail length",
+                3,
+                50,
+                12,
+                |e: &mut Self, v| e.trail_length = v,
+            ),
+            float_slider::<Self>(
+                "glow_amount",
+                "Glow amount",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.glow_amount = v,
+            ),
+            float_slider::<Self>(
+                "source_blend",
+                "Source blend",
+                0.0,
+                100.0,
+                22.0,
+                |e: &mut Self, v| e.source_blend = v,
+            ),
+            float_slider::<Self>(
+                "rain_offset",
+                "Rain offset",
+                0.0,
+                100.0,
+                0.0,
+                |e: &mut Self, v| e.rain_offset = v,
+            ),
+            float_slider::<Self>(
+                "luminance_influence",
+                "Luminance influence",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.luminance_influence = v,
+            ),
+            text_param::<Self>(
+                "character_set",
+                "Character set",
+                "01<>[]{}*+-/\\=#$%&",
+                |e: &mut Self, v| e.character_set = v,
+            ),
         ]
     }
 
@@ -71,19 +120,28 @@ impl EffectImpl for MatrixDigitalRainImageEffect {
         let mut canvas = Canvas::new(&mut out);
         let mut bg = solid(SkColor::rgb(0, 12, 0), false);
         bg.anti_alias = false;
-        sk::draw_rect(&mut canvas, RRect::ltrb(0.0, 0.0, width as f32, height as f32), &bg, None);
+        sk::draw_rect(
+            &mut canvas,
+            RRect::ltrb(0.0, 0.0, width as f32, height as f32),
+            &bg,
+            None,
+        );
         if source_blend > 0.0 {
             let mut p = Paint::shader(Shader::Color([255, 255, 255, 255]));
             p.alpha = clamp_to_byte(source_blend * 255.0);
             canvas.draw_bitmap(source, 0.0, 0.0, Some(&p));
         }
-        let font = Font::new(Typeface::from_family("Consolas", 400, false), cell as f32 * 1.02);
+        let font = Font::new(
+            Typeface::from_family("Consolas", 400, false),
+            cell as f32 * 1.02,
+        );
         let sigma = 2.2 + (glow * 3.4);
         let baseline = cell as f32 * 0.88;
         let seed = self.seed;
         for col in 0..columns {
             let head = ((hash01(col, seed, seed ^ 9) + rain_offset) % 1.0) * rows as f32;
-            let head2 = ((hash01(col, seed ^ 37, seed ^ 101) + (rain_offset * 0.63)) % 1.0) * rows as f32;
+            let head2 =
+                ((hash01(col, seed ^ 37, seed ^ 101) + (rain_offset * 0.63)) % 1.0) * rows as f32;
             for row in 0..rows {
                 let (x0, y0) = (col * cell, row * cell);
                 if x0 >= width || y0 >= height {
@@ -94,12 +152,18 @@ impl EffectImpl for MatrixDigitalRainImageEffect {
                 for y in y0..y1 {
                     for x in x0..x1 {
                         let c = src[(y * width + x) as usize];
-                        sl += ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+                        sl +=
+                            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32))
+                                / 255.0;
                         sa += c.a as f32;
                         n += 1;
                     }
                 }
-                let (lum, alpha) = if n == 0 { (0.0, 255) } else { (sl * (1.0 / n as f32), clamp_to_byte(sa * (1.0 / n as f32))) };
+                let (lum, alpha) = if n == 0 {
+                    (0.0, 255)
+                } else {
+                    (sl * (1.0 / n as f32), clamp_to_byte(sa * (1.0 / n as f32)))
+                };
                 let spawn = hash01(col, row, seed ^ 503);
                 let local = density * (0.35 + (0.65 * (lum_inf * lum + (1.0 - lum_inf))));
                 if spawn > local {
@@ -114,7 +178,10 @@ impl EffectImpl for MatrixDigitalRainImageEffect {
                     continue;
                 }
                 let n_chars = chars.len() as f32;
-                let mut ci = (((lum * n_chars) + (row as f32 * 0.61) + (col as f32 * 0.17)) % n_chars).floor().abs() as i32;
+                let mut ci = (((lum * n_chars) + (row as f32 * 0.61) + (col as f32 * 0.17))
+                    % n_chars)
+                    .floor()
+                    .abs() as i32;
                 if ci >= chars.len() as i32 {
                     ci = chars.len() as i32 - 1;
                 }

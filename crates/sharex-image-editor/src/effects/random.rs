@@ -88,6 +88,7 @@ impl Xoshiro {
     }
 
     /// `Next()`: `0..int.MaxValue`.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> i32 {
         loop {
             let r = self.next_u64() >> 33;
@@ -222,6 +223,7 @@ impl Compat {
     }
 
     /// `Next()`.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> i32 {
         self.internal_sample()
     }

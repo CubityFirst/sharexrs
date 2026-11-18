@@ -26,17 +26,42 @@ impl Default for OilSlickInterferenceImageEffect {
 
 impl EffectImpl for OilSlickInterferenceImageEffect {
     fn info() -> Info {
-        Info::new("oil_slick_interference", "Oil slick interference", EffectCategory::Filters, "image-effect/rainbow")
-            .desc("Simulates iridescent oil slick interference patterns.")
+        Info::new(
+            "oil_slick_interference",
+            "Oil slick interference",
+            EffectCategory::Filters,
+            "image-effect/rainbow",
+        )
+        .desc("Simulates iridescent oil slick interference patterns.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 58.0, |e: &mut Self, v| e.intensity = v),
-            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 70.0, |e: &mut Self, v| e.scale = v),
-            float_slider::<Self>("darkness", "Darkness", 0.0, 100.0, 45.0, |e: &mut Self, v| e.darkness = v),
-            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 60.0, |e: &mut Self, v| e.gloss = v),
-            float_slider::<Self>("shift", "Shift", 0.0, 360.0, 0.0, |e: &mut Self, v| e.shift = v),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                58.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 70.0, |e: &mut Self, v| {
+                e.scale = v
+            }),
+            float_slider::<Self>(
+                "darkness",
+                "Darkness",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.darkness = v,
+            ),
+            float_slider::<Self>("gloss", "Gloss", 0.0, 100.0, 60.0, |e: &mut Self, v| {
+                e.gloss = v
+            }),
+            float_slider::<Self>("shift", "Shift", 0.0, 360.0, 0.0, |e: &mut Self, v| {
+                e.shift = v
+            }),
         ]
     }
 
@@ -53,7 +78,9 @@ impl EffectImpl for OilSlickInterferenceImageEffect {
         let (width, height) = (source.width() as i32, source.height() as i32);
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
-        let l01 = |c: SkColor| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+        let l01 = |c: SkColor| {
+            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+        };
         let p = |x: i32, y: i32| src[(y * width + x) as usize];
         let scr = |s: f32, o: f32| 1.0 - ((1.0 - s) * (1.0 - clamp01(o)));
         for y in 0..height {
@@ -76,7 +103,8 @@ impl EffectImpl for OilSlickInterferenceImageEffect {
                 bands = (bands * 0.5) + 0.5;
                 let mut hue = shift + (bands * 0.32) + (u * 0.06) + (v * 0.03);
                 hue -= hue.floor();
-                let mask = clamp01(intensity * ((1.0 - lum) * 0.45 + (edge * 0.30) + (bands * 0.25)));
+                let mask =
+                    clamp01(intensity * ((1.0 - lum) * 0.45 + (edge * 0.30) + (bands * 0.25)));
                 let (ir, ig, ib) = slick_hsv(hue, 0.84, 0.92 + (gloss * 0.08));
                 let dr = sr * (1.0 - darkness * 0.58);
                 let dg = sg * (1.0 - darkness * 0.60);

@@ -334,7 +334,12 @@ fn build_unit_arc(
 }
 
 /// `SkConic::BuildUnitArc` with a user matrix.
-pub(crate) fn build_unit_arc_with(u_start: Point, u_stop: Point, ccw: bool, user: &Matrix) -> Vec<Conic> {
+pub(crate) fn build_unit_arc_with(
+    u_start: Point,
+    u_stop: Point,
+    ccw: bool,
+    user: &Matrix,
+) -> Vec<Conic> {
     let x = u_start.dot(u_stop);
     let mut y = u_start.cross(u_stop);
     let abs_y = y.abs();

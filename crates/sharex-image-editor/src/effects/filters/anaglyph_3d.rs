@@ -31,16 +31,52 @@ impl Default for Anaglyph3DImageEffect {
 
 impl EffectImpl for Anaglyph3DImageEffect {
     fn info() -> Info {
-        Info::new("anaglyph_3d", "Anaglyph 3D", EffectCategory::Filters, "image-effect/glasses")
-            .desc("Simulates a retro anaglyph 3D stereoscopic effect.")
+        Info::new(
+            "anaglyph_3d",
+            "Anaglyph 3D",
+            EffectCategory::Filters,
+            "image-effect/glasses",
+        )
+        .desc("Simulates a retro anaglyph 3D stereoscopic effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            enum_param::<Self, AnaglyphMode>("mode", "Mode", AnaglyphMode::RedCyan, |e: &mut Self, v| e.mode = v, &[("Red / Cyan", AnaglyphMode::RedCyan), ("Amber / Blue", AnaglyphMode::AmberBlue), ("Green / Magenta", AnaglyphMode::GreenMagenta)]),
-            int_slider::<Self>("separation_x", "Separation X", -100, 100, 10, |e: &mut Self, v| e.separation_x = v),
-            int_slider::<Self>("separation_y", "Separation Y", -100, 100, 0, |e: &mut Self, v| e.separation_y = v),
-            float_slider::<Self>("ghost_reduction", "Ghost reduction", 0.0, 100.0, 45.0, |e: &mut Self, v| e.ghost_reduction = v),
+            enum_param::<Self, AnaglyphMode>(
+                "mode",
+                "Mode",
+                AnaglyphMode::RedCyan,
+                |e: &mut Self, v| e.mode = v,
+                &[
+                    ("Red / Cyan", AnaglyphMode::RedCyan),
+                    ("Amber / Blue", AnaglyphMode::AmberBlue),
+                    ("Green / Magenta", AnaglyphMode::GreenMagenta),
+                ],
+            ),
+            int_slider::<Self>(
+                "separation_x",
+                "Separation X",
+                -100,
+                100,
+                10,
+                |e: &mut Self, v| e.separation_x = v,
+            ),
+            int_slider::<Self>(
+                "separation_y",
+                "Separation Y",
+                -100,
+                100,
+                0,
+                |e: &mut Self, v| e.separation_y = v,
+            ),
+            float_slider::<Self>(
+                "ghost_reduction",
+                "Ghost reduction",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.ghost_reduction = v,
+            ),
         ]
     }
 
@@ -57,8 +93,10 @@ impl EffectImpl for Anaglyph3DImageEffect {
         for y in 0..height {
             let row = y * width;
             for x in 0..width {
-                let left = bilinear_sample(&src, width, height, x as f32 - half_x, y as f32 - half_y);
-                let right = bilinear_sample(&src, width, height, x as f32 + half_x, y as f32 + half_y);
+                let left =
+                    bilinear_sample(&src, width, height, x as f32 - half_x, y as f32 - half_y);
+                let right =
+                    bilinear_sample(&src, width, height, x as f32 + half_x, y as f32 + half_y);
                 let lg = analog_luminance01(left);
                 let rg = analog_luminance01(right);
                 let (r, g, b) = match self.mode {

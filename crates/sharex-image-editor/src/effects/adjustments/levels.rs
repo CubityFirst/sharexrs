@@ -26,17 +26,55 @@ impl Default for LevelsImageEffect {
 
 impl EffectImpl for LevelsImageEffect {
     fn info() -> Info {
-        Info::new("levels", "Levels", EffectCategory::Adjustments, "image-effect/sliders-vertical")
-            .desc("Adjusts image color levels.")
+        Info::new(
+            "levels",
+            "Levels",
+            EffectCategory::Adjustments,
+            "image-effect/sliders-vertical",
+        )
+        .desc("Adjusts image color levels.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("input_black", "Input black", 0, 255, 0, |e: &mut Self, v| e.input_black = v),
-            int_slider::<Self>("input_white", "Input white", 0, 255, 255, |e: &mut Self, v| e.input_white = v),
-            float_slider::<Self>("gamma", "Gamma", 0.1, 5.0, 1.0, |e: &mut Self, v| e.gamma = v).tick(0.1).snap(false).format("{}{0:0.0}"),
-            int_slider::<Self>("output_black", "Output black", 0, 255, 0, |e: &mut Self, v| e.output_black = v),
-            int_slider::<Self>("output_white", "Output white", 0, 255, 255, |e: &mut Self, v| e.output_white = v),
+            int_slider::<Self>(
+                "input_black",
+                "Input black",
+                0,
+                255,
+                0,
+                |e: &mut Self, v| e.input_black = v,
+            ),
+            int_slider::<Self>(
+                "input_white",
+                "Input white",
+                0,
+                255,
+                255,
+                |e: &mut Self, v| e.input_white = v,
+            ),
+            float_slider::<Self>("gamma", "Gamma", 0.1, 5.0, 1.0, |e: &mut Self, v| {
+                e.gamma = v
+            })
+            .tick(0.1)
+            .snap(false)
+            .format("{}{0:0.0}"),
+            int_slider::<Self>(
+                "output_black",
+                "Output black",
+                0,
+                255,
+                0,
+                |e: &mut Self, v| e.output_black = v,
+            ),
+            int_slider::<Self>(
+                "output_white",
+                "Output white",
+                0,
+                255,
+                255,
+                |e: &mut Self, v| e.output_white = v,
+            ),
         ]
     }
 
@@ -52,7 +90,12 @@ impl EffectImpl for LevelsImageEffect {
         if out_white < out_black {
             std::mem::swap(&mut out_black, &mut out_white);
         }
-        if in_black == 0 && in_white == 255 && (gamma - 1.0).abs() < 0.0001 && out_black == 0 && out_white == 255 {
+        if in_black == 0
+            && in_white == 255
+            && (gamma - 1.0).abs() < 0.0001
+            && out_black == 0
+            && out_white == 255
+        {
             return Ok(source.clone());
         }
         let in_range = (in_white - in_black) as f32;
@@ -70,6 +113,8 @@ impl EffectImpl for LevelsImageEffect {
             }
             output.round_ties_even() as u8
         };
-        Ok(apply_pixel_operation(source, |c| SkColor::rgba(map(c.r), map(c.g), map(c.b), c.a)))
+        Ok(apply_pixel_operation(source, |c| {
+            SkColor::rgba(map(c.r), map(c.g), map(c.b), c.a)
+        }))
     }
 }

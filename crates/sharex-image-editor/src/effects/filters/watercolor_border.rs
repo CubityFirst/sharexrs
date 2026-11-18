@@ -32,11 +32,44 @@ impl EffectImpl for WatercolorBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 10, 300, 60, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("wash_color", "Wash color", SkColor::argb(0xFFB9A082), |e: &mut Self, v| e.wash_color = v),
-            float_slider::<Self>("edge_roughness", "Edge roughness", 0.0, 100.0, 65.0, |e: &mut Self, v| e.edge_roughness = v),
-            float_slider::<Self>("bleed_amount", "Bleed amount", 0.0, 100.0, 40.0, |e: &mut Self, v| e.bleed_amount = v),
-            float_slider::<Self>("opacity", "Opacity", 10.0, 100.0, 90.0, |e: &mut Self, v| e.opacity = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                10,
+                300,
+                60,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "wash_color",
+                "Wash color",
+                SkColor::argb(0xFFB9A082),
+                |e: &mut Self, v| e.wash_color = v,
+            ),
+            float_slider::<Self>(
+                "edge_roughness",
+                "Edge roughness",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.edge_roughness = v,
+            ),
+            float_slider::<Self>(
+                "bleed_amount",
+                "Bleed amount",
+                0.0,
+                100.0,
+                40.0,
+                |e: &mut Self, v| e.bleed_amount = v,
+            ),
+            float_slider::<Self>(
+                "opacity",
+                "Opacity",
+                10.0,
+                100.0,
+                90.0,
+                |e: &mut Self, v| e.opacity = v,
+            ),
         ]
     }
 
@@ -49,7 +82,11 @@ impl EffectImpl for WatercolorBorderImageEffect {
         let (sw, sh) = (source.width() as i32, source.height() as i32);
         let (nw, nh) = (sw + border * 2, sh + border * 2);
         let wc = self.wash_color;
-        let (wr, wg, wb) = (wc.r as f32 / 255.0, wc.g as f32 / 255.0, wc.b as f32 / 255.0);
+        let (wr, wg, wb) = (
+            wc.r as f32 / 255.0,
+            wc.g as f32 / 255.0,
+            wc.b as f32 / 255.0,
+        );
         let mut dst = vec![SkColor::default(); (nw * nh) as usize];
         let src = pixels(source);
         for y in 0..nh {

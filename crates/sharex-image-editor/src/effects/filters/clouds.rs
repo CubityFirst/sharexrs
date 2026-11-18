@@ -32,11 +32,41 @@ impl EffectImpl for CloudsImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("coverage", "Coverage", 0.0, 100.0, 55.0, |e: &mut Self, v| e.coverage = v),
-            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 72.0, |e: &mut Self, v| e.scale = v),
-            float_slider::<Self>("heightBias", "Height bias", 0.0, 100.0, 62.0, |e: &mut Self, v| e.height_bias = v),
-            float_slider::<Self>("softness", "Softness", 0.0, 100.0, 64.0, |e: &mut Self, v| e.softness = v),
-            float_slider::<Self>("sunlight", "Sunlight", 0.0, 100.0, 38.0, |e: &mut Self, v| e.sunlight = v),
+            float_slider::<Self>(
+                "coverage",
+                "Coverage",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.coverage = v,
+            ),
+            float_slider::<Self>("scale", "Scale", 0.0, 100.0, 72.0, |e: &mut Self, v| {
+                e.scale = v
+            }),
+            float_slider::<Self>(
+                "heightBias",
+                "Height bias",
+                0.0,
+                100.0,
+                62.0,
+                |e: &mut Self, v| e.height_bias = v,
+            ),
+            float_slider::<Self>(
+                "softness",
+                "Softness",
+                0.0,
+                100.0,
+                64.0,
+                |e: &mut Self, v| e.softness = v,
+            ),
+            float_slider::<Self>(
+                "sunlight",
+                "Sunlight",
+                0.0,
+                100.0,
+                38.0,
+                |e: &mut Self, v| e.sunlight = v,
+            ),
         ]
     }
 
@@ -58,8 +88,16 @@ impl EffectImpl for CloudsImageEffect {
         let warp_amount = 10.0 + (scale * 40.0);
         let erosion = 0.010 + ((1.0 - scale) * 0.020);
         let spawn = 0.82 - (coverage * 0.45);
-        let inv_w = if width > 1 { 1.0 / (width as f32 - 1.0) } else { 0.0 };
-        let inv_h = if height > 1 { 1.0 / (height as f32 - 1.0) } else { 0.0 };
+        let inv_w = if width > 1 {
+            1.0 / (width as f32 - 1.0)
+        } else {
+            0.0
+        };
+        let inv_h = if height > 1 {
+            1.0 / (height as f32 - 1.0)
+        } else {
+            0.0
+        };
         for y in 0..height {
             let row = y * width;
             let v = y as f32 * inv_h;
@@ -71,16 +109,53 @@ impl EffectImpl for CloudsImageEffect {
                 let s = src[(row + x) as usize];
                 let (sr, sg, sb) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
                 let u = xf * inv_w;
-                let warp_x = ((fractal_noise((xf * warp_freq) + 4.7, (yf * warp_freq * 0.92) - 2.1, 3, 2.02, 0.56, 1411) * 2.0) - 1.0) * warp_amount;
-                let warp_y = ((fractal_noise((xf * warp_freq * 0.88) - 6.4, (yf * warp_freq) + 3.6, 3, 2.10, 0.54, 2311) * 2.0) - 1.0)
+                let warp_x = ((fractal_noise(
+                    (xf * warp_freq) + 4.7,
+                    (yf * warp_freq * 0.92) - 2.1,
+                    3,
+                    2.02,
+                    0.56,
+                    1411,
+                ) * 2.0)
+                    - 1.0)
+                    * warp_amount;
+                let warp_y = ((fractal_noise(
+                    (xf * warp_freq * 0.88) - 6.4,
+                    (yf * warp_freq) + 3.6,
+                    3,
+                    2.10,
+                    0.54,
+                    2311,
+                ) * 2.0)
+                    - 1.0)
                     * (warp_amount * 0.65);
                 let sx = xf + warp_x;
                 let sy = yf + warp_y;
                 let (mf, ml, ms) = cloud_layer(sx, sy, cell, spawn, 3571);
-                let (df, dl, ds) = cloud_layer(sx + (cell * 0.24), sy - (cell * 0.15), detail_cell, spawn + 0.08, 5171);
+                let (df, dl, ds) = cloud_layer(
+                    sx + (cell * 0.24),
+                    sy - (cell * 0.15),
+                    detail_cell,
+                    spawn + 0.08,
+                    5171,
+                );
                 let field = 1.0 - ((1.0 - mf) * (1.0 - (df * 0.72)));
-                let breakup = billow((sx * erosion) - 3.2, (sy * erosion) + 5.9, 3, 2.00, 0.56, 6211);
-                let curls = fractal_noise((sx * erosion * 2.2) + 11.3, (sy * erosion * 1.9) - 7.6, 2, 2.12, 0.58, 7351);
+                let breakup = billow(
+                    (sx * erosion) - 3.2,
+                    (sy * erosion) + 5.9,
+                    3,
+                    2.00,
+                    0.56,
+                    6211,
+                );
+                let curls = fractal_noise(
+                    (sx * erosion * 2.2) + 11.3,
+                    (sy * erosion * 1.9) - 7.6,
+                    2,
+                    2.12,
+                    0.58,
+                    7351,
+                );
                 let bank = 0.5 + (0.5 * ((u * 5.6) + (v * 1.7) + 0.8).sin());
                 let mut structure = field * (0.72 + (0.22 * breakup) + (0.10 * curls));
                 structure = clamp01(structure + (bank * 0.07));
@@ -144,10 +219,23 @@ fn cloud_layer(x: f32, y: f32, cell: f32, spawn_threshold: f32, seed: i32) -> (f
 }
 
 #[allow(clippy::too_many_arguments)]
-fn puff(x: f32, y: f32, cx: f32, cy: f32, radius: f32, field: &mut f32, light: &mut f32, shadow: &mut f32) {
+fn puff(
+    x: f32,
+    y: f32,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    field: &mut f32,
+    light: &mut f32,
+    shadow: &mut f32,
+) {
     let nx = (x - cx) / (radius * 1.18);
     let dy = y - cy;
-    let ny = if dy < 0.0 { dy / (radius * 0.96) } else { dy / (radius * 0.70) };
+    let ny = if dy < 0.0 {
+        dy / (radius * 0.96)
+    } else {
+        dy / (radius * 0.70)
+    };
     let dist = ((nx * nx) + (ny * ny)).sqrt();
     if dist >= 1.0 {
         return;

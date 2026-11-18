@@ -26,17 +26,54 @@ impl Default for EngravingImageEffect {
 
 impl EffectImpl for EngravingImageEffect {
     fn info() -> Info {
-        Info::new("engraving", "Engraving", EffectCategory::Filters, "app/annotate")
-            .desc("Simulates a line engraving effect like banknote illustrations.")
+        Info::new(
+            "engraving",
+            "Engraving",
+            EffectCategory::Filters,
+            "app/annotate",
+        )
+        .desc("Simulates a line engraving effect like banknote illustrations.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("line_spacing", "Line Spacing", 2.0, 20.0, 5.0, |e: &mut Self, v| e.line_spacing = v).tick(0.5).snap(false).format("{}{0:0.0}"),
-            float_slider::<Self>("angle", "Angle", 0.0, 180.0, 45.0, |e: &mut Self, v| e.angle = v),
-            float_slider::<Self>("line_width_max", "Max Line Width", 0.5, 8.0, 2.5, |e: &mut Self, v| e.line_width_max = v).tick(0.1).snap(false).format("{}{0:0.0}"),
-            color_param::<Self>("line_color", "Line Color", SkColor::argb(0xFF141428), |e: &mut Self, v| e.line_color = v),
-            color_param::<Self>("paper_color", "Paper Color", SkColor::argb(0xFFF5F0E6), |e: &mut Self, v| e.paper_color = v),
+            float_slider::<Self>(
+                "line_spacing",
+                "Line Spacing",
+                2.0,
+                20.0,
+                5.0,
+                |e: &mut Self, v| e.line_spacing = v,
+            )
+            .tick(0.5)
+            .snap(false)
+            .format("{}{0:0.0}"),
+            float_slider::<Self>("angle", "Angle", 0.0, 180.0, 45.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
+            float_slider::<Self>(
+                "line_width_max",
+                "Max Line Width",
+                0.5,
+                8.0,
+                2.5,
+                |e: &mut Self, v| e.line_width_max = v,
+            )
+            .tick(0.1)
+            .snap(false)
+            .format("{}{0:0.0}"),
+            color_param::<Self>(
+                "line_color",
+                "Line Color",
+                SkColor::argb(0xFF141428),
+                |e: &mut Self, v| e.line_color = v,
+            ),
+            color_param::<Self>(
+                "paper_color",
+                "Paper Color",
+                SkColor::argb(0xFFF5F0E6),
+                |e: &mut Self, v| e.paper_color = v,
+            ),
         ]
     }
 
@@ -53,7 +90,10 @@ impl EffectImpl for EngravingImageEffect {
         let mut canvas = Canvas::new(&mut out);
         canvas.clear(self.paper_color.rgba_array());
         let (cos_a, sin_a) = (rad.cos(), rad.sin());
-        let diagonal = ((width.wrapping_mul(width).wrapping_add(height.wrapping_mul(height))) as f32).sqrt();
+        let diagonal = ((width
+            .wrapping_mul(width)
+            .wrapping_add(height.wrapping_mul(height))) as f32)
+            .sqrt();
         let line_count = (diagonal / spacing).ceil() as i32 + 1;
         let paint = solid(self.line_color, true);
         let (cx, cy) = (width as f32 * 0.5, height as f32 * 0.5);

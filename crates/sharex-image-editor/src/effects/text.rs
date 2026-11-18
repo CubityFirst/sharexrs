@@ -36,12 +36,19 @@ fn query(family: &str, weight: u16, italic: bool) -> Option<Typeface> {
         families: &families,
         weight: fontdb::Weight(weight),
         stretch: fontdb::Stretch::Normal,
-        style: if italic { fontdb::Style::Italic } else { fontdb::Style::Normal },
+        style: if italic {
+            fontdb::Style::Italic
+        } else {
+            fontdb::Style::Normal
+        },
     };
     let id = db.query(&q)?;
     let (_, index) = db.face_source(id)?;
     let data = db.with_face_data(id, |bytes, _| bytes.to_vec())?;
-    Some(Typeface { data: Arc::new(data), index })
+    Some(Typeface {
+        data: Arc::new(data),
+        index,
+    })
 }
 
 impl Typeface {
@@ -61,9 +68,15 @@ impl Typeface {
                 let id = db.faces().next()?.id;
                 let (_, index) = db.face_source(id)?;
                 let data = db.with_face_data(id, |bytes, _| bytes.to_vec())?;
-                Some(Typeface { data: Arc::new(data), index })
+                Some(Typeface {
+                    data: Arc::new(data),
+                    index,
+                })
             })
-            .unwrap_or(Typeface { data: Arc::new(Vec::new()), index: 0 })
+            .unwrap_or(Typeface {
+                data: Arc::new(Vec::new()),
+                index: 0,
+            })
     }
 
     fn face(&self) -> Option<ttf_parser::Face<'_>> {
@@ -105,7 +118,10 @@ impl Font {
         };
         let s = self.size / face.units_per_em() as f32;
         let (asc, desc) = match face.tables().os2 {
-            Some(os2) => (os2.windows_ascender() as f32, os2.windows_descender().unsigned_abs() as f32),
+            Some(os2) => (
+                os2.windows_ascender() as f32,
+                os2.windows_descender().unsigned_abs() as f32,
+            ),
             None => (face.ascender() as f32, -(face.descender() as f32)),
         };
         let hhea = face.ascender() as f32 - face.descender() as f32 + face.line_gap() as f32;
@@ -146,7 +162,11 @@ impl Font {
         let s = self.size / face.units_per_em() as f32;
         let mut pen = x;
         for (g, adv) in self.glyphs(&face, text) {
-            let (ox, oy) = if snap { ((pen + 0.5).floor(), (baseline + 0.5).floor()) } else { (pen, baseline) };
+            let (ox, oy) = if snap {
+                ((pen + 0.5).floor(), (baseline + 0.5).floor())
+            } else {
+                (pen, baseline)
+            };
             let mut b = Outline {
                 p: &mut out,
                 s,
@@ -165,7 +185,15 @@ impl Font {
     }
 
     /// `SKCanvas.DrawText(text, x, y, align, font, paint)`.
-    pub fn draw(&self, canvas: &mut Canvas, text: &str, x: f32, y: f32, align: Align, paint: &Paint) {
+    pub fn draw(
+        &self,
+        canvas: &mut Canvas,
+        text: &str,
+        x: f32,
+        y: f32,
+        align: Align,
+        paint: &Paint,
+    ) {
         let x = match align {
             Align::Left => x,
             Align::Center => x - self.measure(text) / 2.0,
@@ -177,7 +205,15 @@ impl Font {
     }
 
     /// `SKCanvas.DrawText` with a blur mask filter.
-    pub fn draw_blurred(&self, canvas: &mut Canvas, text: &str, x: f32, y: f32, paint: &Paint, sigma: f32) {
+    pub fn draw_blurred(
+        &self,
+        canvas: &mut Canvas,
+        text: &str,
+        x: f32,
+        y: f32,
+        paint: &Paint,
+        sigma: f32,
+    ) {
         let path = self.path(text, x, y, true);
         if !path.is_empty() {
             canvas.draw_path_mask_blur(&path, None, sigma, paint);
@@ -201,11 +237,19 @@ impl ttf_parser::OutlineBuilder for Outline<'_> {
     }
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         let (s, ox, oy) = (self.s, self.ox, self.oy);
-        self.p.quad_to(ox + x1 * s, oy - y1 * s, ox + x * s, oy - y * s);
+        self.p
+            .quad_to(ox + x1 * s, oy - y1 * s, ox + x * s, oy - y * s);
     }
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         let (s, ox, oy) = (self.s, self.ox, self.oy);
-        self.p.cubic_to(ox + x1 * s, oy - y1 * s, ox + x2 * s, oy - y2 * s, ox + x * s, oy - y * s);
+        self.p.cubic_to(
+            ox + x1 * s,
+            oy - y1 * s,
+            ox + x2 * s,
+            oy - y2 * s,
+            ox + x * s,
+            oy - y * s,
+        );
     }
     fn close(&mut self) {
         self.p.close();

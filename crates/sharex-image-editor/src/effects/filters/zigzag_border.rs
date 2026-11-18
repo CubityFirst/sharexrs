@@ -34,12 +34,45 @@ impl EffectImpl for ZigZagBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 8, 200, 36, |e: &mut Self, v| e.border_size = v),
-            float_slider::<Self>("teeth_height", "Teeth height", 5.0, 80.0, 40.0, |e: &mut Self, v| e.teeth_height = v),
-            float_slider::<Self>("teeth_width", "Teeth width", 4.0, 80.0, 24.0, |e: &mut Self, v| e.teeth_width = v),
-            color_param::<Self>("frame_color", "Frame color", SkColor::argb(0xFF282832), |e: &mut Self, v| e.frame_color = v),
-            color_param::<Self>("accent_color", "Accent color", SkColor::argb(0xFFDCB43C), |e: &mut Self, v| e.accent_color = v),
-            bool_param::<Self>("accent_stripe", "Accent stripe", true, |e: &mut Self, v| e.accent_stripe = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                8,
+                200,
+                36,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            float_slider::<Self>(
+                "teeth_height",
+                "Teeth height",
+                5.0,
+                80.0,
+                40.0,
+                |e: &mut Self, v| e.teeth_height = v,
+            ),
+            float_slider::<Self>(
+                "teeth_width",
+                "Teeth width",
+                4.0,
+                80.0,
+                24.0,
+                |e: &mut Self, v| e.teeth_width = v,
+            ),
+            color_param::<Self>(
+                "frame_color",
+                "Frame color",
+                SkColor::argb(0xFF282832),
+                |e: &mut Self, v| e.frame_color = v,
+            ),
+            color_param::<Self>(
+                "accent_color",
+                "Accent color",
+                SkColor::argb(0xFFDCB43C),
+                |e: &mut Self, v| e.accent_color = v,
+            ),
+            bool_param::<Self>("accent_stripe", "Accent stripe", true, |e: &mut Self, v| {
+                e.accent_stripe = v
+            }),
         ]
     }
 
@@ -58,7 +91,12 @@ impl EffectImpl for ZigZagBorderImageEffect {
         });
         if self.accent_stripe {
             let stripe_w = 2f32.max(border as f32 * 0.1);
-            sk::stroke_path(&mut canvas, &inner, &Pen::new(stripe_w), &solid(self.accent_color, true));
+            sk::stroke_path(
+                &mut canvas,
+                &inner,
+                &Pen::new(stripe_w),
+                &solid(self.accent_color, true),
+            );
         }
         drop(canvas);
         Ok(out)

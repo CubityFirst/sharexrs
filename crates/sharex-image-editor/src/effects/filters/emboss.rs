@@ -4,13 +4,11 @@ use crate::effects::prelude::*;
 
 /// `EmbossImageEffect`.
 #[derive(Clone, Debug)]
-pub struct EmbossImageEffect {
-}
+pub struct EmbossImageEffect {}
 
 impl Default for EmbossImageEffect {
     fn default() -> Self {
-        EmbossImageEffect {
-        }
+        EmbossImageEffect {}
     }
 }
 

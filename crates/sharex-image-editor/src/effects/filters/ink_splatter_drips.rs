@@ -24,16 +24,44 @@ impl Default for InkSplatterDripsImageEffect {
 
 impl EffectImpl for InkSplatterDripsImageEffect {
     fn info() -> Info {
-        Info::new("ink_splatter_drips", "Ink splatter + drips", EffectCategory::Filters, "image-effect/paint-brush")
-            .desc("Adds ink splatter blobs and vertical drip marks.")
+        Info::new(
+            "ink_splatter_drips",
+            "Ink splatter + drips",
+            EffectCategory::Filters,
+            "image-effect/paint-brush",
+        )
+        .desc("Adds ink splatter blobs and vertical drip marks.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("ink_amount", "Ink amount", 0.0, 100.0, 55.0, |e: &mut Self, v| e.ink_amount = v),
-            float_slider::<Self>("drip_length", "Drip length", 0.0, 100.0, 45.0, |e: &mut Self, v| e.drip_length = v),
-            float_slider::<Self>("spread", "Spread", 0.0, 100.0, 35.0, |e: &mut Self, v| e.spread = v),
-            float_slider::<Self>("paper_fade", "Paper fade", 0.0, 100.0, 20.0, |e: &mut Self, v| e.paper_fade = v),
+            float_slider::<Self>(
+                "ink_amount",
+                "Ink amount",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.ink_amount = v,
+            ),
+            float_slider::<Self>(
+                "drip_length",
+                "Drip length",
+                0.0,
+                100.0,
+                45.0,
+                |e: &mut Self, v| e.drip_length = v,
+            ),
+            float_slider::<Self>("spread", "Spread", 0.0, 100.0, 35.0, |e: &mut Self, v| {
+                e.spread = v
+            }),
+            float_slider::<Self>(
+                "paper_fade",
+                "Paper fade",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.paper_fade = v,
+            ),
         ]
     }
 
@@ -68,17 +96,33 @@ impl EffectImpl for InkSplatterDripsImageEffect {
                     g = lerp(g, target, mix);
                     b = lerp(b, target + 4.0, mix);
                 }
-                let splatter = splat_mask(x, y, splat_cell, splat_radius, splat_density, seed ^ 991);
-                let drips = drip_mask(x, y, height, drip_cell, drip_probability, drip_length, spread, seed ^ 3701);
+                let splatter =
+                    splat_mask(x, y, splat_cell, splat_radius, splat_density, seed ^ 991);
+                let drips = drip_mask(
+                    x,
+                    y,
+                    height,
+                    drip_cell,
+                    drip_probability,
+                    drip_length,
+                    spread,
+                    seed ^ 3701,
+                );
                 let speckle = hash01(x, y, seed ^ 5239).powf(26.0) * ink_amount * 0.85;
-                let mask = clampf((splatter * 0.9) + (drips * 0.85) + speckle, 0.0, 1.0) * ink_amount;
+                let mask =
+                    clampf((splatter * 0.9) + (drips * 0.85) + speckle, 0.0, 1.0) * ink_amount;
                 if mask > 0.0001 {
                     let bleed = 0f32.max(splatter - 0.25) * 0.3;
                     r = lerp(r, 11.0 + (bleed * 10.0), mask);
                     g = lerp(g, 11.0 + (bleed * 8.0), mask);
                     b = lerp(b, 15.0 + (bleed * 12.0), mask);
                 }
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), clamp_to_byte(a));
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r),
+                    clamp_to_byte(g),
+                    clamp_to_byte(b),
+                    clamp_to_byte(a),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))
@@ -113,7 +157,16 @@ fn splat_mask(x: i32, y: i32, cell: f32, radius: f32, density: f32, seed: i32) -
 }
 
 #[allow(clippy::too_many_arguments)]
-fn drip_mask(x: i32, y: i32, height: i32, cell_w: f32, probability: f32, drip_length: f32, spread: f32, seed: i32) -> f32 {
+fn drip_mask(
+    x: i32,
+    y: i32,
+    height: i32,
+    cell_w: f32,
+    probability: f32,
+    drip_length: f32,
+    spread: f32,
+    seed: i32,
+) -> f32 {
     let column = (x as f32 / cell_w).floor() as i32;
     let mut strongest = 0f32;
     let (xf, yf) = (x as f32, y as f32);
@@ -123,7 +176,9 @@ fn drip_mask(x: i32, y: i32, height: i32, cell_w: f32, probability: f32, drip_le
         }
         let cx = (c as f32 + hash01(c, 1, seed ^ 211)) * cell_w;
         let start_y = hash01(c, 2, seed ^ 419) * height as f32 * 0.75;
-        let len = (0.08 + (drip_length * 0.85)) * (0.4 + (hash01(c, 3, seed ^ 677) * 0.9)) * height as f32;
+        let len = (0.08 + (drip_length * 0.85))
+            * (0.4 + (hash01(c, 3, seed ^ 677) * 0.9))
+            * height as f32;
         let thickness = (0.9 + (spread * 3.2)) * (0.65 + (hash01(c, 4, seed ^ 991) * 0.95));
         let dy = yf - start_y;
         if dy < 0.0 || dy > len {

@@ -20,14 +20,23 @@ impl Default for ColorSplashImageEffect {
 
 impl EffectImpl for ColorSplashImageEffect {
     fn info() -> Info {
-        Info::new("color_splash", "Color splash", EffectCategory::Filters, "image-effect/droplets")
-            .desc("Keeps one color and desaturates the rest of the image.")
+        Info::new(
+            "color_splash",
+            "Color splash",
+            EffectCategory::Filters,
+            "image-effect/droplets",
+        )
+        .desc("Keeps one color and desaturates the rest of the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("hue", "Target hue", 0, 360, 0, |e: &mut Self, v| e.target_hue = v),
-            int_slider::<Self>("tolerance", "Tolerance", 1, 180, 30, |e: &mut Self, v| e.tolerance = v),
+            int_slider::<Self>("hue", "Target hue", 0, 360, 0, |e: &mut Self, v| {
+                e.target_hue = v
+            }),
+            int_slider::<Self>("tolerance", "Tolerance", 1, 180, 30, |e: &mut Self, v| {
+                e.tolerance = v
+            }),
         ]
     }
 
@@ -45,7 +54,8 @@ impl EffectImpl for ColorSplashImageEffect {
                 if diff <= tol && sat > 5.0 {
                     c
                 } else {
-                    let gray = (0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32) as u8;
+                    let gray =
+                        (0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32) as u8;
                     SkColor::rgba(gray, gray, gray, c.a)
                 }
             })

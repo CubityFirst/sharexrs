@@ -1,6 +1,6 @@
 //! `Core/ImageEffects/Manipulations`.
 
-use super::{def, EffectDefinition};
+use super::{EffectDefinition, def};
 
 pub(crate) mod auto_crop_image;
 pub(crate) mod crop_image;

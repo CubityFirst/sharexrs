@@ -1,6 +1,6 @@
 //! `Core/ImageEffects/Adjustments`.
 
-use super::{def, EffectDefinition};
+use super::{EffectDefinition, def};
 
 pub(crate) mod alpha;
 pub(crate) mod auto_contrast;

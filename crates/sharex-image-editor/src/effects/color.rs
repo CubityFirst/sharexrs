@@ -94,23 +94,13 @@ impl SkColor {
     /// `SKColor.FromHsl` (h in degrees, s and l in percent).
     pub fn from_hsl(h: f32, s: f32, l: f32, a: u8) -> Self {
         let [r, g, b] = hsl_f(h, s, l);
-        SkColor::rgba(
-            (r * 255.0) as u8,
-            (g * 255.0) as u8,
-            (b * 255.0) as u8,
-            a,
-        )
+        SkColor::rgba((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, a)
     }
 
     /// `SKColor.FromHsv` (h in degrees, s and v in percent).
     pub fn from_hsv(h: f32, s: f32, v: f32, a: u8) -> Self {
         let [r, g, b] = hsv_f(h, s, v);
-        SkColor::rgba(
-            (r * 255.0) as u8,
-            (g * 255.0) as u8,
-            (b * 255.0) as u8,
-            a,
-        )
+        SkColor::rgba((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, a)
     }
 
     /// `SKColor.ToHsl`: h in degrees, s and l in percent.
@@ -185,10 +175,10 @@ pub fn hsl_f(h: f32, s: f32, l: f32) -> [f32; 3] {
     let s = s / 100.0;
     let l = l / 100.0;
     if s.abs() > 0.001 {
-        let v2 = if !(l < 0.5) {
-            l + s - s * l
-        } else {
+        let v2 = if l < 0.5 {
             l * (1.0 + s)
+        } else {
+            l + s - s * l
         };
         let v1 = 2.0 * l - v2;
         [

@@ -28,17 +28,47 @@ impl Default for PointillismImageEffect {
 
 impl EffectImpl for PointillismImageEffect {
     fn info() -> Info {
-        Info::new("pointillism", "Pointillism", EffectCategory::Filters, "image-effect/circle-dot")
-            .desc("Renders the image as a pointillist painting with colored dots.")
+        Info::new(
+            "pointillism",
+            "Pointillism",
+            EffectCategory::Filters,
+            "image-effect/circle-dot",
+        )
+        .desc("Renders the image as a pointillist painting with colored dots.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("dot_size", "Dot size", 2, 24, 7, |e: &mut Self, v| e.dot_size = v),
-            float_slider::<Self>("density", "Density", 10.0, 100.0, 72.0, |e: &mut Self, v| e.density = v),
-            float_slider::<Self>("jitter", "Jitter", 0.0, 100.0, 65.0, |e: &mut Self, v| e.jitter = v),
-            float_slider::<Self>("color_boost", "Color boost", 0.0, 100.0, 20.0, |e: &mut Self, v| e.color_boost = v),
-            float_slider::<Self>("background_mix", "Background mix", 0.0, 100.0, 20.0, |e: &mut Self, v| e.background_mix = v),
+            int_slider::<Self>("dot_size", "Dot size", 2, 24, 7, |e: &mut Self, v| {
+                e.dot_size = v
+            }),
+            float_slider::<Self>(
+                "density",
+                "Density",
+                10.0,
+                100.0,
+                72.0,
+                |e: &mut Self, v| e.density = v,
+            ),
+            float_slider::<Self>("jitter", "Jitter", 0.0, 100.0, 65.0, |e: &mut Self, v| {
+                e.jitter = v
+            }),
+            float_slider::<Self>(
+                "color_boost",
+                "Color boost",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.color_boost = v,
+            ),
+            float_slider::<Self>(
+                "background_mix",
+                "Background mix",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.background_mix = v,
+            ),
         ]
     }
 

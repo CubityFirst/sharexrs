@@ -10,21 +10,29 @@ pub struct GammaImageEffect {
 
 impl Default for GammaImageEffect {
     fn default() -> Self {
-        GammaImageEffect {
-            amount: 1.0,
-        }
+        GammaImageEffect { amount: 1.0 }
     }
 }
 
 impl EffectImpl for GammaImageEffect {
     fn info() -> Info {
-        Info::new("gamma", "Gamma", EffectCategory::Adjustments, "image-effect/gauge")
-            .desc("Adjusts the gamma level.")
+        Info::new(
+            "gamma",
+            "Gamma",
+            EffectCategory::Adjustments,
+            "image-effect/gauge",
+        )
+        .desc("Adjusts the gamma level.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("amount", "Amount", 0.1, 5.0, 1.0, |e: &mut Self, v| e.amount = v).tick(0.1).snap(false).format("{}{0:0.0}"),
+            float_slider::<Self>("amount", "Amount", 0.1, 5.0, 1.0, |e: &mut Self, v| {
+                e.amount = v
+            })
+            .tick(0.1)
+            .snap(false)
+            .format("{}{0:0.0}"),
         ]
     }
 

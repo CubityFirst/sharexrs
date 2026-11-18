@@ -28,14 +28,21 @@ impl Default for WaveEdgeImageEffect {
 
 impl EffectImpl for WaveEdgeImageEffect {
     fn info() -> Info {
-        Info::new("wave_edge", "Wave edge", EffectCategory::Filters, "image-effect/waves")
-            .desc("Adds a wavy edge to the image.")
+        Info::new(
+            "wave_edge",
+            "Wave edge",
+            EffectCategory::Filters,
+            "image-effect/waves",
+        )
+        .desc("Adds a wavy edge to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("depth", "Depth", 1, 100, 15, |e: &mut Self, v| e.depth = v).snap(false),
-            int_slider::<Self>("range", "Range", 1, 100, 20, |e: &mut Self, v| e.range = v).snap(false),
+            int_slider::<Self>("depth", "Depth", 1, 100, 15, |e: &mut Self, v| e.depth = v)
+                .snap(false),
+            int_slider::<Self>("range", "Range", 1, 100, 20, |e: &mut Self, v| e.range = v)
+                .snap(false),
             bool_param::<Self>("top", "Top", true, |e: &mut Self, v| e.top = v),
             bool_param::<Self>("right", "Right", true, |e: &mut Self, v| e.right = v),
             bool_param::<Self>("bottom", "Bottom", true, |e: &mut Self, v| e.bottom = v),
@@ -59,7 +66,10 @@ impl EffectImpl for WaveEdgeImageEffect {
         let h_range = sw / h_count;
         let v_range = sh / v_count;
         let step = 1.max(self.range / depth).min(10);
-        let wave = |t: i32, max: i32| ((1.0 - (t as f64 * std::f64::consts::PI / max as f64).cos()) * depth as f64 / 2.0) as f32;
+        let wave = |t: i32, max: i32| {
+            ((1.0 - (t as f64 * std::f64::consts::PI / max as f64).cos()) * depth as f64 / 2.0)
+                as f32
+        };
         if self.top {
             let start = if self.left { depth } else { 0 };
             let end = if self.right { sw - depth } else { sw };

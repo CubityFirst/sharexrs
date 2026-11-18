@@ -32,15 +32,45 @@ impl Default for LightLeakImageEffect {
 
 impl EffectImpl for LightLeakImageEffect {
     fn info() -> Info {
-        Info::new("light_leak", "Light leak", EffectCategory::Filters, "app/sun")
-            .desc("Adds a warm film light leak effect.")
+        Info::new(
+            "light_leak",
+            "Light leak",
+            EffectCategory::Filters,
+            "app/sun",
+        )
+        .desc("Adds a warm film light leak effect.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("intensity", "Intensity", 0.0, 100.0, 50.0, |e: &mut Self, v| e.intensity = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFFFA032), |e: &mut Self, v| e.color = v),
-            enum_param::<Self, LightLeakPosition>("position", "Position", LightLeakPosition::TopRight, |e: &mut Self, v| e.position = v, &[("Top left", LightLeakPosition::TopLeft), ("Top right", LightLeakPosition::TopRight), ("Bottom left", LightLeakPosition::BottomLeft), ("Bottom right", LightLeakPosition::BottomRight), ("Left", LightLeakPosition::Left), ("Right", LightLeakPosition::Right)]),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFFFA032),
+                |e: &mut Self, v| e.color = v,
+            ),
+            enum_param::<Self, LightLeakPosition>(
+                "position",
+                "Position",
+                LightLeakPosition::TopRight,
+                |e: &mut Self, v| e.position = v,
+                &[
+                    ("Top left", LightLeakPosition::TopLeft),
+                    ("Top right", LightLeakPosition::TopRight),
+                    ("Bottom left", LightLeakPosition::BottomLeft),
+                    ("Bottom right", LightLeakPosition::BottomRight),
+                    ("Left", LightLeakPosition::Left),
+                    ("Right", LightLeakPosition::Right),
+                ],
+            ),
         ]
     }
 
@@ -63,7 +93,13 @@ impl EffectImpl for LightLeakImageEffect {
         };
         let radius = ((w * w + h * h) as f32).sqrt() * 0.8;
         let leak = self.color.with_alpha((255.0 * alpha) as u8);
-        let mut paint = sk::radial_gradient(center, radius, &[leak, color::TRANSPARENT], Some(&[0.0, 1.0]), false);
+        let mut paint = sk::radial_gradient(
+            center,
+            radius,
+            &[leak, color::TRANSPARENT],
+            Some(&[0.0, 1.0]),
+            false,
+        );
         paint.blend = Blend::Screen;
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, wf, hf, &paint, None);
         drop(canvas);

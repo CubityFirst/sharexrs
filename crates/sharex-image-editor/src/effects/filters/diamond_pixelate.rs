@@ -10,22 +10,30 @@ pub struct DiamondPixelateImageEffect {
 
 impl Default for DiamondPixelateImageEffect {
     fn default() -> Self {
-        DiamondPixelateImageEffect {
-            size: 16,
-        }
+        DiamondPixelateImageEffect { size: 16 }
     }
 }
 
 impl EffectImpl for DiamondPixelateImageEffect {
     fn info() -> Info {
-        Info::new("diamond_pixelate", "Diamond pixelate", EffectCategory::Filters, "image-effect/diamond")
-            .desc("Pixelates the image using diamond-shaped blocks.")
+        Info::new(
+            "diamond_pixelate",
+            "Diamond pixelate",
+            EffectCategory::Filters,
+            "image-effect/diamond",
+        )
+        .desc("Pixelates the image using diamond-shaped blocks.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            int_slider::<Self>("size", "Size", 4, 100, 16, |e: &mut Self, v| e.size = v),
-        ]
+        vec![int_slider::<Self>(
+            "size",
+            "Size",
+            4,
+            100,
+            16,
+            |e: &mut Self, v| e.size = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {

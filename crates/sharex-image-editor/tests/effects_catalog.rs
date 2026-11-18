@@ -13,8 +13,10 @@ fn num(v: &serde_json::Value) -> f64 {
 
 #[test]
 fn catalog_matches_sharex() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/effects/catalog.json");
-    let sharex: Vec<serde_json::Value> = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/effects/catalog.json");
+    let sharex: Vec<serde_json::Value> =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let ours = effects::catalog();
     let ids: Vec<&str> = ours.iter().map(|d| d.id).collect();
     let theirs: Vec<&str> = sharex.iter().map(|e| e["id"].as_str().unwrap()).collect();
@@ -28,21 +30,45 @@ fn catalog_matches_sharex() {
             }
         };
         check("name", d.name.into(), e["name"].as_str().unwrap().into());
-        check("browserLabel", d.browser_label.clone(), e["browserLabel"].as_str().unwrap().into());
+        check(
+            "browserLabel",
+            d.browser_label.clone(),
+            e["browserLabel"].as_str().unwrap().into(),
+        );
         check("icon", d.icon.into(), e["icon"].as_str().unwrap().into());
-        check("description", d.description.into(), e["description"].as_str().unwrap().into());
-        check("category", d.category.name().into(), e["category"].as_str().unwrap().into());
+        check(
+            "description",
+            d.description.into(),
+            e["description"].as_str().unwrap().into(),
+        );
+        check(
+            "category",
+            d.category.name().into(),
+            e["category"].as_str().unwrap().into(),
+        );
         check(
             "applyImmediately",
             d.apply_immediately.to_string(),
             e["applyImmediately"].as_bool().unwrap().to_string(),
         );
         let params = e["parameters"].as_array().unwrap();
-        check("parameter count", d.parameters.len().to_string(), params.len().to_string());
+        check(
+            "parameter count",
+            d.parameters.len().to_string(),
+            params.len().to_string(),
+        );
         for (p, q) in d.parameters.iter().zip(params) {
             let key = p.key;
-            check(&format!("{key} key"), p.key.into(), q["key"].as_str().unwrap().into());
-            check(&format!("{key} label"), p.label.into(), q["label"].as_str().unwrap().into());
+            check(
+                &format!("{key} key"),
+                p.key.into(),
+                q["key"].as_str().unwrap().into(),
+            );
+            check(
+                &format!("{key} label"),
+                p.label.into(),
+                q["label"].as_str().unwrap().into(),
+            );
             check(
                 &format!("{key} description"),
                 p.description.unwrap_or("").into(),
@@ -50,17 +76,34 @@ fn catalog_matches_sharex() {
             );
             let kind = q["kind"].as_str().unwrap();
             let ours = match &p.kind {
-                ParamKind::Slider { min, max, default, tick, snap, format } => {
+                ParamKind::Slider {
+                    min,
+                    max,
+                    default,
+                    tick,
+                    snap,
+                    format,
+                } => {
                     format!("slider {min} {max} {default} {tick} {snap} {format}")
                 }
-                ParamKind::Numeric { min, max, default, increment, format } => {
+                ParamKind::Numeric {
+                    min,
+                    max,
+                    default,
+                    increment,
+                    format,
+                } => {
                     format!("numeric {min} {max} {default} {increment} {format}")
                 }
                 ParamKind::Checkbox { default } => format!("checkbox {default}"),
-                ParamKind::Enum { options, default } => format!("enum {default} {}", options.join("|")),
+                ParamKind::Enum { options, default } => {
+                    format!("enum {default} {}", options.join("|"))
+                }
                 ParamKind::Color { default } => format!("color {}", default.to_hex()),
                 ParamKind::Text { default } => format!("text {default}"),
-                ParamKind::FilePath { default, filter } => format!("file {default} {}", filter.unwrap_or("")),
+                ParamKind::FilePath { default, filter } => {
+                    format!("file {default} {}", filter.unwrap_or(""))
+                }
             };
             let theirs = match kind {
                 "slider" => format!(
@@ -94,7 +137,11 @@ fn catalog_matches_sharex() {
                 ),
                 "color" => format!("color {}", q["default"].as_str().unwrap()),
                 "text" => format!("text {}", q["default"].as_str().unwrap()),
-                "file" => format!("file {} {}", q["default"].as_str().unwrap(), q["filter"].as_str().unwrap_or("")),
+                "file" => format!(
+                    "file {} {}",
+                    q["default"].as_str().unwrap(),
+                    q["filter"].as_str().unwrap_or("")
+                ),
                 k => panic!("kind {k}"),
             };
             check(&format!("{key} kind"), ours, theirs);
@@ -105,10 +152,21 @@ fn catalog_matches_sharex() {
 
 #[test]
 fn lookups() {
-    assert_eq!(effects::find("GAUSSIAN_BLUR").map(|d| d.id), Some("gaussian_blur"));
+    assert_eq!(
+        effects::find("GAUSSIAN_BLUR").map(|d| d.id),
+        Some("gaussian_blur")
+    );
     assert!(effects::find("nope").is_none());
-    let total: usize = EffectCategory::ALL.iter().map(|c| effects::by_category(*c).len()).sum();
+    let total: usize = EffectCategory::ALL
+        .iter()
+        .map(|c| effects::by_category(*c).len())
+        .sum();
     assert_eq!(total, effects::catalog().len());
-    assert!(effects::find("rotate_180").unwrap().editor_operation().is_some());
+    assert!(
+        effects::find("rotate_180")
+            .unwrap()
+            .editor_operation()
+            .is_some()
+    );
     assert!(effects::find("invert").unwrap().apply_immediately);
 }

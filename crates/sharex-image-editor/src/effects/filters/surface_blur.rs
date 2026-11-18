@@ -20,14 +20,21 @@ impl Default for SurfaceBlurImageEffect {
 
 impl EffectImpl for SurfaceBlurImageEffect {
     fn info() -> Info {
-        Info::new("surface_blur", "Surface blur", EffectCategory::Filters, "image-effect/waves")
-            .desc("Blurs while preserving edges based on color similarity.")
+        Info::new(
+            "surface_blur",
+            "Surface blur",
+            EffectCategory::Filters,
+            "image-effect/waves",
+        )
+        .desc("Blurs while preserving edges based on color similarity.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("radius", "Radius", 1, 8, 3, |e: &mut Self, v| e.radius = v),
-            int_slider::<Self>("threshold", "Threshold", 1, 100, 24, |e: &mut Self, v| e.threshold = v),
+            int_slider::<Self>("threshold", "Threshold", 1, 100, 24, |e: &mut Self, v| {
+                e.threshold = v
+            }),
         ]
     }
 
@@ -51,12 +58,15 @@ impl EffectImpl for SurfaceBlurImageEffect {
         for y in 0..height {
             for x in 0..width {
                 let c0 = src[(y * width + x) as usize];
-                let (mut sr, mut sg, mut sb, mut sa, mut sw) = (c0.r as f32, c0.g as f32, c0.b as f32, c0.a as f32, 1f32);
+                let (mut sr, mut sg, mut sb, mut sa, mut sw) =
+                    (c0.r as f32, c0.g as f32, c0.b as f32, c0.a as f32, 1f32);
                 for &(kx, ky) in &offsets {
                     let sx = (x + kx).clamp(0, right);
                     let sy = (y + ky).clamp(0, bottom);
                     let c = src[(sy * width + sx) as usize];
-                    let delta = (c.r as i32 - c0.r as i32).abs() + (c.g as i32 - c0.g as i32).abs() + (c.b as i32 - c0.b as i32).abs();
+                    let delta = (c.r as i32 - c0.r as i32).abs()
+                        + (c.g as i32 - c0.g as i32).abs()
+                        + (c.b as i32 - c0.b as i32).abs();
                     if delta > tsum {
                         continue;
                     }
@@ -68,8 +78,12 @@ impl EffectImpl for SurfaceBlurImageEffect {
                     sw += w;
                 }
                 let inv = 1.0 / 0.0001f32.max(sw);
-                dst[(y * width + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(sr * inv), clamp_to_byte(sg * inv), clamp_to_byte(sb * inv), clamp_to_byte(sa * inv));
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(sr * inv),
+                    clamp_to_byte(sg * inv),
+                    clamp_to_byte(sb * inv),
+                    clamp_to_byte(sa * inv),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

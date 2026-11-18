@@ -22,15 +22,36 @@ impl Default for ChromaticAberrationImageEffect {
 
 impl EffectImpl for ChromaticAberrationImageEffect {
     fn info() -> Info {
-        Info::new("chromatic_aberration", "Chromatic aberration", EffectCategory::Filters, "image-effect/aperture")
-            .desc("Simulates lens chromatic aberration with RGB channel splitting.")
+        Info::new(
+            "chromatic_aberration",
+            "Chromatic aberration",
+            EffectCategory::Filters,
+            "image-effect/aperture",
+        )
+        .desc("Simulates lens chromatic aberration with RGB channel splitting.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("amount", "Amount", 0.0, 40.0, 8.0, |e: &mut Self, v| e.amount = v),
-            float_slider::<Self>("edgeStart", "Edge start", 0.0, 0.949999988079071, 0.20000000298023224, |e: &mut Self, v| e.edge_start = v),
-            float_slider::<Self>("strength", "Strength", 0.0, 100.0, 75.0, |e: &mut Self, v| e.strength = v),
+            float_slider::<Self>("amount", "Amount", 0.0, 40.0, 8.0, |e: &mut Self, v| {
+                e.amount = v
+            }),
+            float_slider::<Self>(
+                "edgeStart",
+                "Edge start",
+                0.0,
+                0.949999988079071,
+                0.20000000298023224,
+                |e: &mut Self, v| e.edge_start = v,
+            ),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                0.0,
+                100.0,
+                75.0,
+                |e: &mut Self, v| e.strength = v,
+            ),
         ]
     }
 
@@ -49,8 +70,10 @@ impl EffectImpl for ChromaticAberrationImageEffect {
         let cy = bottom as f32 * 0.5;
         let inv_cx = if cx > 0.0 { 1.0 / cx } else { 0.0 };
         let inv_cy = if cy > 0.0 { 1.0 / cy } else { 0.0 };
-        const INV_SQRT2: f32 = 0.70710678;
-        let lum = |c: SkColor| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+        const INV_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
+        let lum = |c: SkColor| {
+            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+        };
         for y in 0..height {
             let row = y * width;
             let dyn_ = (y as f32 - cy) * inv_cy;
@@ -73,15 +96,42 @@ impl EffectImpl for ChromaticAberrationImageEffect {
                     continue;
                 }
                 let shift = amount * radial;
-                let sr = bilinear_sample(&src, width, height, x as f32 + (dir_x * shift), y as f32 + (dir_y * shift));
-                let sb = bilinear_sample(&src, width, height, x as f32 - (dir_x * shift), y as f32 - (dir_y * shift));
+                let sr = bilinear_sample(
+                    &src,
+                    width,
+                    height,
+                    x as f32 + (dir_x * shift),
+                    y as f32 + (dir_y * shift),
+                );
+                let sb = bilinear_sample(
+                    &src,
+                    width,
+                    height,
+                    x as f32 - (dir_x * shift),
+                    y as f32 - (dir_y * shift),
+                );
                 let split = smooth_step(0.01, 0.30, (lum(sr) - lum(sb)).abs());
                 let boost = mix * (0.85 + (1.35 * split));
-                let red = lerp(o.r as f32, sr.r as f32, mix) + ((sr.r as i32 - o.r as i32) as f32 * boost);
-                let green = lerp(o.g as f32, (sr.g as i32 + o.g as i32 + sb.g as i32) as f32 / 3.0, mix * 0.06);
-                let blue = lerp(o.b as f32, sb.b as f32, mix) + ((sb.b as i32 - o.b as i32) as f32 * boost);
-                let alpha = lerp(o.a as f32, (sr.a as i32 + o.a as i32 + sb.a as i32) as f32 / 3.0, mix);
-                dst[i] = SkColor::rgba(clamp_to_byte(red), clamp_to_byte(green), clamp_to_byte(blue), clamp_to_byte(alpha));
+                let red = lerp(o.r as f32, sr.r as f32, mix)
+                    + ((sr.r as i32 - o.r as i32) as f32 * boost);
+                let green = lerp(
+                    o.g as f32,
+                    (sr.g as i32 + o.g as i32 + sb.g as i32) as f32 / 3.0,
+                    mix * 0.06,
+                );
+                let blue = lerp(o.b as f32, sb.b as f32, mix)
+                    + ((sb.b as i32 - o.b as i32) as f32 * boost);
+                let alpha = lerp(
+                    o.a as f32,
+                    (sr.a as i32 + o.a as i32 + sb.a as i32) as f32 / 3.0,
+                    mix,
+                );
+                dst[i] = SkColor::rgba(
+                    clamp_to_byte(red),
+                    clamp_to_byte(green),
+                    clamp_to_byte(blue),
+                    clamp_to_byte(alpha),
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

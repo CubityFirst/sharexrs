@@ -34,12 +34,38 @@ impl EffectImpl for CircuitBoardBorderImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_numeric::<Self>("border_size", "Border size", 20, 300, 64, |e: &mut Self, v| e.border_size = v),
-            color_param::<Self>("board_color", "Board color", SkColor::argb(0xFF0C3A20), |e: &mut Self, v| e.board_color = v),
-            color_param::<Self>("trace_color", "Trace color", SkColor::argb(0xFFB87333), |e: &mut Self, v| e.trace_color = v),
-            float_slider::<Self>("trace_density", "Trace density", 10.0, 100.0, 55.0, |e: &mut Self, v| e.trace_density = v),
+            int_numeric::<Self>(
+                "border_size",
+                "Border size",
+                20,
+                300,
+                64,
+                |e: &mut Self, v| e.border_size = v,
+            ),
+            color_param::<Self>(
+                "board_color",
+                "Board color",
+                SkColor::argb(0xFF0C3A20),
+                |e: &mut Self, v| e.board_color = v,
+            ),
+            color_param::<Self>(
+                "trace_color",
+                "Trace color",
+                SkColor::argb(0xFFB87333),
+                |e: &mut Self, v| e.trace_color = v,
+            ),
+            float_slider::<Self>(
+                "trace_density",
+                "Trace density",
+                10.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.trace_density = v,
+            ),
             bool_param::<Self>("glow", "Trace glow", true, |e: &mut Self, v| e.glow = v),
-            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| e.inner_line = v),
+            bool_param::<Self>("inner_line", "Inner line", true, |e: &mut Self, v| {
+                e.inner_line = v
+            }),
         ]
     }
 
@@ -54,24 +80,94 @@ impl EffectImpl for CircuitBoardBorderImageEffect {
         let (bf, nwf) = (border as f32, nw as f32);
         let board = solid(self.board_color, false);
         sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, nwf, bf, &board, None);
-        sk::draw_rect_xywh(&mut canvas, 0.0, (nh - border) as f32, nwf, bf, &board, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            0.0,
+            (nh - border) as f32,
+            nwf,
+            bf,
+            &board,
+            None,
+        );
         sk::draw_rect_xywh(&mut canvas, 0.0, bf, bf, ih as f32, &board, None);
-        sk::draw_rect_xywh(&mut canvas, (nw - border) as f32, bf, bf, ih as f32, &board, None);
+        sk::draw_rect_xywh(
+            &mut canvas,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            &board,
+            None,
+        );
         let trace_w = 1.5f32.max(bf * 0.045);
         let pad_r = trace_w * 1.8;
         let grid = 6f32.max(bf * 0.22) as i32;
         let tc = self.trace_color;
         let p = Paints {
-            glow: self.glow.then(|| (solid(SkColor::rgba(tc.r, tc.g, tc.b, 45), true), Pen::new(trace_w * 3.5), trace_w * 1.5)),
+            glow: self.glow.then(|| {
+                (
+                    solid(SkColor::rgba(tc.r, tc.g, tc.b, 45), true),
+                    Pen::new(trace_w * 3.5),
+                    trace_w * 1.5,
+                )
+            }),
             trace: solid(tc, true),
             trace_pen: Pen::new(trace_w).cap(Cap::Round).join(Join::Round),
             pad: solid(tc, true),
             hole: solid(self.board_color, true),
         };
-        traces(&mut canvas, &p, 0.0, 0.0, nwf, bf, true, grid, density, pad_r, SEED ^ 0x1A);
-        traces(&mut canvas, &p, 0.0, (nh - border) as f32, nwf, bf, true, grid, density, pad_r, SEED ^ 0x2B);
-        traces(&mut canvas, &p, 0.0, bf, bf, ih as f32, false, grid, density, pad_r, SEED ^ 0x3C);
-        traces(&mut canvas, &p, (nw - border) as f32, bf, bf, ih as f32, false, grid, density, pad_r, SEED ^ 0x4D);
+        traces(
+            &mut canvas,
+            &p,
+            0.0,
+            0.0,
+            nwf,
+            bf,
+            true,
+            grid,
+            density,
+            pad_r,
+            SEED ^ 0x1A,
+        );
+        traces(
+            &mut canvas,
+            &p,
+            0.0,
+            (nh - border) as f32,
+            nwf,
+            bf,
+            true,
+            grid,
+            density,
+            pad_r,
+            SEED ^ 0x2B,
+        );
+        traces(
+            &mut canvas,
+            &p,
+            0.0,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            grid,
+            density,
+            pad_r,
+            SEED ^ 0x3C,
+        );
+        traces(
+            &mut canvas,
+            &p,
+            (nw - border) as f32,
+            bf,
+            bf,
+            ih as f32,
+            false,
+            grid,
+            density,
+            pad_r,
+            SEED ^ 0x4D,
+        );
         canvas.draw_bitmap(source, bf, bf, None);
         if self.inner_line {
             let lp = solid(tc.with_alpha(200), true);
@@ -142,7 +238,8 @@ fn traces(
             let h4 = hash01(i, seed ^ 0x9A, seed ^ 0xCF);
             if h4 < 0.4 && t_len > grid as f32 * 1.5 {
                 let at = along + t_len * 0.5;
-                let ec = across + if h4 < 0.2 { -1.0 } else { 1.0 } * grid as f32 * (0.5 + h3 * 0.8);
+                let ec =
+                    across + if h4 < 0.2 { -1.0 } else { 1.0 } * grid as f32 * (0.5 + h3 * 0.8);
                 let (ex, ey, ex2, ey2) = if horizontal {
                     (rx + at, ry + across, rx + at, ry + ec)
                 } else {

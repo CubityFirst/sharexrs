@@ -29,15 +29,39 @@ impl Default for WaveDistortionImageEffect {
 
 impl EffectImpl for WaveDistortionImageEffect {
     fn info() -> Info {
-        Info::new("wave_distortion", "Wave distortion", EffectCategory::Manipulations, "image-effect/waves")
-            .desc("Applies a sine wave distortion to the image.")
+        Info::new(
+            "wave_distortion",
+            "Wave distortion",
+            EffectCategory::Manipulations,
+            "image-effect/waves",
+        )
+        .desc("Applies a sine wave distortion to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("amplitude", "Amplitude", 1, 100, 20, |e: &mut Self, v| e.amplitude = v),
-            int_slider::<Self>("wavelength", "Wavelength", 10, 500, 100, |e: &mut Self, v| e.wavelength = v),
-            enum_param::<Self, WaveDirection>("direction", "Direction", WaveDirection::Horizontal, |e: &mut Self, v| e.direction = v, &[("Horizontal", WaveDirection::Horizontal), ("Vertical", WaveDirection::Vertical), ("Both", WaveDirection::Both)]),
+            int_slider::<Self>("amplitude", "Amplitude", 1, 100, 20, |e: &mut Self, v| {
+                e.amplitude = v
+            }),
+            int_slider::<Self>(
+                "wavelength",
+                "Wavelength",
+                10,
+                500,
+                100,
+                |e: &mut Self, v| e.wavelength = v,
+            ),
+            enum_param::<Self, WaveDirection>(
+                "direction",
+                "Direction",
+                WaveDirection::Horizontal,
+                |e: &mut Self, v| e.direction = v,
+                &[
+                    ("Horizontal", WaveDirection::Horizontal),
+                    ("Vertical", WaveDirection::Vertical),
+                    ("Both", WaveDirection::Both),
+                ],
+            ),
         ]
     }
 
@@ -49,8 +73,14 @@ impl EffectImpl for WaveDistortionImageEffect {
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
         let freq = std::f32::consts::PI * 2.0 / 10.max(self.wavelength) as f32;
-        let horizontal = matches!(self.direction, WaveDirection::Horizontal | WaveDirection::Both);
-        let vertical = matches!(self.direction, WaveDirection::Vertical | WaveDirection::Both);
+        let horizontal = matches!(
+            self.direction,
+            WaveDirection::Horizontal | WaveDirection::Both
+        );
+        let vertical = matches!(
+            self.direction,
+            WaveDirection::Vertical | WaveDirection::Both
+        );
         for y in 0..h {
             for x in 0..w {
                 let (mut sx, mut sy) = (x, y);

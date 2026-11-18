@@ -10,22 +10,30 @@ pub struct VibranceImageEffect {
 
 impl Default for VibranceImageEffect {
     fn default() -> Self {
-        VibranceImageEffect {
-            amount: 25.0,
-        }
+        VibranceImageEffect { amount: 25.0 }
     }
 }
 
 impl EffectImpl for VibranceImageEffect {
     fn info() -> Info {
-        Info::new("vibrance", "Vibrance", EffectCategory::Adjustments, "app/sparkles")
-            .desc("Adjusts the color vibrance.")
+        Info::new(
+            "vibrance",
+            "Vibrance",
+            EffectCategory::Adjustments,
+            "app/sparkles",
+        )
+        .desc("Adjusts the color vibrance.")
     }
 
     fn params() -> Vec<ParamDef> {
-        vec![
-            float_slider::<Self>("amount", "Amount", -100.0, 100.0, 0.0, |e: &mut Self, v| e.amount = v),
-        ]
+        vec![float_slider::<Self>(
+            "amount",
+            "Amount",
+            -100.0,
+            100.0,
+            0.0,
+            |e: &mut Self, v| e.amount = v,
+        )]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
@@ -39,7 +47,11 @@ impl EffectImpl for VibranceImageEffect {
             let min = r.min(g.min(b));
             let saturation = (max - min) / 255.0;
             let gray = (r + g + b) / 3.0;
-            let factor = if amount >= 0.0 { 1.0 + (amount * (1.0 - saturation)) } else { 1.0 + amount };
+            let factor = if amount >= 0.0 {
+                1.0 + (amount * (1.0 - saturation))
+            } else {
+                1.0 + amount
+            };
             r = gray + ((r - gray) * factor);
             g = gray + ((g - gray) * factor);
             b = gray + ((b - gray) * factor);

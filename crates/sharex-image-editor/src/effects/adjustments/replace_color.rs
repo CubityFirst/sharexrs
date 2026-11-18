@@ -22,15 +22,37 @@ impl Default for ReplaceColorImageEffect {
 
 impl EffectImpl for ReplaceColorImageEffect {
     fn info() -> Info {
-        Info::new("replace_color", "Replace Color", EffectCategory::Adjustments, "image-effect/replace")
-            .desc("Replaces a specific color.")
+        Info::new(
+            "replace_color",
+            "Replace Color",
+            EffectCategory::Adjustments,
+            "image-effect/replace",
+        )
+        .desc("Replaces a specific color.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            color_param::<Self>("target_color", "Target color", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.target_color = v),
-            color_param::<Self>("replace_color", "Replace color", SkColor::argb(0xFF000000), |e: &mut Self, v| e.replace_color = v),
-            float_slider::<Self>("tolerance", "Tolerance", 0.0, 255.0, 40.0, |e: &mut Self, v| e.tolerance = v),
+            color_param::<Self>(
+                "target_color",
+                "Target color",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.target_color = v,
+            ),
+            color_param::<Self>(
+                "replace_color",
+                "Replace color",
+                SkColor::argb(0xFF000000),
+                |e: &mut Self, v| e.replace_color = v,
+            ),
+            float_slider::<Self>(
+                "tolerance",
+                "Tolerance",
+                0.0,
+                255.0,
+                40.0,
+                |e: &mut Self, v| e.tolerance = v,
+            ),
         ]
     }
 

@@ -22,15 +22,36 @@ impl Default for SkewImageEffect {
 
 impl EffectImpl for SkewImageEffect {
     fn info() -> Info {
-        Info::new("skew", "Skew", EffectCategory::Manipulations, "image-effect/move-diagonal")
-            .desc("Skews the image horizontally and vertically.")
+        Info::new(
+            "skew",
+            "Skew",
+            EffectCategory::Manipulations,
+            "image-effect/move-diagonal",
+        )
+        .desc("Skews the image horizontally and vertically.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("horizontally", "Horizontally", -89.0, 89.0, 0.0, |e: &mut Self, v| e.horizontally = v),
-            float_slider::<Self>("vertically", "Vertically", -89.0, 89.0, 0.0, |e: &mut Self, v| e.vertically = v),
-            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| e.auto_resize = v),
+            float_slider::<Self>(
+                "horizontally",
+                "Horizontally",
+                -89.0,
+                89.0,
+                0.0,
+                |e: &mut Self, v| e.horizontally = v,
+            ),
+            float_slider::<Self>(
+                "vertically",
+                "Vertically",
+                -89.0,
+                89.0,
+                0.0,
+                |e: &mut Self, v| e.vertically = v,
+            ),
+            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| {
+                e.auto_resize = v
+            }),
         ]
     }
 

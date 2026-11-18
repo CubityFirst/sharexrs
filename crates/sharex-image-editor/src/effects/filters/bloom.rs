@@ -24,16 +24,44 @@ impl Default for BloomImageEffect {
 
 impl EffectImpl for BloomImageEffect {
     fn info() -> Info {
-        Info::new("bloom", "Bloom", EffectCategory::Filters, "image-effect/sparkle")
-            .desc("Adds a soft glow bloom effect to bright areas.")
+        Info::new(
+            "bloom",
+            "Bloom",
+            EffectCategory::Filters,
+            "image-effect/sparkle",
+        )
+        .desc("Adds a soft glow bloom effect to bright areas.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("threshold", "Threshold", 0.0, 100.0, 65.0, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("soft_knee", "Soft knee", 0.0, 100.0, 35.0, |e: &mut Self, v| e.soft_knee = v),
-            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 24.0, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("intensity", "Intensity", 0.0, 200.0, 85.0, |e: &mut Self, v| e.intensity = v),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                100.0,
+                65.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>(
+                "soft_knee",
+                "Soft knee",
+                0.0,
+                100.0,
+                35.0,
+                |e: &mut Self, v| e.soft_knee = v,
+            ),
+            float_slider::<Self>("radius", "Radius", 1.0, 100.0, 24.0, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>(
+                "intensity",
+                "Intensity",
+                0.0,
+                200.0,
+                85.0,
+                |e: &mut Self, v| e.intensity = v,
+            ),
         ]
     }
 
@@ -49,12 +77,20 @@ impl EffectImpl for BloomImageEffect {
         let half = knee * 0.5;
         let low = clampf(threshold - half, 0.0, 1.0);
         let high = clampf(threshold + half, 0.0, 1.0);
-        let lum = |c: &SkColor| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0;
+        let lum = |c: &SkColor| {
+            ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+        };
         let bright: Vec<SkColor> = src
             .iter()
             .map(|c| {
                 let l = lum(c);
-                let mask = if knee > 0.0 { smooth_step(low, high, l) } else if l >= threshold { 1.0 } else { 0.0 };
+                let mask = if knee > 0.0 {
+                    smooth_step(low, high, l)
+                } else if l >= threshold {
+                    1.0
+                } else {
+                    0.0
+                };
                 if mask <= 0.0 {
                     return color::EMPTY;
                 }

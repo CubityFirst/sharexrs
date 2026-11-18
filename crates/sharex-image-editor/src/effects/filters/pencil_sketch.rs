@@ -24,16 +24,44 @@ impl Default for PencilSketchImageEffect {
 
 impl EffectImpl for PencilSketchImageEffect {
     fn info() -> Info {
-        Info::new("pencil_sketch", "Pencil sketch", EffectCategory::Filters, "app/edit")
-            .desc("Converts the image to a pencil sketch style drawing.")
+        Info::new(
+            "pencil_sketch",
+            "Pencil sketch",
+            EffectCategory::Filters,
+            "app/edit",
+        )
+        .desc("Converts the image to a pencil sketch style drawing.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("blur_radius", "Blur radius", 1, 24, 8, |e: &mut Self, v| e.blur_radius = v),
-            float_slider::<Self>("edge_strength", "Edge strength", 0.0, 160.0, 65.0, |e: &mut Self, v| e.edge_strength = v),
-            float_slider::<Self>("pencil_darkness", "Pencil darkness", 0.0, 100.0, 70.0, |e: &mut Self, v| e.pencil_darkness = v),
-            float_slider::<Self>("paper_brightness", "Paper brightness", 40.0, 130.0, 100.0, |e: &mut Self, v| e.paper_brightness = v),
+            int_slider::<Self>("blur_radius", "Blur radius", 1, 24, 8, |e: &mut Self, v| {
+                e.blur_radius = v
+            }),
+            float_slider::<Self>(
+                "edge_strength",
+                "Edge strength",
+                0.0,
+                160.0,
+                65.0,
+                |e: &mut Self, v| e.edge_strength = v,
+            ),
+            float_slider::<Self>(
+                "pencil_darkness",
+                "Pencil darkness",
+                0.0,
+                100.0,
+                70.0,
+                |e: &mut Self, v| e.pencil_darkness = v,
+            ),
+            float_slider::<Self>(
+                "paper_brightness",
+                "Paper brightness",
+                40.0,
+                130.0,
+                100.0,
+                |e: &mut Self, v| e.paper_brightness = v,
+            ),
         ]
     }
 
@@ -49,7 +77,9 @@ impl EffectImpl for PencilSketchImageEffect {
         let src = pixels(source);
         let gray: Vec<f32> = src
             .iter()
-            .map(|c| ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0)
+            .map(|c| {
+                ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+            })
             .collect();
         let inverse: Vec<f32> = gray.iter().map(|g| 1.0 - g).collect();
         let blurred = sketch_box_blur(&inverse, width, height, radius);
@@ -110,15 +140,22 @@ fn sketch_sobel(gray: &[f32], width: i32, height: i32) -> Vec<f32> {
     let mut edges = vec![0f32; gray.len()];
     let g = |x: i32, y: i32| gray[(y * width + x) as usize];
     for y in 0..height {
-        let (y0, y2) = (if y > 0 { y - 1 } else { 0 }, if y < bottom { y + 1 } else { bottom });
+        let (y0, y2) = (
+            if y > 0 { y - 1 } else { 0 },
+            if y < bottom { y + 1 } else { bottom },
+        );
         for x in 0..width {
-            let (x0, x2) = (if x > 0 { x - 1 } else { 0 }, if x < right { x + 1 } else { right });
+            let (x0, x2) = (
+                if x > 0 { x - 1 } else { 0 },
+                if x < right { x + 1 } else { right },
+            );
             let (tl, tc, tr) = (g(x0, y0), g(x, y0), g(x2, y0));
             let (ml, mr) = (g(x0, y), g(x2, y));
             let (bl, bc, br) = (g(x0, y2), g(x, y2), g(x2, y2));
             let gx = (-tl + tr) + (-2.0 * ml + (2.0 * mr)) + (-bl + br);
             let gy = (-tl - (2.0 * tc) - tr) + (bl + (2.0 * bc) + br);
-            edges[(y * width + x) as usize] = clampf(((gx * gx) + (gy * gy)).sqrt() / 4.0, 0.0, 1.0);
+            edges[(y * width + x) as usize] =
+                clampf(((gx * gx) + (gy * gy)).sqrt() / 4.0, 0.0, 1.0);
         }
     }
     edges

@@ -26,17 +26,42 @@ impl Default for LiquidMercuryImageEffect {
 
 impl EffectImpl for LiquidMercuryImageEffect {
     fn info() -> Info {
-        Info::new("liquid_mercury", "Liquid mercury", EffectCategory::Filters, "image-effect/droplet")
-            .desc("Transforms the image into a reflective liquid mercury surface.")
+        Info::new(
+            "liquid_mercury",
+            "Liquid mercury",
+            EffectCategory::Filters,
+            "image-effect/droplet",
+        )
+        .desc("Transforms the image into a reflective liquid mercury surface.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("reflection", "Reflection", 0.0, 100.0, 78.0, |e: &mut Self, v| e.reflection = v),
-            float_slider::<Self>("ripple", "Ripple", 0.0, 100.0, 42.0, |e: &mut Self, v| e.ripple = v),
-            float_slider::<Self>("shine", "Shine", 0.0, 100.0, 82.0, |e: &mut Self, v| e.shine = v),
-            float_slider::<Self>("fluidity", "Fluidity", 0.0, 100.0, 55.0, |e: &mut Self, v| e.fluidity = v),
-            float_slider::<Self>("depth", "Depth", 0.0, 100.0, 65.0, |e: &mut Self, v| e.depth = v),
+            float_slider::<Self>(
+                "reflection",
+                "Reflection",
+                0.0,
+                100.0,
+                78.0,
+                |e: &mut Self, v| e.reflection = v,
+            ),
+            float_slider::<Self>("ripple", "Ripple", 0.0, 100.0, 42.0, |e: &mut Self, v| {
+                e.ripple = v
+            }),
+            float_slider::<Self>("shine", "Shine", 0.0, 100.0, 82.0, |e: &mut Self, v| {
+                e.shine = v
+            }),
+            float_slider::<Self>(
+                "fluidity",
+                "Fluidity",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.fluidity = v,
+            ),
+            float_slider::<Self>("depth", "Depth", 0.0, 100.0, 65.0, |e: &mut Self, v| {
+                e.depth = v
+            }),
         ]
     }
 
@@ -54,7 +79,8 @@ impl EffectImpl for LiquidMercuryImageEffect {
         let inv_h = 1.0 / 1.max(height - 1) as f32;
         let src = pixels(source);
         let mut dst = vec![SkColor::default(); src.len()];
-        let lum = |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
+        let lum =
+            |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
         let p = |x: i32, y: i32| src[(y * width + x) as usize];
         for y in 0..height {
             let row = y * width;
@@ -96,8 +122,10 @@ impl EffectImpl for LiquidMercuryImageEffect {
                 };
                 let diffuse = clamp01((nz * 0.65) + 0.15);
                 let fresnel = (1.0 - clamp01(nz)).powf(2.7);
-                let specular = clamp01((nx * -0.22) + (ny * -0.32) + (nz * 0.92)).powf(12.0 + (shine * 42.0));
-                let mut base = clamp01((l * 0.20) + (diffuse * 0.26) + (env * (0.32 + (reflection * 0.42))));
+                let specular =
+                    clamp01((nx * -0.22) + (ny * -0.32) + (nz * 0.92)).powf(12.0 + (shine * 42.0));
+                let mut base =
+                    clamp01((l * 0.20) + (diffuse * 0.26) + (env * (0.32 + (reflection * 0.42))));
                 base = clamp01(((base - 0.5) * (1.15 + (depth * 1.55))) + 0.5);
                 let mut silver = lerp(0.06, 0.94, base);
                 silver = lerp(silver, 1.0, specular * (0.34 + (shine * 0.46)));
@@ -106,8 +134,12 @@ impl EffectImpl for LiquidMercuryImageEffect {
                 let r = clamp01(silver - cool);
                 let g = clamp01(silver);
                 let b = clamp01(silver + (cool * 1.25));
-                dst[(row + x) as usize] =
-                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    s.a,
+                );
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

@@ -24,23 +24,52 @@ impl Default for TwirlImageEffect {
 
 impl EffectImpl for TwirlImageEffect {
     fn info() -> Info {
-        Info::new("twirl", "Twirl", EffectCategory::Manipulations, "image-effect/pinwheel")
-            .desc("Applies a twirl distortion to the image.")
+        Info::new(
+            "twirl",
+            "Twirl",
+            EffectCategory::Manipulations,
+            "image-effect/pinwheel",
+        )
+        .desc("Applies a twirl distortion to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("angle", "Angle", -360.0, 360.0, 90.0, |e: &mut Self, v| e.angle = v),
-            float_slider::<Self>("radius_percentage", "Radius %", 1.0, 100.0, 50.0, |e: &mut Self, v| e.radius_percentage = v),
-            float_slider::<Self>("center_x_percentage", "Center X %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_x_percentage = v),
-            float_slider::<Self>("center_y_percentage", "Center Y %", 0.0, 100.0, 50.0, |e: &mut Self, v| e.center_y_percentage = v),
+            float_slider::<Self>("angle", "Angle", -360.0, 360.0, 90.0, |e: &mut Self, v| {
+                e.angle = v
+            }),
+            float_slider::<Self>(
+                "radius_percentage",
+                "Radius %",
+                1.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.radius_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_x_percentage",
+                "Center X %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_x_percentage = v,
+            ),
+            float_slider::<Self>(
+                "center_y_percentage",
+                "Center Y %",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.center_y_percentage = v,
+            ),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let (width, height) = (source.width() as i32, source.height() as i32);
         let (right, bottom) = (width - 1, height - 1);
-        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let radius =
+            1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
         let cx = clampf(self.center_x_percentage, 0.0, 100.0) / 100.0 * right as f32;
         let cy = clampf(self.center_y_percentage, 0.0, 100.0) / 100.0 * bottom as f32;
         let angle_rad = self.angle * std::f32::consts::PI / 180.0;
@@ -64,7 +93,11 @@ impl EffectImpl for TwirlImageEffect {
                 let twirl = angle_rad * (1.0 - normalized);
                 let theta = dy.atan2(dx) - twirl;
                 let sx = clamp_int((cx + dist * theta.cos()).round_ties_even() as i32, 0, right);
-                let sy = clamp_int((cy + dist * theta.sin()).round_ties_even() as i32, 0, bottom);
+                let sy = clamp_int(
+                    (cy + dist * theta.sin()).round_ties_even() as i32,
+                    0,
+                    bottom,
+                );
                 dst[i] = src[(sy * width + sx) as usize];
             }
         }

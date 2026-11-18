@@ -26,17 +26,53 @@ impl Default for WoodcutPrintImageEffect {
 
 impl EffectImpl for WoodcutPrintImageEffect {
     fn info() -> Info {
-        Info::new("woodcut_print", "Woodcut Print", EffectCategory::Filters, "image-effect/axe")
-            .desc("Simulates a woodcut or linocut print style.")
+        Info::new(
+            "woodcut_print",
+            "Woodcut Print",
+            EffectCategory::Filters,
+            "image-effect/axe",
+        )
+        .desc("Simulates a woodcut or linocut print style.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            float_slider::<Self>("threshold", "Threshold", 0.0, 100.0, 50.0, |e: &mut Self, v| e.threshold = v),
-            float_slider::<Self>("edge_strength", "Edge Strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.edge_strength = v),
-            float_slider::<Self>("grain_amount", "Wood Grain", 0.0, 100.0, 30.0, |e: &mut Self, v| e.grain_amount = v),
-            color_param::<Self>("ink_color", "Ink Color", SkColor::argb(0xFF0F0A05), |e: &mut Self, v| e.ink_color = v),
-            color_param::<Self>("paper_color", "Paper Color", SkColor::argb(0xFFEBE1C8), |e: &mut Self, v| e.paper_color = v),
+            float_slider::<Self>(
+                "threshold",
+                "Threshold",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.threshold = v,
+            ),
+            float_slider::<Self>(
+                "edge_strength",
+                "Edge Strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.edge_strength = v,
+            ),
+            float_slider::<Self>(
+                "grain_amount",
+                "Wood Grain",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.grain_amount = v,
+            ),
+            color_param::<Self>(
+                "ink_color",
+                "Ink Color",
+                SkColor::argb(0xFF0F0A05),
+                |e: &mut Self, v| e.ink_color = v,
+            ),
+            color_param::<Self>(
+                "paper_color",
+                "Paper Color",
+                SkColor::argb(0xFFEBE1C8),
+                |e: &mut Self, v| e.paper_color = v,
+            ),
         ]
     }
 
@@ -54,9 +90,12 @@ impl EffectImpl for WoodcutPrintImageEffect {
         let l = |x: i32, y: i32| lum[(y * width + x) as usize];
         for y in 1..height - 1 {
             for x in 1..width - 1 {
-                let gx = -l(x - 1, y - 1) + l(x + 1, y - 1) - 2.0 * l(x - 1, y) + 2.0 * l(x + 1, y) - l(x - 1, y + 1)
+                let gx = -l(x - 1, y - 1) + l(x + 1, y - 1) - 2.0 * l(x - 1, y) + 2.0 * l(x + 1, y)
+                    - l(x - 1, y + 1)
                     + l(x + 1, y + 1);
-                let gy = -l(x - 1, y - 1) - 2.0 * l(x, y - 1) - l(x + 1, y - 1) + l(x - 1, y + 1) + 2.0 * l(x, y + 1)
+                let gy = -l(x - 1, y - 1) - 2.0 * l(x, y - 1) - l(x + 1, y - 1)
+                    + l(x - 1, y + 1)
+                    + 2.0 * l(x, y + 1)
                     + l(x + 1, y + 1);
                 edges[(y * width + x) as usize] = (gx * gx + gy * gy).sqrt();
             }
@@ -81,8 +120,16 @@ impl EffectImpl for WoodcutPrintImageEffect {
             }
         }
         let (ink, paper) = (self.ink_color, self.paper_color);
-        let (ir, ig, ib) = (ink.r as f32 / 255.0, ink.g as f32 / 255.0, ink.b as f32 / 255.0);
-        let (pr, pg, pb) = (paper.r as f32 / 255.0, paper.g as f32 / 255.0, paper.b as f32 / 255.0);
+        let (ir, ig, ib) = (
+            ink.r as f32 / 255.0,
+            ink.g as f32 / 255.0,
+            ink.b as f32 / 255.0,
+        );
+        let (pr, pg, pb) = (
+            paper.r as f32 / 255.0,
+            paper.g as f32 / 255.0,
+            paper.b as f32 / 255.0,
+        );
         let to = |v: f32| (clampf(v, 0.0, 1.0) * 255.0).round_ties_even() as u8;
         let dst: Vec<SkColor> = (0..src.len())
             .map(|i| {

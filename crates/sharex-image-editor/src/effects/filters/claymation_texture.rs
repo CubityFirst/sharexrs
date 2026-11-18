@@ -32,11 +32,36 @@ impl EffectImpl for ClaymationTextureImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("chunkSize", "Chunk size", 3, 18, 8, |e: &mut Self, v| e.chunk_size = v),
-            float_slider::<Self>("smoothness", "Smoothness", 0.0, 100.0, 55.0, |e: &mut Self, v| e.smoothness = v),
-            float_slider::<Self>("relief", "Relief", 0.0, 100.0, 35.0, |e: &mut Self, v| e.relief = v),
-            float_slider::<Self>("saturation", "Saturation", -100.0, 100.0, 20.0, |e: &mut Self, v| e.saturation = v),
-            float_slider::<Self>("textureGrain", "Texture grain", 0.0, 100.0, 30.0, |e: &mut Self, v| e.texture_grain = v),
+            int_slider::<Self>("chunkSize", "Chunk size", 3, 18, 8, |e: &mut Self, v| {
+                e.chunk_size = v
+            }),
+            float_slider::<Self>(
+                "smoothness",
+                "Smoothness",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.smoothness = v,
+            ),
+            float_slider::<Self>("relief", "Relief", 0.0, 100.0, 35.0, |e: &mut Self, v| {
+                e.relief = v
+            }),
+            float_slider::<Self>(
+                "saturation",
+                "Saturation",
+                -100.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.saturation = v,
+            ),
+            float_slider::<Self>(
+                "textureGrain",
+                "Texture grain",
+                0.0,
+                100.0,
+                30.0,
+                |e: &mut Self, v| e.texture_grain = v,
+            ),
         ]
     }
 
@@ -115,7 +140,8 @@ impl EffectImpl for ClaymationTextureImageEffect {
                 r = gray + ((r - gray) * sat_factor);
                 g = gray + ((g - gray) * sat_factor);
                 b = gray + ((b - gray) * sat_factor);
-                dst[(row + x) as usize] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), c.a);
+                dst[(row + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), c.a);
             }
         }
         Ok(from_pixels(width as u32, height as u32, &dst))

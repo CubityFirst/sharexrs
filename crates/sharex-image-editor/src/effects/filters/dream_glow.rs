@@ -20,14 +20,28 @@ impl Default for DreamGlowImageEffect {
 
 impl EffectImpl for DreamGlowImageEffect {
     fn info() -> Info {
-        Info::new("dream_glow", "Dream glow", EffectCategory::Filters, "app/cloud")
-            .desc("Creates a dreamy soft glow by blending a blurred copy over the original.")
+        Info::new(
+            "dream_glow",
+            "Dream glow",
+            EffectCategory::Filters,
+            "app/cloud",
+        )
+        .desc("Creates a dreamy soft glow by blending a blurred copy over the original.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("radius", "Blur radius", 1, 50, 15, |e: &mut Self, v| e.radius = v),
-            float_slider::<Self>("opacity", "Blend opacity", 0.0, 100.0, 50.0, |e: &mut Self, v| e.opacity = v),
+            int_slider::<Self>("radius", "Blur radius", 1, 50, 15, |e: &mut Self, v| {
+                e.radius = v
+            }),
+            float_slider::<Self>(
+                "opacity",
+                "Blend opacity",
+                0.0,
+                100.0,
+                50.0,
+                |e: &mut Self, v| e.opacity = v,
+            ),
         ]
     }
 

@@ -26,17 +26,38 @@ impl Default for GoldenBorderImageEffect {
 
 impl EffectImpl for GoldenBorderImageEffect {
     fn info() -> Info {
-        Info::new("golden_border", "Golden border", EffectCategory::Filters, "image-effect/crown")
-            .desc("Adds a luxurious picture frame border to the image.")
+        Info::new(
+            "golden_border",
+            "Golden border",
+            EffectCategory::Filters,
+            "image-effect/crown",
+        )
+        .desc("Adds a luxurious picture frame border to the image.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("size", "Size", 5, 80, 25, |e: &mut Self, v| e.size = v),
-            float_slider::<Self>("bevel_strength", "Bevel strength", 0.0, 100.0, 60.0, |e: &mut Self, v| e.bevel_strength = v),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFD4AF37), |e: &mut Self, v| e.color = v),
-            bool_param::<Self>("inner_border", "Inner border", true, |e: &mut Self, v| e.inner_border = v),
-            bool_param::<Self>("outer_border", "Outer border", true, |e: &mut Self, v| e.outer_border = v),
+            float_slider::<Self>(
+                "bevel_strength",
+                "Bevel strength",
+                0.0,
+                100.0,
+                60.0,
+                |e: &mut Self, v| e.bevel_strength = v,
+            ),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFD4AF37),
+                |e: &mut Self, v| e.color = v,
+            ),
+            bool_param::<Self>("inner_border", "Inner border", true, |e: &mut Self, v| {
+                e.inner_border = v
+            }),
+            bool_param::<Self>("outer_border", "Outer border", true, |e: &mut Self, v| {
+                e.outer_border = v
+            }),
         ]
     }
 
@@ -51,14 +72,40 @@ impl EffectImpl for GoldenBorderImageEffect {
         let (nw, nh) = (iw + size * 2, ih + size * 2);
         let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
         let mut canvas = Canvas::new(&mut out);
-        draw_frame(&mut canvas, nw, nh, size, bevel, base, dark, light, highlight);
+        draw_frame(
+            &mut canvas,
+            nw,
+            nh,
+            size,
+            bevel,
+            base,
+            dark,
+            light,
+            highlight,
+        );
         let sf = size as f32;
         canvas.draw_bitmap(source, sf, sf, None);
         if self.inner_border {
-            sk::draw_rect_xywh(&mut canvas, sf - 1.0, sf - 1.0, (iw + 2) as f32, (ih + 2) as f32, &solid(dark, true), Some(&Pen::new(1.5)));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                sf - 1.0,
+                sf - 1.0,
+                (iw + 2) as f32,
+                (ih + 2) as f32,
+                &solid(dark, true),
+                Some(&Pen::new(1.5)),
+            );
         }
         if self.outer_border {
-            sk::draw_rect_xywh(&mut canvas, 0.5, 0.5, (nw - 1) as f32, (nh - 1) as f32, &solid(dark, true), Some(&Pen::new(1.5)));
+            sk::draw_rect_xywh(
+                &mut canvas,
+                0.5,
+                0.5,
+                (nw - 1) as f32,
+                (nh - 1) as f32,
+                &solid(dark, true),
+                Some(&Pen::new(1.5)),
+            );
         }
         drop(canvas);
         Ok(out)
@@ -99,20 +146,86 @@ fn draw_frame(
         return;
     }
     let clear = base.with_alpha(0);
-    let g = |st: (f32, f32), e: (f32, f32), c: SkColor| sk::linear_gradient(st, e, &[c, clear], None, true);
+    let g = |st: (f32, f32), e: (f32, f32), c: SkColor| {
+        sk::linear_gradient(st, e, &[c, clear], None, true)
+    };
     let a = |c: SkColor, v: f32| c.with_alpha((v * bevel) as u8);
     let bw = s * 0.35 * bevel;
-    sk::draw_rect_xywh(canvas, 0.0, 0.0, w, bw, &g((0.0, 0.0), (0.0, bw), a(highlight, 200.0)), None);
-    sk::draw_rect_xywh(canvas, 0.0, 0.0, bw, h, &g((0.0, 0.0), (bw, 0.0), a(highlight, 180.0)), None);
-    sk::draw_rect_xywh(canvas, 0.0, h - bw, w, bw, &g((0.0, h), (0.0, h - bw), a(dark, 200.0)), None);
-    sk::draw_rect_xywh(canvas, w - bw, 0.0, bw, h, &g((w, 0.0), (w - bw, 0.0), a(dark, 200.0)), None);
+    sk::draw_rect_xywh(
+        canvas,
+        0.0,
+        0.0,
+        w,
+        bw,
+        &g((0.0, 0.0), (0.0, bw), a(highlight, 200.0)),
+        None,
+    );
+    sk::draw_rect_xywh(
+        canvas,
+        0.0,
+        0.0,
+        bw,
+        h,
+        &g((0.0, 0.0), (bw, 0.0), a(highlight, 180.0)),
+        None,
+    );
+    sk::draw_rect_xywh(
+        canvas,
+        0.0,
+        h - bw,
+        w,
+        bw,
+        &g((0.0, h), (0.0, h - bw), a(dark, 200.0)),
+        None,
+    );
+    sk::draw_rect_xywh(
+        canvas,
+        w - bw,
+        0.0,
+        bw,
+        h,
+        &g((w, 0.0), (w - bw, 0.0), a(dark, 200.0)),
+        None,
+    );
     let ibw = s * 0.25 * bevel;
-    sk::draw_rect_xywh(canvas, s, s - ibw, (width - size * 2) as f32, ibw, &g((0.0, s), (0.0, s - ibw), a(dark, 160.0)), None);
-    sk::draw_rect_xywh(canvas, s - ibw, s, ibw, (height - size * 2) as f32, &g((s, 0.0), (s - ibw, 0.0), a(dark, 140.0)), None);
+    sk::draw_rect_xywh(
+        canvas,
+        s,
+        s - ibw,
+        (width - size * 2) as f32,
+        ibw,
+        &g((0.0, s), (0.0, s - ibw), a(dark, 160.0)),
+        None,
+    );
+    sk::draw_rect_xywh(
+        canvas,
+        s - ibw,
+        s,
+        ibw,
+        (height - size * 2) as f32,
+        &g((s, 0.0), (s - ibw, 0.0), a(dark, 140.0)),
+        None,
+    );
     let hs = (height - size) as f32;
     let ws = (width - size) as f32;
-    sk::draw_rect_xywh(canvas, s, hs, (width - size * 2) as f32, ibw, &g((0.0, hs), (0.0, hs + ibw), a(light, 140.0)), None);
-    sk::draw_rect_xywh(canvas, ws, s, ibw, (height - size * 2) as f32, &g((ws, 0.0), (ws + ibw, 0.0), a(light, 140.0)), None);
+    sk::draw_rect_xywh(
+        canvas,
+        s,
+        hs,
+        (width - size * 2) as f32,
+        ibw,
+        &g((0.0, hs), (0.0, hs + ibw), a(light, 140.0)),
+        None,
+    );
+    sk::draw_rect_xywh(
+        canvas,
+        ws,
+        s,
+        ibw,
+        (height - size * 2) as f32,
+        &g((ws, 0.0), (ws + ibw, 0.0), a(light, 140.0)),
+        None,
+    );
     let gy = s * 0.5;
     let pen = Pen::new(1.0);
     let gd = solid(a(dark, 120.0), true);

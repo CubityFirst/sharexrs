@@ -34,19 +34,47 @@ impl EffectImpl for GlowImageEffect {
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("size", "Size", 1, 100, 20, |e: &mut Self, v| e.size = v).snap(false),
-            float_slider::<Self>("strength", "Strength", 1.0, 100.0, 80.0, |e: &mut Self, v| e.strength = v).snap(false).format("{}{0:0}%"),
-            int_slider::<Self>("offset_x", "Offset X", -100, 100, 0, |e: &mut Self, v| e.offset_x = v).snap(false),
-            int_slider::<Self>("offset_y", "Offset Y", -100, 100, 0, |e: &mut Self, v| e.offset_y = v).snap(false),
-            color_param::<Self>("color", "Color", SkColor::argb(0xFFFFFFFF), |e: &mut Self, v| e.color = v),
-            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| e.auto_resize = v),
+            int_slider::<Self>("size", "Size", 1, 100, 20, |e: &mut Self, v| e.size = v)
+                .snap(false),
+            float_slider::<Self>(
+                "strength",
+                "Strength",
+                1.0,
+                100.0,
+                80.0,
+                |e: &mut Self, v| e.strength = v,
+            )
+            .snap(false)
+            .format("{}{0:0}%"),
+            int_slider::<Self>("offset_x", "Offset X", -100, 100, 0, |e: &mut Self, v| {
+                e.offset_x = v
+            })
+            .snap(false),
+            int_slider::<Self>("offset_y", "Offset Y", -100, 100, 0, |e: &mut Self, v| {
+                e.offset_y = v
+            })
+            .snap(false),
+            color_param::<Self>(
+                "color",
+                "Color",
+                SkColor::argb(0xFFFFFFFF),
+                |e: &mut Self, v| e.color = v,
+            ),
+            bool_param::<Self>("auto_resize", "Auto resize", true, |e: &mut Self, v| {
+                e.auto_resize = v
+            }),
         ]
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
         let pad = if self.auto_resize { self.size } else { 0 };
         let (l, r, t, b) = if self.auto_resize {
-            (0.max(-self.offset_x) + pad, 0.max(self.offset_x) + pad, 0.max(-self.offset_y) + pad, 0.max(self.offset_y) + pad)
+            (
+                0.max(-self.offset_x) + pad,
+                0.max(self.offset_x) + pad,
+                0.max(-self.offset_y) + pad,
+                0.max(self.offset_y) + pad,
+            )
         } else {
             (0, 0, 0, 0)
         };

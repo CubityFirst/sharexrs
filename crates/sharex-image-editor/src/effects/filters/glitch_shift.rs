@@ -22,14 +22,23 @@ impl Default for GlitchShiftImageEffect {
 
 impl EffectImpl for GlitchShiftImageEffect {
     fn info() -> Info {
-        Info::new("glitch_shift", "Glitch shift", EffectCategory::Filters, "app/zap")
-            .desc("Randomly shifts horizontal bands of the image for a digital glitch look.")
+        Info::new(
+            "glitch_shift",
+            "Glitch shift",
+            EffectCategory::Filters,
+            "app/zap",
+        )
+        .desc("Randomly shifts horizontal bands of the image for a digital glitch look.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("intensity", "Intensity", 1, 100, 30, |e: &mut Self, v| e.intensity = v),
-            int_slider::<Self>("bands", "Band count", 2, 50, 12, |e: &mut Self, v| e.bands = v),
+            int_slider::<Self>("intensity", "Intensity", 1, 100, 30, |e: &mut Self, v| {
+                e.intensity = v
+            }),
+            int_slider::<Self>("bands", "Band count", 2, 50, 12, |e: &mut Self, v| {
+                e.bands = v
+            }),
         ]
     }
 
@@ -50,7 +59,11 @@ impl EffectImpl for GlitchShiftImageEffect {
             for y in start..(start + bh).min(h) {
                 for x in 0..w {
                     let sx = x - shift;
-                    dst[(y * w + x) as usize] = if sx >= 0 && sx < w { src[(y * w + sx) as usize] } else { color::BLACK };
+                    dst[(y * w + x) as usize] = if sx >= 0 && sx < w {
+                        src[(y * w + sx) as usize]
+                    } else {
+                        color::BLACK
+                    };
                 }
             }
         }

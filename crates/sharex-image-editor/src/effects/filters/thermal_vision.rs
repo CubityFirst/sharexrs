@@ -26,16 +26,32 @@ impl Default for ThermalVisionImageEffect {
 
 impl EffectImpl for ThermalVisionImageEffect {
     fn info() -> Info {
-        Info::new("thermal_vision", "Thermal vision", EffectCategory::Filters, "image-effect/thermometer-sun")
-            .desc("Maps image luminance to a thermal color gradient.")
+        Info::new(
+            "thermal_vision",
+            "Thermal vision",
+            EffectCategory::Filters,
+            "image-effect/thermometer-sun",
+        )
+        .desc("Maps image luminance to a thermal color gradient.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
             int_slider::<Self>("levels", "Levels", 3, 16, 8, |e: &mut Self, v| e.levels = v),
-            float_slider::<Self>("contrast", "Contrast", 50.0, 200.0, 135.0, |e: &mut Self, v| e.contrast = v),
-            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 28.0, |e: &mut Self, v| e.glow = v),
-            float_slider::<Self>("blend", "Blend", 0.0, 100.0, 100.0, |e: &mut Self, v| e.blend = v),
+            float_slider::<Self>(
+                "contrast",
+                "Contrast",
+                50.0,
+                200.0,
+                135.0,
+                |e: &mut Self, v| e.contrast = v,
+            ),
+            float_slider::<Self>("glow", "Glow", 0.0, 100.0, 28.0, |e: &mut Self, v| {
+                e.glow = v
+            }),
+            float_slider::<Self>("blend", "Blend", 0.0, 100.0, 100.0, |e: &mut Self, v| {
+                e.blend = v
+            }),
             bool_param::<Self>("invert", "Invert", false, |e: &mut Self, v| e.invert = v),
         ]
     }
@@ -51,7 +67,8 @@ impl EffectImpl for ThermalVisionImageEffect {
         let dst: Vec<SkColor> = pixels(source)
             .iter()
             .map(|s| {
-                let mut l = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                let mut l =
+                    ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
                 l = clampf(((l - 0.5) * contrast) + 0.5, 0.0, 1.0);
                 if self.invert {
                     l = 1.0 - l;

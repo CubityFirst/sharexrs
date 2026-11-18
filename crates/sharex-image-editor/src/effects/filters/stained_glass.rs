@@ -28,17 +28,52 @@ impl Default for StainedGlassImageEffect {
 
 impl EffectImpl for StainedGlassImageEffect {
     fn info() -> Info {
-        Info::new("stained_glass", "Stained glass", EffectCategory::Filters, "image-effect/hexagon")
-            .desc("Creates a stained glass mosaic effect with lead borders.")
+        Info::new(
+            "stained_glass",
+            "Stained glass",
+            EffectCategory::Filters,
+            "image-effect/hexagon",
+        )
+        .desc("Creates a stained glass mosaic effect with lead borders.")
     }
 
     fn params() -> Vec<ParamDef> {
         vec![
-            int_slider::<Self>("tile_size", "Tile size", 6, 120, 22, |e: &mut Self, v| e.tile_size = v),
-            float_slider::<Self>("irregularity", "Irregularity", 0.0, 100.0, 55.0, |e: &mut Self, v| e.irregularity = v),
-            float_slider::<Self>("lead_width", "Lead width", 0.0, 12.0, 1.7999999523162842, |e: &mut Self, v| e.lead_width = v),
-            float_slider::<Self>("lead_opacity", "Lead opacity", 0.0, 100.0, 85.0, |e: &mut Self, v| e.lead_opacity = v),
-            float_slider::<Self>("color_boost", "Color boost", 0.0, 100.0, 20.0, |e: &mut Self, v| e.color_boost = v),
+            int_slider::<Self>("tile_size", "Tile size", 6, 120, 22, |e: &mut Self, v| {
+                e.tile_size = v
+            }),
+            float_slider::<Self>(
+                "irregularity",
+                "Irregularity",
+                0.0,
+                100.0,
+                55.0,
+                |e: &mut Self, v| e.irregularity = v,
+            ),
+            float_slider::<Self>(
+                "lead_width",
+                "Lead width",
+                0.0,
+                12.0,
+                1.7999999523162842,
+                |e: &mut Self, v| e.lead_width = v,
+            ),
+            float_slider::<Self>(
+                "lead_opacity",
+                "Lead opacity",
+                0.0,
+                100.0,
+                85.0,
+                |e: &mut Self, v| e.lead_opacity = v,
+            ),
+            float_slider::<Self>(
+                "color_boost",
+                "Color boost",
+                0.0,
+                100.0,
+                20.0,
+                |e: &mut Self, v| e.color_boost = v,
+            ),
         ]
     }
 
@@ -131,7 +166,9 @@ impl EffectImpl for StainedGlassImageEffect {
 
 fn glass_hash01(x: i32, y: i32, seed: u32) -> f32 {
     let mut h = x as u32;
-    h = h.wrapping_mul(374761393).wrapping_add(y.wrapping_mul(668265263) as u32);
+    h = h
+        .wrapping_mul(374761393)
+        .wrapping_add(y.wrapping_mul(668265263) as u32);
     h ^= seed;
     h ^= h >> 16;
     h = h.wrapping_mul(0x7FEB_352D);
