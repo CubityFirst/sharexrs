@@ -3,9 +3,10 @@
 How ShareX 22.4 (`REFERENCE_COMMIT`) keeps and shows its history, and what
 ShareXrs has of it. The source is `ShareX.HistoryLib` (~8.6k lines with its
 29 `.resx`), plus the places in `ShareX/` that open, write and migrate it.
-ShareXrs's port is `crates/sharex-history` (data, no UI yet) and
-`crates/sharexrs/src/history.rs` (the app's connection and the task hook);
-it's checked against ShareX's own DLL by `tools/history-harness`.
+ShareXrs's port is `crates/sharex-history` (data), `crates/sharexrs/src/history.rs`
+(the app's connection and the task hook) and `crates/sharexrs/src/history_ui`
+(the three windows); the data side is checked against ShareX's own DLL by
+`tools/history-harness`, the windows against the running ShareX (below).
 
 ## Where history lives
 
@@ -336,15 +337,42 @@ GMT Standard Time:
 Unit tests cover the pieces with other time zones (`RuleZone`: London and
 Tokyo), the context menu rules and the copy formats.
 
+## The windows in ShareXrs
+
+`crates/sharexrs/src/history_ui`: each window is a `Dialog` (an OS window
+of its own), opened by `App::show_history` / `show_image_history` /
+`show_stats` from the sidebar (History..., Image history..., Stats...), the
+tray menu (History, Image history) and the `OpenHistory` /
+`OpenImageHistory` hotkeys. They read History.db through `history::load`
+(off the UI thread), write through `history::edit` / `delete` / `append`,
+and keep their settings in `ApplicationConfig.HistorySettings` /
+`ImageHistorySettings` (ShareX's JSON).
+
+| File | ShareX | What |
+|---|---|---|
+| `common.rs` | the two windows' shared XAML and handlers | the docked toolbar, search box, icon buttons, the overlay dialogs (statistics, import, edit item, prompts with the text focused and selected), the context menu built with `UpdateVisibility`'s rules (separators only between shown entries), the commands (open, copy formats, copy file/image/text, favourite, tag, rename, delete with its confirmation, the services) |
+| `history_window.rs` | `HistoryWindow` | toolbar, the `HistoryColumnLayout` list (resizers, the header's column menu, selection with Ctrl/Shift, double click and Enter), the splitter and preview (`thumbnail::fit`, Stretch Uniform DownOnly on the checkered border), the advanced filters (type and host combos, the date pickers drawn as Fluent's), keys, the 220 ms filter timer, `{0:N0}` title |
+| `image_history_window.rs` | `ImageHistoryWindow`, `ImageHistoryThumbnailLoader` | the card grid (`image_history_columns`), batches (`next_batch`, `should_load_more`), thumbnails from `shell::file_thumbnail` (`IShellItemImageFactory`, as `NativeMethods.GetFileThumbnail`) else decoded to fit, on 2 to 4 workers, selection and keys, the settings dialog |
+| `stats_window.rs` | `StatsWindow`, `StatsCharts` | the page and its cards, `StatsPalette` (hue distance, mixes, ramp), the split bar, legend, calendar (`CreateLayoutCore`), hour chart, weekday and top lists, dates through `sharex_helpers::date_format` (NLS patterns and names) |
+
+`--render history|image-history|stats --db <History.db>` draws them
+(`--state advanced|favorites|search|stats|import|settings|edit|delete|menu|columns`,
+`--text`, `--select`, `--context`, `--open`, `--scroll`; see each module).
+
 ## Not ported yet
 
-- The three windows (plan below) and their dialogs; the history entries in
-  the main window's and tray's menus, the hotkeys' `OpenHistory` /
-  `OpenImageHistory` / Stats jobs; Recent items in the tray menu.
-- `HistorySaveOCRText` (OCR isn't ported).
+- In the windows: drag and drop of the selected files out of the lists;
+  preview downloads of URL-only images (the History preview shows "No image
+  preview" for them); the History window's remembered size and position
+  (`RememberWindowState`: the list width is kept, the window's place isn't);
+  the search box's process name suggestions (`AutoCompleteBox`); the date
+  pickers' own flyouts (shown, not editable yet); tooltips; the Stats
+  window's Share (logged) and its hover tooltips/marks; Image history's
+  video thumbnails beyond what the shell gives. The services that aren't
+  ported (image editor, photo editor, trimmers, pin to screen, analyze
+  image, image viewer) log when used; Upload file runs.
+- Recent items in the tray menu.
 - Settings export/import (history zipped in the export).
-- Thumbnail loading for the Image history window (Windows shell thumbnails
-  for videos); preview downloads; the Stats window's Share image task.
 - Culture details off Windows: on macOS/Linux the culture-aware comparisons
   (`OrderBy` of types and hosts, the URL/host/type filters, the Edit dialog's
   tag order) are simple case folding, not NLS; `char.IsLetterOrDigit` for
@@ -353,9 +381,47 @@ Tokyo), the context menu rules and the copy formats.
 - The JSON and XML writers (ShareX 22.4 never writes those files; the harness
   uses ShareX's to make fixtures).
 
-## Window plan
+## Validation of the windows
 
-Each window ports its `.axaml` and code-behind over `sharex-history`; the
+Over a synthetic history (`scripts/history-fixture.py` makes test-pattern
+images, the `sharex_history_fixture` example writes History.db over them,
+26 items over 14 months; `scripts/history-load.py` puts its rows into
+ShareX's open History.db), ShareX's windows captured with
+`scripts/history-shots.ps1`, `image-history-shots.ps1`, `stats-shots.ps1`
+(popups composited with `history-composite.py`) and compared with
+`scripts/history-compare.sh` (`--render`, 1000x673, Windows 11 en-GB, 100%).
+Differing pixels, dark / light:
+
+| Window | State | Diff |
+|---|---|---|
+| History | list, first row selected, preview | 0.74 / 0.54% |
+| | advanced filters | 0.99 / 0.76% |
+| | favorites, search "chrome", no match | 0.31 / 0.21%, 0.55 / 0.38%, 0.18 / 0.15% |
+| | statistics, import, settings, edit item, delete prompt | 0.96 / 0.83%, 0.12 / 0.09%, 0.10 / 0.05%, 0.25 / 0.14%, 0.16 / 0.10% |
+| | context menu, Open ›, Copy › (row 1), column menu | 0.69 / 0.49%, 0.83 / 0.67%, 0.73% (dark), 0.55 / 0.43% |
+| | Copy › of a row with URLs | 2.91 / 2.55%: ShareX's submenu runs past the window's bottom, ShareXrs keeps it inside |
+| Image history | grid, selected, hover, menu | 0.29 / 0.21%, 0.28 / 0.20%, 0.28 / 0.20%, 0.57 / 0.39% |
+| | settings, statistics, no match | 0.17 / 0.12%, 0.94 / 0.82%, 0.09 / 0.07% |
+| Stats | top, scrolled to the end, Images filter | 0.56 / 0.47%, 0.85 / 0.76%, 0.78 / 0.68% |
+
+What differs is text anti-aliasing (ClearType vs grayscale), a few
+sub-pixel bar ends in the charts and the menu above. The live windows
+(ShareXrs portable, the same History.db) match their renders: History 0.74%,
+Image history 0.29%, Stats 0.56%.
+
+Behaviour, side by side (`scripts/history-behaviour.ps1`, the same clicks
+and keys in both apps): Ctrl+C (URL), Ctrl+Shift+C (file path) and Copy ›
+Markdown linked image put the same text on the clipboard; editing a tag,
+favouriting a row, deleting a row from history and editing an item's host
+leave History.db with the same rows and values (`history-load.py --dump`:
+identical, `''` written back for nulls as ShareX does); the same filters
+and searches give the same rows (the renders above). Paging (batches of
+`MaxItemCount`) runs on `sharex-history`'s tested `next_batch` but wasn't
+exercised live: the fixture is smaller than a batch.
+
+## Window plan (done)
+
+The plan the windows followed. Each window ports its `.axaml` and code-behind over `sharex-history`; the
 data side is ready, so the work is layout and interaction, validated with
 `--render` against ShareX's windows over the same History.db (copy the
 harness's `sharex.db` into a scratch ShareX profile for the shots).

@@ -173,9 +173,12 @@ returns an error that the callers log (as ShareX logs its exceptions).
 ### In the app
 
 - **After capture › Recognize text (OCR)** (`upload/worker.rs` `do_ocr` →
-  `ocr.rs` `ocr_image`): the silent path is ported (copy or clear the clipboard,
-  action-completed sound). With `Silent` off ShareX opens the OCR window; ShareXrs
-  logs that the window isn't ported yet.
+  `ocr.rs` `ocr_image`): the silent path (copy or clear the clipboard,
+  action-completed sound), or with `Silent` off the OCR window, which the task's
+  thread waits for (`UiRequest::Ocr`), as `WorkerTask.DoOCR` waits for ShareX's.
+- **The OCR window** (`ocr_window.rs`, below), from Tools › OCR and the OCR hotkey
+  (a region capture first, `App::ocr_capture`), the task list's OCR image
+  (`App::ocr_file`) and the after capture task.
 - **HistorySaveOCRText** (`start_history_ocr` → `recognize_text_for_history` on a
   thread; `history::task_completed` waits for it and sets the `OCR` tag): ported.
 - The capture task now hands back its final image (`TaskOutcome.image`, ShareX's
@@ -265,12 +268,36 @@ x64 only).
 - Determinism: same ORT version, CPU provider, default thread pool, same CPU →
   identical outputs run to run (the validation ran several times, identical each time).
 
-## Not ported yet
-
-### The OCR window (needs the desktop)
+## The OCR window
 
 `ShareX.Tools/Tools/OCR/OCRWindow.axaml` (1100×680, min 820×520), `OCRViewModel`,
-`Controls/OCRPreview`. Plan:
+`Controls/OCRPreview`, ported as `crates/sharexrs/src/ocr_window.rs` (a `Dialog`).
+`TaskHelpers.OCRImage(bmp, filePath, taskSettings)` is `App::ocr_image`: silently
+(the text to the clipboard and `<file>.txt`, or the clipboard cleared) or the
+window over the task's `OCROptions` (saved into the default task settings as they
+change when the task uses them; services with ShareX's default names re-localized).
+Select region... minimizes the window, waits 250 ms and runs the region overlay
+(`ocr_region`: the capture goes back to the window instead of the after capture
+tasks). The preview's regions use `Colors.DodgerBlue`: ShareX's `HighlightBrush`
+is its accent gradient, not a solid colour, so `OCRPreview` falls back to it.
+
+Validation, against the reference build's window on the same synthetic image
+(`history-fixture/files/ocr-sample.png`, opened in ShareX with
+`ShareX.exe -OCR <file>`, in ShareXrs from the task list), `--render ocr --image`
+and the live window, dark / light: result 1.17 / 1.14% (live 1.17%), service
+editor 0.79 / 0.62%, region hover 1.16 / 1.12%, "No text found" 0.28% (dark); the
+rest is text anti-aliasing (the 14px result text sits within a pixel). Copy all
+puts the same text on the clipboard as ShareX's, and closing the window writes a
+`ocr-sample.txt` byte-identical to ShareX's (UTF-8 with a BOM). The model-missing
+state (no models found) shows the warning and the engine's message, checked live;
+ShareX's own was not captured (its engine was already loaded).
+
+Not yet: the preview's wheel zoom, drag to pan and double click to fit
+(`ZoomAt`), the splitter between canvas and sheet (`ResultPanelWidth` is read,
+not resized), the window's remembered size and place (`OCROptions.WindowState`),
+the copied badge as a tooltip (egui's).
+
+The plan it followed:
 
 - Left: `OCRPreview`: the source image fitted with padding and a border, each
   region's box drawn as a rotated polygon in the highlight brush, hover highlight,
@@ -291,17 +318,8 @@ x64 only).
   the preview's polygons from `OcrTextRegion::points`. Validate with
   `winshot.ps1` + `--render ocr` against ShareX as every window.
 
-### Entry points (need the desktop or the window)
+## Not ported yet
 
-- **Tools › OCR** (main and tray menus, `HotkeyType.OCR`): region capture, then the
-  window or the silent path; the menu entry exists (inert).
-- **Task list › OCR image** (`task_view.rs` already shows the item, enabled for image
-  files): `OCRImage(filePath)`; silent: text to the clipboard and `<file>.txt`.
-- Both are small once the window exists. The silent path could be wired now through
-  `crate::ocr`, but the menu item's default (not silent) needs the window.
-
-### Other gaps
-
-- `.txt` beside the file for the file-based callers (only reached from the entry
-  points above).
 - macOS/Linux engine runs (untested).
+- The OCR hotkey on a file passed on the command line (`ShareX.exe -OCR <file>`):
+  ShareXrs has no command line hotkey jobs yet.
