@@ -379,16 +379,20 @@ impl Session {
             rename_from: None,
         };
         session.log(FtpEvent::Connected);
-        stream.set_read_timeout(Some(Duration::from_secs(30)))?;
-        let mut control = if session.config.implicit_tls {
-            let acceptor = session.config.tls.clone().ok_or_else(|| std::io::Error::other("no TLS identity"))?;
-            let tls = acceptor.accept(stream).map_err(std::io::Error::other)?;
-            session.log(FtpEvent::TlsControl);
-            Stream::Tls(Box::new(tls))
-        } else {
-            Stream::Plain(stream)
-        };
-        let r = session.serve(&mut control);
+        // Every connection logs Closed, however it ends, so wait_closed
+        // never waits out its timeout on a failed handshake.
+        let r = (|| {
+            stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+            let mut control = if session.config.implicit_tls {
+                let acceptor = session.config.tls.clone().ok_or_else(|| std::io::Error::other("no TLS identity"))?;
+                let tls = acceptor.accept(stream).map_err(std::io::Error::other)?;
+                session.log(FtpEvent::TlsControl);
+                Stream::Tls(Box::new(tls))
+            } else {
+                Stream::Plain(stream)
+            };
+            session.serve(&mut control)
+        })();
         session.log(FtpEvent::Closed);
         r
     }

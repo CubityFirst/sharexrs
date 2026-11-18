@@ -17,6 +17,13 @@ use sharex_uploaders::uploader;
 use sharex_uploaders::URLSharingServices;
 use sharex_uploaders::{FileDestination, UploadersConfig};
 
+/// How long a case waits for the mock servers' sessions to close before it
+/// compares their logs. It returns as soon as they have closed; the margin
+/// is for loaded CI runners and full workspace runs, where the SFTP cases'
+/// key exchanges (8192-bit DH group 18) run in parallel and once kept an
+/// FTPS session open past the old 5 s.
+const CLOSE_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 const HARNESS_BASE: u64 = 18820;
 
 fn load(path: &str) -> Value {
@@ -109,9 +116,9 @@ fn ftp_and_sftp_cases_match_sharex() {
         let bytes = base64_decode(case["input"]["content_base64"].as_str().unwrap());
         let r = uploader.upload(&http::shared_stream(Cursor::new(bytes)), case["input"]["file_name"].as_str().unwrap());
         for s in [&plain, &explicit, &implicit] {
-            s.wait_closed(std::time::Duration::from_secs(5));
+            s.wait_closed(CLOSE_WAIT);
         }
-        sftp.wait_closed(std::time::Duration::from_secs(5));
+        sftp.wait_closed(CLOSE_WAIT);
         let (url, exception) = match r {
             Ok(Some(res)) => (res.url, None),
             Ok(None) => (None, None),
@@ -200,9 +207,9 @@ fn remote_storage_cases_match_sharex() {
         let account: FTPAccount = serde_json::from_value(account_json).unwrap();
         let got = sharex_uploaders::testing::remote::run_remote_case(case, Some(account));
         for s in [&plain, &explicit, &implicit] {
-            s.wait_closed(std::time::Duration::from_secs(5));
+            s.wait_closed(CLOSE_WAIT);
         }
-        sftp.wait_closed(std::time::Duration::from_secs(5));
+        sftp.wait_closed(CLOSE_WAIT);
         let drop = id == "remote-ftp-listing-formats";
         for k in ["display_name", "root_display_name", "root_path", "capabilities", "create"] {
             if expected.get(k).is_some() || !got[k].is_null() {
@@ -295,7 +302,7 @@ fn email_cases_match_sharex() {
             let mut u = factory::create_url_sharing(&URLSharingServices::Email, &mut config, &task).expect("email sharer");
             uploader::share_url(u.as_mut(), case["input"]["url"].as_str().unwrap())
         };
-        smtp.wait_closed(std::time::Duration::from_secs(5));
+        smtp.wait_closed(CLOSE_WAIT);
         let (url, exception) = match r {
             Ok(Some(res)) => (res.url, None),
             Ok(None) => (None, None),
