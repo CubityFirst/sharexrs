@@ -40,7 +40,15 @@ impl EffectImpl for DrawLineEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.thickness <= 0.0 || self.color.a == 0 {
+            return Ok(source.clone());
+        }
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let pen = Pen::new(self.thickness).cap(Cap::Round).join(Join::Round);
+        let (s, e) = (self.start_point, self.end_point);
+        sk::draw_line(&mut canvas, s.x as f32, s.y as f32, e.x as f32, e.y as f32, &pen, &solid(self.color, true));
+        drop(canvas);
+        Ok(out)
     }
 }

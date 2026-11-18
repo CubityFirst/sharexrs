@@ -51,6 +51,8 @@ pub enum Blend {
     Multiply,
     /// `SKBlendMode.Clear`: 0, coverage lerped.
     Clear,
+    /// `SKBlendMode.Overlay`, coverage lerped.
+    Overlay,
 }
 
 /// `SKPaint.Shader` (or its colour when there's none).
@@ -573,7 +575,9 @@ impl<'a> Canvas<'a> {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,
                         // SkRasterPipelineSpriteBlitter: load_8888, multiply (lowp), store.
-                        Blend::Multiply | Blend::Clear => self.blend_full(di, Px::Low(s.map(u32::from)), paint.blend),
+                        Blend::Multiply | Blend::Clear | Blend::Overlay => {
+                            self.blend_full(di, Px::Low(s.map(u32::from)), paint.blend)
+                        }
                         // Sprite_D32_S32 → S32A_Opaque_BlitRow32: s + (d * (256 - sa) >> 8).
                         Blend::SrcOver => {
                             let d = self.dst.px(di);
@@ -696,8 +700,10 @@ impl<'a> Canvas<'a> {
                 [0, 1, 2, 3].map(|i| to_unorm(mad(d[i] as f32, inv, c[i] * 255.0), 1.0, 255.0))
             }
             (_, Blend::Clear) => [0, 0, 0, 0],
-            (Px::High(c), Blend::Multiply) => store(multiply_high(c, load(self.dst.px(di)))),
-            (Px::Low(c), Blend::Multiply) => multiply_low(c, self.dst.px(di)).map(|v| v.min(255) as u8),
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay)) => store(separable_high(b, c, load(self.dst.px(di)))),
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay)) => {
+                separable_low(b, c, self.dst.px(di)).map(|v| v.min(255) as u8)
+            }
             (Px::Low(c), Blend::SrcOver) => {
                 let d = self.dst.px(di);
                 let inv = 255 - c[3];
@@ -747,31 +753,53 @@ impl<'a> Canvas<'a> {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t)).min(255) as u8)
             }
-            (Px::High(c), Blend::Multiply) => {
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay)) => {
                 let f = cov as f32 * (1.0 / 255.0);
                 let dd = load(d);
-                let m = multiply_high(c, dd);
+                let m = separable_high(b, c, dd);
                 store([0, 1, 2, 3].map(|i| mad(m[i] - dd[i], f, dd[i])))
             }
-            (Px::Low(c), Blend::Multiply) => {
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay)) => {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
-                let m = multiply_low(c, d);
+                let m = separable_low(b, c, d);
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + m[i] * t).min(255) as u8)
             }
         }
     }
 }
 
-/// The highp `multiply` blend stage.
-fn multiply_high(s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
+/// The highp `multiply`/`overlay` blend stages.
+fn separable_high(mode: Blend, s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
     let (sa, da) = (s[3], d[3]);
-    [0, 1, 2, 3].map(|i| s[i] * (1.0 - da) + d[i] * (1.0 - sa) + s[i] * d[i])
+    match mode {
+        Blend::Multiply => [0, 1, 2, 3].map(|i| s[i] * (1.0 - da) + d[i] * (1.0 - sa) + s[i] * d[i]),
+        Blend::Overlay => {
+            let ch = |s: f32, d: f32| {
+                s * (1.0 - da)
+                    + d * (1.0 - sa)
+                    + if d + d <= da { s * d + s * d } else { sa * da - ((da - d) * (sa - s) + (da - d) * (sa - s)) }
+            };
+            [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), mad(da, 1.0 - sa, sa)]
+        }
+        _ => unreachable!(),
+    }
 }
 
-/// The lowp `multiply` blend stage (`div255`, even with accurate blends).
-fn multiply_low(s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
+/// The lowp `multiply`/`overlay` blend stages (`div255`, even with accurate blends).
+fn separable_low(mode: Blend, s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
     let (sa, da) = (s[3], d[3] as u32);
-    [0, 1, 2, 3].map(|i| div255(s[i] * (255 - da) + d[i] as u32 * (255 - sa) + s[i] * d[i] as u32))
+    let d = d.map(u32::from);
+    match mode {
+        Blend::Multiply => [0, 1, 2, 3].map(|i| div255(s[i] * (255 - da) + d[i] * (255 - sa) + s[i] * d[i])),
+        Blend::Overlay => {
+            let ch = |s: u32, d: u32| {
+                let tail = if 2 * d <= da { 2 * s * d } else { sa * da - 2 * (sa - s) * (da - d) };
+                div255(s * (255 - da) + d * (255 - sa) + tail)
+            };
+            [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), sa + div255(da * (255 - sa))]
+        }
+        _ => unreachable!(),
+    }
 }
 
 /// Which legacy (pre-raster-pipeline) blitter `SkBlitter::Choose` picks: src-over onto

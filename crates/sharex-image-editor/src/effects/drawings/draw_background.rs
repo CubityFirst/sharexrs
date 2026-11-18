@@ -29,7 +29,11 @@ impl EffectImpl for DrawBackgroundEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let mut out = Bitmap::new(source.width(), source.height());
+        let mut canvas = Canvas::new(&mut out);
+        sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, source.width() as f32, source.height() as f32, &solid(self.color, true), None);
+        canvas.draw_bitmap(source, 0.0, 0.0, None);
+        drop(canvas);
+        Ok(out)
     }
 }

@@ -44,7 +44,51 @@ impl EffectImpl for DrawShapeEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let resolve = |v: i32, full: u32| if v == -1 { full as i32 } else { v };
+        let width = resolve(self.size.width, source.width());
+        let height = resolve(self.size.height, source.height());
+        if width <= 0 || height <= 0 || self.color.a == 0 {
+            return Ok(source.clone());
+        }
+        let size = SizeI::new(width, height);
+        let pos = super::helpers::get_position(
+            self.placement,
+            self.offset,
+            SizeI::new(source.width() as i32, source.height() as i32),
+            size,
+        );
+        let rect = RRect::ltrb(pos.x as f32, pos.y as f32, (pos.x + width) as f32, (pos.y + height) as f32);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let paint = solid(self.color, true);
+        let mid_x = rect.left + rect.width() / 2.0;
+        let mid_y = rect.top + rect.height() / 2.0;
+        match self.shape {
+            DrawingShapeType::RoundedRectangle => {
+                let radius = 1f32.max(rect.width().min(rect.height()) * 0.2);
+                sk::draw_round_rect(&mut canvas, rect, radius, radius, &paint, None);
+            }
+            DrawingShapeType::Ellipse => sk::draw_oval(&mut canvas, rect, &paint, None),
+            DrawingShapeType::Triangle => {
+                let mut path = SkPath::new();
+                path.move_to(mid_x, rect.top);
+                path.line_to(rect.right, rect.bottom);
+                path.line_to(rect.left, rect.bottom);
+                path.close();
+                canvas.fill_sk_path(&path, &paint);
+            }
+            DrawingShapeType::Diamond => {
+                let mut path = SkPath::new();
+                path.move_to(mid_x, rect.top);
+                path.line_to(rect.right, mid_y);
+                path.line_to(mid_x, rect.bottom);
+                path.line_to(rect.left, mid_y);
+                path.close();
+                canvas.fill_sk_path(&path, &paint);
+            }
+            DrawingShapeType::Rectangle => sk::draw_rect(&mut canvas, rect, &paint, None),
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

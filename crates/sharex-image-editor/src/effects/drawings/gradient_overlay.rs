@@ -38,7 +38,33 @@ impl EffectImpl for GradientOverlayImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
+        if alpha <= 0.0 {
+            return Ok(source.clone());
+        }
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let (cx, cy) = (w as f32 / 2.0, h as f32 / 2.0);
+        let rad = self.angle as f32 * std::f32::consts::PI / 180.0;
+        let diagonal = ((w * w + h * h) as f32).sqrt() / 2.0;
+        let start = (cx - rad.cos() * diagonal, cy - rad.sin() * diagonal);
+        let end = (cx + rad.cos() * diagonal, cy + rad.sin() * diagonal);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let (c1, c2) = (self.color1, self.color2);
+        let gradient = sharex_skia::raster::gradient::LinearGradient {
+            start,
+            end,
+            colors: vec![
+                c1.with_alpha((c1.a as f32 * alpha) as u8).rgba_array(),
+                c2.with_alpha((c2.a as f32 * alpha) as u8).rgba_array(),
+            ],
+            positions: Some(vec![0.0, 1.0]),
+            local: Matrix::IDENTITY,
+        };
+        let mut paint = Paint::shader(Shader::Gradient(gradient));
+        paint.blend = Blend::Overlay;
+        sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, w as f32, h as f32, &paint, None);
+        drop(canvas);
+        Ok(out)
     }
 }
