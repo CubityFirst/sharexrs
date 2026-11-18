@@ -372,7 +372,7 @@ fn a_long_new_text_grows_the_canvas_while_typed_then_fits_it_once() {
     w.select_tool(EditorTool::Text);
     w.pointer_pressed((300.0, 250.0), Button::Left, Mods::NONE);
     w.pointer_released((300.0, 250.0), Button::Left, Mods::NONE);
-    if w.text_edit().and_then(|t| text_box(t)).is_none() {
+    if w.text_edit().and_then(text_box).is_none() {
         return;
     }
     w.text_input("A rather long caption that runs off the image");
