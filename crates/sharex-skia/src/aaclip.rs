@@ -56,6 +56,48 @@ impl AAClip {
         self.rows.is_empty()
     }
 
+    /// `SkAAClip::op(device, self, kDifference)`: what
+    /// `clipRRect(rr, kDifference, antialias: true)` (or `clipPath`) leaves
+    /// of a device's rectangular clip, each pixel's alpha
+    /// `SkMulDiv255Round(255, 255 - alpha)` (`diffAlphaProc`), trimmed.
+    pub fn difference_from(&self, device: IRect) -> AAClip {
+        if device.is_empty() {
+            return AAClip::default();
+        }
+        let mut builder = Builder::new(device);
+        let width = device.width() as usize;
+        let mut line = vec![0u8; width];
+        for y in device.top..device.bottom {
+            line.fill(255);
+            if !self.is_empty() && y >= self.bounds.top && y < self.bounds.bottom {
+                let (row, _) = self.find_row(y);
+                let data = &self.rows[row].data;
+                let mut x = self.bounds.left;
+                let mut off = 0;
+                while off + 1 < data.len() {
+                    let n = data[off] as i32;
+                    let a = mul_div_255_round(255, 255 - data[off + 1] as u32) as u8;
+                    for px in x.max(device.left)..(x + n).min(device.right) {
+                        line[(px - device.left) as usize] = a;
+                    }
+                    x += n;
+                    off += 2;
+                }
+            }
+            let mut i = 0;
+            while i < width {
+                let a = line[i];
+                let mut n = 1;
+                while i + n < width && line[i + n] == a {
+                    n += 1;
+                }
+                builder.add_run(device.left + i as i32, y, a, n as i32);
+                i += n;
+            }
+        }
+        builder.finish()
+    }
+
     pub fn bounds(&self) -> IRect {
         self.bounds
     }

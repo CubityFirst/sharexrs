@@ -55,6 +55,32 @@ pub(crate) fn fill_path_aa_clip(
     Coverage::Mask(rec.cells)
 }
 
+/// A whole-pixel rect through an anti-aliased clip: `SkScan::FillRect`
+/// with an `SkAAClipBlitterWrapper` (the rect cut to the clip's bounds,
+/// then `blitRect`, which is `blitH` per row).
+pub(crate) fn fill_irect_aa_clip(
+    rect: IRect,
+    clip: &crate::aaclip::AAClip,
+    width: u32,
+    height: u32,
+) -> Coverage {
+    let mut rec = Recorder::new(width, height);
+    let mut r = rect;
+    if clip.is_empty() || !r.intersect(&clip.bounds()) || !r.intersect(&rec.clip()) {
+        return Coverage::Mask(rec.cells);
+    }
+    {
+        let mut blitter = crate::aaclip::AAClipBlitter {
+            inner: &mut rec,
+            clip,
+        };
+        for y in r.top..r.bottom {
+            blitter.blit_h(r.left, y, r.width());
+        }
+    }
+    Coverage::Mask(rec.cells)
+}
+
 /// An anti-aliased hairline of `path` (device space) with `cap`
 /// (`SkScan::AntiHairPath` and its cap variants).
 pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {

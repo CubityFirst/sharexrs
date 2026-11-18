@@ -330,8 +330,14 @@ impl<'a> Canvas<'a> {
         if treat_as_sprite(&total, image.width(), image.height(), sampling, paint.anti_alias) {
             let ix = (total.tx() + 0.5).floor() as i32;
             let iy = (total.ty() + 0.5).floor() as i32;
-            self.sprite(image, ix, iy, paint);
-            return;
+            // clipHandlesSprite: a BW clip, or an AA clip that holds the bitmap.
+            let handles = self.aa_clip.as_ref().is_none_or(|c| {
+                c.quick_contains(ix, iy, ix + image.width() as i32, iy + image.height() as i32)
+            });
+            if handles {
+                self.sprite(image, ix, iy, paint);
+                return;
+            }
         }
         let _ = dst;
         let bounds = Rect::xywh(0.0, 0.0, image.width() as f32, image.height() as f32);
@@ -348,11 +354,7 @@ impl<'a> Canvas<'a> {
             ..paint.clone()
         };
         if total.rect_stays_rect() {
-            let cov = if p.anti_alias {
-                coverage::anti_fill_rect(device, self.width(), self.height())
-            } else {
-                coverage::fill_rect(device, self.width(), self.height())
-            };
+            let cov = self.rect_coverage(device, p.anti_alias);
             self.blit(&cov, &p);
         } else {
             let path = rect_path(bounds, &total);
@@ -397,11 +399,7 @@ impl<'a> Canvas<'a> {
         );
         if self.matrix.rect_stays_rect() {
             let device = self.matrix.map_rect(r);
-            let cov = if paint.anti_alias {
-                coverage::anti_fill_rect(device, self.width(), self.height())
-            } else {
-                coverage::fill_rect(device, self.width(), self.height())
-            };
+            let cov = self.rect_coverage(device, paint.anti_alias);
             self.blit(&cov, paint);
         } else {
             let path = rect_path(r, &self.matrix);
@@ -439,6 +437,33 @@ impl<'a> Canvas<'a> {
             None => coverage::fill_path(&device, paint.anti_alias, self.width(), self.height()),
         };
         self.blit(&cov, paint);
+    }
+
+    /// A device rect's coverage (`SkScan::FillRect`/`AntiFillRect`), through
+    /// the anti-aliased clip when there is one.
+    fn rect_coverage(&self, device: Rect, anti_alias: bool) -> Coverage {
+        let Some(clip) = &self.aa_clip else {
+            return if anti_alias {
+                coverage::anti_fill_rect(device, self.width(), self.height())
+            } else {
+                coverage::fill_rect(device, self.width(), self.height())
+            };
+        };
+        let whole = |v: f32| v == v.floor();
+        if !anti_alias
+            || (whole(device.left) && whole(device.top) && whole(device.right) && whole(device.bottom))
+        {
+            let round = |v: f32| (v + 0.5).floor() as i32;
+            let r = crate::geom::IRect::from_ltrb(
+                round(device.left),
+                round(device.top),
+                round(device.right),
+                round(device.bottom),
+            );
+            return coverage::fill_irect_aa_clip(r, clip, self.width(), self.height());
+        }
+        let path = rect_path(device, &Matrix::IDENTITY);
+        coverage::fill_path_aa_clip(&path, clip, self.width(), self.height())
     }
 
     /// The canvas matrix as a path matrix.

@@ -79,7 +79,24 @@ def border():
     im.save(os.path.join(HERE, "border.png"))
 
 
+def wallpaper():
+    """97x61, opaque: a diagonal gradient with a grid (shows how a background
+    image or wallpaper is stretched, fitted, centred or tiled)."""
+    w, h = 97, 61
+    im = Image.new("RGBA", (w, h))
+    px = im.load()
+    for y in range(h):
+        for x in range(w):
+            if x % 12 == 0 or y % 10 == 0:
+                c = (250, 250, 250)
+            else:
+                c = ((x * 255) // (w - 1), 90 + (y * 120) // (h - 1), 200 - (x + y) // 2)
+            px[x, y] = c + (255,)
+    im.save(os.path.join(HERE, "wallpaper.png"))
+
+
 if __name__ == "__main__":
+    wallpaper()
     border()
     sticker()
     tile()

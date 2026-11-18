@@ -6162,6 +6162,388 @@
    "fonts": [
     "Segoe UI"
    ]
+  },
+  {
+   "name": "bg-transparent",
+   "annotations": [],
+   "background": {
+    "type": "Transparent"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-gradient",
+   "annotations": [],
+   "background": {
+    "type": "Gradient"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-gradient-preset",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "color1": "#FF7E5F",
+    "color2": "#FEB47B"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-color",
+   "annotations": [],
+   "background": {
+    "type": "Color"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-color-translucent",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "color": "#80336699"
+   },
+   "tolerance": {
+    "maxDelta": 3,
+    "maxPixels": 8,
+    "why": "the shadow's corners under a translucent colour"
+   }
+  },
+  {
+   "name": "bg-plain",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "corner": 0,
+    "shadow": 0
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-square-shadow",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "color": "#FFFFFFFF",
+    "corner": 0,
+    "shadow": 30
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-no-shadow",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "shadow": 0
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-margin0",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "margin": 0
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-padding0",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "padding": 0
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-fractional",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "margin": 37.3,
+    "padding": 12.6,
+    "corner": 13.7,
+    "shadow": 17.2
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-ratio-16-9",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "ratio": "16:9"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-ratio-9-16",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "ratio": "9:16"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-ratio-1-1",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "ratio": "1:1"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-ratio-5-3",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "ratio": "5:3",
+    "margin": 33.5
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-shadow-color",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "color": "#FFF0F0F0",
+    "shadowColor": "#C0FF0000"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-shadow-wide",
+   "annotations": [],
+   "background": {
+    "type": "Color",
+    "color": "#FFFFFFFF",
+    "margin": 20,
+    "shadow": 100,
+    "corner": 50
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-smart",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "padding": 20
+   },
+   "base": "images/border.png",
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-smart-off",
+   "annotations": [],
+   "background": {
+    "type": "Gradient",
+    "padding": 20,
+    "smartPadding": false
+   },
+   "base": "images/border.png",
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-image",
+   "annotations": [],
+   "background": {
+    "type": "Image",
+    "image": "images/wallpaper.png"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-wallpaper-fill",
+   "annotations": [],
+   "background": {
+    "type": "Wallpaper",
+    "wallpaper": "images/wallpaper.png",
+    "layout": "Fill"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-wallpaper-fit",
+   "annotations": [],
+   "background": {
+    "type": "Wallpaper",
+    "wallpaper": "images/wallpaper.png",
+    "layout": "Fit"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-wallpaper-stretch",
+   "annotations": [],
+   "background": {
+    "type": "Wallpaper",
+    "wallpaper": "images/wallpaper.png",
+    "layout": "Stretch"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-wallpaper-center",
+   "annotations": [],
+   "background": {
+    "type": "Wallpaper",
+    "wallpaper": "images/wallpaper.png",
+    "layout": "Center"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-wallpaper-tile",
+   "annotations": [],
+   "background": {
+    "type": "Wallpaper",
+    "wallpaper": "images/wallpaper.png",
+    "layout": "Tile"
+   },
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 8,
+    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+   }
+  },
+  {
+   "name": "bg-annotations",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": -10,
+      "Y": -10
+     },
+     "EndPoint": {
+      "X": 60,
+      "Y": 50
+     },
+     "FillColor": "#C02080F0",
+     "StrokeWidth": 6
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 330,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 420,
+      "Y": 320
+     },
+     "StrokeColor": "#FF00A050",
+     "StrokeWidth": 8
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 40
+   },
+   "tolerance": {
+    "maxDelta": 5,
+    "maxPixels": 120,
+    "why": "annotations over the viewport's edge: ShareX chops their edges at the frame's clip"
+   }
   }
  ]
 }

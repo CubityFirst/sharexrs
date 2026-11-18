@@ -57,6 +57,26 @@ internal sealed class HarnessApp : Application
     }
 }
 
+/// <summary>
+/// A wallpaper service that hands the editor a generated image (never the
+/// desktop's), so the Wallpaper background's layouts can be compared.
+/// </summary>
+internal sealed class FakeWallpaper(string? path, DesktopWallpaperLayout layout) : IDesktopWallpaperService
+{
+    public bool IsSupported => path != null;
+    public bool RequiresDesktopWallpaperPrewarm => false;
+
+    public bool TryGetDesktopWallpaper(out DesktopWallpaperInfo? wallpaper)
+    {
+        wallpaper = path == null ? null : new DesktopWallpaperInfo { Path = path, Layout = layout };
+        return wallpaper != null;
+    }
+
+    public void PrewarmDesktopWallpaper()
+    {
+    }
+}
+
 internal static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -159,6 +179,9 @@ internal static class Program
             .WithInterFont()
             .SetupWithoutStarting();
 
+        // Never the desktop's wallpaper: a case's own generated image or none.
+        EditorServices.DesktopWallpaper = new FakeWallpaper(null, DesktopWallpaperLayout.Fill);
+
         JsonObject root = JsonNode.Parse(File.ReadAllText(casesPath))!.AsObject();
         string basePath = Path.Combine(Path.GetDirectoryName(casesPath)!, root["base"]!.GetValue<string>());
 
@@ -191,8 +214,9 @@ internal static class Program
                 bool configureFill = node["configureFill"]?.GetValue<bool>() ?? false;
                 JsonArray? ops = node["ops"]?.AsArray();
                 JsonArray? snapshotRect = node["snapshotRect"]?.AsArray();
+                JsonObject? background = node["background"]?.AsObject();
 
-                using SKBitmap snapshot = Render(baseImage, annotations, configureFill, ops, snapshotRect);
+                using SKBitmap snapshot = Render(baseImage, annotations, configureFill, ops, snapshotRect, background, Path.GetDirectoryName(casesPath)!);
                 using FileStream file = File.Create(Path.Combine(outDir, name + ".png"));
                 snapshot.Encode(file, SKEncodedImageFormat.Png, 100);
                 Console.WriteLine($"{name}: {snapshot.Width}x{snapshot.Height}");
@@ -207,9 +231,37 @@ internal static class Program
         return failures == 0 ? 0 : 1;
     }
 
-    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations, bool configureFill = false, JsonArray? ops = null, JsonArray? snapshotRect = null)
+    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations, bool configureFill = false, JsonArray? ops = null,
+        JsonArray? snapshotRect = null, JsonObject? background = null, string? casesDir = null)
     {
         ImageEditorOptions options = new() { ShowExitConfirmation = false, RememberWindowState = false };
+        string? ratio = null;
+        if (background != null)
+        {
+            // The Background panel's settings, as ImageEditorOptions keeps
+            // them (InitializeBackgroundSettingsFromOptions reads them).
+            double D(string name, double fallback) => background[name]?.GetValue<double>() ?? fallback;
+            string? S(string name) => background[name]?.GetValue<string>();
+            options.BackgroundMargin = D("margin", options.BackgroundMargin);
+            options.BackgroundPadding = D("padding", options.BackgroundPadding);
+            options.BackgroundSmartPadding = background["smartPadding"]?.GetValue<bool>() ?? options.BackgroundSmartPadding;
+            options.BackgroundRoundedCorner = D("corner", options.BackgroundRoundedCorner);
+            options.BackgroundShadowRadius = D("shadow", options.BackgroundShadowRadius);
+            options.BackgroundType = S("type") ?? options.BackgroundType;
+            options.BackgroundGradientColor1Hex = S("color1") ?? options.BackgroundGradientColor1Hex;
+            options.BackgroundGradientColor2Hex = S("color2") ?? options.BackgroundGradientColor2Hex;
+            options.BackgroundColorHex = S("color") ?? options.BackgroundColorHex;
+            options.ShadowColorHex = S("shadowColor") ?? options.ShadowColorHex;
+            if (S("image") is string image)
+            {
+                options.BackgroundImagePath = Path.Combine(casesDir!, image);
+            }
+            string? wallpaper = S("wallpaper");
+            EditorServices.DesktopWallpaper = new FakeWallpaper(
+                wallpaper == null ? null : Path.Combine(casesDir!, wallpaper),
+                Enum.Parse<DesktopWallpaperLayout>(S("layout") ?? "Fill"));
+            ratio = S("ratio");
+        }
         EditorWindow window = new(options);
         try
         {
@@ -223,6 +275,18 @@ internal static class Program
 
             window.LoadImage(baseImage.Copy());
             Pump();
+
+            if (background != null && window.DataContext is MainViewModel bvm)
+            {
+                if (ratio != null)
+                {
+                    bvm.SetOutputRatioCommand.Execute(ratio);
+                }
+                // The Background button (ToggleSettingsPanel): the background
+                // effects apply while the panel is open.
+                bvm.IsSettingsPanelOpen = true;
+                Pump();
+            }
 
             EditorView view = window.GetVisualDescendants().OfType<EditorView>().First();
             EditorCore core = (EditorCore)typeof(EditorView)

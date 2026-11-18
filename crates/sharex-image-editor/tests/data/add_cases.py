@@ -253,6 +253,62 @@ CASES += [
 ]
 
 
+# The Background panel's export (IsSettingsPanelOpen: margin, padding with
+# the top-left pixel's colour, smart padding, corners, the canvas shadow,
+# output ratios, colour/gradient/image/wallpaper backgrounds).
+WALLPAPER = "images/wallpaper.png"
+
+
+# The canvas shadow's blurred corners come out one level off on a few
+# pixels; annotations crossing the viewport's edge are chopped at the
+# frame's clip in ShareX, at the image's here (a few levels on their
+# anti-aliased edge pixels).
+SHADOW_CORNER = {"maxDelta": 1, "maxPixels": 8, "why": "the blurred canvas shadow's corners: one level on a few pixels"}
+
+
+def bg(name, annotations=(), base=None, tolerance=SHADOW_CORNER, **kw):
+    c = {"name": name, "annotations": list(annotations), "background": kw}
+    if base:
+        c["base"] = base
+    if tolerance:
+        c["tolerance"] = tolerance
+    return c
+
+
+CASES += [
+    bg("bg-transparent", type="Transparent"),
+    bg("bg-gradient", type="Gradient"),
+    bg("bg-gradient-preset", type="Gradient", color1="#FF7E5F", color2="#FEB47B"),
+    bg("bg-color", type="Color"),
+    bg("bg-color-translucent", type="Color", color="#80336699",
+       tolerance={"maxDelta": 3, "maxPixels": 8, "why": "the shadow's corners under a translucent colour"}),
+    bg("bg-plain", type="Color", corner=0, shadow=0),
+    bg("bg-square-shadow", type="Color", color="#FFFFFFFF", corner=0, shadow=30),
+    bg("bg-no-shadow", type="Gradient", shadow=0),
+    bg("bg-margin0", type="Gradient", margin=0),
+    bg("bg-padding0", type="Gradient", padding=0),
+    bg("bg-fractional", type="Gradient", margin=37.3, padding=12.6, corner=13.7, shadow=17.2),
+    bg("bg-ratio-16-9", type="Gradient", ratio="16:9"),
+    bg("bg-ratio-9-16", type="Gradient", ratio="9:16"),
+    bg("bg-ratio-1-1", type="Color", ratio="1:1"),
+    bg("bg-ratio-5-3", type="Gradient", ratio="5:3", margin=33.5),
+    bg("bg-shadow-color", type="Color", color="#FFF0F0F0", shadowColor="#C0FF0000"),
+    bg("bg-shadow-wide", type="Color", color="#FFFFFFFF", margin=20, shadow=100, corner=50),
+    bg("bg-smart", base=BORDER, type="Gradient", padding=20),
+    bg("bg-smart-off", base=BORDER, type="Gradient", padding=20, smartPadding=False),
+    bg("bg-image", type="Image", image=WALLPAPER),
+    bg("bg-wallpaper-fill", type="Wallpaper", wallpaper=WALLPAPER, layout="Fill"),
+    bg("bg-wallpaper-fit", type="Wallpaper", wallpaper=WALLPAPER, layout="Fit"),
+    bg("bg-wallpaper-stretch", type="Wallpaper", wallpaper=WALLPAPER, layout="Stretch"),
+    bg("bg-wallpaper-center", type="Wallpaper", wallpaper=WALLPAPER, layout="Center"),
+    bg("bg-wallpaper-tile", type="Wallpaper", wallpaper=WALLPAPER, layout="Tile"),
+    bg("bg-annotations", [ann("Rectangle", (-10, -10), (60, 50), FillColor="#C02080F0", StrokeWidth=6),
+                          ann("Ellipse", (330, 240), (420, 320), StrokeColor="#FF00A050", StrokeWidth=8)],
+       type="Gradient", corner=40,
+       tolerance={"maxDelta": 5, "maxPixels": 120, "why": "annotations over the viewport's edge: ShareX chops their edges at the frame's clip"}),
+]
+
+
 def main():
     path = os.path.join(HERE, "cases.json")
     with open(path, encoding="utf-8") as f:
