@@ -31,7 +31,19 @@ impl EffectImpl for TVStaticImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let blend = clampf(self.amount / 100.0, 0.0, 1.0);
+        if blend <= 0.0 {
+            return Ok(source.clone());
+        }
+        let mut rng = random::Compat::new(self.seed);
+        let dst: Vec<SkColor> = pixels(source)
+            .iter()
+            .map(|c| {
+                let noise = rng.next_max(256) as u8 as i32;
+                let f = |v: u8| (v as f32 + (noise - v as i32) as f32 * blend) as u8;
+                SkColor::rgba(f(c.r), f(c.g), f(c.b), c.a)
+            })
+            .collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
 }

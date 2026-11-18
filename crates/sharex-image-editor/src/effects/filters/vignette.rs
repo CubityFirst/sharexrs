@@ -32,7 +32,32 @@ impl EffectImpl for VignetteImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let strength = clampf(self.strength, 0.0, 1.0);
+        let radius = clampf(self.radius, 0.05, 0.999);
+        if strength <= 0.0 {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let cx = (width - 1) as f32 * 0.5;
+        let cy = (height - 1) as f32 * 0.5;
+        let inv_cx = if cx > 0.0 { 1.0 / cx } else { 1.0 };
+        let inv_cy = if cy > 0.0 { 1.0 / cy } else { 1.0 };
+        const INV_SQRT2: f32 = 0.70710678;
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let dy = (y as f32 - cy) * inv_cy;
+            for x in 0..width {
+                let dx = (x as f32 - cx) * inv_cx;
+                let d = ((dx * dx) + (dy * dy)).sqrt() * INV_SQRT2;
+                let t = clampf((d - radius) / (1.0 - radius), 0.0, 1.0);
+                let falloff = t * t * (3.0 - (2.0 * t));
+                let f = 1.0 - (strength * falloff);
+                let c = src[(y * width + x) as usize];
+                dst[(y * width + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(c.r as f32 * f), clamp_to_byte(c.g as f32 * f), clamp_to_byte(c.b as f32 * f), c.a);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }
