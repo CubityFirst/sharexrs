@@ -17445,5 +17445,45 @@
     28
    ]
   ]
+ },
+ {
+  "name": "bgremove-a-nchw-sigmoid",
+  "tool": "bg-remove",
+  "model": "bgmodels/a-nchw-sigmoid.onnx",
+  "images": [
+   "alpha_64x48.png",
+   "opaque_97x61.png",
+   "odd_33x77.png"
+  ]
+ },
+ {
+  "name": "bgremove-b-nchw-minmax",
+  "tool": "bg-remove",
+  "model": "bgmodels/b-nchw-minmax.onnx",
+  "images": [
+   "alpha_64x48.png",
+   "opaque_97x61.png",
+   "odd_33x77.png"
+  ]
+ },
+ {
+  "name": "bgremove-c-nhwc",
+  "tool": "bg-remove",
+  "model": "bgmodels/c-nhwc.onnx",
+  "images": [
+   "alpha_64x48.png",
+   "opaque_97x61.png",
+   "odd_33x77.png"
+  ]
+ },
+ {
+  "name": "bgremove-d-dynamic-2d",
+  "tool": "bg-remove",
+  "model": "bgmodels/d-dynamic-2d.onnx",
+  "images": [
+   "alpha_64x48.png",
+   "opaque_97x61.png",
+   "odd_33x77.png"
+  ]
  }
 ]

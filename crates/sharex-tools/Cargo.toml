@@ -14,6 +14,9 @@ sharex-screen-recording.workspace = true
 sharex-settings.workspace = true
 # Analyze image: the HTTP layer (ShareXrs's user agent, proxy), [JsonEncrypt] keys, Newtonsoft JSON.
 sharex-uploaders.workspace = true
+# The background remover: ONNX Runtime as the OCR loads it.
+sharex-ocr.workspace = true
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic"] }
 base64 = "0.22"
 serde.workspace = true
 serde_json.workspace = true

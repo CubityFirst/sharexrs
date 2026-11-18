@@ -252,6 +252,34 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             }
             out
         }
+        "bg-remove" => {
+            use sharex_tools::background_remover::{self as br, Device, Model};
+            if std::env::var_os("ORT_DYLIB_PATH").is_none() {
+                return Outcome::skip("ORT_DYLIB_PATH isn't set (ShareX's onnxruntime.dll)");
+            }
+            let theirs = read_json(ctx, name);
+            let path = ctx.inputs.join(c["model"].as_str().unwrap());
+            let model = Model {
+                file_name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                file_size: std::fs::metadata(&path).unwrap().len(),
+                path,
+            };
+            let mut service = br::BackgroundRemovalService::new();
+            let mut runs = Vec::new();
+            let mut out = Outcome::exact();
+            for (i, img) in c["images"].as_array().unwrap().iter().enumerate() {
+                let source = br::load_image(&ctx.inputs.join(img.as_str().unwrap())).unwrap();
+                match service.remove_background(&source, &model, Device::Cpu) {
+                    Ok(r) => {
+                        runs.push(serde_json::json!({"cached": r.session_cached, "device": r.execution_device}));
+                        let sharex = compare::read_sxrb(&ctx.sharex.join(name).join(format!("{i}.sxrb"))).unwrap();
+                        out = out.and(compare::bitmaps(&format!("image {i}"), &r.image, &sharex, 0));
+                    }
+                    Err(e) => return Outcome::fail(e),
+                }
+            }
+            out.and(json_eq(&serde_json::json!({"display": model.display_name(), "runs": runs}), &theirs))
+        }
         "inspect-styles" => {
             use sharex_tools::system::inspect_window::{format_rectangle, window_styles_to_string, Rect};
             let theirs = read_json(ctx, name);

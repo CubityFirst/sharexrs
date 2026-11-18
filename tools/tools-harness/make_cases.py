@@ -239,5 +239,9 @@ styles = [0, 1, 2, 0x80, 0x100, 0x300, 0x188, 0x10000, 0x20000, 0x30000, 0x40000
 add("inspect-styles", "inspect-styles", values=styles,
     rects=[[0, 0, 0, 0], [10, 20, 300, 200], [-8, -8, 1936, 1056], [0, 0, 5, 0], [5, 5, 0, 0], [-32000, -32000, 160, 28]])
 
+# The background remover over synthetic models (make_bg_models.py writes them into inputs/bgmodels).
+for m in ["a-nchw-sigmoid", "b-nchw-minmax", "c-nhwc", "d-dynamic-2d"]:
+    add(f"bgremove-{m}", "bg-remove", model=f"bgmodels/{m}.onnx", images=["alpha_64x48.png", "opaque_97x61.png", "odd_33x77.png"])
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

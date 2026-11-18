@@ -168,6 +168,26 @@ fn gif_trimmer_reencode_is_byte_identical() {
     }
 }
 
+/// The background remover over a synthetic 227-byte model, against ShareX's
+/// own service. Needs ONNX Runtime (`ORT_DYLIB_PATH`, e.g. ShareX's
+/// `onnxruntime.dll`); skipped without it, as on CI.
+#[test]
+fn background_remover_matches_sharex() {
+    use sharex_tools::background_remover::{self as br, Device, Model};
+    if std::env::var_os("ORT_DYLIB_PATH").is_none() {
+        eprintln!("skipped: ORT_DYLIB_PATH isn't set");
+        return;
+    }
+    let path = fixture("in-bgmodels-a-nchw-sigmoid.onnx");
+    let model = Model { file_name: "a-nchw-sigmoid.onnx".into(), file_size: std::fs::metadata(&path).unwrap().len(), path };
+    let source = br::load_image(std::path::Path::new(&input("alpha_64x48.png"))).unwrap();
+    let mut service = br::BackgroundRemovalService::new();
+    let r = service.remove_background(&source, &model, Device::Cpu).unwrap();
+    assert_eq!((r.session_cached, r.execution_device.as_str()), (false, "CPU"));
+    assert_same_bitmap(&r.image, &expected_bitmap("bgremove-a-nchw-sigmoid-0"), "background removed");
+    assert!(service.remove_background(&source, &model, Device::Cpu).unwrap().session_cached);
+}
+
 #[test]
 fn gif_trimmer_selection_follows_the_view_model() {
     use sharex_tools::video::gif_trimmer::{AnimatedGifTrimmerDocument, CropRect, TrimSelection};

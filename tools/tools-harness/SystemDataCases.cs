@@ -171,6 +171,29 @@ static partial class Program
                 File.WriteAllText(o + ".json", new JObject { ["snapshots"] = snapshots }.ToString());
                 return true;
             }
+            case "bg-remove":
+            {
+                // ShareX's BackgroundRemovalService on the CPU device, over the
+                // synthetic models make_bg_models.py writes (no real model).
+                string modelPath = Path.Combine(Inputs_, (string)c["model"]);
+                if (!File.Exists(modelPath)) throw new FileNotFoundException("run make_bg_models.py first", modelPath);
+                FileInfo fi = new(modelPath);
+                var model = new ShareX.Tools.BackgroundRemovalModel { FilePath = fi.FullName, FileName = fi.Name, FileSize = fi.Length };
+                using var service = new ShareX.Tools.BackgroundRemovalService();
+                JArray runs = new();
+                Directory.CreateDirectory(o);
+                int i = 0;
+                foreach (JToken img in (JArray)c["images"])
+                {
+                    using SKBitmap source = SKBitmap.Decode(Path.Combine(Inputs_, (string)img));
+                    var result = service.RemoveBackground(source, model, ShareX.Tools.BackgroundRemovalDevice.CPU);
+                    Sxrb(Path.Combine(o, $"{i++}.sxrb"), result.Image);
+                    runs.Add(new JObject { ["cached"] = result.IsSessionCached, ["device"] = result.ExecutionDevice });
+                    result.Image.Dispose();
+                }
+                File.WriteAllText(o + ".json", new JObject { ["display"] = model.DisplayName, ["runs"] = runs }.ToString());
+                return true;
+            }
             case "inspect-styles":
             {
                 JObject r = new()

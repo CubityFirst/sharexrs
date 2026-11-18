@@ -3,7 +3,8 @@
 //! windows. One module per tool:
 //!
 //! - Images: [`combiner`], [`splitter`], [`thumbnailer`], [`resizer`],
-//!   [`converter`], [`watermark`], [`icon`] (`.ico` writing), [`comparer`].
+//!   [`converter`], [`watermark`], [`icon`] (`.ico` writing), [`comparer`],
+//!   [`background_remover`] (an ONNX model on ONNX Runtime).
 //! - Data: [`hash`], [`qr`], [`indexer`], [`metadata`], [`analyze_image`].
 //! - Video: [`video`] (the FFmpeg command lines and output parsing of the
 //!   video converter, thumbnailer, trimmer and GIF tools; [`gif`] for the GIF
@@ -33,6 +34,7 @@
 )]
 
 pub mod analyze_image;
+pub mod background_remover;
 pub mod color;
 pub mod combiner;
 pub mod comparer;
