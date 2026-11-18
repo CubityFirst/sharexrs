@@ -187,7 +187,7 @@ static class RemoteCases
                     steps.Add(Error(e));
                 }
             }
-            output["token"] = JsonConvert.SerializeObject(info.Token);
+            output["token"] = OAuthCases.Token(info);
             return;
         }
         if (service == "mega")

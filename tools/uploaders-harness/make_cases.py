@@ -1063,6 +1063,75 @@ remote_case("remote-s3-upload-disabled", "s3", [{"op": "upload", "dir": "", "nam
 remote_case("remote-ftp-sanitize", "ftp", [{"op": "list", "path": "a%20b"}, {"op": "list", "path": "x;y"}, {"op": "list", "path": "../etc"},
                                            {"op": "download", "item": item("docs/../top.png")}], FTP_SERVERS, FTP_REMOTE)
 
+# ---------------------------------------------------------------------------
+# Destination settings' pickers: Imgur's albums ("Refresh albums") and an
+# album's images, MEGA's folder tree.
+
+
+def listing_case(id, service, steps, responses, **extra):
+    c = {"id": id, "kind": "listing", "service": service, "steps": steps, "responses": responses}
+    c.update(extra)
+    cases.append(c)
+
+
+def imgur_ok(data):
+    return resp(json.dumps({"data": data, "success": True, "status": 200}))
+
+
+ALBUM_A = {"id": "abc12", "title": "Shots", "description": None, "datetime": 1700000000, "cover": "cov1", "cover_width": 640,
+           "cover_height": "480", "account_url": "someone", "account_id": 12345, "privacy": "hidden", "layout": "blog", "views": 7,
+           "link": "https://imgur.com/a/abc12", "favorite": False, "nsfw": None, "section": None, "order": 0, "deletehash": "dh1",
+           "images_count": 2, "in_gallery": False, "is_ad": False}
+ALBUM_B = dict(ALBUM_A, id="def34", title="Café \"quoted\" <b>", datetime="1700000001", favorite="true", nsfw=True, order=3,
+               images=[{"id": "img1", "title": None, "datetime": 1700000002, "type": "image/png", "animated": False, "width": 10,
+                        "height": 20, "size": 300, "views": 0, "bandwidth": 12345678901, "link": "https://i.imgur.com/img1.png",
+                        "nsfw": None, "vote": None}])
+ALBUM_C = dict(ALBUM_A, id="ghi56", title="2024-01-02T03:04:05Z", account_id=None, description="x\ny")
+listing_case("listing-imgur-albums", "imgur", [{"op": "albums", "max_page": 3, "per_page": 2}, {"op": "albums"},
+                                               {"op": "album_images", "album_id": "def34"}],
+             [imgur_ok([ALBUM_A, ALBUM_B]), imgur_ok([ALBUM_C]), imgur_ok([]), imgur_ok(ALBUM_B["images"] * 2)], oauth2=oauth2())
+listing_case("listing-imgur-refresh-and-errors", "imgur", [{"op": "albums"}, {"op": "album_images", "album_id": "zz"},
+                                                           {"op": "albums"}, {"op": "album_images", "album_id": "yy"}],
+             [resp(json.dumps({"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 2419200,
+                               "token_type": "bearer"})),
+              resp(json.dumps({"data": {"error": "Unauthorized", "request": "/3/account/me/albums", "method": "GET"}, "success": False,
+                               "status": 403})),
+              resp(json.dumps({"data": {"error": {"code": 1003, "message": "Album not found", "type": "Exception"}, "request": "/3/album/zz/images",
+                               "method": "GET"}, "success": False, "status": 404}), 404),
+              imgur_ok({"not": "an array"}),
+              resp("<html>bad gateway</html>", 502, [["Content-Type", "text/html"]])],
+             oauth2=dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST)))
+listing_case("listing-imgur-not-signed-in", "imgur", [{"op": "albums"}], [], oauth2=dict(oauth2(), Token=None))
+
+
+def aes_cbc(data, key):
+    return subprocess.run(["openssl", "enc", "-aes-128-cbc", "-nopad", "-K", key.hex(), "-iv", "00" * 16], input=data,
+                          capture_output=True, check=True).stdout
+
+
+def mega_folder(handle, parent, name, key_byte, owner="u1"):
+    key = bytes([key_byte]) * 16
+    attrs = ("MEGA" + json.dumps({"n": name}, ensure_ascii=False, separators=(",", ":"))).encode("utf-8")
+    attrs += b"\0" * ((-len(attrs)) % 16)
+    return {"h": handle, "p": parent, "t": 1, "a": b64url(aes_cbc(attrs, key)), "k": f"{owner}:{b64url(aes_ecb(key, MEGA_MASTER))}",
+            "ts": 1700000000}
+
+
+MEGA_NODES = {"f": [
+    {"h": "ROOT1", "t": 2}, {"h": "INBOX", "t": 3}, {"h": "BIN", "t": 4},
+    mega_folder("F1", "ROOT1", "zeta shots", 1), mega_folder("F2", "ROOT1", "Alpha", 2), mega_folder("F3", "ROOT1", "été \U0001F600", 3),
+    dict(mega_folder("F4", "ROOT1", "bad key", 4), k="u1:notbase64!!/u2:" + b64url(aes_ecb(bytes([4]) * 16, MEGA_MASTER))),
+    dict(mega_folder("F5", "ROOT1", "no attributes", 5), a=""), mega_folder("F6", "F1", "inside zeta", 6),
+    dict(mega_folder("F7", "ROOT1", "wrong key", 7), k="u1:" + b64url(bytes(16))), mega_folder("", "ROOT1", "no handle", 8),
+    {"h": "FILE1", "p": "ROOT1", "t": 0, "a": "x", "k": "y"},
+]}
+listing_case("listing-mega-folders", "mega", [{"parent": None}, {"parent": {"id": "F1", "name": "zeta shots"}}, {"parent": None},
+                                              {"parent": {"id": "", "name": ""}}],
+             [resp(json.dumps([MEGA_NODES])), resp(json.dumps([MEGA_NODES])), resp("[-15]"),
+              resp(json.dumps([{"f": [{"h": "INBOX", "t": 3}]}]))],
+             session_id="made-up-session-id", master_key=b64url(MEGA_MASTER))
+listing_case("listing-mega-not-logged-in", "mega", [{"parent": None}], [], session_id="", master_key=b64url(MEGA_MASTER))
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

@@ -9716,6 +9716,265 @@
      "/alpha.txt": ""
     }
    }
+  },
+  {
+   "id": "listing-imgur-albums",
+   "kind": "listing",
+   "service": "imgur",
+   "steps": [
+    {
+     "op": "albums",
+     "max_page": 3,
+     "per_page": 2
+    },
+    {
+     "op": "albums"
+    },
+    {
+     "op": "album_images",
+     "album_id": "def34"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": [{\"id\": \"abc12\", \"title\": \"Shots\", \"description\": null, \"datetime\": 1700000000, \"cover\": \"cov1\", \"cover_width\": 640, \"cover_height\": \"480\", \"account_url\": \"someone\", \"account_id\": 12345, \"privacy\": \"hidden\", \"layout\": \"blog\", \"views\": 7, \"link\": \"https://imgur.com/a/abc12\", \"favorite\": false, \"nsfw\": null, \"section\": null, \"order\": 0, \"deletehash\": \"dh1\", \"images_count\": 2, \"in_gallery\": false, \"is_ad\": false}, {\"id\": \"def34\", \"title\": \"Caf\\u00e9 \\\"quoted\\\" <b>\", \"description\": null, \"datetime\": \"1700000001\", \"cover\": \"cov1\", \"cover_width\": 640, \"cover_height\": \"480\", \"account_url\": \"someone\", \"account_id\": 12345, \"privacy\": \"hidden\", \"layout\": \"blog\", \"views\": 7, \"link\": \"https://imgur.com/a/abc12\", \"favorite\": \"true\", \"nsfw\": true, \"section\": null, \"order\": 3, \"deletehash\": \"dh1\", \"images_count\": 2, \"in_gallery\": false, \"is_ad\": false, \"images\": [{\"id\": \"img1\", \"title\": null, \"datetime\": 1700000002, \"type\": \"image/png\", \"animated\": false, \"width\": 10, \"height\": 20, \"size\": 300, \"views\": 0, \"bandwidth\": 12345678901, \"link\": \"https://i.imgur.com/img1.png\", \"nsfw\": null, \"vote\": null}]}], \"success\": true, \"status\": 200}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": [{\"id\": \"ghi56\", \"title\": \"2024-01-02T03:04:05Z\", \"description\": \"x\\ny\", \"datetime\": 1700000000, \"cover\": \"cov1\", \"cover_width\": 640, \"cover_height\": \"480\", \"account_url\": \"someone\", \"account_id\": null, \"privacy\": \"hidden\", \"layout\": \"blog\", \"views\": 7, \"link\": \"https://imgur.com/a/abc12\", \"favorite\": false, \"nsfw\": null, \"section\": null, \"order\": 0, \"deletehash\": \"dh1\", \"images_count\": 2, \"in_gallery\": false, \"is_ad\": false}], \"success\": true, \"status\": 200}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": [], \"success\": true, \"status\": 200}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": [{\"id\": \"img1\", \"title\": null, \"datetime\": 1700000002, \"type\": \"image/png\", \"animated\": false, \"width\": 10, \"height\": 20, \"size\": 300, \"views\": 0, \"bandwidth\": 12345678901, \"link\": \"https://i.imgur.com/img1.png\", \"nsfw\": null, \"vote\": null}, {\"id\": \"img1\", \"title\": null, \"datetime\": 1700000002, \"type\": \"image/png\", \"animated\": false, \"width\": 10, \"height\": 20, \"size\": 300, \"views\": 0, \"bandwidth\": 12345678901, \"link\": \"https://i.imgur.com/img1.png\", \"nsfw\": null, \"vote\": null}], \"success\": true, \"status\": 200}"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client",
+    "Client_Secret": "made-up-secret",
+    "Token": {
+     "access_token": "made-up-access",
+     "refresh_token": "made-up-refresh",
+     "expires_in": 3600,
+     "token_type": "bearer",
+     "scope": null,
+     "ExpireDate": "2099-01-01T00:00:00Z"
+    },
+    "Proof": null
+   }
+  },
+  {
+   "id": "listing-imgur-refresh-and-errors",
+   "kind": "listing",
+   "service": "imgur",
+   "steps": [
+    {
+     "op": "albums"
+    },
+    {
+     "op": "album_images",
+     "album_id": "zz"
+    },
+    {
+     "op": "albums"
+    },
+    {
+     "op": "album_images",
+     "album_id": "yy"
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"access_token\": \"new-access\", \"refresh_token\": \"new-refresh\", \"expires_in\": 2419200, \"token_type\": \"bearer\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": {\"error\": \"Unauthorized\", \"request\": \"/3/account/me/albums\", \"method\": \"GET\"}, \"success\": false, \"status\": 403}"
+    },
+    {
+     "status": 404,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": {\"error\": {\"code\": 1003, \"message\": \"Album not found\", \"type\": \"Exception\"}, \"request\": \"/3/album/zz/images\", \"method\": \"GET\"}, \"success\": false, \"status\": 404}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"data\": {\"not\": \"an array\"}, \"success\": true, \"status\": 200}"
+    },
+    {
+     "status": 502,
+     "headers": [
+      [
+       "Content-Type",
+       "text/html"
+      ]
+     ],
+     "body": "<html>bad gateway</html>"
+    }
+   ],
+   "oauth2": {
+    "Client_ID": "made-up-client",
+    "Client_Secret": "made-up-secret",
+    "Token": {
+     "access_token": "made-up-access",
+     "refresh_token": "made-up-refresh",
+     "expires_in": 3600,
+     "token_type": "bearer",
+     "scope": null,
+     "ExpireDate": "2001-01-01T00:00:00Z"
+    },
+    "Proof": null
+   }
+  },
+  {
+   "id": "listing-imgur-not-signed-in",
+   "kind": "listing",
+   "service": "imgur",
+   "steps": [
+    {
+     "op": "albums"
+    }
+   ],
+   "responses": [],
+   "oauth2": {
+    "Client_ID": "made-up-client",
+    "Client_Secret": "made-up-secret",
+    "Token": null,
+    "Proof": null
+   }
+  },
+  {
+   "id": "listing-mega-folders",
+   "kind": "listing",
+   "service": "mega",
+   "steps": [
+    {
+     "parent": null
+    },
+    {
+     "parent": {
+      "id": "F1",
+      "name": "zeta shots"
+     }
+    },
+    {
+     "parent": null
+    },
+    {
+     "parent": {
+      "id": "",
+      "name": ""
+     }
+    }
+   ],
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "[{\"f\": [{\"h\": \"ROOT1\", \"t\": 2}, {\"h\": \"INBOX\", \"t\": 3}, {\"h\": \"BIN\", \"t\": 4}, {\"h\": \"F1\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"n48KeWDfQF9N3BSNMLGePheQbmnXNt4qnzYY6m3PDeY\", \"k\": \"u1:w1KAV1QjfzEawP_04-A-eA\", \"ts\": 1700000000}, {\"h\": \"F2\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"eQp1S1zU5Kc3HxGb1gSljklvys5r1LXrygvagnY01u8\", \"k\": \"u1:vYYv-5etL7j4uJH2Ay82yw\", \"ts\": 1700000000}, {\"h\": \"F3\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"TqAQWq87KcX_uFIq3joPKgHspw7pNJRLT4Rh05h-G3Q\", \"k\": \"u1:waeroaI6lAZYB6CMyO7Qbg\", \"ts\": 1700000000}, {\"h\": \"F4\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"5jDlpfGD1w6q8Q7N1LU0cEC5wXPeCmJqs8tWzFPuvT4\", \"k\": \"u1:notbase64!!/u2:5QW4Jw8ky9xQy5m209k1_A\", \"ts\": 1700000000}, {\"h\": \"F5\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"\", \"k\": \"u1:6l5hroFnyqBYY4jrmny3VQ\", \"ts\": 1700000000}, {\"h\": \"F6\", \"p\": \"F1\", \"t\": 1, \"a\": \"iQaPinjOEV7E_52vnYV5bFsaeGfrBTJQQEj1vJpq_Wc\", \"k\": \"u1:vpPvO4ZuotVJnG8GdcgJ_Q\", \"ts\": 1700000000}, {\"h\": \"F7\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"t8KzjHi5SE3TEUUCFqT7HxpDsJxytb0I5rCRaHUKafA\", \"k\": \"u1:AAAAAAAAAAAAAAAAAAAAAA\", \"ts\": 1700000000}, {\"h\": \"\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"V23kpM8SEDN5OIaMaG2G_3ugUHnNlSRTv4H0x7CxyJw\", \"k\": \"u1:B00yaMNAZEMeZkwlZkIPWQ\", \"ts\": 1700000000}, {\"h\": \"FILE1\", \"p\": \"ROOT1\", \"t\": 0, \"a\": \"x\", \"k\": \"y\"}]}]"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "[{\"f\": [{\"h\": \"ROOT1\", \"t\": 2}, {\"h\": \"INBOX\", \"t\": 3}, {\"h\": \"BIN\", \"t\": 4}, {\"h\": \"F1\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"n48KeWDfQF9N3BSNMLGePheQbmnXNt4qnzYY6m3PDeY\", \"k\": \"u1:w1KAV1QjfzEawP_04-A-eA\", \"ts\": 1700000000}, {\"h\": \"F2\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"eQp1S1zU5Kc3HxGb1gSljklvys5r1LXrygvagnY01u8\", \"k\": \"u1:vYYv-5etL7j4uJH2Ay82yw\", \"ts\": 1700000000}, {\"h\": \"F3\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"TqAQWq87KcX_uFIq3joPKgHspw7pNJRLT4Rh05h-G3Q\", \"k\": \"u1:waeroaI6lAZYB6CMyO7Qbg\", \"ts\": 1700000000}, {\"h\": \"F4\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"5jDlpfGD1w6q8Q7N1LU0cEC5wXPeCmJqs8tWzFPuvT4\", \"k\": \"u1:notbase64!!/u2:5QW4Jw8ky9xQy5m209k1_A\", \"ts\": 1700000000}, {\"h\": \"F5\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"\", \"k\": \"u1:6l5hroFnyqBYY4jrmny3VQ\", \"ts\": 1700000000}, {\"h\": \"F6\", \"p\": \"F1\", \"t\": 1, \"a\": \"iQaPinjOEV7E_52vnYV5bFsaeGfrBTJQQEj1vJpq_Wc\", \"k\": \"u1:vpPvO4ZuotVJnG8GdcgJ_Q\", \"ts\": 1700000000}, {\"h\": \"F7\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"t8KzjHi5SE3TEUUCFqT7HxpDsJxytb0I5rCRaHUKafA\", \"k\": \"u1:AAAAAAAAAAAAAAAAAAAAAA\", \"ts\": 1700000000}, {\"h\": \"\", \"p\": \"ROOT1\", \"t\": 1, \"a\": \"V23kpM8SEDN5OIaMaG2G_3ugUHnNlSRTv4H0x7CxyJw\", \"k\": \"u1:B00yaMNAZEMeZkwlZkIPWQ\", \"ts\": 1700000000}, {\"h\": \"FILE1\", \"p\": \"ROOT1\", \"t\": 0, \"a\": \"x\", \"k\": \"y\"}]}]"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "[-15]"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "[{\"f\": [{\"h\": \"INBOX\", \"t\": 3}]}]"
+    }
+   ],
+   "session_id": "made-up-session-id",
+   "master_key": "AAECAwQFBgcICQoLDA0ODw"
+  },
+  {
+   "id": "listing-mega-not-logged-in",
+   "kind": "listing",
+   "service": "mega",
+   "steps": [
+    {
+     "parent": null
+    }
+   ],
+   "responses": [],
+   "session_id": "",
+   "master_key": "AAECAwQFBgcICQoLDA0ODw"
   }
  ]
 }
