@@ -72,6 +72,11 @@ impl Point {
 #[serde(rename_all = "PascalCase", default)]
 pub struct Common {
     pub id: String,
+    /// The editor's handle on this annotation object (ShareX's editor holds
+    /// the object itself): unique per instance, not serialised. Clones keep
+    /// ShareX's `Id` (`Annotation.Clone`), so the editor can't go by it.
+    #[serde(skip)]
+    pub key: Key,
     pub tool_type: EditorTool,
     pub stroke_color: String,
     pub stroke_width: f32,
@@ -89,6 +94,32 @@ pub struct Common {
     pub rotation_angle: f32,
 }
 
+/// An annotation object's identity in the editor ([`Common::key`]): a new
+/// one for every annotation made or read, copied by `clone` (an undo
+/// snapshot is the same object again). It never makes two annotations
+/// unequal: `==` compares what ShareX serialises.
+#[derive(Clone, Debug)]
+pub struct Key(pub String);
+
+impl Key {
+    pub fn fresh() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        Key(format!("k{}", NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)))
+    }
+}
+
+impl Default for Key {
+    fn default() -> Self {
+        Self::fresh()
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
 pub const DEFAULT_SHADOW_COLOR_HEX: &str = "#80000000";
 pub const DEFAULT_SHADOW_BLUR_RADIUS: f64 = 4.0;
 pub const DEFAULT_SHADOW_OPACITY: f64 = 1.0;
@@ -99,6 +130,7 @@ impl Default for Common {
     fn default() -> Self {
         Self {
             id: String::new(),
+            key: Key::fresh(),
             tool_type: EditorTool::Select,
             stroke_color: "#ef4444".into(),
             stroke_width: 4.0,

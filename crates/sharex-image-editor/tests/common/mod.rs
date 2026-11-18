@@ -166,8 +166,12 @@ pub fn render_case(case: &Value, data: &Path, default_base: &Pixmap) -> Pixmap {
                 let c = color(op);
                 core.auto_expand_canvas_to_fit(None, num(op, "margin") as f32, c);
             }
-            "undo" => core.undo(),
-            "redo" => core.redo(),
+            "undo" => {
+                core.undo();
+            }
+            "redo" => {
+                core.redo();
+            }
             "clone" => {
                 let r = rect(op);
                 core.clone_region((

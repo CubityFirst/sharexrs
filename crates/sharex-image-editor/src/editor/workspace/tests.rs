@@ -163,8 +163,10 @@ fn copy_paste_and_duplicate_offset_by_20_and_select_the_copy() {
     assert!(w.paste_annotation());
     assert_eq!(w.annotations().len(), 2);
     assert_eq!(w.annotations()[1].common.start_point, Point::new(70.0, 60.0));
-    assert_eq!(w.selected().unwrap().common.id, w.annotations()[1].common.id);
-    assert_ne!(w.annotations()[0].common.id, w.annotations()[1].common.id);
+    assert_eq!(w.selected().unwrap().common.key.0, w.annotations()[1].common.key.0);
+    // The copy keeps ShareX's `Id` (`Annotation.Clone`), as its own object.
+    assert_eq!(w.annotations()[0].common.id, w.annotations()[1].common.id);
+    assert_ne!(w.annotations()[0].common.key.0, w.annotations()[1].common.key.0);
     w.key_down(Key::Letter('D'), CTRL, &none);
     assert_eq!(w.annotations()[2].common.start_point, Point::new(90.0, 80.0));
     // Cut deletes, undo brings it back.
@@ -172,6 +174,9 @@ fn copy_paste_and_duplicate_offset_by_20_and_select_the_copy() {
     assert_eq!(w.annotations().len(), 2);
     w.undo();
     assert_eq!(w.annotations().len(), 3);
+    // Undo selects again by `SelectedAnnotationId`: the first annotation
+    // with the cut one's `Id`, the original.
+    assert_eq!(w.selected().unwrap().common.key.0, w.annotations()[0].common.key.0);
 }
 
 #[test]
@@ -256,7 +261,7 @@ fn clone_copies_the_region_into_a_selected_image_annotation() {
     assert!(matches!(a.kind, Kind::Image(_)));
     assert_eq!(a.common.tool_type, EditorTool::Clone);
     assert_eq!(a.common.start_point, Point::new(10.0, 20.0));
-    assert_eq!(w.image(&a.common.id).map(|p| (p.width(), p.height())), Some((50, 30)));
+    assert_eq!(w.image(&a.common.key.0).map(|p| (p.width(), p.height())), Some((50, 30)));
     assert_eq!(w.active_tool(), EditorTool::Clone);
 }
 
@@ -336,7 +341,7 @@ fn the_image_and_emoji_tools_ask_the_host() {
     assert_eq!(w.active_tool(), EditorTool::Rectangle);
     let id = w.insert_emoji("1f600", "grinning face", (10.0, 10.0));
     assert_eq!(w.active_tool(), EditorTool::Select);
-    assert_eq!(w.selected().unwrap().common.id, id);
+    assert_eq!(w.selected().unwrap().common.key.0, id);
     assert_eq!(w.selected().unwrap().common.end_point, Point::new(170.0, 170.0));
 }
 
