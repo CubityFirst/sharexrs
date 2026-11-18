@@ -117,6 +117,12 @@ impl EditorCore {
         crate::render::render(&self.source, &self.annotations)
     }
 
+    /// `EditorView.GetSnapshot(Rect)`: region capture's export of `rect`
+    /// (`x, y, width, height`), see [`crate::render::render_region`].
+    pub fn snapshot_region(&self, rect: (f64, f64, f64, f64)) -> Option<Pixmap> {
+        crate::render::render_region(&self.source, &self.annotations, rect)
+    }
+
     // History.
 
     /// `GetMementoFromAnnotations`.

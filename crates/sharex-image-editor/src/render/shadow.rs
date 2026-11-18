@@ -61,7 +61,9 @@ pub fn with_shadow(
         return;
     }
     let mut layer = Pixmap::new(w as u32, h as u32);
-    draw(&mut layer);
+    // The layer is drawn with the legacy blitters even inside a picture
+    // shader's tile (where the device itself takes the pipeline's).
+    sharex_skia::blitter::with_blitters(false, || draw(&mut layer));
     for y in 0..h {
         for x in 0..w {
             if x < l.left || x >= l.right || y < l.top || y >= l.bottom {

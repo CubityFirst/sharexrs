@@ -369,6 +369,22 @@ fn draw_highlight(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
 
 /// `SkPMSrcOver`.
 pub(super) fn src_over(src: u32, dst: u32) -> u32 {
+    if sharex_skia::blitter::pipeline_blitters() {
+        // The raster pipeline's sprite blit on a device with a colour space:
+        // load_dst, lowp srcover (div255_accurate), store.
+        let inv = 255 - (src >> 24);
+        let ch = |shift: u32| {
+            let (s, d) = ((src >> shift) & 0xFF, (dst >> shift) & 0xFF);
+            (s + sharex_skia::raster::div255_accurate(d * inv)).min(255) << shift
+        };
+        return ch(24) | ch(16) | ch(8) | ch(0);
+    }
+    src_over_legacy(src, dst)
+}
+
+/// `S32A_Opaque_BlitRow32`: `s + (d * (256 - sa) >> 8)`, the legacy N32
+/// sprite blit.
+pub(super) fn src_over_legacy(src: u32, dst: u32) -> u32 {
     let a = src >> 24;
     if a == 255 {
         return src;
