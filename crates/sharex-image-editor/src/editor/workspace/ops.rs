@@ -427,18 +427,34 @@ impl Workspace {
         id
     }
 
-    /// Replaces an image annotation's pixels (a double click's picker),
-    /// keeping its top-left corner.
+    /// Replaces an image annotation's pixels (a double click's picker,
+    /// `ReplaceImageAnnotationFromFilePickerAsync`), keeping its centre;
+    /// not an undo step, as in ShareX.
     pub fn replace_image(&mut self, id: &str, pm: Pixmap) {
         let Some(i) = self.find(id) else { return };
-        self.annotations_memento(false);
         let a = &mut self.core.annotations[i];
-        let s = a.common.start_point;
-        a.common.end_point = Point::new(s.x + pm.width() as f32, s.y + pm.height() as f32);
+        let b = geometry::bounds(a);
+        let (cx, cy) = (b.mid_x(), b.mid_y());
+        let (w, h) = (pm.width() as f32, pm.height() as f32);
+        a.common.start_point = Point::new(cx - w / 2.0, cy - h / 2.0);
+        a.common.end_point = Point::new(cx + w / 2.0, cy + h / 2.0);
         if let Kind::Image(p) = &mut a.kind {
             p.set_image(pm);
         }
-        self.history_changed();
+        self.dirty = true;
+        self.changed();
+    }
+
+    /// `EditorCore.ResizeCanvas`: room added on each side (negative crops),
+    /// filled with `color` (straight RGBA), the annotations moved with the
+    /// image.
+    pub fn resize_canvas(&mut self, top: i32, right: i32, bottom: i32, left: i32, color: [u8; 4]) -> bool {
+        self.commit_text();
+        if !self.core.resize_canvas(top, right, bottom, left, color) {
+            return false;
+        }
+        self.image_changed();
+        true
     }
 
     /// `InsertEmojiAnnotation`: a 160px emoji with its top-left at `at`,

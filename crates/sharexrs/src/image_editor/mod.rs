@@ -35,6 +35,8 @@ use sharex_ui::{Palette, icons, palette, widgets};
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
+mod emoji_picker;
+mod insert_image;
 mod modal;
 mod new_image;
 mod notify;
@@ -48,6 +50,8 @@ enum Modal {
     Confirm,
     Start(start_screen::StartScreen),
     NewImage(Box<new_image::NewImage>),
+    InsertImage(Box<insert_image::InsertImage>),
+    Emoji(Box<emoji_picker::EmojiPicker>),
 }
 
 /// `Button.toolbar-button` and the other toolbar metrics (see
@@ -235,6 +239,8 @@ pub struct EditorWindow {
     layout: Layout,
     /// Open the File menu once the toolbar is laid out (`OpenFileMenu`).
     open_file_menu: bool,
+    /// The window's client area on the desktop (points) and its scale.
+    window_inner: Option<(Rect, f32)>,
 }
 
 struct Layout {
@@ -246,6 +252,8 @@ struct Layout {
     canvas: Rect,
     image: Rect,
     crop_button: Option<Rect>,
+    /// The whole view (`EditorView`'s bounds).
+    view: Rect,
 }
 
 impl Default for Layout {
@@ -259,6 +267,7 @@ impl Default for Layout {
             canvas: Rect::NOTHING,
             image: Rect::NOTHING,
             crop_button: None,
+            view: Rect::NOTHING,
         }
     }
 }
@@ -318,6 +327,7 @@ impl EditorWindow {
             url_job: None,
             layout: Layout::default(),
             open_file_menu: false,
+            window_inner: None,
         };
         w.title = w.window_title();
         // `OnLoaded`: no image (and not a task) shows the start screen.
@@ -710,6 +720,10 @@ impl EditorWindow {
         for r in self.ws.take_requests() {
             match r {
                 ed::Request::InsertImage | ed::Request::PickImage { .. } | ed::Request::ReplaceImage { .. } => {
+                    // `RequestImageInsertion`: nothing while a dialog is open.
+                    if self.modal.is_some() {
+                        continue;
+                    }
                     let Some(path) = rfd::FileDialog::new()
                         .set_title(ie::EditorView_SelectImage())
                         .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "gif", "webp", "ico"])
@@ -723,14 +737,19 @@ impl EditorWindow {
                             self.ws.insert_picked_image(pixmap_of(&img), at);
                         }
                         ed::Request::ReplaceImage { id } => self.ws.replace_image(&id, pixmap_of(&img)),
-                        _ => {
-                            let c = self.visible_center();
-                            self.ws.insert_image_centered(pixmap_of(&img), c);
-                        }
+                        _ => self.insert_external_image(img, path),
                     }
                 }
                 ed::Request::EmojiPicker | ed::Request::ReplaceEmoji { .. } => {
-                    self.effects.push(Effect::NotPorted("Image editor: emoji picker"));
+                    // `ShowEmojiPickerDialog`: nothing while a dialog is open.
+                    if self.modal.is_some() {
+                        continue;
+                    }
+                    let replace = match r {
+                        ed::Request::ReplaceEmoji { id } => Some(id),
+                        _ => None,
+                    };
+                    self.modal = Some(Modal::Emoji(Box::new(emoji_picker::EmojiPicker::new(replace))));
                 }
                 ed::Request::Cropped { width, height } => {
                     self.notify(Self::size_message(ie::MainViewModel_ImageCropped(), width, height), tool_icons::Crop);
@@ -845,7 +864,7 @@ impl EditorWindow {
         let content = Self::top_content_width();
         let natural = content + 2.0 * (PADDING + 1.0);
         let width = natural.min(full.width());
-        let left = (full.center().x - width / 2.0).round();
+        let left = (full.center().x - width / 2.0).round_ties_even();
         let rect = Rect::from_min_size(pos2(left, full.min.y), vec2(width, BUTTON + 2.0 * (PADDING + 1.0)));
         let max_scroll = (natural - width).max(0.0);
         let modal_open = self.modal.is_some();
@@ -926,7 +945,7 @@ impl EditorWindow {
         let content = zoom_w + SPACING + sep + SPACING + 4.0 + 90.0 + 10.0 + SPACING + 6.0 * BUTTON + 5.0 * SPACING + SPACING + sep + SPACING + 2.0 * BUTTON + SPACING;
         let width = content + 2.0 * (PADDING + 1.0);
         let height = BUTTON + 2.0 * (PADDING + 1.0);
-        let rect = Rect::from_min_size(pos2((full.center().x - width / 2.0).round(), full.max.y - height), vec2(width, height));
+        let rect = Rect::from_min_size(pos2((full.center().x - width / 2.0).round_ties_even(), full.max.y - height), vec2(width, height));
         let painter = ui.painter();
         let radius = CornerRadius { nw: 4, ne: 4, sw: 0, se: 0 };
         painter.rect_filled(rect, radius, p.background_toolbar);
@@ -1466,6 +1485,39 @@ impl EditorWindow {
                     None => self.modal = Some(Modal::NewImage(d)),
                 }
             }
+            Some(Modal::InsertImage(mut d)) => {
+                // `PositionModalOnCursorScreen`.
+                let area = self.cursor_screen(true).unwrap_or(full);
+                let size = d.size(ui);
+                let rect = Rect::from_center_size(area.center(), size).translate(vec2(0.0, 0.0));
+                let rect = Rect::from_min_size(pos2(rect.min.x.round(), rect.min.y.round()), size);
+                let outside = modal::scrim(ui, p, full, rect);
+                match d.show(ui, p, rect) {
+                    Some(insert_image::Outcome::Place(pl)) => self.insert_with_placement(d.image, pl),
+                    Some(insert_image::Outcome::Cancel) => {}
+                    None if outside => {}
+                    None => self.modal = Some(Modal::InsertImage(d)),
+                }
+            }
+            Some(Modal::Emoji(mut d)) => {
+                // `UpdateEmojiPickerPosition`: centred on the part of the
+                // editor on the pointer's monitor, at most that big.
+                let area = self.cursor_screen(true).unwrap_or(full);
+                let size = d.size(area);
+                let min = pos2((area.center().x - size.x / 2.0).round(), (area.center().y - size.y / 2.0).round());
+                let rect = Rect::from_min_size(min, size);
+                let combo_open = sharex_ui::controls::ComboBox::is_open(ui.ctx(), Id::new("emoji-group"));
+                let outside = modal::scrim(ui, p, full, rect) && !combo_open;
+                match d.show(ui, p, rect) {
+                    Some(emoji_picker::Outcome::Pick(e)) => match d.replace.clone() {
+                        Some(key) => self.ws.replace_emoji(&key, &e.unicode, e.display_name()),
+                        None => self.insert_emoji(e),
+                    },
+                    Some(emoji_picker::Outcome::Cancel) => {}
+                    None if outside => {}
+                    None => self.modal = Some(Modal::Emoji(d)),
+                }
+            }
         }
     }
 
@@ -1605,6 +1657,100 @@ impl EditorWindow {
         }
     }
 
+    /// `InsertExternalImageAsync`: with no image it becomes the image;
+    /// otherwise the insert image dialog asks where (unless
+    /// `ShowInsertImageDialog` is off: centred).
+    fn insert_external_image(&mut self, img: RgbaImage, path: PathBuf) {
+        if !self.has_image {
+            self.load_bitmap(img, Some(path));
+            return;
+        }
+        if self.ws.tools.options.ShowInsertImageDialog && !self.ws.host_mode {
+            self.modal = Some(Modal::InsertImage(Box::new(insert_image::InsertImage { image: img })));
+        } else {
+            self.insert_with_placement(img, insert_image::Placement::Center);
+        }
+    }
+
+    /// `InsertImageWithPlacementAsync`.
+    fn insert_with_placement(&mut self, img: RgbaImage, placement: insert_image::Placement) {
+        use insert_image::Placement as P;
+        let (cw, ch) = self.ws.size();
+        let (bw, bh) = (img.width(), img.height());
+        let at = match placement {
+            // The centre of the monitor under the pointer, clamped to the
+            // canvas (or the visible canvas's centre).
+            P::Center => {
+                let (w, h) = (cw as f64, ch as f64);
+                let c = self.cursor_screen_center_image().map(|(x, y)| (x.clamp(0.0, w), y.clamp(0.0, h))).unwrap_or_else(|| self.visible_center());
+                (c.0 - bw as f64 / 2.0, c.1 - bh as f64 / 2.0)
+            }
+            P::CanvasExpandDown => {
+                self.ws.resize_canvas(0, bw.saturating_sub(cw) as i32, bh as i32, 0, [0, 0, 0, 0]);
+                (0.0, ch as f64)
+            }
+            P::CanvasExpandRight => {
+                self.ws.resize_canvas(0, bw as i32, bh.saturating_sub(ch) as i32, 0, [0, 0, 0, 0]);
+                (cw as f64, 0.0)
+            }
+        };
+        self.ws.insert_image_annotation(pixmap_of(&img), at, EditorTool::Image, true);
+        self.notify(ie::MainViewModel_ImageInserted(), tool_icons::Image);
+        self.update_title();
+    }
+
+    /// `InsertEmojiAnnotation`: 160px, centred on the monitor under the
+    /// pointer (clamped to the canvas), or on the canvas.
+    fn insert_emoji(&mut self, entry: &sharex_image_editor::emoji_catalog::EmojiEntry) {
+        let (w, h) = self.ws.size();
+        let (w, h) = (w as f64, h as f64);
+        let (cx, cy) = self.cursor_screen_center_image().map(|(x, y)| (x.clamp(0.0, w), y.clamp(0.0, h))).unwrap_or((w / 2.0, h / 2.0));
+        let size = ed::EMOJI_SIZE;
+        self.ws.insert_emoji(&entry.unicode, entry.display_name(), (cx - size / 2.0, cy - size / 2.0));
+    }
+
+    /// The pointer's monitor's centre in the view (`GetCursorScreenCenter`),
+    /// as the window knows its place on the desktop.
+    fn cursor_screen_center(&self) -> Option<Pos2> {
+        let area = self.cursor_screen(false)?;
+        Some(area.center())
+    }
+
+    /// The pointer's monitor in view coordinates; with `visible`, the part
+    /// of the view on it (`GetCursorScreenCenterInView`'s area).
+    fn cursor_screen(&self, visible: bool) -> Option<Rect> {
+        // `--render`: `SHAREXRS_RENDER_SCREEN=x,y,w,h`, the monitor in view
+        // coordinates (where ShareX's window sat when its shot was taken).
+        if self.window_inner.is_none()
+            && let Ok(v) = std::env::var("SHAREXRS_RENDER_SCREEN")
+        {
+            let n: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+            if n.len() == 4 {
+                let r = Rect::from_min_size(pos2(n[0], n[1]), vec2(n[2], n[3]));
+                return Some(if visible { r.intersect(self.layout.view) } else { r });
+            }
+        }
+        let (inner, ppp) = self.window_inner?;
+        let (cx, cy) = sharex_capture::screenshot::cursor_position()?;
+        let screens = sharex_capture::screenshot::screens();
+        let s = screens.iter().find(|s| s.bounds.contains(cx, cy))?;
+        let b = s.bounds;
+        let r = Rect::from_min_max(
+            pos2(b.x as f32 / ppp - inner.min.x, b.y as f32 / ppp - inner.min.y),
+            pos2((b.x + b.w) as f32 / ppp - inner.min.x, (b.y + b.h) as f32 / ppp - inner.min.y),
+        );
+        if visible {
+            let v = r.intersect(self.layout.view);
+            return (v.width() > 0.0 && v.height() > 0.0).then_some(v);
+        }
+        Some(r)
+    }
+
+    fn cursor_screen_center_image(&self) -> Option<(f64, f64)> {
+        let c = self.cursor_screen_center()?;
+        Some(self.mapper_ppp(1.0).image_pos(c))
+    }
+
     /// The options the tools changed, for the task settings.
     pub fn options(&self) -> ImageEditorOptions {
         self.ws.tools.options.clone()
@@ -1644,6 +1790,9 @@ impl Dialog for EditorWindow {
         let _ = cx;
         let p = palette(ui.ctx());
         let full = ui.max_rect();
+        self.layout.view = full;
+        let ppp = ui.ctx().pixels_per_point();
+        self.window_inner = ui.ctx().input(|i| i.viewport().inner_rect).map(|r| (r, ppp));
         ui.painter().rect_filled(full, 0.0, p.background_main);
         self.input(ui);
         self.paint_canvas(ui, &p, full);
@@ -1779,6 +1928,18 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         }
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
+        Some("insert") => {
+            let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));
+            w.modal = Some(Modal::InsertImage(Box::new(insert_image::InsertImage { image: img })));
+        }
+        Some(st) if st.starts_with("emoji") => {
+            let mut d = emoji_picker::EmojiPicker::new(None);
+            d.render_all_previews();
+            if let Some(q) = st.strip_prefix("emoji:") {
+                d.set_search(q);
+            }
+            w.modal = Some(Modal::Emoji(Box::new(d)));
+        }
         _ => {}
     }
     Ok(Box::new(w))

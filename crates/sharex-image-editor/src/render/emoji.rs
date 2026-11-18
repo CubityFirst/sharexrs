@@ -27,6 +27,8 @@ use ttf_parser::{GlyphId, RgbaColor};
 /// `EmojiFontFamily`, then the colour fonts other systems have.
 const FAMILIES: [&str; 3] = ["Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla"];
 const STICKER_PADDING: u32 = 14;
+/// `PreviewPadding`.
+const PREVIEW_PADDING: u32 = 6;
 const RAW_CANVAS_SCALE: f32 = 2.0;
 const RAW_FONT_SCALE: f32 = 1.32;
 
@@ -101,6 +103,23 @@ pub fn sticker_bitmap(sequence: &str, size: u32) -> Option<Arc<Pixmap>> {
         c.clear();
     }
     c.insert(key, v.clone());
+    v
+}
+
+/// `RenderPreviewBitmap(sequence, size)`: the picker's tile (6px of
+/// padding), cached.
+pub fn preview_bitmap(sequence: &str, size: u32) -> Option<Arc<Pixmap>> {
+    if sequence.trim().is_empty() || size == 0 {
+        return None;
+    }
+    static CACHE: OnceLock<Mutex<StickerCache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    let key = (sequence.to_string(), size);
+    if let Some(v) = cache.lock().unwrap().get(&key) {
+        return v.clone();
+    }
+    let v = render_square(sequence, size, PREVIEW_PADDING).map(Arc::new);
+    cache.lock().unwrap().insert(key, v.clone());
     v
 }
 
