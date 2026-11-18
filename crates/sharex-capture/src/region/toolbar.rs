@@ -97,6 +97,8 @@ pub enum Part {
     Option(super::options_row::OptionItem),
     /// The toolbar's background (not a button).
     Background,
+    /// An open option popup.
+    Popup,
 }
 
 /// Where the toolbar's parts are, in points.
@@ -276,7 +278,7 @@ pub fn tooltip(part: Part) -> Option<String> {
         Part::DragHandle => Some(sc::RegionCaptureWindow_MoveToolbar().to_string()),
         Part::RegionButton => Some(sc::RegionCaptureWindow_RectangleRegionTab().to_string()),
         Part::Tool(i) => TOOLS.get(i).map(ToolItem::tooltip),
-        Part::Option(_) | Part::Background => None,
+        Part::Option(_) | Part::Background | Part::Popup => None,
     }
 }
 

@@ -29,15 +29,20 @@ pub struct OverlayView {
     toolbar: Option<toolbar::Layout>,
     /// Where the tool options row was drawn.
     options: Option<options_row::OptionsLayout>,
+    /// Where the open option popup was drawn.
+    popup: Option<Rect>,
 }
 
 impl OverlayView {
     pub fn new(monitor: RectI) -> Self {
-        Self { monitor, frozen: None, frozen_version: None, magnifier: None, toolbar: None, options: None }
+        Self { monitor, frozen: None, frozen_version: None, magnifier: None, toolbar: None, options: None, popup: None }
     }
 
     /// The toolbar part under `p` (points in this window), as last drawn.
     pub fn toolbar_part_at(&self, p: Pos2) -> Option<toolbar::Part> {
+        if self.popup.is_some_and(|r| r.contains(p)) {
+            return Some(toolbar::Part::Popup);
+        }
         if let Some(item) = self.options.as_ref().and_then(|l| l.hit(p)) {
             return Some(toolbar::Part::Option(item));
         }
@@ -403,6 +408,25 @@ impl RegionCapture {
             self.paint_hud(ui, view, &m, &p, ppp);
         }
         self.paint_toolbar(ui, view, &p, ppp, now);
+        // The open option popup, under its button.
+        view.popup = None;
+        if let (Some(item), Some(row), Some(e)) = (self.popups.open, view.options.as_ref(), self.editor.as_mut())
+            && let Some(anchor) = row.item_rect(item)
+        {
+            // The monitor's work area, in this window's points.
+            let mon = view.monitor;
+            let wa = self.screens.iter().find(|s| s.bounds == mon).map(|s| s.work_area).unwrap_or(mon);
+            let screen = Rect::from_min_size(
+                pos2((wa.x - mon.x) as f32 / ppp, (wa.y - mon.y) as f32 / ppp),
+                vec2(wa.w as f32, wa.h as f32) / ppp,
+            );
+            let r = self.popups.show(ui, &p, anchor, screen, e);
+            if r.pick_screen_color {
+                // `ScreenColorPickerWindow` over the overlay isn't ported.
+                eprintln!("region capture: the screen colour picker isn't ported");
+            }
+            view.popup = self.popups.rect;
+        }
     }
 
     /// The editor's selection chrome (`OverlayCanvas`).
@@ -562,7 +586,7 @@ impl RegionCapture {
                     Some(toolbar::Part::Option(item)) => Some(item),
                     _ => None,
                 };
-                options_row::paint(ui, &painter, p, &row, tool, &e.tools, hovered, scale);
+                options_row::paint(ui, &painter, p, &row, tool, &e.tools, hovered, self.popups.open, scale);
                 if hidden <= 0.0 {
                     view.options = Some(row);
                 }

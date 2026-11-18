@@ -11,11 +11,13 @@
 //! by [`crate::render`] exactly as they export) and the selection chrome
 //! ([`Workspace::handles`], [`Workspace::outline`]).
 
+pub mod fonts;
 pub mod geometry;
 mod history;
 pub mod tool_state;
 mod workspace;
 
+pub use fonts::{render_font_name, system_font_families};
 pub use geometry::Rect;
 pub use tool_state::{ToolState, Visible, max_effect_strength};
 pub use workspace::*;

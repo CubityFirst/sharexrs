@@ -269,7 +269,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             "--open" => open = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect(),
             "--work-area" => {
-                let v: Vec<f32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
+                let raw = val()?;
+                rest_args.push((a.clone(), raw.clone()));
+                let v: Vec<f32> = raw.split(',').filter_map(|i| i.trim().parse().ok()).collect();
                 let [l, t, r, b] = v[..] else { return Err("--work-area L,T,R,B".into()) };
                 work_area = Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b)));
             }

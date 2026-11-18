@@ -25,6 +25,8 @@ pub fn render(
     let mut drag = None;
     let mut window = None;
     let mut steps: Option<String> = None;
+    // The monitor's work area (ShareX's reference machine: a 48px taskbar).
+    let mut work_area = None;
 
     for (k, v) in args {
         match k.as_str() {
@@ -35,6 +37,7 @@ pub fn render(
             "--drag" => drag = Some(numbers(v, 4, k)?),
             "--window" => window = Some(numbers(v, 4, k)?),
             "--steps" => steps = Some(v.clone()),
+            "--work-area" => work_area = Some(numbers(v, 4, k)?),
             _ => {}
         }
     }
@@ -52,7 +55,9 @@ pub fn render(
         windows.push(SimpleWindowInfo { handle: 2, rect: Rect::new(r[0], r[1], r[2], r[3]), is_window: true });
     }
     windows.push(SimpleWindowInfo { handle: 1, rect: bounds, is_window: true });
-    let screen = Screen { bounds, work_area: bounds, scale: scale as f64, primary: true };
+    // `--work-area L,T,R,B`.
+    let work_area = work_area.map(|r| Rect::new(r[0], r[1], r[2] - r[0], r[3] - r[1])).unwrap_or(bounds);
+    let screen = Screen { bounds, work_area, scale: scale as f64, primary: true };
     let mut session = RegionCapture::new(Request {
         screenshot: shot,
         screen_bounds: bounds,

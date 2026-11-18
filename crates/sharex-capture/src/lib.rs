@@ -13,6 +13,7 @@
 
 pub mod clipboard;
 pub mod editor_chrome;
+pub mod editor_popups;
 pub mod geometry;
 pub mod platform;
 pub mod region;

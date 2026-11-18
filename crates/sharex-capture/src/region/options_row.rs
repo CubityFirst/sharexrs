@@ -9,7 +9,7 @@
 
 use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
 use sharex_image_editor::editor::{ToolState, Visible, max_effect_strength};
-use sharex_image_editor::model::{ArrowStyle, BorderStyle, EditorTool, StepType, TextHorizontalAlignment};
+use sharex_image_editor::model::{ArrowStyle, BorderStyle, CursorType, EditorTool, StepType, TextHorizontalAlignment};
 use sharex_strings::image_editor as ie;
 use sharex_ui::keys::{app_icons, image_editor_icons, image_effect_icons};
 use sharex_ui::{Palette, icons, widgets};
@@ -283,9 +283,11 @@ fn button_frame(painter: &egui::Painter, p: &Palette, rect: Rect, hovered: bool,
     painter.rect_stroke(rect, radius, Stroke::new(1.0 * scale, p.border), StrokeKind::Inside);
 }
 
-fn chevron(painter: &egui::Painter, p: &Palette, rect: Rect, scale: f32) {
+/// `dropdown-chevron`: turned over while its popup is open (`.open`).
+fn chevron(painter: &egui::Painter, p: &Palette, rect: Rect, scale: f32, open: bool) {
     let r = Rect::from_min_size(pos2(rect.max.x - (1.0 + PAD + 10.0) * scale, rect.center().y - 5.0 * scale), vec2(10.0, 10.0) * scale);
-    icons::paint(painter, r, app_icons::ChevronDown, p.text_secondary);
+    let angle = if open { std::f32::consts::PI } else { 0.0 };
+    icons::paint_transformed(painter, r, app_icons::ChevronDown, p.text_secondary, vec2(0.0, 0.0), angle);
 }
 
 /// The content's left edge and vertical centre.
@@ -341,9 +343,19 @@ fn parse(hex: &str) -> Color32 {
     Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a)
 }
 
-/// Draws the row.
 #[allow(clippy::too_many_arguments)]
-pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayout, tool: &EditorTool, s: &ToolState, hovered: Option<OptionItem>, scale: f32) {
+/// Draws the row; `open` is the item whose popup is open.
+pub fn paint(
+    ui: &Ui,
+    painter: &egui::Painter,
+    p: &Palette,
+    layout: &OptionsLayout,
+    tool: &EditorTool,
+    s: &ToolState,
+    hovered: Option<OptionItem>,
+    open: Option<OptionItem>,
+    scale: f32,
+) {
     let r = (4.0 * scale).round() as u8;
     let radius = CornerRadius { nw: 0, ne: 0, sw: r, se: r };
     painter.rect_filled(layout.rect, radius, p.background_toolbar);
@@ -391,13 +403,13 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
                     _ => &s.text_color,
                 };
                 swatch(ui, painter, p, sw(), parse(c), *item == OptionItem::BorderColor, *item == OptionItem::TextColor, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::Thickness => {
                 button_frame(painter, p, rect, over, false, scale);
                 let d = (s.stroke_width as f32).min(24.0) * scale;
                 painter.circle_filled(sw().center(), d / 2.0, p.text_secondary);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::BorderStyle => {
                 button_frame(painter, p, rect, over, false, scale);
@@ -406,18 +418,18 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
                 let right = rect.max.x - (1.0 + PAD + 10.0 + 8.0) * scale;
                 let (x0, y) = (right - 36.0 * scale + 2.0 * scale, rect.center().y);
                 dashed_preview(painter, x0, right - 2.0 * scale, y, &s.border_style, p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::CornerRadius => {
                 button_frame(painter, p, rect, over, false, scale);
                 let at = Rect::from_center_size(sw().center(), vec2(20.0, 20.0) * scale);
                 corner_preview(painter, at, s.corner_radius as f32 * scale, p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::FontFamily => {
                 button_frame(painter, p, rect, over, false, scale);
                 text(ui, painter, cx, rect, &s.font_family, p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::TextAlignment => {
                 button_frame(painter, p, rect, over, false, scale);
@@ -427,29 +439,29 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
                     _ => app_icons::AlignCenter,
                 };
                 icons::paint(painter, Rect::from_min_size(pos2(cx, rect.center().y - 9.0 * scale), vec2(18.0, 18.0) * scale), key, p.text);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::ArrowStyle => {
                 button_frame(painter, p, rect, over, false, scale);
                 text(ui, painter, cx, rect, arrow_style_name(&s.arrow_style), p.text_secondary, scale);
                 let right = rect.max.x - (1.0 + PAD + 10.0 + 8.0) * scale;
                 arrow_preview(painter, right - 36.0 * scale, rect.center().y, p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::CursorType => {
                 button_frame(painter, p, rect, over, false, scale);
                 text(ui, painter, cx, rect, &format!("{:?}", s.cursor_type), p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::FontSize => {
                 button_frame(painter, p, rect, over, false, scale);
                 text(ui, painter, cx, rect, &font_size_text(s.font_size), p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::StepType => {
                 button_frame(painter, p, rect, over, false, scale);
                 text(ui, painter, cx, rect, step_type_preview(&s.step_type), p.text, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             OptionItem::StepStart => {
                 button_frame(painter, p, rect, over, false, scale);
@@ -457,7 +469,7 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
                 text(ui, painter, cx, rect, &n, p.text, scale);
                 let nw = widgets::text_width(ui, &n, egui::FontId::new(12.0 * scale, text_font().family));
                 text(ui, painter, cx + nw + 4.0 * scale, rect, "...", p.text_secondary, scale);
-                chevron(painter, p, rect, scale);
+                chevron(painter, p, rect, scale, open == Some(*item));
             }
             toggle => {
                 let (active, key) = match toggle {
@@ -479,7 +491,7 @@ pub fn paint(ui: &Ui, painter: &egui::Painter, p: &Palette, layout: &OptionsLayo
 }
 
 /// The border style preview: a 1.75px line with the style's dashes.
-fn dashed_preview(painter: &egui::Painter, x0: f32, x1: f32, y: f32, style: &BorderStyle, color: Color32, scale: f32) {
+pub fn dashed_preview(painter: &egui::Painter, x0: f32, x1: f32, y: f32, style: &BorderStyle, color: Color32, scale: f32) {
     let w = 1.75 * scale;
     let dashes: &[f32] = match style {
         BorderStyle::Dash => &[3.0, 1.0],
@@ -506,7 +518,7 @@ fn dashed_preview(painter: &egui::Painter, x0: f32, x1: f32, y: f32, style: &Bor
 
 /// `CornerRadiusPreviewGeometryConverter` at 20: a corner from bottom-left
 /// to top-right with the radius, 2.5px with round joins.
-fn corner_preview(painter: &egui::Painter, at: Rect, radius: f32, color: Color32, scale: f32) {
+pub fn corner_preview(painter: &egui::Painter, at: Rect, radius: f32, color: Color32, scale: f32) {
     let size = at.width();
     let r = radius.clamp(0.0, size);
     let stroke = Stroke::new(2.5 * scale, color);
@@ -522,6 +534,73 @@ fn corner_preview(painter: &egui::Painter, at: Rect, radius: f32, color: Color32
     }
     pts.push(o + vec2(size, 0.0));
     painter.add(egui::Shape::line(pts, stroke));
+}
+
+/// `CursorTypeDisplayNameConverter`.
+pub fn cursor_type_name(c: &CursorType) -> &'static str {
+    use CursorType as C;
+    match c {
+        C::AppStarting => ie::CursorTypeDisplayNameConverter_AppStarting(),
+        C::Arrow => ie::CursorTypeDisplayNameConverter_Arrow(),
+        C::Cross => ie::CursorTypeDisplayNameConverter_Cross(),
+        C::Hand => ie::CursorTypeDisplayNameConverter_Hand(),
+        C::Help => ie::CursorTypeDisplayNameConverter_Help(),
+        C::HSplit => ie::CursorTypeDisplayNameConverter_HSplit(),
+        C::IBeam => ie::CursorTypeDisplayNameConverter_IBeam(),
+        C::No => ie::CursorTypeDisplayNameConverter_No(),
+        C::NoMove2D => ie::CursorTypeDisplayNameConverter_NoMove2D(),
+        C::NoMoveHoriz => ie::CursorTypeDisplayNameConverter_NoMoveHoriz(),
+        C::NoMoveVert => ie::CursorTypeDisplayNameConverter_NoMoveVert(),
+        C::PanEast => ie::CursorTypeDisplayNameConverter_PanEast(),
+        C::PanNE => ie::CursorTypeDisplayNameConverter_PanNE(),
+        C::PanNorth => ie::CursorTypeDisplayNameConverter_PanNorth(),
+        C::PanNW => ie::CursorTypeDisplayNameConverter_PanNW(),
+        C::PanSE => ie::CursorTypeDisplayNameConverter_PanSE(),
+        C::PanSouth => ie::CursorTypeDisplayNameConverter_PanSouth(),
+        C::PanSW => ie::CursorTypeDisplayNameConverter_PanSW(),
+        C::PanWest => ie::CursorTypeDisplayNameConverter_PanWest(),
+        C::SizeAll => ie::CursorTypeDisplayNameConverter_SizeAll(),
+        C::SizeNESW => ie::CursorTypeDisplayNameConverter_SizeNESW(),
+        C::SizeNS => ie::CursorTypeDisplayNameConverter_SizeNS(),
+        C::SizeNWSE => ie::CursorTypeDisplayNameConverter_SizeNWSE(),
+        C::SizeWE => ie::CursorTypeDisplayNameConverter_SizeWE(),
+        C::UpArrow => ie::CursorTypeDisplayNameConverter_UpArrow(),
+        C::VSplit => ie::CursorTypeDisplayNameConverter_VSplit(),
+        C::WaitCursor => ie::CursorTypeDisplayNameConverter_WaitCursor(),
+        _ => ie::CursorTypeDisplayNameConverter_Default(),
+    }
+}
+
+/// `ArrowStylePreviewGeometryConverter`: a 36x14 arrow of `style` (1.75px,
+/// round caps), drawn by the editor's own renderer, its left edge at `x`.
+pub fn arrow_style_preview(ui: &Ui, painter: &egui::Painter, x: f32, y: f32, style: &ArrowStyle, color: Color32, scale: f32) {
+    let ppp = ui.ctx().pixels_per_point() * scale;
+    let (w, h) = ((36.0 * ppp).round() as u32, (14.0 * ppp).round() as u32);
+    let key = format!("arrow-preview-{style:?}-{w}x{h}-{:08X}", u32::from_be_bytes(color.to_array()));
+    let tex = ui.ctx().data_mut(|d| d.get_temp::<egui::TextureHandle>(egui::Id::new(&key))).or_else(|| {
+        let mut a = sharex_image_editor::model::Annotation::new("Arrow")?;
+        a.common.stroke_width = 1.75 * ppp;
+        let [r, g, b, al] = color.to_srgba_unmultiplied();
+        a.common.stroke_color = format!("#{al:02X}{r:02X}{g:02X}{b:02X}");
+        a.common.start_point = sharex_image_editor::model::Point::new(2.0 * ppp, 7.0 * ppp);
+        a.common.end_point = sharex_image_editor::model::Point::new((36.0 - 2.0) * ppp, 7.0 * ppp);
+        if let sharex_image_editor::model::Kind::Arrow(p) = &mut a.kind {
+            p.style = style.clone();
+        }
+        let pm = sharex_image_editor::render::render(&sharex_skia::Pixmap::new(w, h), &[a]);
+        let mut rgba = Vec::with_capacity(pm.pixels().len() * 4);
+        for c in pm.pixels() {
+            rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, *c as u8, (c >> 24) as u8]);
+        }
+        let img = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &rgba);
+        let tex = ui.ctx().load_texture(key.clone(), img, egui::TextureOptions::NEAREST);
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(&key), tex.clone()));
+        Some(tex)
+    });
+    if let Some(tex) = tex {
+        let r = Rect::from_min_size(pos2(x, (y - 7.0 * scale).round()), vec2(36.0, 14.0) * scale);
+        painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    }
 }
 
 /// The classic arrow preview: a 1.75px line from 2 to 34 with its head.
