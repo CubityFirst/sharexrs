@@ -35,6 +35,7 @@ use sharex_ui::{Palette, icons, palette, widgets};
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
+mod background;
 mod canvas_size;
 mod emoji_picker;
 mod insert_image;
@@ -51,6 +52,7 @@ enum PickTarget {
     Option(OptionItem),
     NewImage,
     CanvasFill,
+    Background(background::ColorTarget),
 }
 
 /// The dialog in `EditorView`'s modal host (`ModalContent`).
@@ -266,6 +268,14 @@ pub struct EditorWindow {
     /// The room round the image in the scroll viewer (the scroll viewer's
     /// content `Margin`, the Canvas size tool's).
     room: Vec2,
+    /// The Background panel (`IsSettingsPanelOpen` and its settings).
+    bg_panel: background::Panel,
+    /// The frame the canvas shows while the panel is open, and the key of
+    /// the texture drawn from it.
+    bg_frame: Option<background::Frame>,
+    bg_key: String,
+    /// A toolbar item to scroll into view once laid out (`BringIntoView`).
+    bring_into_view: Option<Item>,
 }
 
 struct Layout {
@@ -360,6 +370,10 @@ impl EditorWindow {
             pick_target: None,
             window_state: None,
             room: Vec2::ZERO,
+            bg_panel: background::Panel::default(),
+            bg_frame: None,
+            bg_key: String::new(),
+            bring_into_view: None,
         };
         w.title = w.window_title();
         // `QueueAutoCopyImageToClipboard`: the opened image copied.
@@ -474,9 +488,47 @@ impl EditorWindow {
         }
     }
 
-    /// `GetSnapshot()`: the image with its annotations.
+    /// `GetSnapshot()`: the image with its annotations (on its background
+    /// while the Background panel is open).
     fn snapshot(&mut self) -> RgbaImage {
-        rgba_of(&self.ws.export())
+        let export = self.ws.export();
+        self.update_bg_frame();
+        match &self.bg_frame {
+            Some(f) => rgba_of(&f.render(&export, self.ws.source())),
+            None => rgba_of(&export),
+        }
+    }
+
+    /// The Background panel's frame for the image as it is now.
+    fn update_bg_frame(&mut self) {
+        if !self.has_image {
+            self.bg_frame = None;
+            return;
+        }
+        // The image's identity: its pixels' address and size (the editor's
+        // operations replace the bitmap).
+        let src = self.ws.source();
+        let key = (src.pixels().as_ptr() as u64) ^ ((src.width() as u64) << 40) ^ ((src.height() as u64) << 20);
+        if self.bg_panel.needs_insets(key) {
+            let insets = sharex_image_editor::render::background::smart_padding_insets(self.ws.source());
+            self.bg_panel.set_insets(key, insets, &mut self.ws.tools.options);
+        }
+        self.bg_frame = self.bg_panel.frame(self.ws.size(), &self.ws.tools.options);
+    }
+
+    /// The frame's size and where the image sits in it (image pixels):
+    /// the image itself when the panel is closed.
+    fn display_frame(&self) -> (u32, u32, i32, i32) {
+        match &self.bg_frame {
+            Some(f) => {
+                let (ox, oy) = f.image_offset();
+                (f.frame.width, f.frame.height, ox, oy)
+            }
+            None => {
+                let (w, h) = self.ws.size();
+                (w, h, 0, 0)
+            }
+        }
     }
 
     // Commands.
@@ -761,11 +813,20 @@ impl EditorWindow {
         match item {
             Item::File => {}
             Item::CanvasSize => self.toggle_canvas_resize(),
-            Item::Background => self.effects.push(Effect::NotPorted("Image editor: Background panel")),
+            Item::Background => {
+                // `ToggleSettingsPanel`.
+                self.bg_panel.toggle();
+                self.tex = None;
+            }
             Item::ImageEffects => self.effects.push(Effect::NotPorted("Image editor: Image effects panel")),
             _ => {
                 if let Some(t) = item.tool() {
                     self.popups.close();
+                    // `SelectTool`: Crop and Cut out close the Background panel.
+                    if matches!(t, EditorTool::Crop | EditorTool::CutOut) && self.bg_panel.open && self.ws.active_tool() != t {
+                        self.bg_panel.toggle();
+                        self.tex = None;
+                    }
                     self.ws.select_tool(t);
                 }
             }
@@ -970,10 +1031,22 @@ impl EditorWindow {
                 let angle = if open { std::f32::consts::PI } else { 0.0 };
                 icons::paint_transformed(&clip, Rect::from_min_size(pos2(r.max.x - 17.0, r.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary, Vec2::ZERO, angle);
             } else {
-                let on = it.tool().is_some_and(|t| t == active) || (it == Item::CanvasSize && self.canvas_resize.is_some());
+                let on = it.tool().is_some_and(|t| t == active)
+                    || (it == Item::CanvasSize && self.canvas_resize.is_some())
+                    || (it == Item::Background && self.bg_panel.open);
                 captb::button(&clip, p, r, it.icon(), on, hovered, 1.0);
             }
             self.layout.items.push((it, r.intersect(rect)));
+            // `BringIntoView`: the least scroll that shows the item.
+            if self.bring_into_view == Some(it) {
+                let (l, rr) = (r.min.x + self.top_scroll, r.max.x + self.top_scroll);
+                let (vl, vr) = (viewport.min.x, viewport.max.x);
+                // (4px further: what ShareX's toolbar scrolls to, its row's margin.)
+                let want = if rr - self.top_scroll > vr { rr - vr + 4.0 } else if l - self.top_scroll < vl { l - vl - 4.0 } else { self.top_scroll };
+                self.top_scroll = want.clamp(0.0, max_scroll);
+                self.bring_into_view = None;
+                ui.ctx().request_repaint();
+            }
         }
         // The `ScrollViewer`'s collapsed scroll bar when the items overflow.
         if max_scroll > 0.0 {
@@ -1093,19 +1166,47 @@ impl EditorWindow {
             self.zoom_to_fit();
         }
         let (w, h) = self.ws.size();
+        let (fw, fh, ox, oy) = self.display_frame();
         // One image pixel is one DIP at 100%.
-        let size = vec2(w as f32, h as f32) * self.zoom as f32;
+        let size = vec2(fw as f32, fh as f32) * self.zoom as f32;
         // Centred when it fits (with its room), scrolled when it doesn't.
         let content = size + self.room * 2.0;
         let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
         self.scroll = self.scroll.clamp(Vec2::ZERO, max_scroll);
         let min = self.image_origin(self.room, self.scroll);
         let min = pos2((min.x * ppp).round() / ppp, (min.y * ppp).round() / ppp);
-        let image = Rect::from_min_size(min, size);
+        let z = self.zoom as f32;
+        let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
+        let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
         self.layout.image = image;
         let version = self.ws.version();
-        if self.tex.as_ref().is_none_or(|(v, _)| *v != version) {
-            let pm = self.ws.composite().clone();
+        // The frame's key: the image's version and the panel's settings.
+        let key = match &self.bg_frame {
+            Some(f) => {
+                let o = &self.ws.tools.options;
+                format!(
+                    "{version}:{:?}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}",
+                    f.frame,
+                    f.insets,
+                    o.BackgroundType,
+                    o.BackgroundGradientColor1Hex,
+                    o.BackgroundGradientColor2Hex,
+                    o.BackgroundColorHex,
+                    o.BackgroundImagePath,
+                    o.BackgroundRoundedCorner,
+                    o.BackgroundShadowRadius,
+                    o.ShadowColorHex
+                )
+            }
+            None => String::new(),
+        };
+        if self.tex.as_ref().is_none_or(|(v, _)| *v != version) || key != self.bg_key {
+            self.bg_key = key;
+            let composite = self.ws.composite().clone();
+            let pm = match &self.bg_frame {
+                Some(f) => f.render(&composite, self.ws.source()),
+                None => composite,
+            };
             let mut rgba = Vec::with_capacity(pm.pixels().len() * 4);
             for c in pm.pixels() {
                 rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, *c as u8, (c >> 24) as u8]);
@@ -1123,10 +1224,10 @@ impl EditorWindow {
         let painter = ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
         // The `Border` with `ShareX.Brush.Checkered` (15px squares, scaled
         // with the zoom) and its 1px border, under the image.
-        paint_checkered(&painter, image, image.min, self.zoom as f32, p);
-        painter.rect_stroke(image, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
+        paint_checkered(&painter, frame_rect, frame_rect.min, self.zoom as f32, p);
+        painter.rect_stroke(frame_rect, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
         if let Some((_, t)) = &self.tex {
-            painter.image(t.id(), image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            painter.image(t.id(), frame_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
         let m = self.mapper_ppp(ppp);
         let hovered = ctx.pointer_hover_pos().is_some_and(|p| self.layout.crop_button.is_some_and(|r| r.contains(p)));
@@ -1162,7 +1263,7 @@ impl EditorWindow {
 
     /// The part of the window the toolbars, menus and popups cover.
     fn over_ui(&self, p: Pos2) -> bool {
-        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) {
+        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) || self.bg_panel.contains(p) {
             return true;
         }
         if self.toolbars_hidden {
@@ -1990,7 +2091,20 @@ impl Dialog for EditorWindow {
         }
         ui.painter().rect_filled(full, 0.0, p.background_main);
         self.input(ui);
-        self.paint_canvas(ui, &p, full);
+        self.update_bg_frame();
+        // The left sidebar (`Grid` column 0) takes its width from the
+        // canvas host.
+        let canvas_area = if self.bg_panel.open { Rect::from_min_max(pos2(full.min.x + background::WIDTH, full.min.y), full.max) } else { full };
+        self.paint_canvas(ui, &p, canvas_area);
+        if self.bg_panel.open {
+            let modal = self.modal.is_some();
+            let r = self.bg_panel.show(ui, &p, full, &mut self.ws.tools.options, modal);
+            if r.changed {
+                self.update_bg_frame();
+            }
+        } else {
+            self.bg_panel.rect = None;
+        }
         if !self.toolbars_hidden {
             self.paint_top(ui, &p, full);
             self.paint_bottom(ui, &p, full);
@@ -2018,6 +2132,12 @@ impl Dialog for EditorWindow {
         }
         if self.zoom_open {
             self.zoom_popup(ui, &p);
+        }
+        // The Background panel's colour popup.
+        let r = self.bg_panel.show_popup(ui, &p, full, &mut self.ws.tools.options);
+        if let Some(t) = r.pick_screen_color {
+            self.pick_target = Some(PickTarget::Background(t));
+            self.effects.push(Effect::PickScreenColorOverWindow);
         }
         if let Some(f) = self.flyout.as_mut() {
             let out = f.show(ui, full);
@@ -2121,6 +2241,14 @@ impl Dialog for EditorWindow {
                 }
             }
             PickTarget::CanvasFill => self.ws.tools.options.CanvasFillColorHex = hex,
+            PickTarget::Background(t) => {
+                let o = &mut self.ws.tools.options;
+                match t {
+                    background::ColorTarget::Gradient1 => o.BackgroundGradientColor1Hex = hex,
+                    background::ColorTarget::Gradient2 => o.BackgroundGradientColor2Hex = hex,
+                    background::ColorTarget::Color => o.BackgroundColorHex = hex,
+                }
+            }
         }
     }
 
@@ -2201,6 +2329,27 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
         Some("canvas-size") => w.canvas_resize_on_open = true,
+        Some(st) if st.starts_with("background") => {
+            // `--state background[-gradient|-color|-image][-scrolled]`:
+            // the panel open (the toolbar scrolled to show its button, as
+            // ShareX's is after Background is invoked).
+            w.bg_panel.open = true;
+            let o = &mut w.ws.tools.options;
+            o.BackgroundType = if st.contains("gradient") {
+                "Gradient"
+            } else if st.contains("color") {
+                "Color"
+            } else if st.contains("image") {
+                "Image"
+            } else {
+                "Transparent"
+            }
+            .into();
+            if st.ends_with("-scrolled") {
+                w.bg_panel.set_scroll(500.0);
+            }
+            w.bring_into_view = Some(Item::Background);
+        }
         Some("confirm") => w.modal = Some(Modal::Confirm),
         Some("insert") => {
             let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));

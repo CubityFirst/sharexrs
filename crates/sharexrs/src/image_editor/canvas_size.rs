@@ -166,13 +166,16 @@ impl EditorWindow {
     /// The image's top-left corner in the view for this `room` and scroll.
     pub(super) fn image_origin(&self, room: Vec2, scroll: Vec2) -> Pos2 {
         let canvas = self.layout.canvas;
-        let (w, h) = self.ws.size();
-        let size = vec2(w as f32, h as f32) * self.zoom as f32;
+        // The frame (the image, or the Background panel's frame round it)
+        // is what's centred or scrolled; the image sits in it.
+        let (w, h, ox, oy) = self.display_frame();
+        let z = self.zoom as f32;
+        let size = vec2(w as f32, h as f32) * z;
         let content = size + room * 2.0;
         pos2(
             if content.x <= canvas.width() { canvas.center().x - size.x / 2.0 } else { canvas.min.x - scroll.x + room.x },
             if content.y <= canvas.height() { canvas.center().y - size.y / 2.0 } else { canvas.min.y - scroll.y + room.y },
-        )
+        ) + vec2(ox as f32, oy as f32) * z
     }
 
     /// `SetCanvasResizeRoom`: the room, the scroll moved so the image's
