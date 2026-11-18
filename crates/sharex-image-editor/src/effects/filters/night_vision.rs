@@ -41,7 +41,48 @@ impl EffectImpl for NightVisionImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let intensity = clampf(self.intensity, 0.0, 100.0) / 100.0;
+        let glow = clampf(self.glow, 0.0, 100.0) / 100.0;
+        let noise = clampf(self.noise, 0.0, 100.0) / 100.0;
+        let vignette = clampf(self.vignette, 0.0, 100.0) / 100.0;
+        let scanlines = clampf(self.scanlines, 0.0, 100.0) / 100.0;
+        if intensity <= 0.0001 {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let cx = (width - 1) as f32 * 0.5;
+        let cy = (height - 1) as f32 * 0.5;
+        let max_dist = 1f32.max(((cx * cx) + (cy * cy)).sqrt());
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        let lum = |c: SkColor| (0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32);
+        let p = |x: i32, y: i32| src[(y * width + x) as usize];
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let s = src[(row + x) as usize];
+                let l = lum(s) / 255.0;
+                let mut avg = l;
+                avg += lum(p(0.max(x - 1), y)) / 255.0;
+                avg += lum(p((width - 1).min(x + 1), y)) / 255.0;
+                avg += lum(p(x, 0.max(y - 1))) / 255.0;
+                avg += lum(p(x, (height - 1).min(y + 1))) / 255.0;
+                avg /= 5.0;
+                let mut ph = lerp(l, avg, glow * 0.45) + (l.powf(0.82) * glow * 0.26);
+                ph *= 0.72 + (intensity * 0.68);
+                let dx = x as f32 - cx;
+                let dy = y as f32 - cy;
+                let dist = ((dx * dx) + (dy * dy)).sqrt() / max_dist;
+                let vm = clamp01(1.0 - (vignette * dist * dist)) * (1.02 - (dist * 0.08));
+                let scan = 1.0 - (scanlines * 0.16 * (0.5 + (0.5 * (y as f32 * std::f32::consts::PI).sin())));
+                let grain = ((hash01(x, y, 1229) * 2.0) - 1.0) * noise * 0.12;
+                let r = clamp01(((ph * 0.12) + (grain * 0.35)) * vm * scan);
+                let g = clamp01(((ph * 1.08) + grain) * vm * scan);
+                let b = clamp01(((ph * 0.18) + (grain * 0.28)) * vm * scan);
+                dst[(row + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }
