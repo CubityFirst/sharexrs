@@ -4389,6 +4389,7 @@ dependencies = [
  "sharex-history",
  "sharex-image-editor",
  "sharex-image-effects",
+ "sharex-native-recorder",
  "sharex-ocr",
  "sharex-screen-recording",
  "sharex-settings",

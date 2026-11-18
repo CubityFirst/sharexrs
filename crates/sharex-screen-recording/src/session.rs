@@ -377,6 +377,31 @@ pub fn prepare_ffmpeg_recording(
     Ok(PreparedRecording { capture, fps, use_gif_fps, capture_rectangle: rect, ffmpeg_path })
 }
 
+/// `StartRecording`'s checks for the native recorder (`useNative`): no
+/// FFmpeg options are involved, the frame rate is `GIFFPS` or
+/// `ScreenRecordFPS`, and only an MP4 needs an even size. ShareXrs adds one:
+/// FFmpeg must be there, since it grabs the screen for the native recorder
+/// until Windows Graphics Capture is ported.
+pub fn prepare_native_recording(
+    output: ScreenRecordOutput,
+    capture: &TaskSettingsCapture,
+    capture_rectangle: Rectangle,
+    screen_bounds: Rectangle,
+    ffmpeg_path: Result<PathBuf, crate::discovery::FFmpegCheckError>,
+) -> Result<PreparedRecording, StartError> {
+    let is_gif = output == ScreenRecordOutput::GIF;
+    let fps = if is_gif { capture.GIFFPS } else { capture.ScreenRecordFPS };
+    let ffmpeg_path = ffmpeg_path.map_err(StartError::FFmpeg)?;
+    let mut rect = intersect(capture_rectangle, screen_bounds);
+    if !is_gif {
+        rect = even_rectangle_size(rect);
+    }
+    if rect.width <= 0 || rect.height <= 0 {
+        return Err(StartError::InvalidRegion);
+    }
+    Ok(PreparedRecording { capture: capture.clone(), fps, use_gif_fps: is_gif, capture_rectangle: rect, ffmpeg_path })
+}
+
 /// What the session needs from the app: file names (ShareX's
 /// `TaskHelpers.GetScreenshotsFolder`/`GetFileName`/`HandleExistsFile`),
 /// sounds and the error box.
@@ -577,6 +602,22 @@ fn rename_file(path: &str, new_path: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_preparation() {
+        let mut capture = TaskSettingsCapture::default();
+        capture.FFmpegOptions.VideoSource = String::new();
+        capture.FFmpegOptions.AudioSource = String::new();
+        let bounds = Rectangle { x: 0, y: 0, width: 1920, height: 1080 };
+        let area = Rectangle { x: 10, y: 10, width: 101, height: 51 };
+        let ok = Ok(PathBuf::from("ffmpeg.exe"));
+        // No source check; MP4 even, GIF as is.
+        let mp4 = prepare_native_recording(ScreenRecordOutput::FFmpeg, &capture, area, bounds, ok.clone()).unwrap();
+        assert_eq!((mp4.capture_rectangle.width, mp4.capture_rectangle.height, mp4.fps), (100, 50, capture.ScreenRecordFPS));
+        let gif = prepare_native_recording(ScreenRecordOutput::GIF, &capture, area, bounds, ok).unwrap();
+        assert_eq!((gif.capture_rectangle.width, gif.fps, gif.use_gif_fps), (101, capture.GIFFPS, true));
+        assert_eq!(gif.capture.FFmpegOptions.VideoCodec, capture.FFmpegOptions.VideoCodec);
+    }
 
     #[test]
     fn control_transitions_like_the_frame() {

@@ -17,6 +17,8 @@ sharex-ocr.workspace = true
 sharex-uploaders.workspace = true
 sharex-update.workspace = true
 sharex-screen-recording.workspace = true
+# ShareX's native recorder (Windows: Media Foundation, D3D11, the adaptive GIF writer).
+sharex-native-recorder.workspace = true
 # .NET regex substitutions for the after upload URL replace, as sharex-uploaders uses it.
 fancy-regex = "0.11"
 sharex-image-editor.workspace = true
