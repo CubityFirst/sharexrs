@@ -97,6 +97,8 @@ pub enum Part {
     Option(super::options_row::OptionItem),
     /// The toolbar's background (not a button).
     Background,
+    /// An open option popup.
+    Popup,
 }
 
 /// Where the toolbar's parts are, in points.
@@ -216,7 +218,7 @@ fn fill_gradient(painter: &Painter, rect: Rect, radius: CornerRadius, start: Col
 
 /// One `Button.toolbar-button`: control background (hover background
 /// under the pointer), 1px border, 4px corners; `.active` the accent.
-fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: bool, hovered: bool, scale: f32) {
+pub fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: bool, hovered: bool, scale: f32) {
     let radius = CornerRadius::same((4.0 * scale).round() as u8);
     if active {
         fill_gradient(painter, rect, radius, p.accent_start, p.accent_end);
@@ -276,7 +278,7 @@ pub fn tooltip(part: Part) -> Option<String> {
         Part::DragHandle => Some(sc::RegionCaptureWindow_MoveToolbar().to_string()),
         Part::RegionButton => Some(sc::RegionCaptureWindow_RectangleRegionTab().to_string()),
         Part::Tool(i) => TOOLS.get(i).map(ToolItem::tooltip),
-        Part::Option(_) | Part::Background => None,
+        Part::Option(_) | Part::Background | Part::Popup => None,
     }
 }
 

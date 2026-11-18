@@ -3,8 +3,8 @@
 ShareX 22.4's image editor (`ShareX.ImageEditor`, Avalonia) and its port:
 `crates/sharex-image-editor` (annotation model, tool options, renderer) on
 `crates/sharex-skia` (Skia m119's CPU rasteriser, shared with the image
-effects). The editor's workspace and its region capture host are ported
-("The editor UI" below); the standalone editor window isn't yet.
+effects). The editor's workspace, its region capture host and the
+standalone editor window are ported ("The editor UI" below).
 
 ## Map of ShareX's editor
 
@@ -357,20 +357,180 @@ shows it in plain SkiaSharp: the same draws through a picture shader
 differ by up to 3 levels, through `DrawPicture` not at all. Ported:
 `sharex_skia::blitter::with_pipeline_blitters` and `with_device_clip`, and
 `render::render_region` (`EditorCore::snapshot_region`), identical to
-ShareX on the 11 region cases. The workspace's `snapshot` still crops the
-composite; it should call `render::render_region_cached`.
+ShareX on the 11 region cases. The workspace's `snapshot` (region capture's
+output) renders through `render::render_region_cached`; `export` (the
+editor window's `GetSnapshot()`) through `render`.
 
-Not ported yet: the options' dropdowns and colour popups (they draw closed;
-toggles and sliders work), the shadow options popup, the speech balloon's text
-editor and default tail on selection (ShareX opens both as soon as a balloon
-is drawn), editing an existing text in its own box (double click edits it in
-the creation box), the Image, Emoji, Clone, Cursor and Smart eraser tools
-(selectable; Image and Emoji open dialogs in ShareX, not ported; their
-annotations render and `EditorCore` has their steps), the crop and cut out
-tools (`EditorCore` has the operations), copy/paste/duplicate of annotations, the context menu,
-`RightClickDeletesShape`, the cursor annotation ShareX inserts for a shown
-pointer (ShareXrs draws the pointer into the frozen screen), the
-standalone editor window.
+### The workspace's commands (`workspace/ops.rs`)
+
+Beyond drawing, the workspace has `EditorView`'s and `EditorCore`'s
+commands, for both hosts:
+
+- History with canvas mementos (`CreateCanvasMemento`: crop, cut out,
+  flatten; five kept, the history contiguous) on `editor::History<Memento>`.
+- The annotation clipboard (`_clipboardAnnotation`, shared by every
+  editor): Ctrl+Shift+C copies, Ctrl+X cuts (undoable), Ctrl+V is the
+  host's (an image on the system clipboard first, then the copied shape:
+  `paste_annotation`), Ctrl+D duplicates; copies are 20px further and
+  selected. ShareX keeps a clone's `Id`; ids name annotations here, so
+  the copy gets a new one.
+- Z-order (Home, End, Page Up, Page Down), flatten (Ctrl+Shift+F), the
+  right button (`right_pressed`: cancels a drawing or a pending crop,
+  `RightClickDeletesShape`, or selects the shape for the context menu).
+- Crop: drawn clamped to the image with its adorner (`crop_chrome`: the
+  shades, the 2px `4,2` dashed rectangle, the thirds, `X: Y: W: H:`),
+  performed on release with `QuickCrop` (the default), else pending with
+  ShareX's handles (`CropAnnotation.ResizeBounds`), Enter, a double click
+  or the Crop button. Cut out: the 30px square below 15px, then a column or
+  row strip (`CutOutAnnotation.AdjustAnnotation` moves the annotations).
+  Clone: the region becomes a selected image annotation (`CloneRegion`).
+- The Image tool asks the host (`Request::InsertImage` when chosen,
+  `PickImage { at }` on a click; a double click on an image `ReplaceImage`),
+  the Emoji tool `EmojiPicker` (`ReplaceEmoji`); images carry their pixels
+  (`ImageProps::set_image`). The Cursor tool sizes the annotation from
+  `render::cursor`; the smart eraser samples the canvas
+  (`SampleCanvasColor`) and fills through `editor_core::configure_smart_eraser_fill`.
+- Text: an existing text is edited in its own box over its bounds
+  (`ShowTextEditor`, the annotation hidden meanwhile, its rectangle kept);
+  selecting a speech balloon opens its editor over the body
+  (`ShowSpeechBalloonTextEditor`: a small balloon grows to 200x100, the
+  default tail 30px below its middle, auto-size fits as you type), with the
+  balloon's tail handle (`BalloonTail`, placed once dragged) and
+  `ResizeTail`/`MoveBy`.
+- Keys that need the host come back as `KeyResult::command`
+  (`Command::CopyImage`, `Paste`, `Save`, `SaveAs`, `NewImage`, `OpenImage`,
+  `PinToScreen`, `Upload`, `Print`, `ToggleToolbars`, `Continue`, `Exit`).
+
+Unit tests: `workspace/tests.rs` (clipboard, z-order, quick and pending
+crop with undo, cut out, clone, flatten, the right button, the balloon
+editor and tail, editing a text, the Image/Emoji requests, the smart
+eraser).
+
+Note: `EditorCore` (master) has its own crop, cut out and flatten; the
+workspace's `ops.rs` implements the same operations for its history and
+selection. Folding the workspace onto `EditorCore` is a follow-up.
+
+### The overlay and the options' popups (both hosts)
+
+`sharex_capture::editor_chrome` draws the editor's `OverlayCanvas` for
+both hosts through a `Mapper` with the zoom: outlines, handles, the text
+boxes (creation, edit and balloon: the theme's control background, the
+balloon's square and borderless, under the handles as ShareX's `ZIndex`
+9999), the crop chrome with its handles and Crop button, the cut out and
+clone regions.
+
+`sharex_capture::editor_popups` is every option dropdown of
+`AnnotationToolbar.axaml`, under its button (`Placement="Bottom"`, 4px),
+kept on the work area (its height cut to it, as Avalonia's positioner
+does), with light dismiss and Escape; the chevrons turn over while open:
+
+- `ColorPickerDropdown`/`ColorPickerPanel`: Avalonia's `ColorView` on its
+  palette tab, ported from the Fluent template embedded in
+  `Avalonia.Controls.ColorPicker.dll` 12.1.6 (the tab strip and its Fluent
+  UI icons, `FluentColorPalette` 6x8 with ShareX's three replacements, the
+  `ColorPreviewer` with its +-0.1/0.2 value accents and shadow), then the
+  screen colour picker button and five recent colours
+  (`EditorRecentColors`, the colour a popup closes with). The spectrum and
+  components tabs fall back to egui's HSV picker, as the app's other colour
+  popups do.
+- Width, corner radius (grids), border style, arrow style (previews drawn
+  by the renderer), alignment, step type, start number, cursor type (the
+  cursors' previews from `render::cursor`), font size (custom size box),
+  font family (the system's families as DirectWrite names them, each drawn
+  in its own face, with search), and the shadow options popup (a right
+  click on the shadow button: colour, blur, opacity, offsets).
+
+Region capture opens them from its options row; ShareX's region capture
+screen colour picker isn't ported (logged).
+
+Validation (`scripts/annotate-popups.ps1` takes ShareX's popups over the
+test pattern, `scripts/compare-popups.py` renders `--render
+region-annotate --steps ... --work-area 0,0,1024,720` and compares;
+references in `shots/sharex/editor-popups/`):
+
+| Popup | Dark | Light |
+|---|---|---|
+| Border colour | 0.06% | 0.09% |
+| Fill colour | 0.09% | 0.15% |
+| Text colour | 0.08% | 0.10% |
+| Thickness | 0.01% | 0.01% |
+| Border style | 0.26% | 0.24% |
+| Corner radius | 0.02% | 0.02% |
+| Shadow options | 0.07% | 0.08% |
+| Arrow style | 0.17% | 0.17% |
+| Font family | 0.44% | 0.40% |
+| Alignment | 0.08% | 0.09% |
+| Font size | 0.12% | 0.11% |
+| Step type | 0.05% | 0.05% |
+| Start number | 0.04% | 0.04% |
+| Cursor type | 1.18% | 1.65% |
+
+The cursor type list is the one over 0.5%: ShareX's shot has the pointer
+hovering "Arrow" with its tooltip (the list opened under the pointer),
+and the I-beam and H split previews differ slightly. The region capture
+annotation shots (`compare-annotate.py`) stay at 0.00-0.09% with the
+balloon editor now open on selection (0.06%: its caret, which ShareX's shot
+caught off).
+
+### The editor window (`crates/sharexrs/src/image_editor.rs`)
+
+`EditorWindow` as `ImageEditorIntegration.ShowEditorDialog` opens it:
+maximized (`RememberWindowState`/`IsWindowMaximized`), titled "ShareXrs -
+Image Editor - WxH - name", the workspace in the canvas host (`Margin="8"`,
+centred, scrolled when larger, middle button pans, Ctrl+wheel and the zoom
+dropdown step through `ZoomLevels`, Zoom to fit, `ZoomToFitOnOpen`), and
+`EditorBuiltInToolbars`:
+
+- the top `AnnotationToolbar` (`ShowEditingActions="False"`): the File menu
+  (New, Open, New from screenshot, Save, Save as, Exit), every tool, Crop,
+  Cut out, Canvas size, Background, Image effects (their hotkeys as
+  `ToolbarCustomizationItemViewModel`'s), scrolled with its collapsed bar
+  when wider than the window, the options row and its popups;
+- the bottom toolbar: zoom, the task buttons (Continue, Cancel), Copy, Save,
+  Save as, Pin to screen, Print, Upload, New from screenshot (region, full
+  screen).
+
+The context menu (`EditorContextMenu`, a plain `ContextMenu`), the exit
+confirmation (`ConfirmationDialogView`, when `ShowExitConfirmation` and
+dirty), the editor's keys (`EditorView.OnKeyDown`/`OnKeyUp`: Escape
+cancels the clone or crop, then the selection, then exits or cancels the
+task; Enter confirms a crop or continues).
+
+Outputs as ShareX wires them (`TaskHelpers.AnnotateImageModern`): Copy
+(`CopyImage`), Save (the file, or a new name in the task's screenshots
+folder), Save as (a file dialog), Pin to screen (`PinToScreen(image,
+task)`), Upload (`ProcessImage`), Continue (task mode: the image back to the
+waiting task; otherwise `RunImageTask`), Cancel. The tool options go back
+into the default task settings.
+
+Opened from: Tools > Image editor and its hotkey (no image), the after
+capture Annotate image task (`UiRequest::Annotate`: the task waits; a
+cancel stops it), the task list's and history windows' Edit image
+(`AnnotateImageFromFile`), and `-ImageEditor <file>`.
+
+Validation (`--render image-editor --image <png> --width 1028 --height
+720` against ShareX's window on the same 640x400 image; references in
+`shots/sharex/editor-window/`): dark 0.10%, light 0.09% (the zoom button
+is a few px wider in ShareX). Context menu (`--render
+image-editor-context`, cropped) 0.68% light. Side by side: the same two
+ellipses drawn in both editors and copied give a pixel-identical PNG and a
+byte-identical CF_DIB.
+
+### Not ported yet
+
+- The editor window's dialogs: the start screen (Tools > Image editor opens
+  an empty editor instead), New image, Insert image (the Image tool opens a
+  file picker), the emoji picker (logged; emoji insert and render through
+  `insert_emoji` once a picker calls it), toolbar customisation, the
+  Background panel, Canvas size and the Image effects panel (their buttons
+  log), New from screenshot (logged), Print (logged), the screen colour
+  picker in the colour popup (logged).
+- The File menu matches ShareX's items but not exactly its `MenuFlyout`
+  metrics (taller items, lighter gestures, the first item focused).
+- Notifications (`ShowNotification`), auto-expand canvas, recent files,
+  drag and drop onto the editor, `AutoSizeWindow`, saving the window state,
+  `AutoCopyImageToClipboard`, `AutoCloseEditorOnTask`.
+- Dark context menu and File menu shots weren't taken (light only).
 
 ## Plan for the editor UI
 

@@ -12,6 +12,7 @@
 //! ([`Workspace::handles`], [`Workspace::outline`]).
 
 pub mod editor_core;
+pub mod fonts;
 pub mod geometry;
 mod history;
 pub mod image_ops;
@@ -19,6 +20,7 @@ pub mod tool_state;
 mod workspace;
 
 pub use editor_core::{CoreMemento, EditorCore};
+pub use fonts::{render_font_name, system_font_families};
 pub use geometry::Rect;
 pub use tool_state::{ToolState, Visible, max_effect_strength};
 pub use workspace::*;

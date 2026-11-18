@@ -4,10 +4,19 @@
 //! `*UploaderService.CreateUploader` does.
 
 pub mod amazon_s3;
+pub mod cloud_storage;
+pub mod email;
 pub mod file_hosts;
 pub mod files;
+pub mod ftp;
+pub mod mega;
+pub mod oauth_services;
 pub mod images;
+pub mod private_bin;
 pub mod self_hosted;
+pub mod shared_folder;
+pub mod services;
+pub mod sftp;
 pub mod sharing;
 pub mod shorteners;
 pub mod text;

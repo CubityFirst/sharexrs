@@ -13,13 +13,16 @@ mkdir -p "$out"
 
 python "$here/make_cases.py"
 dotnet build "$here/dotnet" -o "$bin" -nologo -v q
-cargo build -q -p sharex-uploaders --example uploaders_harness
+cargo build -q -p sharex-uploaders --example uploaders_harness --example sharex_uploaders_mock_servers
 
 python "$here/mock_server.py" "$port" &
 mock=$!
-trap 'kill $mock 2>/dev/null || true' EXIT
+"$root/target/debug/examples/sharex_uploaders_mock_servers" "${MOCK_SERVERS_PORT:-18820}" > "$out/servers.log" &
+servers=$!
+trap 'kill $mock $servers 2>/dev/null || true' EXIT
 sleep 1
 
 "$bin/UploadersHarness" "$here/cases.json" "$out/results-sharex.json" "$port" --fixture "$out/UploadersConfig.harness.json" > "$out/sharex.log"
 "$root/target/debug/examples/uploaders_harness" "$here/cases.json" "$out/results-sharexrs.json" "$port" > "$out/sharexrs.log"
 python "$here/compare.py" "$out/results-sharex.json" "$out/results-sharexrs.json" --report "$out/report.md"
+python "$here/extract_fixtures.py" "$out/results-sharex.json"

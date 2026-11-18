@@ -743,14 +743,19 @@ fn missing_settings_fail_and_ask_for_destination_settings() {
 }
 
 #[test]
-fn an_unported_destination_fails_saying_so() {
-    let dir = TempDir::new("unported");
+fn a_destination_not_signed_in_asks_for_destination_settings() {
+    // Every destination is ported now: one without its sign-in (Flickr's
+    // OAuth 1.0a token) takes ShareX's invalid settings path.
+    let dir = TempDir::new("not-signed-in");
     let mut task = task_settings();
     task.AfterCaptureJob = AfterCaptureTasks::UploadImageToHost;
     task.ImageDestination = ImageDestination::Flickr;
     let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
     assert_eq!(out.status(), TaskStatus::Failed);
-    assert_eq!(out.info().result.errors, ["Flickr isn't ported to ShareXrs yet."]);
+    let service = sharex_uploaders::factory::service_name("ImageDestination", "Flickr");
+    let message = s::WorkerTask_GetInvalidConfigResult__0__configuration_is_invalid_or_missing__Please_check__Destination_settings__window_to_configure_it_()
+        .replace("{0}", &service);
+    assert_eq!(out.info().result.errors, [message]);
 }
 
 #[test]

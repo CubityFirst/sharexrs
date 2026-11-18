@@ -79,6 +79,8 @@ pub struct CustomUploaderParser {
     pub use_name_parser: bool,
     /// `AllowNameParserFileRead`.
     pub allow_name_parser_file_read: bool,
+    /// `NameParserType` (`None`: ShareX's default, `Text`).
+    pub name_parser_type: Option<NameParserType>,
 }
 
 const SYNTAX_START: char = '{';
@@ -104,8 +106,9 @@ impl CustomUploaderParser {
         let mut text = text.to_owned();
         if self.use_name_parser && !text.is_empty() {
             let allow = self.allow_name_parser_file_read;
+            let kind = self.name_parser_type.unwrap_or(NameParserType::Text);
             text = escape_helper_parse(&text, true, |t| {
-                let mut np = NameParser::new(NameParserType::Text);
+                let mut np = NameParser::new(kind);
                 np.allow_file_read = allow;
                 np.parse(t)
             });

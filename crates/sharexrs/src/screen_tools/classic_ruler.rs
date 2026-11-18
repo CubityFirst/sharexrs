@@ -552,7 +552,7 @@ impl ClassicRuler {
     fn paint(&mut self, i: usize) {
         let w = &self.overlay.windows[i];
         let ppp = w.scale as f32;
-        let m = Mapper { origin: ((w.bounds.x - self.origin.0) as f64, (w.bounds.y - self.origin.1) as f64), ppp };
+        let m = Mapper::new(((w.bounds.x - self.origin.0) as f64, (w.bounds.y - self.origin.1) as f64), ppp);
         let monitor = R::new(w.bounds.x - self.origin.0, w.bounds.y - self.origin.1, w.bounds.w, w.bounds.h);
         if self.textures[i].is_none() {
             let crop = image::imageops::crop_imm(&self.screenshot, monitor.x as u32, monitor.y as u32, monitor.w as u32, monitor.h as u32).to_image();

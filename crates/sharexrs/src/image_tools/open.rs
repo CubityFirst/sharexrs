@@ -23,6 +23,7 @@ pub fn tool_for_hotkey(job: &HotkeyType) -> Option<&'static str> {
         HotkeyType::ImageComparer => "MainMenuBuilder_ImageComparer",
         HotkeyType::IconConverter => "MainMenuBuilder_IconConverter",
         HotkeyType::ImageEffects => "MainMenuBuilder_ImageEffects",
+        HotkeyType::ImageEditor => "MainMenuBuilder_ImageEditor",
         _ => return None,
     })
 }
@@ -46,6 +47,11 @@ impl App {
             "MainMenuBuilder_IconConverter" => Box::new(icon_converter::IconConverterWindow::default()),
             "MainMenuBuilder_ImageEffects" => {
                 self.open_image_effects_tool(event_loop, None, task);
+                return true;
+            }
+            // `TaskHelpers.OpenImageEditor(taskSettings)`: no image.
+            "MainMenuBuilder_ImageEditor" => {
+                self.open_image_editor(event_loop, None, None, task, None);
                 return true;
             }
             _ => return false,

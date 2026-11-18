@@ -9,7 +9,7 @@ use sharex_skia::Pixmap;
 use super::geometry::{self, Rect, Segment, rotate_point, shape_hit};
 use super::history::{History, Memento};
 use super::tool_state::{Target, ToolState};
-use crate::model::{Annotation, EditorTool, Kind, Point};
+use crate::model::{Annotation, CursorType, EditorTool, Kind, Point, TextHorizontalAlignment};
 use crate::options::ImageEditorOptions;
 use crate::render;
 
@@ -74,6 +74,7 @@ pub enum HandleKind {
     SegmentEnd,
     SegmentCenter,
     StepTail,
+    BalloonTail,
 }
 
 impl HandleKind {
@@ -156,6 +157,7 @@ pub enum Cursor {
 /// existing text annotation).
 #[derive(Clone, Debug)]
 pub struct TextEdit {
+    pub kind: TextKind,
     /// The annotation being made, or a copy of the one being edited.
     pub annotation: Annotation,
     /// Editing an existing annotation (its id).
@@ -163,6 +165,19 @@ pub struct TextEdit {
     pub text: String,
     /// The caret, in chars.
     pub caret: usize,
+}
+
+/// Which text box is open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextKind {
+    /// `CreateCreationTextEditor`: a new text annotation, sized to its text.
+    Create,
+    /// `ShowTextEditor`: an existing text annotation, edited in a box over
+    /// its bounds (the annotation hidden meanwhile).
+    Edit,
+    /// `ShowSpeechBalloonTextEditor`: a speech balloon's text, in a box
+    /// over its body.
+    Balloon,
 }
 
 struct Drawing {
@@ -186,6 +201,71 @@ pub struct KeyResult {
     pub handled: bool,
     /// A tool was chosen by its hotkey.
     pub tool: Option<EditorTool>,
+    /// A view model command for the host (`MainViewModel`'s commands the
+    /// workspace can't run itself).
+    pub command: Option<Command>,
+}
+
+/// `MainViewModel` commands bound to the editor's keys that need its host:
+/// the image goes out of the editor, or a dialog opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Command {
+    /// `CopyCommand` (Ctrl+C): the image to the clipboard.
+    CopyImage,
+    /// `PasteCommand` (Ctrl+V): an image or files on the clipboard become an
+    /// image annotation, else the copied annotation is pasted
+    /// ([`Workspace::paste_annotation`]).
+    Paste,
+    /// `SaveCommand` (Ctrl+S).
+    Save,
+    /// `SaveAsCommand` (Ctrl+Shift+S).
+    SaveAs,
+    /// `NewImageCommand` (Ctrl+N).
+    NewImage,
+    /// `OpenImageCommand` (Ctrl+O).
+    OpenImage,
+    /// `PinToScreenCommand` (Ctrl+P).
+    PinToScreen,
+    /// `UploadCommand` (Ctrl+U).
+    Upload,
+    /// `PrintCommand` (Ctrl+Shift+P).
+    Print,
+    /// `ToggleToolbarsCommand` (Ctrl+H).
+    ToggleToolbars,
+    /// `ContinueCommand` (Enter in task mode).
+    Continue,
+    /// Escape with nothing to cancel: `CancelCommand` in task mode,
+    /// `ExitEditorCommand` otherwise.
+    Exit,
+}
+
+/// Something the workspace asks its host to do (a dialog or a picker).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Request {
+    /// The Image tool was chosen (`RequestImageInsertion`): the insert image
+    /// dialog.
+    InsertImage,
+    /// The Image tool was clicked (`HandleImageTool`): pick an image file to
+    /// insert centred on `at`.
+    PickImage { at: P },
+    /// The Emoji tool was chosen (`ShowEmojiPickerDialog`).
+    EmojiPicker,
+    /// A double click on an image annotation: replace its image.
+    ReplaceImage { id: String },
+    /// A double click on an emoji: pick another one for it.
+    ReplaceEmoji { id: String },
+}
+
+/// What a right button press did (`OnCanvasPointerPressed`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RightClick {
+    /// It cancelled the shape being drawn or the pending crop.
+    Cancelled,
+    /// `RightClickDeletesShape`: the shape of the active tool under it went.
+    Deleted,
+    /// The host opens the context menu (`OpenContextMenu`); the shape under
+    /// it, if any, is selected.
+    ContextMenu,
 }
 
 /// `MinShapeSize`: smaller shapes are dropped.
@@ -214,6 +294,17 @@ pub struct Workspace {
     version: u64,
     cache: render::Cache,
     composite: Option<(u64, Pixmap)>,
+    /// The crop being drawn or waiting for confirmation, the cut out or
+    /// clone region being drawn.
+    region: Option<ops::RegionDraw>,
+    crop: Option<ops::PendingCrop>,
+    requests: Vec<Request>,
+    /// The workspace is region capture's (`_isWorkspaceHostMode`).
+    pub host_mode: bool,
+    /// `ShowTaskButtons`: Enter continues the task.
+    pub task_buttons: bool,
+    /// `UseContinueWorkflow`: Escape cancels the task.
+    pub continue_workflow: bool,
 }
 
 fn sk(p: P) -> Point {
@@ -266,7 +357,37 @@ impl Workspace {
             version: 0,
             cache: render::Cache::default(),
             composite: None,
+            region: None,
+            crop: None,
+            requests: Vec::new(),
+            host_mode: false,
+            task_buttons: false,
+            continue_workflow: false,
         }
+    }
+
+    /// `LoadImage`/`UpdatePreview`: a new image, with no annotations and a
+    /// new history (`ClearAll(resetHistory: true)`).
+    pub fn load_image(&mut self, source: Pixmap) {
+        self.text = None;
+        self.source = source;
+        self.cache = render::Cache::default();
+        self.annotations.clear();
+        self.history.reset();
+        self.selected = None;
+        self.hovered = None;
+        self.drawing = None;
+        self.drag = None;
+        self.region = None;
+        self.crop = None;
+        self.number_counter = 1;
+        self.dirty = false;
+        self.changed();
+    }
+
+    /// `IsDirty = false` (after a save).
+    pub fn set_clean(&mut self) {
+        self.dirty = false;
     }
 
     pub fn size(&self) -> (u32, u32) {
@@ -321,7 +442,7 @@ impl Workspace {
 
     /// Something is being drawn, moved or resized.
     pub fn is_interacting(&self) -> bool {
-        self.is_drawing() || self.drag.is_some()
+        self.is_drawing() || self.drag.is_some() || self.region_active() || self.crop_dragging()
     }
 
     fn find(&self, id: &str) -> Option<usize> {
@@ -353,7 +474,10 @@ impl Workspace {
             let list: Vec<Annotation> = self
                 .annotations
                 .iter()
-                .filter(|a| self.text.as_ref().and_then(|t| t.existing.as_ref()) != Some(&a.common.id))
+                .filter(|a| {
+                    self.text.as_ref().filter(|t| t.kind == TextKind::Edit).and_then(|t| t.existing.as_ref())
+                        != Some(&a.common.id)
+                })
                 .cloned()
                 .collect();
             let pm = render::render_cached(&self.source, &list, &mut self.cache);
@@ -363,17 +487,19 @@ impl Workspace {
     }
 
     /// `GetSnapshot(Rect)`: the image pixels in `(x, y, w, h)` with the
-    /// annotations, no selection chrome.
+    /// annotations, no selection chrome, rendered as ShareX's region capture
+    /// renders it (`render::render_region_cached`).
     pub fn snapshot(&mut self, x: u32, y: u32, w: u32, h: u32) -> Pixmap {
         self.commit_text();
-        let pm = if self.annotations.is_empty() { self.source.clone() } else { self.composite().clone() };
-        let mut out = Pixmap::new(w, h);
-        for row in 0..h {
-            for col in 0..w {
-                *out.pixel_mut(col as i32, row as i32) = pm.pixel((x + col) as i32, (y + row) as i32);
-            }
-        }
-        out
+        let rect = (x as f64, y as f64, w as f64, h as f64);
+        render::render_region_cached(&self.source, &self.annotations, rect, &mut self.cache).unwrap_or_else(|| Pixmap::new(w, h))
+    }
+
+    /// `GetSnapshot()`: the whole image with its annotations, as the
+    /// editor window exports it (`render::render`).
+    pub fn export(&mut self) -> Pixmap {
+        self.commit_text();
+        if self.annotations.is_empty() { self.source.clone() } else { self.composite().clone() }
     }
 
     // History.
@@ -382,7 +508,23 @@ impl Workspace {
         Memento {
             annotations: self.annotations.iter().filter(|a| Some(a.common.id.as_str()) != exclude).cloned().collect(),
             selected: self.selected.clone(),
+            canvas: None,
         }
+    }
+
+    /// `GetMementoFromCanvas`: the annotations and the image.
+    fn canvas_memento(&self) -> Memento {
+        Memento { canvas: Some(self.source.clone()), ..self.memento(None) }
+    }
+
+    /// `CreateAnnotationsMemento`: none while a crop is drawn (the crop
+    /// commits through a canvas memento) unless `force`.
+    fn annotations_memento(&mut self, force: bool) {
+        if !force && self.tool == EditorTool::Crop {
+            return;
+        }
+        let m = self.memento(None);
+        self.history.add(m);
     }
 
     /// `EditorCore` raised `HistoryChanged`: dirty, and the step counter
@@ -410,7 +552,8 @@ impl Workspace {
 
     /// `Undo`.
     pub fn undo(&mut self) {
-        let current = self.memento(None);
+        let canvas = self.history.peek_undo().is_some_and(|m| m.canvas.is_some());
+        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
         if let Some(m) = self.history.undo(current) {
             self.restore(m);
         }
@@ -418,13 +561,21 @@ impl Workspace {
 
     /// `Redo`.
     pub fn redo(&mut self) {
-        let current = self.memento(None);
+        let canvas = self.history.peek_redo().is_some_and(|m| m.canvas.is_some());
+        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
         if let Some(m) = self.history.redo(current) {
             self.restore(m);
         }
     }
 
+    /// `EditorCore.RestoreState`.
     fn restore(&mut self, m: Memento) {
+        if let Some(canvas) = m.canvas {
+            self.source = canvas;
+            self.cache = render::Cache::default();
+            self.crop = None;
+            self.region = None;
+        }
         self.annotations = m.annotations;
         self.drag = None;
         self.hovered = None;
@@ -436,16 +587,17 @@ impl Workspace {
     /// `AddAnnotation`: the history first, then the annotation (here it's
     /// already in the list, where its visual went).
     fn add_annotation(&mut self, id: &str) {
-        let m = self.memento(Some(id));
-        self.history.add(m);
+        if self.tool != EditorTool::Crop {
+            let m = self.memento(Some(id));
+            self.history.add(m);
+        }
         self.history_changed();
     }
 
     /// `RemoveAnnotation`, renumbering the steps after a deleted step.
     fn remove_annotation(&mut self, id: &str) {
         let Some(i) = self.find(id) else { return };
-        let m = self.memento(None);
-        self.history.add(m);
+        self.annotations_memento(false);
         let removed = self.annotations.remove(i);
         if let Kind::Number(n) = &removed.kind {
             for a in &mut self.annotations {
@@ -473,8 +625,7 @@ impl Workspace {
             return;
         }
         self.clear_selection();
-        let m = self.memento(None);
-        self.history.add(m);
+        self.annotations_memento(true);
         self.annotations.clear();
         self.history_changed();
         self.number_counter = self.tools.step_start_number;
@@ -485,8 +636,7 @@ impl Workspace {
         let Some(i) = self.selected.clone().and_then(|id| self.find(&id)) else { return };
         let n = self.annotations.len();
         let Some(t) = target(i, n).filter(|t| *t < n && *t != i) else { return };
-        let m = self.memento(None);
-        self.history.add(m);
+        self.annotations_memento(false);
         let a = self.annotations.remove(i);
         self.annotations.insert(t, a);
         self.history_changed();
@@ -500,10 +650,15 @@ impl Workspace {
         self.commit_text();
         self.clear_selection();
         if matches!(tool, EditorTool::Image | EditorTool::Emoji) {
-            // `RequestImageInsertion` / `ShowEmojiPickerDialog` (not ported):
-            // the active tool stays.
+            // `RequestImageInsertion` / `ShowEmojiPickerDialog`: the host's
+            // dialog; the active tool stays.
+            self.requests.push(if tool == EditorTool::Image { Request::InsertImage } else { Request::EmojiPicker });
             return;
         }
+        if tool != EditorTool::Crop {
+            self.cancel_crop();
+        }
+        self.region = None;
         if tool == self.tool {
             return;
         }
@@ -548,8 +703,24 @@ impl Workspace {
     /// `SetSelectedShape`.
     fn set_selected(&mut self, id: String) {
         self.selected = Some(id.clone());
-        self.hovered = Some(id);
+        self.hovered = Some(id.clone());
+        self.ensure_selected_balloon_tail();
         self.changed();
+        // Selecting a speech balloon opens its text editor.
+        if self.find(&id).is_some_and(|i| matches!(self.annotations[i].kind, Kind::SpeechBalloon(_))) {
+            self.show_balloon_editor(&id);
+        }
+    }
+
+    /// `UpdateSelectionHandles` initialises a selected balloon's tail.
+    fn ensure_selected_balloon_tail(&mut self) {
+        let sel = self.selected.clone();
+        if let Some(a) = self.get_mut(&sel)
+            && let Kind::SpeechBalloon(p) = &a.kind
+            && p.tail_enabled
+        {
+            geometry::balloon_ensure_tail_point(a);
+        }
     }
 
     /// `ShouldIgnoreSelection`: Ctrl with a drawing tool draws over shapes.
@@ -589,6 +760,9 @@ impl Workspace {
 
     /// `CancelActiveInteractionOrSelection`: the selection goes, if any.
     pub fn cancel_interaction_or_selection(&mut self) -> bool {
+        if self.cancel_clone() || self.cancel_crop() {
+            return true;
+        }
         if self.selected.is_some() {
             self.clear_selection();
             return true;
@@ -654,6 +828,15 @@ impl Workspace {
             _ => {}
         }
         let (l, t, mut w, mut h) = Self::logical_rect(a);
+        let balloon_tail = match &a.kind {
+            // `GetTailHandlePoint`: the tail point, rotated with the body.
+            Kind::SpeechBalloon(p) if p.tail_enabled => {
+                let body = geometry::bounds(a);
+                let tp = geometry::balloon_effective_tail_point(&body, p);
+                Some(rotate_point((tp.x as f64, tp.y as f64), (body.mid_x() as f64, body.mid_y() as f64), a.common.rotation_angle as f64))
+            }
+            _ => None,
+        };
         if Self::rotatable(a) {
             if w <= 0.0 {
                 w = 20.0;
@@ -669,6 +852,9 @@ impl Workspace {
             let top = rotate_point((l + w / 2.0, t), c, angle);
             let rot = rotate_point((l + w / 2.0, t - 30.0), c, angle);
             out.push(Handle { kind: HandleKind::Rotate, at: rot });
+            if let Some(at) = balloon_tail {
+                out.push(Handle { kind: HandleKind::BalloonTail, at });
+            }
             return (out, Some((top, rot)));
         }
         if w <= 0.0 || h <= 0.0 {
@@ -791,12 +977,16 @@ impl Workspace {
         }
     }
 
-    /// A button went down at `p` (`OnCanvasPointerPressed`).
+    /// A button went down at `p` (`OnCanvasPointerPressed`). A right
+    /// button only cancels a shape being drawn here; hosts with a context
+    /// menu call [`Self::right_pressed`].
     pub fn pointer_pressed(&mut self, p: P, button: Button, m: Mods) {
         self.mods = m;
         self.pointer = Some(p);
-        if button == Button::Right && self.is_drawing() {
+        if button == Button::Right && (self.is_drawing() || self.region_active()) {
             self.cancel_drawing();
+            self.region = None;
+            self.changed();
             return;
         }
         if button != Button::Left {
@@ -815,6 +1005,9 @@ impl Workspace {
                 return;
             }
             self.commit_text();
+        }
+        if self.crop.is_some() && self.pending_crop_pressed(p, double) {
+            return;
         }
         if self.selection_pressed(p, double) {
             return;
@@ -866,16 +1059,73 @@ impl Workspace {
         true
     }
 
-    /// `TryHandleDoubleClickEdit`: text opens its editor.
+    /// `TryHandleDoubleClickEdit`: text and speech balloons open their
+    /// editors, emoji and images their pickers.
     fn edit_text_of(&mut self, id: &str) -> bool {
         let Some(i) = self.find(id) else { return false };
         let a = &self.annotations[i];
-        let Kind::Text(t) = &a.kind else { return false };
-        let len = t.text.chars().count();
-        self.text = Some(TextEdit { annotation: a.clone(), existing: Some(id.to_string()), text: t.text.clone(), caret: len });
+        match &a.kind {
+            Kind::Text(t) => {
+                let len = t.text.chars().count();
+                self.text = Some(TextEdit {
+                    kind: TextKind::Edit,
+                    annotation: a.clone(),
+                    existing: Some(id.to_string()),
+                    text: t.text.clone(),
+                    caret: len,
+                });
+                self.selected = Some(id.to_string());
+                self.changed();
+                true
+            }
+            Kind::SpeechBalloon(_) => {
+                self.show_balloon_editor(id);
+                true
+            }
+            Kind::Emoji(_) => {
+                self.requests.push(Request::ReplaceEmoji { id: id.to_string() });
+                true
+            }
+            Kind::Image(_) => {
+                self.requests.push(Request::ReplaceImage { id: id.to_string() });
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// `ShowSpeechBalloonTextEditor`: a balloon too small to type in (and
+    /// not auto-sized) grows to 200x100, then its text box opens over it.
+    fn show_balloon_editor(&mut self, id: &str) {
+        let Some(i) = self.find(id) else { return };
+        let a = &mut self.annotations[i];
+        let Kind::SpeechBalloon(p) = &a.kind else { return };
+        let auto = p.auto_size;
+        let (_, _, w, h) = Self::logical_rect(a);
+        if !auto && (w < 50.0 || h < 30.0) {
+            let prev = geometry::bounds(a);
+            let (w, h) = (w.max(200.0), h.max(100.0));
+            let s = a.common.start_point;
+            a.common.end_point = Point::new(s.x + w as f32, s.y + h as f32);
+            geometry::balloon_resize_tail(a, &prev);
+            let body = geometry::bounds(a);
+            if let Kind::SpeechBalloon(p) = &mut a.kind
+                && !p.tail_point_placed
+                && p.tail_enabled
+                && (!geometry::balloon_has_tail_point(p)
+                    || ((p.tail_point.x - s.x).abs() < 1.0 && (p.tail_point.y - s.y).abs() < 1.0))
+            {
+                p.tail_point = geometry::balloon_default_tail_point(&body);
+                p.tail_point_initialized = true;
+            }
+        }
+        let a = self.annotations[i].clone();
+        let Kind::SpeechBalloon(p) = &a.kind else { return };
+        let text = p.text.clone();
+        let caret = text.chars().count();
+        self.text = Some(TextEdit { kind: TextKind::Balloon, annotation: a, existing: Some(id.to_string()), text, caret });
         self.selected = Some(id.to_string());
         self.changed();
-        true
     }
 
     /// The pointer moved to `p` (`OnCanvasPointerMoved`).
@@ -883,6 +1133,14 @@ impl Workspace {
         let ctrl_changed = m.ctrl != self.mods.ctrl;
         self.mods = m;
         self.pointer = Some(p);
+        if self.crop_dragging() {
+            self.crop_drag_to(p);
+            return;
+        }
+        if self.region_active() {
+            self.region_moved(p, m.shift);
+            return;
+        }
         if !self.is_drawing() {
             if self.drag.is_some() {
                 self.drag_to(p);
@@ -908,6 +1166,13 @@ impl Workspace {
         if button != Button::Left {
             return;
         }
+        if self.crop_drag_end() {
+            return;
+        }
+        if self.region_active() {
+            self.region_released();
+            return;
+        }
         if self.drag.take().is_some() {
             self.changed();
             return;
@@ -918,7 +1183,13 @@ impl Workspace {
         let tool = self.tool.clone();
         let size_based = !matches!(tool, EditorTool::Step | EditorTool::Freehand | EditorTool::Text | EditorTool::Cursor);
         if size_based {
-            let (w, h) = ((p.0 - d.start.0).abs(), (p.1 - d.start.1).abs());
+            let (w, h) = if let Kind::SmartEraser(_) = self.annotations[i].kind {
+                // Its clamped size.
+                let (_, _, w, h) = Self::logical_rect(&self.annotations[i]);
+                (w, h)
+            } else {
+                ((p.0 - d.start.0).abs(), (p.1 - d.start.1).abs())
+            };
             if w < MIN_SHAPE_SIZE && h < MIN_SHAPE_SIZE {
                 self.annotations.remove(i);
                 self.changed();
@@ -1087,12 +1358,33 @@ impl Workspace {
     }
 
     fn start_drawing(&mut self, p: P) {
+        if matches!(self.tool, EditorTool::Crop | EditorTool::CutOut | EditorTool::Clone) {
+            self.region_pressed(p);
+            return;
+        }
+        if self.tool == EditorTool::Image {
+            // `HandleImageTool`: the host picks a file, then
+            // `insert_picked_image`.
+            self.requests.push(Request::PickImage { at: p });
+            return;
+        }
+        let p = if self.tool == EditorTool::SmartEraser { self.clamp_to_canvas(p) } else { p };
         let mut d = Drawing { id: None, start: p, last: p, moving: false, ctrl_was_held: self.mods.ctrl, freehand_straight: false };
-        if let Some(mut a) = self.new_annotation(p) {
-            a.common.id = self.new_id();
+        let created = match self.tool {
+            EditorTool::SmartEraser => Some(self.new_smart_eraser(p)),
+            EditorTool::Cursor => {
+                let Some(a) = self.new_cursor(p) else { return };
+                Some(a)
+            }
+            _ => self.new_annotation(p),
+        };
+        if let Some(mut a) = created {
+            if a.common.id.is_empty() {
+                a.common.id = self.new_id();
+            }
             if let Kind::Text(_) = a.kind {
                 // `HandleTextTool`: a text box at the point, typed into.
-                self.text = Some(TextEdit { annotation: a, existing: None, text: String::new(), caret: 0 });
+                self.text = Some(TextEdit { kind: TextKind::Create, annotation: a, existing: None, text: String::new(), caret: 0 });
                 self.drawing = None;
                 self.changed();
                 return;
@@ -1120,6 +1412,34 @@ impl Workspace {
             self.changed();
         }
         self.drawing = Some(d);
+    }
+
+    /// The Smart eraser's start: the sampled colour, the fill configured.
+    fn new_smart_eraser(&mut self, p: P) -> Annotation {
+        let sampled = self.sample_color(p);
+        let mut a = Annotation::new("SmartEraser").expect("SmartEraser");
+        a.common.stroke_color = sampled.clone();
+        a.common.fill_color = sampled;
+        a.common.stroke_width = 0.0;
+        a.common.start_point = sk(p);
+        a.common.end_point = sk(p);
+        super::editor_core::configure_smart_eraser_fill(&mut a, &self.source);
+        a
+    }
+
+    /// The Cursor tool's start: the cursor's image (`CreateAnnotationBitmap`)
+    /// at the point, or nothing without one.
+    fn new_cursor(&mut self, p: P) -> Option<Annotation> {
+        let ct = self.tools.cursor_type.clone();
+        let pm = render::cursor::cursor_bitmap(&ct)?;
+        let mut a = Annotation::new("Cursor").expect("Cursor");
+        if let Kind::Cursor(c) = &mut a.kind {
+            c.cursor_type = ct;
+        }
+        a.common.start_point = sk(p);
+        a.common.end_point = sk((p.0 + pm.width() as f64, p.1 + pm.height() as f64));
+        a.common.id = self.new_id();
+        Some(a)
     }
 
     fn can_move_during_creation(a: &Annotation) -> bool {
@@ -1194,6 +1514,22 @@ impl Workspace {
                 a.common.end_point = sk(end);
             }
             Kind::Number(_) => a.common.start_point = sk(p),
+            Kind::Cursor(_) => {
+                // Its top-left follows the pointer.
+                let (s, e) = (a.common.start_point, a.common.end_point);
+                let (cw, ch) = (((e.x - s.x) as f64).max(1.0), ((e.y - s.y) as f64).max(1.0));
+                a.common.start_point = sk(p);
+                a.common.end_point = sk((p.0 + cw, p.1 + ch));
+            }
+            Kind::SmartEraser(_) => {
+                // `UpdateSmartEraserFill`: clamped to the image, refilled.
+                let (cw, ch) = (self.source.width() as f64, self.source.height() as f64);
+                let (l, t) = (left.clamp(0.0, cw), top.clamp(0.0, ch));
+                let (r, b) = ((left + w).clamp(0.0, cw), (top + h).clamp(0.0, ch));
+                a.common.start_point = sk((l, t));
+                a.common.end_point = sk((l.max(r), t.max(b)));
+                super::editor_core::configure_smart_eraser_fill(a, &self.source);
+            }
             _ => {
                 a.common.start_point = sk((left, top));
                 a.common.end_point = sk((left + w, top + h));
@@ -1242,11 +1578,11 @@ impl Workspace {
         if self.text.is_some() {
             return self.text_key(key, m);
         }
-        let handled = KeyResult { handled: true, tool: None };
+        let handled = KeyResult { handled: true, tool: None, command: None };
         let pick = |me: &mut Self, k| -> Option<KeyResult> {
             let tool = hotkey(k, m)?;
             me.select_tool(tool.clone());
-            Some(KeyResult { handled: true, tool: Some(tool) })
+            Some(KeyResult { handled: true, tool: Some(tool), command: None })
         };
         if key == Key::Delete {
             if m.shift {
@@ -1259,15 +1595,27 @@ impl Workspace {
             }
             return handled;
         }
+        let command = |c| KeyResult { handled: true, tool: None, command: Some(c) };
         if m.ctrl && m.shift {
             if let Some(r) = pick(self, key) {
                 return r;
             }
-            if key == Key::Letter('Z') {
-                self.redo();
-                return handled;
+            match key {
+                Key::Letter('Z') => self.redo(),
+                Key::Letter('C') => {
+                    // `CopyAnnotationCommand` runs with a selection.
+                    if !self.copy_annotation() {
+                        return KeyResult::default();
+                    }
+                }
+                Key::Letter('F') => {
+                    self.flatten();
+                }
+                Key::Letter('P') => return command(Command::Print),
+                Key::Letter('S') => return command(Command::SaveAs),
+                _ => return KeyResult::default(),
             }
-            return KeyResult::default();
+            return handled;
         }
         if m.ctrl {
             if let Some(r) = pick(self, key) {
@@ -1276,6 +1624,20 @@ impl Workspace {
             match key {
                 Key::Letter('Z') => self.undo(),
                 Key::Letter('Y') => self.redo(),
+                Key::Letter('H') if !self.host_mode => return command(Command::ToggleToolbars),
+                Key::Letter('X') => {
+                    self.cut_annotation();
+                }
+                Key::Letter('C') => return command(Command::CopyImage),
+                Key::Letter('V') => return command(Command::Paste),
+                Key::Letter('D') => {
+                    self.duplicate_selected();
+                }
+                Key::Letter('S') => return command(Command::Save),
+                Key::Letter('N') => return command(Command::NewImage),
+                Key::Letter('O') => return command(Command::OpenImage),
+                Key::Letter('P') => return command(Command::PinToScreen),
+                Key::Letter('U') => return command(Command::Upload),
                 _ => return KeyResult::default(),
             }
             return handled;
@@ -1309,13 +1671,34 @@ impl Workspace {
             return KeyResult::default();
         }
         match key {
-            Key::Home => self.move_selected_to(|_, n| Some(n.saturating_sub(1))),
-            Key::End => self.move_selected_to(|_, _| Some(0)),
-            Key::PageUp => self.move_selected_to(|i, _| Some(i + 1)),
-            Key::PageDown => self.move_selected_to(|i, _| i.checked_sub(1)),
+            Key::Home => self.bring_to_front(),
+            Key::End => self.send_to_back(),
+            Key::PageUp => self.bring_forward(),
+            Key::PageDown => self.send_backward(),
+            Key::Enter => {
+                if self.confirm_crop() {
+                    return handled;
+                }
+                if self.task_buttons {
+                    return command(Command::Continue);
+                }
+                return KeyResult::default();
+            }
             _ => return KeyResult::default(),
         }
         handled
+    }
+
+    /// Escape came up with no modifiers (`EditorView.OnKeyUp`): cancels the
+    /// clone or crop, else the selection, else exits (or cancels the task).
+    pub fn escape(&mut self) -> KeyResult {
+        if self.text.is_some() {
+            return KeyResult { handled: true, tool: None, command: None };
+        }
+        if self.cancel_clone() || self.cancel_crop() || self.cancel_interaction_or_selection() {
+            return KeyResult { handled: true, tool: None, command: None };
+        }
+        KeyResult { handled: true, tool: None, command: Some(Command::Exit) }
     }
 
     /// A key came up (`OnKeyUp`): Ctrl refreshes the hover.
@@ -1343,13 +1726,31 @@ impl Workspace {
             t.caret += 1;
         }
         t.text = chars.into_iter().collect();
+        self.text_changed();
         self.changed();
+    }
+
+    /// `TextChanged` of a balloon's editor: an auto-sized balloon fits its
+    /// text (`FitSpeechBalloonToText`).
+    fn text_changed(&mut self) {
+        let Some(t) = self.text.as_ref().filter(|t| t.kind == TextKind::Balloon) else { return };
+        let (Some(id), text) = (t.existing.clone(), t.text.clone()) else { return };
+        let Some(i) = self.find(&id) else { return };
+        let a = &mut self.annotations[i];
+        if !matches!(&a.kind, Kind::SpeechBalloon(p) if p.auto_size) {
+            return;
+        }
+        fit_balloon_to_text(a, &text);
+        let fitted = a.clone();
+        if let Some(t) = self.text.as_mut() {
+            t.annotation = fitted;
+        }
     }
 
     /// `AnnotationTextEditorHelper`: Enter and Escape finish, Shift+Enter
     /// and Ctrl+Enter add a line.
     fn text_key(&mut self, key: Key, m: Mods) -> KeyResult {
-        let handled = KeyResult { handled: true, tool: None };
+        let handled = KeyResult { handled: true, tool: None, command: None };
         let Some(t) = self.text.as_mut() else { return KeyResult::default() };
         let mut chars: Vec<char> = t.text.chars().collect();
         match key {
@@ -1375,6 +1776,7 @@ impl Workspace {
             _ => return handled,
         }
         t.text = chars.into_iter().collect();
+        self.text_changed();
         self.changed();
         handled
     }
@@ -1387,8 +1789,10 @@ impl Workspace {
         self.changed();
         if let Some(id) = t.existing {
             let Some(i) = self.find(&id) else { return };
-            if let Kind::Text(p) = &mut self.annotations[i].kind {
-                p.text = t.text;
+            match &mut self.annotations[i].kind {
+                Kind::Text(p) => p.text = t.text,
+                Kind::SpeechBalloon(p) => p.text = t.text,
+                _ => {}
             }
             return;
         }
@@ -1407,54 +1811,130 @@ impl Workspace {
     }
 }
 
-/// The text box being typed in (`CreateCreationTextEditor`'s `TextBox`):
-/// its top-left at the click, the text in the annotation's font with the
-/// box's 4px padding and border around it.
+/// The text box being typed in, in image pixels: the creation `TextBox`
+/// (`CreateCreationTextEditor`: its top-left at the click, sized to the
+/// text), an existing text's (`ShowTextEditor`: over its bounds, at least
+/// 20x20) or a speech balloon's (`ShowSpeechBalloonTextEditor`: over its
+/// body, no border, the balloon's 12px padding). ShareX's `TextBox` style
+/// gives each the theme's control background (measured on its region
+/// capture), so hosts draw that.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextBox {
+    pub kind: TextKind,
     /// Left, top, width, height in image pixels.
     pub rect: (f64, f64, f64, f64),
-    /// Where the first line's text starts.
+    /// Its rotation about its centre (`RenderTransform`), in degrees.
+    pub angle: f64,
+    /// Where the first line's text starts (the creation box).
     pub text_origin: P,
+    /// Each line and where it starts (x, top), aligned and centred
+    /// vertically (`VerticalContentAlignment.Center`).
+    pub lines: Vec<(String, f64, f64)>,
     pub line_height: f64,
     pub font_family: String,
     pub font_size: f64,
     pub bold: bool,
     pub italic: bool,
     pub color: String,
-    /// The caret's x (image pixels) and line.
-    pub caret: (f64, usize),
+    /// The caret's x and top (image pixels).
+    pub caret: P,
 }
 
 /// The `TextBox`'s padding (4) and border (1) on each side.
 const TEXT_BOX_INSET: f64 = 5.0;
 
+/// `GetTextEditorColors`' foreground: the text colour, or black or white
+/// when it's too close to the balloon's fill.
+fn balloon_editor_foreground(text_color: &str, fill: &str) -> String {
+    let (f, b) = (render::parse_color(text_color), render::parse_color(fill));
+    let lum = |c: &sharex_skia::Color| (0.299 * c.r as f64 + 0.587 * c.g as f64 + 0.114 * c.b as f64) / 255.0;
+    let (fl, bl) = (lum(&f), lum(&b));
+    if b.a as f64 / 255.0 > 0.1 && (fl - bl).abs() < 0.3 {
+        return if bl > 0.5 { "#FF000000".into() } else { "#FFFFFFFF".into() };
+    }
+    text_color.to_string()
+}
+
 pub fn text_box(t: &TextEdit) -> Option<TextBox> {
-    let Kind::Text(p) = &t.annotation.kind else { return None };
-    let font = render::text::load_face(&p.font_family, p.is_bold, p.is_italic)?;
-    let measure = |s: &str| render::text::layout(&font, s, p.font_size as f64, render::text::Align::Left, f64::INFINITY);
-    let lay = measure(if t.text.is_empty() { "" } else { &t.text })?;
+    let a = &t.annotation;
+    let (family, size, bold, italic, align, color) = match &a.kind {
+        Kind::Text(p) => {
+            let mut color = p.text_color.clone();
+            if t.kind == TextKind::Edit && (color.is_empty() || color == "#00000000") {
+                let stroke = &a.common.stroke_color;
+                color = if stroke.is_empty() || stroke == "#00000000" { "#FF000000".into() } else { stroke.clone() };
+            }
+            (p.font_family.clone(), p.font_size as f64, p.is_bold, p.is_italic, p.horizontal_alignment.clone(), color)
+        }
+        Kind::SpeechBalloon(p) => (
+            p.font_family.clone(),
+            p.font_size as f64,
+            p.is_bold,
+            p.is_italic,
+            p.horizontal_alignment.clone(),
+            balloon_editor_foreground(&p.text_color, &a.common.fill_color),
+        ),
+        _ => return None,
+    };
+    let family = if family.trim().is_empty() { "Segoe UI".to_string() } else { family };
+    let font = render::text::load_face(&family, bold, italic)?;
+    let measure = |s: &str| render::text::layout(&font, s, size, render::text::Align::Left, f64::INFINITY);
+    let width_of = |s: &str| measure(s).and_then(|l| l.lines.first().map(|l| l.width_including_trailing_whitespace)).unwrap_or(0.0);
     let line_height = measure(" ")?.height().ceil();
-    let lines = t.text.split('\n').count().max(1) as f64;
-    let width = lay.lines.iter().map(|l| l.width_including_trailing_whitespace).fold(0.0, f64::max).ceil();
-    let s = t.annotation.common.start_point;
-    let (x, y) = (s.x as f64, s.y as f64);
-    let rect = (x, y, width + 2.0 * TEXT_BOX_INSET, line_height * lines + 2.0 * TEXT_BOX_INSET);
+    let texts: Vec<&str> = t.text.split('\n').collect();
+    let (rect, inset, angle) = match t.kind {
+        TextKind::Create => {
+            let width = texts.iter().map(|l| width_of(l)).fold(0.0, f64::max).ceil();
+            let s = a.common.start_point;
+            let rect = (s.x as f64, s.y as f64, width + 2.0 * TEXT_BOX_INSET, line_height * texts.len() as f64 + 2.0 * TEXT_BOX_INSET);
+            (rect, TEXT_BOX_INSET, 0.0)
+        }
+        TextKind::Edit => {
+            let b = geometry::bounds(a);
+            let rect = (b.l as f64, b.t as f64, (b.width() as f64).max(20.0), (b.height() as f64).max(20.0));
+            (rect, TEXT_BOX_INSET, a.common.rotation_angle as f64)
+        }
+        TextKind::Balloon => {
+            let b = geometry::bounds(a);
+            ((b.l as f64, b.t as f64, b.width() as f64, b.height() as f64), BALLOON_TEXT_PADDING, a.common.rotation_angle as f64)
+        }
+    };
+    let (cx, cy, cw, ch) = (rect.0 + inset, rect.1 + inset, rect.2 - 2.0 * inset, rect.3 - 2.0 * inset);
+    let block = line_height * texts.len() as f64;
+    let top = if t.kind == TextKind::Create { cy } else { cy + ((ch - block) / 2.0).max(0.0) };
+    let x_of = |w: f64| {
+        if t.kind == TextKind::Create {
+            return cx;
+        }
+        match align {
+            TextHorizontalAlignment::Left => cx,
+            TextHorizontalAlignment::Right => cx + (cw - w).max(0.0),
+            _ => cx + ((cw - w) / 2.0).max(0.0),
+        }
+    };
+    let lines: Vec<(String, f64, f64)> = texts
+        .iter()
+        .enumerate()
+        .map(|(i, l)| (l.to_string(), x_of(width_of(l)), top + i as f64 * line_height))
+        .collect();
     // The caret: after the text before it on its line.
     let before: String = t.text.chars().take(t.caret).collect();
     let line = before.matches('\n').count();
     let tail = before.rsplit('\n').next().unwrap_or("");
-    let cx = measure(tail).map(|l| l.lines.first().map(|l| l.width_including_trailing_whitespace).unwrap_or(0.0)).unwrap_or(0.0);
+    let (lx, ly) = lines.get(line).map(|l| (l.1, l.2)).unwrap_or((cx, top));
     Some(TextBox {
+        kind: t.kind,
         rect,
-        text_origin: (x + TEXT_BOX_INSET, y + TEXT_BOX_INSET),
+        angle,
+        text_origin: (cx, cy),
+        lines,
         line_height,
-        font_family: p.font_family.clone(),
-        font_size: p.font_size as f64,
-        bold: p.is_bold,
-        italic: p.is_italic,
-        color: p.text_color.clone(),
-        caret: (x + TEXT_BOX_INSET + cx, line),
+        font_family: family,
+        font_size: size,
+        bold,
+        italic,
+        color,
+        caret: (lx + width_of(tail), ly),
     })
 }
 
@@ -1487,6 +1967,52 @@ fn fit_text(a: &mut Annotation) {
     let h = (lay.height() + 16.0 + stroke * 2.0).ceil();
     let s = a.common.start_point;
     a.common.end_point = Point::new((s.x as f64 + w) as f32, (s.y as f64 + h) as f32);
+}
+
+/// `SpeechBalloonAnnotation.TextPadding`.
+pub const BALLOON_TEXT_PADDING: f64 = 12.0;
+
+/// `MeasureTextFitSize` and `FitToText`: the body sized to the text on its
+/// own lines with the padding round it, its top-left corner kept (its
+/// centre moved by the rotated half change when rotated), the tail pinned.
+fn fit_balloon_to_text(a: &mut Annotation, text: &str) {
+    let Kind::SpeechBalloon(p) = &a.kind else { return };
+    let family = if p.font_family.trim().is_empty() { "Segoe UI" } else { p.font_family.as_str() };
+    let Some(font) = render::text::load_face(family, p.is_bold, p.is_italic) else { return };
+    let empty = text.is_empty();
+    let mut measured = if empty { " ".to_string() } else { text.to_string() };
+    if measured.ends_with('\n') || measured.ends_with('\r') {
+        measured.push(' ');
+    }
+    let Some(lay) = render::text::layout(&font, &measured, p.font_size as f64, render::text::Align::Left, f64::INFINITY)
+    else {
+        return;
+    };
+    let text_width = if empty {
+        0.0
+    } else {
+        lay.lines.iter().map(|l| l.width_including_trailing_whitespace).fold(0.0, f64::max)
+    };
+    let stroke = a.common.stroke_width as f64;
+    let w = (text_width + BALLOON_TEXT_PADDING * 2.0 + stroke + 1.0).ceil() as f32;
+    let h = (lay.height() + BALLOON_TEXT_PADDING * 2.0 + stroke).ceil() as f32;
+    let b = geometry::bounds(a);
+    let (mut left, mut top) = (b.l, b.t);
+    let angle = a.common.rotation_angle;
+    if angle != 0.0 {
+        let (hx, hy) = ((w - b.width()) / 2.0, (h - b.height()) / 2.0);
+        let rad = angle * std::f32::consts::PI / 180.0;
+        let (cos, sin) = (rad.cos(), rad.sin());
+        let cx = b.mid_x() + hx * cos - hy * sin;
+        let cy = b.mid_y() + hx * sin + hy * cos;
+        left = cx - w / 2.0;
+        top = cy - h / 2.0;
+    }
+    if matches!(&a.kind, Kind::SpeechBalloon(p) if p.tail_enabled) {
+        geometry::balloon_ensure_tail_point(a);
+    }
+    a.common.start_point = Point::new(left, top);
+    a.common.end_point = Point::new(left + w, top + h);
 }
 
 /// `AddFreehandPoint`: Shift draws one straight segment from the last point.
@@ -1554,6 +2080,21 @@ fn resize(
         }
         return None;
     }
+    if kind == HandleKind::BalloonTail {
+        // `GetTailPointFromVisual`, placed once it moves.
+        let body = geometry::bounds(a);
+        let angle = a.common.rotation_angle as f64;
+        if let Kind::SpeechBalloon(b) = &mut a.kind
+            && b.tail_enabled
+            && (b.tail_point_placed || p != resize_start_point)
+        {
+            let local = rotate_point(p, (body.mid_x() as f64, body.mid_y() as f64), -angle);
+            b.tail_point = sk(local);
+            b.tail_point_initialized = true;
+            b.tail_point_placed = true;
+        }
+        return None;
+    }
     if let Kind::Number(n) = &mut a.kind {
         if kind == HandleKind::StepTail && n.tail_enabled {
             n.tail_point = sk(p);
@@ -1574,13 +2115,17 @@ fn resize(
     }
     let dir = kind.direction()?;
     if rotatable && a.common.rotation_angle != 0.0 && !matches!(a.kind, Kind::Emoji(_)) {
+        let prev = geometry::bounds(a);
         resize_rotated(a, dir, p);
+        geometry::balloon_resize_tail(a, &prev);
         return None;
     }
     let (l, t, w, h) = Workspace::logical_rect(a);
     if let Kind::SpeechBalloon(_) = a.kind {
+        let prev = geometry::bounds(a);
         let r = resize_rect((l, t, w, h), dir, (dx, dy), 20.0);
         set_rect(a, r);
+        geometry::balloon_resize_tail(a, &prev);
         return None;
     }
     if let Kind::Spotlight(_) = a.kind {
@@ -1702,5 +2247,10 @@ fn initial_tool(o: &ImageEditorOptions) -> EditorTool {
     if is_rememberable(&o.LastUsedAnnotationTool) { o.LastUsedAnnotationTool.clone() } else { EditorTool::Rectangle }
 }
 
+mod ops;
+pub use ops::{
+    CROP_CENTER_BAR, CROP_CORNER, CROP_CORNER_ARM, CROP_EDGE_LENGTH, CROP_EDGE_THICKNESS, CROP_HANDLE_THICKNESS, CropChrome,
+    CropHandle, EMOJI_SIZE, RegionPreview, clear_annotation_clipboard,
+};
 #[cfg(test)]
 mod tests;

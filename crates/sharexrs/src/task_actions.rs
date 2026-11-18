@@ -252,6 +252,7 @@ impl App {
                 }
             }
             TaskCommand::PinToScreen if sel.is_image_file => self.pin_file(event_loop, &path, None),
+            TaskCommand::EditImage if sel.is_image_file => self.annotate_file(event_loop, &path, None),
             TaskCommand::CopyImageDimensions if sel.is_image_file => {
                 if let Ok((w, h)) = image::image_dimensions(&path) {
                     self.copy_texts(vec![format!("{w} x {h}")]);

@@ -1080,6 +1080,77 @@ pub fn decode_text(data: &[u8], content_type: Option<&str>) -> String {
     String::from_utf8_lossy(data).into_owned()
 }
 
+/// `HttpStatusCode.ToString()`: the enum member's name, or the number for
+/// a code .NET doesn't name. Where two names share a value, .NET's
+/// `Enum.ToString` gives the one listed here.
+pub fn status_code_name(code: u16) -> String {
+    let name = match code {
+        100 => "Continue",
+        101 => "SwitchingProtocols",
+        102 => "Processing",
+        103 => "EarlyHints",
+        200 => "OK",
+        201 => "Created",
+        202 => "Accepted",
+        203 => "NonAuthoritativeInformation",
+        204 => "NoContent",
+        205 => "ResetContent",
+        206 => "PartialContent",
+        207 => "MultiStatus",
+        208 => "AlreadyReported",
+        226 => "IMUsed",
+        300 => "Ambiguous",
+        301 => "Moved",
+        302 => "Redirect",
+        303 => "RedirectMethod",
+        304 => "NotModified",
+        305 => "UseProxy",
+        306 => "Unused",
+        307 => "TemporaryRedirect",
+        308 => "PermanentRedirect",
+        400 => "BadRequest",
+        401 => "Unauthorized",
+        402 => "PaymentRequired",
+        403 => "Forbidden",
+        404 => "NotFound",
+        405 => "MethodNotAllowed",
+        406 => "NotAcceptable",
+        407 => "ProxyAuthenticationRequired",
+        408 => "RequestTimeout",
+        409 => "Conflict",
+        410 => "Gone",
+        411 => "LengthRequired",
+        412 => "PreconditionFailed",
+        413 => "RequestEntityTooLarge",
+        414 => "RequestUriTooLong",
+        415 => "UnsupportedMediaType",
+        416 => "RequestedRangeNotSatisfiable",
+        417 => "ExpectationFailed",
+        421 => "MisdirectedRequest",
+        422 => "UnprocessableContent",
+        423 => "Locked",
+        424 => "FailedDependency",
+        426 => "UpgradeRequired",
+        428 => "PreconditionRequired",
+        429 => "TooManyRequests",
+        431 => "RequestHeaderFieldsTooLarge",
+        451 => "UnavailableForLegalReasons",
+        500 => "InternalServerError",
+        501 => "NotImplemented",
+        502 => "BadGateway",
+        503 => "ServiceUnavailable",
+        504 => "GatewayTimeout",
+        505 => "HttpVersionNotSupported",
+        506 => "VariantAlsoNegotiates",
+        507 => "InsufficientStorage",
+        508 => "LoopDetected",
+        510 => "NotExtended",
+        511 => "NetworkAuthenticationRequired",
+        _ => return code.to_string(),
+    };
+    name.to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1147,3 +1218,4 @@ mod tests {
         assert_eq!(decode_text("é".as_bytes(), Some("application/json")), "é");
     }
 }
+

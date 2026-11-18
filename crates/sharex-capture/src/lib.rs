@@ -12,6 +12,8 @@
 //! - [`platform`]: what each OS does differently (Win32, AppKit, xcap).
 
 pub mod clipboard;
+pub mod editor_chrome;
+pub mod editor_popups;
 pub mod geometry;
 pub mod platform;
 pub mod region;

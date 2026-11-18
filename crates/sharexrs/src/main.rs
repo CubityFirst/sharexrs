@@ -26,6 +26,7 @@ mod menu_settings;
 mod main_window;
 mod message_box;
 mod ocr;
+mod image_editor;
 mod ocr_window;
 mod image_tools;
 mod image_effects;
