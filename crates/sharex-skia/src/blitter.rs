@@ -369,11 +369,111 @@ impl LegacyColor {
     }
 }
 
-/// The legacy N32 blitter for a solid colour, clipped to the pixmap and `clip`.
+thread_local! {
+    static PIPELINE_BLITTERS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `f` drawing with Skia's raster pipeline blitters instead of the
+/// legacy N32 ones (`SkBlitter::UseLegacyBlitter` is false on a device that
+/// isn't N32), as an `SkPictureShader` rasterises its tile: `kRGBA_8888`,
+/// which isn't N32 on Windows (BGRA).
+pub fn with_pipeline_blitters<R>(f: impl FnOnce() -> R) -> R {
+    with_blitters(true, f)
+}
+
+/// Runs `f` with the raster pipeline blitters (`pipeline`) or the legacy
+/// ones.
+pub fn with_blitters<R>(pipeline: bool, f: impl FnOnce() -> R) -> R {
+    let previous = PIPELINE_BLITTERS.with(|p| p.replace(pipeline));
+    let r = f();
+    PIPELINE_BLITTERS.with(|p| p.set(previous));
+    r
+}
+
+thread_local! {
+    static DEVICE_CLIP: std::cell::Cell<Option<IRect>> = const { std::cell::Cell::new(None) };
+}
+
+/// Runs `f` with the scan converters clipped to `clip` as well as to what
+/// they're given: the device clip of a smaller surface drawn at an
+/// integer offset (an `SkPictureShader` tile over part of the image), so
+/// edges are clipped (and curves chopped) where that device's would be.
+pub fn with_device_clip<R>(clip: IRect, f: impl FnOnce() -> R) -> R {
+    let previous = DEVICE_CLIP.with(|c| c.replace(Some(clip)));
+    let r = f();
+    DEVICE_CLIP.with(|c| c.set(previous));
+    r
+}
+
+/// `clip` narrowed to the device clip of [`with_device_clip`] (empty when
+/// they don't meet).
+pub fn device_clip(clip: IRect) -> IRect {
+    match DEVICE_CLIP.with(|c| c.get()) {
+        Some(d) => {
+            let mut c = clip;
+            if c.intersect(&d) { c } else { IRect::default() }
+        }
+        None => clip,
+    }
+}
+
+/// The device clip of [`with_device_clip`], if any.
+pub fn device_clip_rect() -> Option<IRect> {
+    DEVICE_CLIP.with(|c| c.get())
+}
+
+/// Whether draws go through the raster pipeline blitters
+/// ([`with_pipeline_blitters`]).
+pub fn pipeline_blitters() -> bool {
+    PIPELINE_BLITTERS.with(|p| p.get())
+}
+
+impl LegacyColor {
+    /// `SkRasterPipelineBlitter` for the same solid colour, lowp: the
+    /// colour premultiplied in float (`uniform_color`); full coverage of a
+    /// row is `blitRect` (an opaque colour is a memset, else `srcover`),
+    /// partial coverage pre-scales the colour (`scale_1_float`) or, opaque,
+    /// lerps (`lerp_1_float`); `blitV` and `blitAntiH2` go through
+    /// `blitMask`.
+    pub fn pipeline_blend(&self, d: u32, call: Call, alpha: u8) -> u32 {
+        use crate::raster::{div255, div255_accurate, lowp_from_float};
+        if alpha == 0 {
+            return d;
+        }
+        let (a, r, g, b) = self.color;
+        let c = crate::raster::canvas::uniform_lowp([r as u8, g as u8, b as u8, a as u8]);
+        let dd = [(d >> 16) & 0xFF, (d >> 8) & 0xFF, d & 0xFF, d >> 24];
+        let opaque = a == 255;
+        let out: [u32; 4] = if alpha == 255 && matches!(call, Call::H | Call::AntiH) {
+            if opaque {
+                c
+            } else {
+                // load_dst + srcover: the tile has a colour space, so not
+                // the fused srcover_rgba_8888.
+                let inv = 255 - c[3];
+                [0, 1, 2, 3].map(|i| (c[i] + div255_accurate(dd[i] * inv)).min(255))
+            }
+        } else {
+            let t = lowp_from_float(alpha as f32 * (1.0 / 255.0));
+            if opaque {
+                [0, 1, 2, 3].map(|i| div255(dd[i] * (255 - t) + c[i] * t).min(255))
+            } else {
+                let s = c.map(|v| div255(v * t));
+                let inv = 255 - s[3];
+                [0, 1, 2, 3].map(|i| (s[i] + div255_accurate(dd[i] * inv)).min(255))
+            }
+        };
+        (out[3] << 24) | (out[0] << 16) | (out[1] << 8) | out[2]
+    }
+}
+
+/// The legacy N32 blitter for a solid colour, clipped to the pixmap and `clip`
+/// (or the raster pipeline's, inside [`with_pipeline_blitters`]).
 pub struct ColorBlitter<'a> {
     pm: &'a mut Pixmap,
     clip: IRect,
     color: LegacyColor,
+    pipeline: bool,
 }
 
 impl<'a> ColorBlitter<'a> {
@@ -388,6 +488,7 @@ impl<'a> ColorBlitter<'a> {
             pm,
             clip: c,
             color: LegacyColor::new(a, r, g, b),
+            pipeline: pipeline_blitters(),
         }
     }
 
@@ -398,7 +499,11 @@ impl<'a> ColorBlitter<'a> {
     fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8) {
         if self.inside(x, y) {
             let d = self.pm.pixel_mut(x, y);
-            *d = self.color.blend(*d, call, alpha);
+            *d = if self.pipeline {
+                self.color.pipeline_blend(*d, call, alpha)
+            } else {
+                self.color.blend(*d, call, alpha)
+            };
         }
     }
 }

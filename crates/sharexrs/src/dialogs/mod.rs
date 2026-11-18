@@ -407,6 +407,9 @@ impl App {
             None => center(&w.window, event_loop),
         }
         w.window.set_visible(true);
+        if spec.maximized {
+            w.window.set_maximized(true);
+        }
         if spec.activate {
             w.window.focus_window();
         }

@@ -23,6 +23,31 @@ Annotations are ShareX's JSON (System.Text.Json with `Annotation`'s
 `[JsonDerivedType]` discriminators): `{"$type": "Rectangle", "StrokeWidth":
 5, "StartPoint": {"X": 40, "Y": 50}, ...}`; enums by name or number.
 
+A case can also have:
+
+- `"base"`: its own base image (relative to cases.json);
+- image annotations' `ImagePath` (relative to cases.json), loaded with
+  `ImageAnnotation.LoadImage`;
+- `"configureFill": true`: each smart eraser clamped to the image and
+  filled from it (`ClampVisualBounds`, `ConfigureFill`), as the tool does
+  when it's drawn;
+- `"ops"`: `EditorCore` operations run in turn after the annotations are
+  added (`crop`, `performCrop`, `cutOut`, `performCutOut`, `rotate90cw`,
+  `rotate90ccw`, `rotate180`, `rotate`, `flipH`, `flipV`, `resize`,
+  `resizeCanvas`, `autoCrop`, `flatten`, `autoExpand`, `undo`, `redo`, and
+  `clone` = `EditorView.CloneRegion`);
+- `"snapshotRect"`: export with `GetSnapshot(Rect)` (region capture's,
+  a `VisualBrush`) instead of `GetSnapshot()`.
+
+Other modes: `--cursors <dir>` dumps every `CursorType`'s bitmap
+(`WindowsCursorBitmapRenderer.CreateAnnotationBitmap`), `--emoji <sequence>
+<size> <file>` an emoji sticker (`RenderStickerBitmap`), `--emoji-raw
+<sequence> <canvas> <font size> <file>` Direct2D's raw emoji
+(`RenderWithDirect2D`), `--probe-picture <dir>` the same draws directly
+and through an `SKPicture` shader; `--text` and `--fonts` as before.
+`cargo run -p sharex-image-editor --example image_editor_emoji_dump` dumps
+ShareXrs's emoji the same way.
+
 ## Run
 
 ```

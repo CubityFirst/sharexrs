@@ -562,16 +562,18 @@ impl Workspace {
 
     /// `Undo`.
     pub fn undo(&mut self) {
-        let (a, c) = (self.memento(None), self.canvas_memento());
-        if let Some(m) = self.history.undo(|canvas| if canvas { c } else { a }) {
+        let canvas = self.history.peek_undo().is_some_and(|m| m.canvas.is_some());
+        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
+        if let Some(m) = self.history.undo(current) {
             self.restore(m);
         }
     }
 
     /// `Redo`.
     pub fn redo(&mut self) {
-        let (a, c) = (self.memento(None), self.canvas_memento());
-        if let Some(m) = self.history.redo(|canvas| if canvas { c } else { a }) {
+        let canvas = self.history.peek_redo().is_some_and(|m| m.canvas.is_some());
+        let current = if canvas { self.canvas_memento() } else { self.memento(None) };
+        if let Some(m) = self.history.redo(current) {
             self.restore(m);
         }
     }
