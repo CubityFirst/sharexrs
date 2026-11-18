@@ -14,6 +14,8 @@
 //! - [`hair`]: hairlines, the strokes no wider than a pixel
 //!   (`SkScan_Hairline.cpp`, `SkScan_Antihair.cpp`),
 //! - [`dash`]: `SkDashPathEffect` over `SkContourMeasure`,
+//! - [`pathops`]: `SkPathOps` (`Op`: union, intersect, difference, xor;
+//!   `Simplify`),
 //! - [`aaclip`]: anti-aliased clips (`SkAAClip`, `SkAAClipBlitter`),
 //! - [`blur`]: `SkBlurImageFilter`'s Gaussian passes; [`resample`]: image
 //!   scaling (`scalePixels`, Mitchell `drawImageRect`),
@@ -52,6 +54,7 @@ pub mod fixed;
 pub mod geom;
 pub mod hair;
 pub mod path;
+pub mod pathops;
 pub mod pixmap;
 pub mod raster;
 pub mod resample;

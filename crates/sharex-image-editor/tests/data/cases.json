@@ -1500,7 +1500,7 @@
      }
     }
    ],
-   "pending": "the tail is a union with the body (CombinedGeometry, Skia PathOps), not ported; also ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
+   "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   },
   {
    "name": "text",
@@ -1570,7 +1570,7 @@
      }
     }
    ],
-   "pending": "the tail is a union with the body (CombinedGeometry, Skia PathOps), not ported; also ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
+   "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
   },
   {
    "name": "rect-shadow-thick",
@@ -1749,6 +1749,327 @@
     }
    ],
    "pending": "ShareX draws this text as DirectWrite glyph masks (DrawText); ShareXrs fills the same glyph outlines at the same positions, so glyph edges differ"
+  },
+  {
+   "name": "step-tail-notext",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 30,
+     "FillColor": "#FFF23C3C",
+     "StrokeColor": "#ef4444",
+     "StrokeWidth": 0,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 200,
+      "Y": 200
+     },
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 100
+     }
+    }
+   ]
+  },
+  {
+   "name": "step-tail-stroke-right",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 30,
+     "FillColor": "#80FFFF00",
+     "StrokeColor": "#FF2050FF",
+     "StrokeWidth": 4,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 230,
+      "Y": 140
+     },
+     "StartPoint": {
+      "X": 120,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 120,
+      "Y": 150
+     }
+    }
+   ]
+  },
+  {
+   "name": "step-tail-stroke-upleft",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 24,
+     "FillColor": "#FFF23C3C",
+     "StrokeColor": "#FF000000",
+     "StrokeWidth": 3,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 150,
+      "Y": 60
+     },
+     "StartPoint": {
+      "X": 250,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 250,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "step-tail-stroke-down",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 40,
+     "FillColor": "#00000000",
+     "StrokeColor": "#FF00A000",
+     "StrokeWidth": 6,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 205,
+      "Y": 270
+     },
+     "StartPoint": {
+      "X": 200,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 80
+     }
+    }
+   ]
+  },
+  {
+   "name": "step-tail-stroke-left",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 18,
+     "FillColor": "#FFFFFFFF",
+     "StrokeColor": "#FFF23C3C",
+     "StrokeWidth": 2,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 190,
+      "Y": 170
+     },
+     "StartPoint": {
+      "X": 300,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 150
+     }
+    }
+   ]
+  },
+  {
+   "name": "step-tail-thin",
+   "annotations": [
+    {
+     "$type": "Number",
+     "Number": 7,
+     "FontSize": 30,
+     "FillColor": "#FF4040C0",
+     "StrokeColor": "#FFFFFFFF",
+     "StrokeWidth": 1,
+     "TextColor": "#00000000",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 40,
+      "Y": 120
+     },
+     "StartPoint": {
+      "X": 90,
+      "Y": 220
+     },
+     "EndPoint": {
+      "X": 90,
+      "Y": 220
+     }
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-notext",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 120,
+      "Y": 240
+     }
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-default",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 80,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 160
+     },
+     "StrokeWidth": 3
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-left",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 150,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 200
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 40,
+      "Y": 110
+     },
+     "StrokeWidth": 5,
+     "CornerRadius": 20
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-top-right",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 40,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 260
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 300,
+      "Y": 20
+     },
+     "FillColor": "#FFFFF0A0"
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-square",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 160
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 330,
+      "Y": 250
+     },
+     "CornerRadius": 0,
+     "StrokeWidth": 6
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-round",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 100,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 160
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 160,
+      "Y": 280
+     },
+     "CornerRadius": 60,
+     "StrokeWidth": 2
+    }
+   ]
+  },
+  {
+   "name": "balloon-tail-rotated",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "Text": "",
+     "StartPoint": {
+      "X": 100,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 280,
+      "Y": 160
+     },
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 150,
+      "Y": 260
+     },
+     "RotationAngle": 20,
+     "StrokeWidth": 4
+    }
+   ]
   }
  ]
 }

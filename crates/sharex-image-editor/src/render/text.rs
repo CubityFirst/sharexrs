@@ -527,38 +527,79 @@ pub fn step_radius(p: &crate::model::NumberProps) -> f32 {
     base.max(measured)
 }
 
-/// `StepControl.Render` without a tail (the tail is a path union, not
-/// ported): the circle filled then stroked, the number centred in it.
-/// The number is drawn from Inter's outlines; ShareX draws it as glyph
-/// masks rasterised by DirectWrite, so its edges differ.
+/// The `CombinedGeometry(Union, body, tail)` ShareX draws when an annotation
+/// has a tail: `SKPath.Op` of the body and the tail triangle (a
+/// `StreamGeometry`: even-odd, closed). `None` when the op fails, which
+/// Avalonia draws as nothing.
+fn union_with_tail(
+    body: &Path,
+    tail: (crate::model::Point, crate::model::Point, crate::model::Point),
+    origin: (f32, f32),
+) -> Option<Path> {
+    let mut tri = Path::new();
+    tri.fill_type = sharex_skia::FillType::EvenOdd;
+    // ToRenderPoint: the float difference, as a double, back to float
+    let pt = |q: crate::model::Point| (q.x - origin.0, q.y - origin.1);
+    let (s, t, e) = (pt(tail.0), pt(tail.1), pt(tail.2));
+    tri.move_to(s.0, s.1);
+    tri.line_to(t.0, t.1);
+    tri.line_to(e.0, e.1);
+    tri.close();
+    sharex_skia::pathops::op(body, &tri, sharex_skia::pathops::PathOp::Union)
+}
+
+/// `StepControl.Render`: the circle (united with its tail) filled then
+/// stroked, the number centred in it. The control spans the interaction
+/// bounds (`GetInteractionBounds`: the circle and the tail). The number is
+/// drawn from Inter's outlines; ShareX draws it as glyph masks rasterised
+/// by DirectWrite, so its edges differ.
 pub fn draw_step(
     pm: &mut sharex_skia::Pixmap,
     c: &crate::model::Common,
     p: &crate::model::NumberProps,
 ) {
     use super::shapes::{Pen, draw_geometry};
+    use crate::editor::geometry::{Rect, step_tail_points, triangle_bounds};
     let r = step_radius(p);
     let (sx, sy) = (c.start_point.x, c.start_point.y);
-    let (l, t, rr, b) = (sx - r, sy - r, sx + r, sy + r);
-    let a = super::layout::arrange(l as f64, t as f64, (rr - l) as f64, (b - t) as f64);
+    let body_bounds = Rect::new(sx - r, sy - r, sx + r, sy + r);
+    let tail = step_tail_points(c.start_point, r, p);
+    let render_bounds = match tail {
+        Some((s, t, e)) => body_bounds.union(&triangle_bounds(s, t, e)),
+        None => body_bounds,
+    };
+    let a = super::layout::arrange(
+        render_bounds.l as f64,
+        render_bounds.t as f64,
+        render_bounds.width() as f64,
+        render_bounds.height() as f64,
+    );
     let ctm = super::layout::visual_transform(&a, 0.0);
-    let width = ((rr - l) as f64).max(2.0);
-    let height = ((b - t) as f64).max(2.0);
+    let off_x = (body_bounds.l - render_bounds.l) as f64;
+    let off_y = (body_bounds.t - render_bounds.t) as f64;
+    let width = (body_bounds.width() as f64).max(2.0);
+    let height = (body_bounds.height() as f64).max(2.0);
     let mut body = Path::new();
     body.add_oval(
-        sharex_skia::Rect::from_ltrb(0.0, 0.0, width as f32, height as f32),
+        sharex_skia::Rect::from_ltrb(off_x as f32, off_y as f32, (off_x + width) as f32, (off_y + height) as f32),
         sharex_skia::Direction::Cw,
     );
-    let fill = super::color::parse_color(&c.fill_color);
-    draw_geometry(pm, &ctm, Some(fill), &body, None, &body);
-    let pen = Pen {
-        color: super::color::parse_color(&c.stroke_color),
-        thickness: c.stroke_width as f64,
-        dashes: Vec::new(),
-        cap: sharex_skia::Cap::Butt,
-        join: sharex_skia::Join::Miter,
+    let geometry = match tail {
+        Some(t) => union_with_tail(&body, t, (render_bounds.l, render_bounds.t)),
+        None => Some(body),
     };
-    draw_geometry(pm, &ctm, None, &body, Some(&pen), &body);
+    if let Some(geometry) = &geometry {
+        let fill = super::color::parse_color(&c.fill_color);
+        draw_geometry(pm, &ctm, Some(fill), geometry, None, geometry);
+        let pen = Pen {
+            color: super::color::parse_color(&c.stroke_color),
+            thickness: c.stroke_width as f64,
+            dashes: Vec::new(),
+            cap: sharex_skia::Cap::Butt,
+            join: sharex_skia::Join::Miter,
+        };
+        draw_geometry(pm, &ctm, None, geometry, Some(&pen), geometry);
+    }
 
     let text = step_text(p.number, &p.step_type);
     let Some(font) = load_face("$Default", p.is_bold, false) else {
@@ -568,33 +609,61 @@ pub fn draw_step(
     let Some(lay) = layout(&font, &text, size, Align::Left, f64::INFINITY) else {
         return;
     };
-    let tx = (width - lay.width()) / 2.0;
-    let ty = (height - lay.height()) / 2.0;
+    let tx = off_x + (width - lay.width()) / 2.0;
+    let ty = off_y + (height - lay.height()) / 2.0;
     if let Some(geometry) = build_geometry(&font, &lay, (tx, ty)) {
         let color = super::color::parse_color(&p.text_color);
         draw_geometry(pm, &ctm, Some(color), &geometry, None, &geometry);
     }
 }
 
-/// `SpeechBalloonControl.Render`: the rounded body filled then stroked,
-/// and the text centred in it. The tail is a path union with the body
-/// (`CombinedGeometry`, Skia's PathOps), not ported: balloons render
-/// without it. Text is drawn from outlines (ShareX draws glyph masks).
+/// `SpeechBalloonControl.Render`: the rounded body (united with its tail)
+/// filled then stroked, and the text centred in the body. The control spans
+/// the interaction bounds and rotates about the body's centre. Text is drawn
+/// from outlines (ShareX draws glyph masks).
 pub fn draw_balloon(
     pm: &mut sharex_skia::Pixmap,
     c: &crate::model::Common,
     p: &crate::model::SpeechBalloonProps,
 ) {
     use super::shapes::{Pen, StreamGeometry, draw_geometry};
+    use crate::editor::geometry::{Rect, balloon_tail_points, triangle_bounds};
     const TEXT_PADDING: f64 = 12.0;
     let (l, t, r, b) = super::shapes::bounds(c);
-    let a = super::layout::arrange(l as f64, t as f64, (r - l) as f64, (b - t) as f64);
-    let ctm = super::layout::visual_transform(&a, c.rotation_angle);
-    let width = ((r - l) as f64).max(20.0);
-    let height = ((b - t) as f64).max(20.0);
+    let body_bounds = Rect::new(l, t, r, b);
+    let tail = balloon_tail_points(&body_bounds, p);
+    let render_bounds = match tail {
+        Some((s, tt, e)) => body_bounds.union(&triangle_bounds(s, tt, e)),
+        None => body_bounds,
+    };
+    let a = super::layout::arrange(
+        render_bounds.l as f64,
+        render_bounds.t as f64,
+        render_bounds.width() as f64,
+        render_bounds.height() as f64,
+    );
+    let ctm = if tail.is_some() {
+        // GetRelativeCenterOrigin(GetBounds(), interaction bounds), in floats
+        let (rw, rh) = (render_bounds.width(), render_bounds.height());
+        let origin = if rw <= 0.0 || rh <= 0.0 {
+            (0.5, 0.5)
+        } else {
+            (
+                ((body_bounds.mid_x() - render_bounds.l) / rw) as f64,
+                ((body_bounds.mid_y() - render_bounds.t) / rh) as f64,
+            )
+        };
+        super::layout::visual_transform_origin(&a, c.rotation_angle, origin)
+    } else {
+        super::layout::visual_transform(&a, c.rotation_angle)
+    };
+    let off_x = (body_bounds.l - render_bounds.l) as f64;
+    let off_y = (body_bounds.t - render_bounds.t) as f64;
+    let width = (body_bounds.width() as f64).max(20.0);
+    let height = (body_bounds.height() as f64).max(20.0);
     let radius = (p.corner_radius as f64).clamp(0.0, ((width.min(height)) / 2.0).trunc());
     let mut g = StreamGeometry::new();
-    let (left, top, right, bottom) = (0.0, 0.0, width, height);
+    let (left, top, right, bottom) = (off_x, off_y, off_x + width, off_y + height);
     if radius <= 0.0 {
         g.begin_figure(left, top, true);
         g.line_to(right, top);
@@ -614,14 +683,6 @@ pub fn draw_balloon(
         g.end_figure(true);
     }
     let (stroke_path, fill_path) = g.finish();
-    draw_geometry(
-        pm,
-        &ctm,
-        Some(super::color::parse_color(&c.fill_color)),
-        &fill_path,
-        None,
-        &stroke_path,
-    );
     let pen = Pen {
         color: super::color::parse_color(&c.stroke_color),
         thickness: c.stroke_width as f64,
@@ -629,7 +690,21 @@ pub fn draw_balloon(
         cap: sharex_skia::Cap::Butt,
         join: sharex_skia::Join::Miter,
     };
-    draw_geometry(pm, &ctm, None, &fill_path, Some(&pen), &stroke_path);
+    let fill = super::color::parse_color(&c.fill_color);
+    match tail {
+        Some(tt) => {
+            // A closed, filled figure: Avalonia's fill path is the stroke
+            // path, so one op serves both.
+            if let Some(geometry) = union_with_tail(&stroke_path, tt, (render_bounds.l, render_bounds.t)) {
+                draw_geometry(pm, &ctm, Some(fill), &geometry, None, &geometry);
+                draw_geometry(pm, &ctm, None, &geometry, Some(&pen), &geometry);
+            }
+        }
+        None => {
+            draw_geometry(pm, &ctm, Some(fill), &fill_path, None, &stroke_path);
+            draw_geometry(pm, &ctm, None, &fill_path, Some(&pen), &stroke_path);
+        }
+    }
 
     if p.text.is_empty() {
         return;
@@ -651,9 +726,9 @@ pub fn draw_balloon(
     let Some(lay) = layout(&font, &p.text, p.font_size as f64, align, max_text_width) else {
         return;
     };
-    let tx = TEXT_PADDING;
-    let mut ty = TEXT_PADDING.max((height - lay.height()) / 2.0);
-    ty = ty.min(height - lay.height() - TEXT_PADDING);
+    let tx = off_x + TEXT_PADDING;
+    let mut ty = off_y + TEXT_PADDING.max((height - lay.height()) / 2.0);
+    ty = ty.min(off_y + height - lay.height() - TEXT_PADDING);
     if let Some(geometry) = build_geometry(&font, &lay, (tx, ty)) {
         draw_geometry(
             pm,
