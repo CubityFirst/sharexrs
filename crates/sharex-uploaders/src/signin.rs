@@ -378,9 +378,107 @@ impl OAuth2Client for Bitly {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The other account cards and the pickers (`DestinationSettingsAccounts`,
+// `DestinationSettingsPageBuilder`, `UploaderConfigurationClient`): what
+// their buttons do to `UploadersConfig`, without the window.
+
+/// Paste.ee's "Get user key" page (`GetPasteEeAuthorizationURL`).
+pub fn paste_ee_authorization_url() -> String {
+    format!("https://paste.ee/account/api/authorize/{}", api_keys::PASTE_EE_APPLICATION_KEY)
+}
+
+/// ImageShack's "Log in" (`LoginImageShackAsync`): the auth token is saved
+/// in `ImageShackSettings`. `false` is "Login failed".
+pub fn login_image_shack(config: &mut UploadersConfig) -> UResult<bool> {
+    use crate::destinations::services::{ImageShack, ImageShackOptions};
+    use crate::uploader::WritesBackConfig;
+    let Some(options) = ImageShackOptions::from_value(&config.ImageShackSettings) else {
+        return Err(UploadError::Exception(crate::destinations::NULL_REFERENCE.into()));
+    };
+    let mut u = ImageShack::new(api_keys::IMAGE_SHACK_KEY, options);
+    let ok = u.get_access_token()?;
+    u.write_back(config);
+    Ok(ok)
+}
+
+/// Pastebin's "Log in" (`LoginPastebinAsync`): the user key is saved (or
+/// cleared) in `PastebinSettings`.
+pub fn login_pastebin(config: &mut UploadersConfig) -> UResult<bool> {
+    use crate::destinations::text::Pastebin;
+    let mut u = Pastebin::new(api_keys::PASTEBIN_KEY, config.PastebinSettings.clone());
+    let ok = u.login()?;
+    config.PastebinSettings.UserKey = u.settings.UserKey.clone();
+    Ok(ok)
+}
+
+/// MEGA's "Log in" with `MegaEmail` and `MegaPassword`: the session is saved
+/// and the password field cleared. `MegaError::Api(-26)` asks for the
+/// two-factor code: ask it (`DestinationSettings_Enter_current_two_factor_authentication_code`)
+/// and call again with it.
+pub fn mega_login(config: &mut UploadersConfig, two_factor_code: Option<&str>) -> Result<(), crate::destinations::mega::MegaError> {
+    use crate::destinations::mega::Mega;
+    let mut mega = Mega::new(config.MegaEmail.as_deref().unwrap_or(""), config.MegaPassword.as_str());
+    let session = mega.login(two_factor_code)?;
+    config.MegaPassword = crate::dpapi::Secret::new("");
+    config.MegaSessionID = crate::dpapi::Secret::new(session.session_id);
+    config.MegaMasterKey = crate::dpapi::Secret::new(session.master_key);
+    Ok(())
+}
+
+/// MEGA's "Disconnect" (also when the email or password changes): the
+/// session and master key cleared, the folder back to the root.
+pub fn mega_disconnect(config: &mut UploadersConfig) {
+    config.MegaSessionID = crate::dpapi::Secret::new("");
+    config.MegaMasterKey = crate::dpapi::Secret::new("");
+    config.MegaSelectedFolder = serde_json::to_value(crate::destinations::mega::MegaFolderInfo::root()).expect("folder");
+}
+
+/// The MEGA folder picker's children of `parent` (`None`: the Cloud Drive
+/// root), with the saved session. Not connected: `Err` with
+/// `DestinationSettings_Not_connected`.
+pub fn mega_folders(
+    config: &UploadersConfig,
+    parent: Option<&crate::destinations::mega::MegaFolderInfo>,
+) -> Result<Vec<crate::destinations::mega::MegaFolderInfo>, crate::destinations::mega::MegaError> {
+    use crate::destinations::mega::{Mega, MegaError, MegaFolderInfo, from_base64_url};
+    if config.MegaSessionID.as_str().trim().is_empty() || config.MegaMasterKey.as_str().trim().is_empty() {
+        return Err(MegaError::Other(sharex_strings::uploaders_lib::DestinationSettings_Not_connected().into()));
+    }
+    let key = from_base64_url(config.MegaMasterKey.as_str())?;
+    let mut mega = Mega::with_session(config.MegaSessionID.as_str(), key);
+    let root = MegaFolderInfo::root();
+    mega.get_folders(Some(parent.unwrap_or(&root)))
+}
+
+/// Imgur's "Refresh albums": `None` when the account isn't connected
+/// (`DestinationSettings_Connect_Imgur_account_first`), else the albums,
+/// saved as `ImgurAlbumList` (a refreshed token is saved too).
+pub fn refresh_imgur_albums(config: &mut UploadersConfig) -> UResult<Option<Vec<crate::destinations::images::ImgurAlbumData>>> {
+    let Some(info) = config.ImgurOAuth2Info.clone().filter(|i| OAuth2Info::check(Some(i))) else { return Ok(None) };
+    let mut imgur = Imgur::new(info);
+    let albums = imgur.get_albums(10, 100);
+    config.ImgurOAuth2Info = Some(imgur.auth_info.clone());
+    let albums = albums?;
+    config.ImgurAlbumList = serde_json::to_value(&albums).expect("albums");
+    Ok(Some(albums))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn account_helpers_without_network() {
+        let mut config = UploadersConfig::default();
+        assert!(paste_ee_authorization_url().starts_with("https://paste.ee/account/api/authorize/"));
+        assert!(refresh_imgur_albums(&mut config).unwrap().is_none());
+        assert!(mega_folders(&config, None).is_err());
+        config.MegaSessionID = crate::dpapi::Secret::new("s");
+        mega_disconnect(&mut config);
+        assert!(config.MegaSessionID.is_empty());
+        assert_eq!(config.MegaSelectedFolder, serde_json::json!({"ID": "", "Name": ""}));
+    }
 
     #[test]
     fn pages_and_flows() {
