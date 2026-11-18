@@ -86,6 +86,18 @@ internal static class Program
             return DumpText(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3] == "1", args[4]);
         }
 
+        if (args[0] == "--cursors" || args[0] == "--emoji")
+        {
+            AppBuilder.Configure<HarnessApp>()
+                .UseSkia()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+                .WithInterFont()
+                .SetupWithoutStarting();
+            return args[0] == "--cursors"
+                ? DumpCursors(args[1])
+                : DumpEmoji(args[1], int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);
+        }
+
         if (args[0] == "--fonts")
         {
             // The fonts Avalonia.Fonts.Inter bundles (FontFamily.Default with WithInterFont),
@@ -143,12 +155,25 @@ internal static class Program
 
             try
             {
-                using SKBitmap baseImage = SKBitmap.Decode(basePath) ?? throw new InvalidOperationException($"can't read {basePath}");
+                string caseBase = node["base"] is JsonNode b
+                    ? Path.Combine(Path.GetDirectoryName(casesPath)!, b.GetValue<string>())
+                    : basePath;
+                using SKBitmap baseImage = SKBitmap.Decode(caseBase) ?? throw new InvalidOperationException($"can't read {caseBase}");
                 List<Annotation> annotations = node["annotations"]!.AsArray()
                     .Select(a => a!.Deserialize<Annotation>(JsonOptions)!)
                     .ToList();
+                foreach (Annotation a in annotations)
+                {
+                    // An inserted image: ImageAnnotation.LoadImage (ImagePath relative to cases.json).
+                    if (a.GetType() == typeof(ImageAnnotation) && a is ImageAnnotation image && image.ImagePath != "")
+                    {
+                        image.LoadImage(Path.Combine(Path.GetDirectoryName(casesPath)!, image.ImagePath));
+                    }
+                }
+                bool configureFill = node["configureFill"]?.GetValue<bool>() ?? false;
+                JsonArray? ops = node["ops"]?.AsArray();
 
-                using SKBitmap snapshot = Render(baseImage, annotations);
+                using SKBitmap snapshot = Render(baseImage, annotations, configureFill, ops);
                 using FileStream file = File.Create(Path.Combine(outDir, name + ".png"));
                 snapshot.Encode(file, SKEncodedImageFormat.Png, 100);
                 Console.WriteLine($"{name}: {snapshot.Width}x{snapshot.Height}");
@@ -163,7 +188,7 @@ internal static class Program
         return failures == 0 ? 0 : 1;
     }
 
-    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations)
+    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations, bool configureFill = false, JsonArray? ops = null)
     {
         ImageEditorOptions options = new() { ShowExitConfirmation = false, RememberWindowState = false };
         EditorWindow window = new(options);
@@ -187,15 +212,30 @@ internal static class Program
 
             foreach (Annotation annotation in annotations)
             {
+                if (configureFill && annotation is SmartEraserAnnotation eraser)
+                {
+                    // EditorInputController.UpdateSmartEraserFill, when the eraser is drawn:
+                    // its bounds clamped to the canvas, then the fill chosen from the image.
+                    var rectangle = (Avalonia.Controls.Shapes.Rectangle)eraser.CreateVisual();
+                    ShareX.ImageEditor.Presentation.Rendering.AnnotationVisualFactory.UpdateVisualControl(rectangle, eraser);
+                    typeof(SmartEraserAnnotation)
+                        .GetMethod("ClampVisualBounds", BindingFlags.NonPublic | BindingFlags.Instance)!
+                        .Invoke(eraser, [rectangle, new Size(core.SourceImage!.Width, core.SourceImage.Height)]);
+                    eraser.ConfigureFill(core.SourceImage);
+                }
                 core.AddAnnotation(annotation);
             }
 
             // What undo/redo does: rebuild the annotation layer from EditorCore
             // (AnnotationVisualFactory, effect bitmaps, the spotlight overlay).
-            typeof(EditorView)
-                .GetMethod("OnAnnotationsRestored", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(view, null);
-            Pump();
+            RestoreAnnotations(view);
+
+            foreach (JsonNode? op in ops ?? [])
+            {
+                RunOp(view, core, op!.AsObject());
+                Pump();
+                RestoreAnnotations(view);
+            }
 
             return view.GetSnapshot() ?? throw new InvalidOperationException("GetSnapshot returned null");
         }
@@ -204,6 +244,137 @@ internal static class Program
             window.Close();
             Pump();
         }
+    }
+
+    private static void RestoreAnnotations(EditorView view)
+    {
+        typeof(EditorView)
+            .GetMethod("OnAnnotationsRestored", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(view, null);
+        Pump();
+    }
+
+    private static float F(JsonObject o, string name) => o[name]!.GetValue<float>();
+
+    private static SKRect R(JsonObject o) =>
+        new(o["rect"]![0]!.GetValue<float>(), o["rect"]![1]!.GetValue<float>(),
+            o["rect"]![2]!.GetValue<float>(), o["rect"]![3]!.GetValue<float>());
+
+    /// <summary>
+    /// One of EditorCore's image operations (or EditorView's, for a clone),
+    /// as the editor's toolbar and tools call them.
+    /// </summary>
+    private static void RunOp(EditorView view, EditorCore core, JsonObject op)
+    {
+        string name = op["op"]!.GetValue<string>();
+        bool ok = true;
+        switch (name)
+        {
+            case "crop": ok = core.Crop(R(op)); break;
+            case "performCrop": core.PerformCrop(); break;
+            case "cutOut": ok = core.CutOut((int)F(op, "start"), (int)F(op, "end"), op["vertical"]!.GetValue<bool>()); break;
+            case "performCutOut":
+            {
+                SKRect r = R(op);
+                var cut = new CutOutAnnotation
+                {
+                    StartPoint = new SKPoint(r.Left, r.Top),
+                    EndPoint = new SKPoint(r.Right, r.Bottom),
+                    IsVertical = op["vertical"]!.GetValue<bool>(),
+                };
+                // The cut-out tool's annotation is in the list while it's drawn (no history).
+                var list = (List<Annotation>)typeof(EditorCore)
+                    .GetField("_annotations", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(core)!;
+                list.Add(cut);
+                core.PerformCutOut();
+                break;
+            }
+            case "rotate90cw": ok = core.Rotate90Clockwise(); break;
+            case "rotate90ccw": ok = core.Rotate90CounterClockwise(); break;
+            case "rotate180": ok = core.Rotate180(); break;
+            case "rotate": ok = core.RotateCustomAngle(F(op, "angle"), op["autoResize"]?.GetValue<bool>() ?? true); break;
+            case "flipH": ok = core.FlipHorizontal(); break;
+            case "flipV": ok = core.FlipVertical(); break;
+            case "resize": ok = core.ResizeImage((int)F(op, "width"), (int)F(op, "height")); break;
+            case "resizeCanvas":
+                ok = core.ResizeCanvas((int)F(op, "top"), (int)F(op, "right"), (int)F(op, "bottom"), (int)F(op, "left"),
+                    SKColor.Parse(op["color"]!.GetValue<string>()));
+                break;
+            case "autoCrop": ok = core.AutoCrop((int)F(op, "tolerance")); break;
+            case "flatten":
+            {
+                SKBitmap composite = view.GetSnapshot() ?? throw new InvalidOperationException("no snapshot");
+                ok = core.FlattenImage(composite);
+                break;
+            }
+            case "autoExpand":
+                ok = core.AutoExpandCanvasToFit(core.Annotations.ToList(), F(op, "margin"),
+                    SKColor.Parse(op["color"]!.GetValue<string>()), out _, out _);
+                break;
+            case "undo": core.Undo(); break;
+            case "redo": core.Redo(); break;
+            case "clone":
+            {
+                SKRect r = R(op);
+                typeof(EditorView)
+                    .GetMethod("CloneRegion", BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .Invoke(view, [new Rect(r.Left, r.Top, r.Width, r.Height)]);
+                break;
+            }
+            default: throw new InvalidOperationException($"unknown op {name}");
+        }
+        Console.WriteLine($"  {name}: {(ok ? "done" : "false")} -> {core.SourceImage?.Width}x{core.SourceImage?.Height}, {core.Annotations.Count} annotations");
+    }
+
+    /// <summary>
+    /// Saves the bitmaps ShareX makes for cursor annotations
+    /// (WindowsCursorBitmapRenderer.CreateAnnotationBitmap), one per CursorType.
+    /// </summary>
+    private static int DumpCursors(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        Type renderer = typeof(EditorCore).Assembly.GetType("ShareX.ImageEditor.Presentation.Rendering.WindowsCursorBitmapRenderer")!;
+        MethodInfo create = renderer.GetMethod("CreateAnnotationBitmap", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
+        foreach (CursorType type in Enum.GetValues<CursorType>())
+        {
+            using SKBitmap? bitmap = (SKBitmap?)create.Invoke(null, [type]);
+            if (bitmap == null)
+            {
+                Console.WriteLine($"{type}: none");
+                continue;
+            }
+            SaveRaw(bitmap, Path.Combine(outDir, type + ".bgra"));
+            Console.WriteLine($"{type}: {bitmap.Width}x{bitmap.Height} {bitmap.AlphaType}");
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Saves WindowsEmojiBitmapRenderer.RenderStickerBitmap(sequence, size), the bitmap an
+    /// emoji annotation shows.
+    /// </summary>
+    private static int DumpEmoji(string sequence, int size, string outFile)
+    {
+        using SKBitmap? bitmap = ShareX.ImageEditor.Presentation.Emoji.WindowsEmojiBitmapRenderer.RenderStickerBitmap(sequence, size);
+        if (bitmap == null)
+        {
+            Console.WriteLine("none");
+            return 1;
+        }
+        SaveRaw(bitmap, outFile);
+        Console.WriteLine($"{bitmap.Width}x{bitmap.Height}");
+        return 0;
+    }
+
+    /// <summary>Premultiplied BGRA bytes, after an 8-byte width/height header.</summary>
+    private static void SaveRaw(SKBitmap bitmap, string path)
+    {
+        using SKBitmap bgra = new(new SKImageInfo(bitmap.Width, bitmap.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
+        bitmap.CopyTo(bgra);
+        using FileStream f = File.Create(path);
+        f.Write(BitConverter.GetBytes(bitmap.Width));
+        f.Write(BitConverter.GetBytes(bitmap.Height));
+        f.Write(bgra.GetPixelSpan());
     }
 
     /// <summary>
