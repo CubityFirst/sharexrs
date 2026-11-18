@@ -33,7 +33,7 @@ const STD_CHROMINANCE: [u32; 64] = [
 
 /// The sRGB profile Skia writes (`SkWriteICCProfile` for sRGB), as found in
 /// ShareX's JPEGs.
-const SKIA_SRGB_ICC: &[u8] = include_bytes!("skia_srgb.icc");
+pub(crate) const SKIA_SRGB_ICC: &[u8] = include_bytes!("skia_srgb.icc");
 
 /// `SKJpegEncoderDownsample`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -61,6 +61,7 @@ pub mod text;
 pub mod thumbnailer;
 pub mod video;
 pub mod watermark;
+pub mod webp;
 
 /// `Links.Website`.
 pub const WEBSITE: &str = "https://getsharex.com";

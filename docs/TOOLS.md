@@ -66,7 +66,7 @@ tolerance.
 |---|---|---|---|---|---|---|
 | Image combiner | 96 | 0 | 96 | 0 | 0 | 0 |
 | Image comparer | 21 | 21 | 0 | 0 | 0 | 0 |
-| Image converter | 190 | 140 | 40 | 0 | 0 | 10 |
+| Image converter | 238 | 208 | 30 | 0 | 0 | 0 |
 | Image converter preview | 10 | 0 | 10 | 0 | 0 | 0 |
 | Image splitter | 20 | 0 | 20 | 0 | 0 | 0 |
 | Image thumbnailer | 40 | 40 | 0 | 0 | 0 | 0 |
@@ -103,7 +103,11 @@ What the cases cover, per tool:
 - **Converter**: ten sources (PNG with and without alpha, 16-bit, grayscale,
   palette GIF, 24-bit BMP, lossless WebP, a JPEG, an EXIF orientation-6 JPEG)
   to PNG (Automatic/32/24-bit), BMP (Automatic/32/24), GIF (all five
-  quantizers), JPEG (4:2:0/4:2:2/4:4:4 at q90 and q40) and WebP.
+  quantizers), JPEG (4:2:0/4:2:2/4:4:4 at q90 and q40) and WebP (lossy q90,
+  lossless effort 75); and WebP alone at lossy q0/1/50/100 and lossless
+  effort 0/1/50/100 over six images (with and without alpha, sizes off the
+  16 px macroblock grid, 1×1, 1900×1100): every WebP file byte for byte
+  (68/68).
 - **Watermark**: image watermarks at all nine positions, rotations (0, 30,
   −45, 90, 400°), opacities, scales, JPEG output; five text watermarks.
 - **Icon**: four sources, both depths, size sets incl. 256 (PNG entry) and
@@ -191,26 +195,38 @@ What the cases cover, per tool:
   the recorded requests and answers (`tests/analyze_image.rs`, fixtures in
   `tests/fixtures/analyze`).
 
-CI runs `crates/sharex-tools/tests/sharex.rs`: twelve checks against a small
+CI runs `crates/sharex-tools/tests/sharex.rs`: thirteen checks against a small
 set of ShareX's outputs (`tests/fixtures`, made by the harness's
 `make_fixtures.py`) that need no fonts, FFmpeg or Windows.
 
+### WebP: ShareX's libwebp
+
+ShareX encodes WebP with the libwebp compiled into SkiaSharp 3.119.4's
+`libSkiaSharp.dll` (mono/skia `release/3.119.4`, f568ac9). Its PDB lists
+every libwebp file with its MD5 (`tools/tools-harness/libwebp-sources.md5`,
+from `llvm-pdbutil dump -files`), and the libwebp that the crates.io crate
+`libwebp-sys` 0.14.4 bundles (in `vendor/`) matches all 112 of them, so
+`sharex-tools` depends on exactly that version (pinned `=0.14.4`, no default
+features: no threads, which Skia's single-threaded config never uses).
+`crate::webp` then calls it as Skia's `SkWebpEncoderImpl.cpp` does:
+`WebPConfigPreset(DEFAULT, quality)`; lossy `method = 3`, `use_argb = 0`;
+lossless `method = 0`, `use_argb = 1` with the effort as the quality; the
+premultiplied pixels read into unpremultiplied BGRA as `readPixels` does
+and imported with `WebPPictureImportBGRA`; `WebPEncode`; and, since the
+converter's bitmaps carry SkCodec's sRGB colour space, `WebPMux` adds
+Skia's sRGB profile as an `ICCP` chunk (`VP8X`, `ICCP`, `ALPH`, `VP8 `/`VP8L`).
+All 68 WebP files come out byte for byte, lossy and lossless. libwebp's SIMD
+paths are bit-exact with its C code, and the CI test
+(`webp_is_byte_identical`) checks five of the files on macOS (NEON) and
+Linux too.
+
+Linting macOS from Windows (`scripts/clippy-macos.ps1`): libwebp-sys's build
+script compiles C, which needs a compiler for the target that Windows
+lacks; since clippy never links, the script points `cc` at a stub
+(`scripts/cc-stub.py`) that writes empty objects and archives.
+
 ### Not exact, and why
 
-- **Lossy WebP** (10 converter cases, skipped): ShareXrs writes such
-  files lossless (lossless WebP decodes to ShareX's pixels). ShareX encodes
-  with the libwebp built into SkiaSharp 3.119.4's `libSkiaSharp.dll`
-  (mono/skia `release/3.119.4`, f568ac9). Its PDB lists the libwebp files
-  with their MD5s (`tools/tools-harness/libwebp-sources.md5`, from
-  `llvm-pdbutil dump -files`), and `src/utils/palette.c` among them means
-  libwebp 1.4.0 or later. Byte-identical output means building that libwebp
-  (a `cc` build of its `src/enc`, `src/dsp`, `src/utils` and `sharpyuv`,
-  with the SSE2/SSE4.1 paths Skia compiles) and calling it as Skia's
-  `SkWebpEncoderImpl.cpp` does (the config, method and picture import; the
-  local `skia-m119` sources have no `src/encode`, so check them there). Not
-  done: no libwebp source is on this machine, and this round allowed no
-  downloads. Next step: fetch the libwebp commit whose files match the MD5
-  list.
 - **PNG bytes**: Skia compresses with its zlib and libpng's filter heuristics;
   ShareXrs's PNGs decode to the same pixels (the 256 px entry of 32-bit icons
   too). The icon converter's own 8-bit PNG entry is byte for byte (zlib-rs,

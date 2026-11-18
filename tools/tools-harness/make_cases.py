@@ -67,6 +67,13 @@ for img in conv_inputs:
     add(f"conv-{stem}-webp-lossless", "converter", file=img, format="Webp", webpLossless=True, quality=75)
     add(f"conv-{stem}-webp-lossy", "converter", file=img, format="Webp", webpLossless=False, quality=90)
     add(f"conv-{stem}-preview", "converter-preview", file=img, format="Png")
+# WebP across qualities and efforts (libwebp's quantiser, segment and filter
+# choices, alpha), and sizes off the macroblock grid.
+for img, q in itertools.product(["alpha_64x48.png", "big_420x300.png", "odd_33x77.png", "alpha_odd_45x29.png", "tiny_1x1.png",
+                                 "huge_1900x1100.png"], [0, 1, 50, 100]):
+    stem = img.replace(".", "_")
+    add(f"conv-{stem}-webp-lossy-q{q}", "converter", file=img, format="Webp", webpLossless=False, quality=q)
+    add(f"conv-{stem}-webp-lossless-e{q}", "converter", file=img, format="Webp", webpLossless=True, quality=q)
 
 positions = ["TopLeft", "TopCenter", "TopRight", "MiddleLeft", "Center", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight"]
 for img, pos in itertools.product(["big_420x300.png", "alpha_64x48.png"], positions):

@@ -97,7 +97,7 @@ ShareX (`System.Globalization.UseNls`, as ShareX.runtimeconfig.json sets).
 
 ## Cases
 
-`make_cases.py` writes `cases.json` (1321 cases): `{ "name", "tool",
+`make_cases.py` writes `cases.json` (1381 cases): `{ "name", "tool",
 ...parameters }`, with input file names relative to `inputs/`. Each tool's
 parameter sets cover its options; docs/TOOLS.md lists what they cover per
 tool.
