@@ -165,6 +165,10 @@ impl App {
                 w.reply = Some(reply);
                 Box::new(w)
             }
+            super::UiRequest::ImageEffects(image, task, reply) => {
+                self.open_image_effects_editor(event_loop, *image, *task, reply);
+                return;
+            }
         };
         self.open_dialog_window(event_loop, dialog);
     }

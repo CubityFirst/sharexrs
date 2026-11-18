@@ -207,6 +207,19 @@ impl App {
             infos.iter().zip(&statuses).filter(|(_, s)| ok(s)).filter_map(|(i, _)| i.file_path.clone()).collect()
         };
         match command {
+            TaskCommand::ResizeImages => {
+                let files = paths(|s| s.is_image_file).iter().map(|p| p.to_string_lossy().into_owned()).collect();
+                self.open_image_resizer(event_loop, files);
+            }
+            TaskCommand::CombineImages(horizontal) => {
+                let files = paths(|s| s.is_image_file).iter().map(|p| p.to_string_lossy().into_owned()).collect();
+                let o = if horizontal { sharex_tools::combiner::Orientation::Horizontal } else { sharex_tools::combiner::Orientation::Vertical };
+                self.combine_images(files, o);
+            }
+            TaskCommand::AddImageEffects if sel.is_image_file => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.open_image_effects_tool(event_loop, Some(path.clone()), task);
+            }
             TaskCommand::OcrImage if sel.is_image_file => {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.ocr_file(event_loop, &path, task);

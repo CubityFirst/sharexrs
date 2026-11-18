@@ -531,11 +531,21 @@ impl App {
                 let effects = t.window.paint(|ui| state.ui(ui, &mut ctx));
                 let target = t.target;
                 let mut ffmpeg = false;
+                let mut image_effects = false;
                 for e in effects {
                     match e {
                         task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
+                        task_settings_window::Effect::ImageEffects => image_effects = true,
                     }
+                }
+                if image_effects {
+                    let hotkey = match target {
+                        TaskTarget::Hotkey(i) => Some(i),
+                        TaskTarget::Default => None,
+                    };
+                    self.open_image_effects_presets(event_loop, hotkey, None);
+                    return;
                 }
                 if ffmpeg {
                     self.show_ffmpeg_options(event_loop, target);

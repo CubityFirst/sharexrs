@@ -24,6 +24,8 @@ mod main_window;
 mod message_box;
 mod ocr;
 mod ocr_window;
+mod image_tools;
+mod image_effects;
 mod recording;
 mod region_render;
 mod region_session;
@@ -442,6 +444,11 @@ impl App {
             self.ocr_capture(task, auto_hide);
             return;
         }
+        if let MenuCommand::Tool(key) = command
+            && self.open_image_tool(event_loop, key, None)
+        {
+            return;
+        }
         // `new Capture…().Capture(autoHide)`: the default task settings.
         let task = || TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
         let job = match &command {
@@ -821,6 +828,17 @@ impl App {
         self.update_progress_ui();
     }
 
+    /// `UploadManager.RunImageTask(bmp, taskSettings)`: an image made by a
+    /// tool (the combiner) through the task's after capture tasks.
+    pub(crate) fn run_image_task_for(&mut self, image: image::RgbaImage, task: TaskSettings) {
+        let metadata = capture_job::Metadata { image, window_title: None, process_name: None };
+        let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
+        let effects = self.settings.paths.image_effects_folder();
+        let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent, effects);
+        self.run_image_task(job);
+        self.update_progress_ui();
+    }
+
     /// `TaskManager.UpdateProgressUI`, for the tray: while tasks upload,
     /// the tray icon shows their average progress and its tooltip the
     /// window's title with it.
@@ -1082,6 +1100,10 @@ impl App {
             return;
         }
         if self.run_upload_job(event_loop, &job, &task) {
+            return;
+        }
+        if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
+            self.open_image_tool(event_loop, key, Some(task));
             return;
         }
         match job {

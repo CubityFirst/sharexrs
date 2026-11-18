@@ -131,6 +131,15 @@ pub enum Effect {
     /// `TaskHelpers` entry points of the history windows' services
     /// (`HistoryWindowServices`), on a file.
     FileService(FileService, PathBuf),
+    /// Another window of this one (`ShowDialog(this)`: a confirmation, the
+    /// packager).
+    OpenDialog(Box<dyn Dialog>),
+    /// `ClipboardHelpers.GetImage()` handed back through [`Dialog::replace_image`]
+    /// (the Image effects window's Load from clipboard).
+    PasteImage,
+    /// `UploadManager.RunImageTask(image, taskSettings)`: the image through
+    /// the task's after capture tasks.
+    RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -268,8 +277,12 @@ pub trait Dialog {
     /// `NavigateToService` on the open window.
     fn navigate(&mut self, _service: &str) {}
 
-    /// The OCR window's Select region... captured this image.
+    /// The OCR window's Select region... captured this image (the Image
+    /// effects window: pasted).
     fn replace_image(&mut self, _image: RgbaImage, _ctx: &egui::Context) {}
+
+    /// `ImageEffectsWindow.ImportPreset(json)` on the open presets window.
+    fn import(&mut self, _json: &str) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -475,6 +488,17 @@ impl App {
                 Effect::FileService(service, path) => self.file_service(event_loop, service, path),
                 Effect::OcrSelectRegion => self.ocr_select_region(id),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
+                Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
+                Effect::PasteImage => {
+                    if let Some(image) = sharex_capture::clipboard::get_image()
+                        && let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id)
+                    {
+                        let ctx = d.window.ctx().clone();
+                        d.dialog.replace_image(image, &ctx);
+                        d.window.window.request_redraw();
+                    }
+                }
                 Effect::UpdateDownload(checker, origin) => self.download_update(event_loop, *checker, origin),
                 Effect::UpdateFinished { result, origin, shutdown } => self.update_finished(event_loop, result, origin, shutdown),
                 Effect::AskInvalidSignature => {

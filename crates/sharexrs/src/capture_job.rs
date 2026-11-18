@@ -252,12 +252,12 @@ impl ImageTask {
 
     /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: add image
     /// effects, copy the image to the clipboard (owned by `owner`), then save it.
-    pub fn run(mut self, owner: Option<isize>) -> Result<TaskOutcome, String> {
+    pub fn run(mut self, owner: Option<isize>, ui: Option<&dyn crate::upload::TaskUi>) -> Result<TaskOutcome, String> {
         let mut outcome = TaskOutcome::default();
         let job = self.task.AfterCaptureJob;
         if job.contains(AfterCaptureTasks::AddImageEffects) {
             self.metadata.image =
-                self.apply_image_effects().ok_or("Error: Applying image effects resulted empty image.")?;
+                self.apply_image_effects(ui).ok_or("Error: Applying image effects resulted empty image.")?;
         }
         if job.contains(AfterCaptureTasks::CopyImageToClipboard) {
             match sharex_capture::clipboard::copy_image(&self.metadata.image, owner) {
@@ -290,12 +290,16 @@ impl ImageTask {
 impl ImageTask {
     /// `TaskHelpers.ApplyImageEffects`: the selected (or a random) preset of the
     /// task's image settings; `None` when ShareX's result would be null.
-    fn apply_image_effects(&self) -> Option<RgbaImage> {
+    fn apply_image_effects(&self, ui: Option<&dyn crate::upload::TaskUi>) -> Option<RgbaImage> {
         use sharex_image_effects::{Bitmap, Context, ImageEffectPreset, ImageEffectsSettings};
-        let settings = self.task.ImageSettings.clone().unwrap_or_default();
-        if settings.ShowImageEffectsWindowAfterCapture {
-            // The Image effects window isn't ported yet: the selected preset is applied as is.
-            eprintln!("Image effects window not ported yet; applying the selected preset.");
+        let mut settings = self.task.ImageSettings.clone().unwrap_or_default();
+        if settings.ShowImageEffectsWindowAfterCapture
+            && let Some((presets, index)) = ui.and_then(|ui| ui.image_effects_window(&self.metadata.image, &self.task))
+        {
+            // The window edits the task's presets; the selected one is applied
+            // whether it was closed with Continue or Cancel.
+            settings.ImageEffectPresets = presets;
+            settings.SelectedImageEffectPreset = index;
         }
         // One preset per entry, so the selected index stays ShareX's.
         let presets: Vec<ImageEffectPreset> =
@@ -345,7 +349,7 @@ mod tests {
             folder: PathBuf::new(),
             image_effects_folder: PathBuf::new(),
         };
-        let out = job.apply_image_effects().unwrap();
+        let out = job.apply_image_effects(None).unwrap();
         assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
     }
 
