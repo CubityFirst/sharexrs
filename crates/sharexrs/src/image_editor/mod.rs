@@ -23,6 +23,7 @@ use sharex_capture::editor_chrome::{self, Mapper};
 use sharex_capture::editor_popups::Popups;
 use sharex_capture::region::options_row::{self, OptionItem};
 use sharex_capture::region::toolbar as captb;
+use sharex_capture::toolbar_items;
 use sharex_image_editor::editor::{self as ed, Command, RightClick, Visible, Workspace};
 use sharex_image_editor::model::EditorTool;
 use sharex_image_editor::options::ImageEditorOptions;
@@ -86,12 +87,26 @@ enum Item {
     ImageEffects,
 }
 
+/// A toolbar item as laid out (`VisibleToolbarItems`): the editor's own
+/// item and its customisation (`ToolbarCustomizationItemViewModel`).
+#[derive(Clone)]
+struct BarItem {
+    item: Item,
+    custom: toolbar_items::Item,
+}
+
 impl Item {
-    fn all() -> Vec<Item> {
-        let mut v = vec![Item::File];
-        v.extend((0..captb::TOOLS.len()).map(Item::Tool));
-        v.extend([Item::Crop, Item::CutOut, Item::CanvasSize, Item::Background, Item::ImageEffects]);
-        v
+    /// The item for a toolbar item id.
+    fn of(id: &str) -> Option<Item> {
+        Some(match id {
+            toolbar_items::FILE => Item::File,
+            "Crop" => Item::Crop,
+            "CutOut" => Item::CutOut,
+            toolbar_items::CANVAS_SIZE => Item::CanvasSize,
+            toolbar_items::BACKGROUND => Item::Background,
+            toolbar_items::IMAGE_EFFECTS => Item::ImageEffects,
+            id => return captb::TOOLS.iter().position(|t| t.id == id).map(Item::Tool),
+        })
     }
 
     fn tool(self) -> Option<EditorTool> {
@@ -112,22 +127,6 @@ impl Item {
             Item::CanvasSize => app_icons::Expand,
             Item::Background => app_icons::Wallpaper,
             Item::ImageEffects => app_icons::Sparkles,
-        }
-    }
-
-    /// `BeginGroupByDefault`.
-    fn begin_group(self) -> bool {
-        matches!(self, Item::Crop) || matches!(self, Item::Tool(i) if captb::TOOLS[i].begin_group)
-    }
-
-    /// The item's hotkeys (`DefaultHotkey`, `DefaultSecondaryHotkey`).
-    fn hotkeys(self) -> [&'static str; 2] {
-        match self {
-            Item::Tool(i) => [captb::TOOLS[i].hotkey, captb::TOOLS[i].secondary_hotkey],
-            Item::Crop => ["C", ""],
-            Item::CutOut => ["U", ""],
-            Item::CanvasSize => ["X", ""],
-            _ => ["", ""],
         }
     }
 
@@ -276,6 +275,10 @@ pub struct EditorWindow {
     bg_key: String,
     /// A toolbar item to scroll into view once laid out (`BringIntoView`).
     bring_into_view: Option<Item>,
+    /// The toolbar's items (`ToolbarItems`), from `ImageEditorOptions.ToolbarItems`.
+    bar: Vec<BarItem>,
+    /// "One editor in ten shows sunglasses for the emoji tool."
+    emoji_sunglasses: bool,
 }
 
 struct Layout {
@@ -374,7 +377,10 @@ impl EditorWindow {
             bg_frame: None,
             bg_key: String::new(),
             bring_into_view: None,
+            bar: Vec::new(),
+            emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos() / 1000) % 10 == 0,
         };
+        w.apply_toolbar_items();
         w.title = w.window_title();
         // `QueueAutoCopyImageToClipboard`: the opened image copied.
         if has_image && w.ws.tools.options.AutoCopyImageToClipboard && !w.ws.host_mode {
@@ -386,6 +392,29 @@ impl EditorWindow {
             w.modal = Some(Modal::Start(start_screen::StartScreen::new(w.ws.tools.options.RecentImageFiles.clone())));
         }
         w
+    }
+
+    /// `ApplyToolbarCustomizationItems`: the toolbar from the options; with
+    /// none saved, the defaults are saved (`persist`).
+    fn apply_toolbar_items(&mut self) {
+        let items = toolbar_items::editor_items(&self.ws.tools.options.ToolbarItems);
+        if self.ws.tools.options.ToolbarItems.is_empty() {
+            self.ws.tools.options.ToolbarItems = toolbar_items::options_json(&items);
+        }
+        self.bar = items.into_iter().filter_map(|custom| Item::of(custom.id()).map(|item| BarItem { item, custom })).collect();
+    }
+
+    /// `VisibleToolbarItems`.
+    fn visible_bar(&self) -> Vec<BarItem> {
+        self.bar.iter().filter(|b| b.custom.visible).cloned().collect()
+    }
+
+    /// An item's icon (the emoji tool's sunglasses once in ten editors).
+    fn item_icon(&self, it: Item) -> &'static str {
+        match it {
+            Item::Tool(i) if self.emoji_sunglasses && captb::TOOLS[i].tool == EditorTool::Emoji => tool_icons::EmojiSunglasses,
+            _ => it.icon(),
+        }
     }
 
     fn notifications_enabled(&self) -> bool {
@@ -778,35 +807,31 @@ impl EditorWindow {
         Mapper { origin: (0.0, 0.0), ppp, scale: self.zoom * ppp as f64, offset: self.layout.image.min }
     }
 
-    /// A toolbar item that isn't a tool whose hotkey this is.
-    fn hotkey_item(key: ed::Key, m: ed::Mods) -> Option<Item> {
-        let name = match key {
+    /// The pressed key as Avalonia's `Key` names it (`D1`, `R`, ...).
+    fn key_name(key: ed::Key) -> Option<String> {
+        Some(match key {
             ed::Key::Letter(c) => c.to_string(),
+            ed::Key::Digit(d) => format!("D{d}"),
+            ed::Key::Delete => "Delete".into(),
+            ed::Key::Home => "Home".into(),
+            ed::Key::End => "End".into(),
+            ed::Key::PageUp => "PageUp".into(),
+            ed::Key::PageDown => "PageDown".into(),
             _ => return None,
-        };
-        Item::all().into_iter().filter(|it| it.tool().is_none()).find(|it| {
-            it.hotkeys().iter().any(|h| !h.is_empty() && h.eq_ignore_ascii_case(&name) && m == ed::Mods::NONE)
         })
     }
 
-    /// `TrySelectToolForToolbarHotkey`.
-    fn hotkey_tool(key: ed::Key, m: ed::Mods) -> Option<EditorTool> {
-        let name = match key {
-            ed::Key::Letter(c) => c.to_string(),
-            ed::Key::Digit(d) => format!("D{d}"),
-            _ => return None,
-        };
-        Item::all().into_iter().filter_map(|it| it.tool().map(|t| (it, t))).find_map(|(it, t)| {
-            it.hotkeys()
-                .iter()
-                .any(|h| {
-                    let mut parts: Vec<&str> = h.split('+').map(str::trim).filter(|s| !s.is_empty()).collect();
-                    let Some(k) = parts.pop() else { return false };
-                    let has = |x: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(x));
-                    k.eq_ignore_ascii_case(&name) && has("Ctrl") == m.ctrl && has("Shift") == m.shift && has("Alt") == m.alt
-                })
-                .then_some(t)
-        })
+    /// `TrySelectToolForToolbarHotkey`: the first visible item with this
+    /// hotkey.
+    fn bar_item_for(bar: &[BarItem], key: ed::Key, m: ed::Mods) -> Option<Item> {
+        let name = Self::key_name(key)?;
+        let mods = toolbar_items::Mods { ctrl: m.ctrl, shift: m.shift, alt: m.alt, meta: false };
+        bar.iter().find(|b| b.custom.visible && b.custom.matches(&name, mods)).map(|b| b.item)
+    }
+
+    /// A toolbar item that isn't a tool whose hotkey this is.
+    fn hotkey_item(&self, key: ed::Key, m: ed::Mods) -> Option<Item> {
+        Self::bar_item_for(&self.bar, key, m).filter(|it| it.tool().is_none())
     }
 
     fn select_item(&mut self, item: Item) {
@@ -971,23 +996,22 @@ impl EditorWindow {
     // Layout and drawing.
 
     /// The top toolbar's content width (items, spacing, separators).
-    fn top_content_width() -> f32 {
-        let items = Item::all();
+    fn top_content_width(&self) -> f32 {
         let mut w = 0.0;
-        for (i, it) in items.iter().enumerate() {
+        for (i, b) in self.visible_bar().iter().enumerate() {
             if i > 0 {
                 w += SPACING;
             }
-            if it.begin_group() {
+            if b.custom.separator() {
                 w += 1.0 + SPACING;
             }
-            w += it.width();
+            w += b.item.width();
         }
         w
     }
 
     fn paint_top(&mut self, ui: &Ui, p: &Palette, full: Rect) {
-        let content = Self::top_content_width();
+        let content = self.top_content_width();
         let natural = content + 2.0 * (PADDING + 1.0);
         let width = natural.min(full.width());
         let left = (full.center().x - width / 2.0).round_ties_even();
@@ -1012,11 +1036,12 @@ impl EditorWindow {
         let mut x = rect.min.x + 1.0 + PADDING - self.top_scroll;
         self.layout.items.clear();
         let active = self.ws.active_tool();
-        for (i, it) in Item::all().into_iter().enumerate() {
+        for (i, b) in self.visible_bar().into_iter().enumerate() {
+            let it = b.item;
             if i > 0 {
                 x += SPACING;
             }
-            if it.begin_group() {
+            if b.custom.separator() {
                 clip.rect_filled(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON)), 0.0, p.separator);
                 x += 1.0 + SPACING;
             }
@@ -1034,7 +1059,7 @@ impl EditorWindow {
                 let on = it.tool().is_some_and(|t| t == active)
                     || (it == Item::CanvasSize && self.canvas_resize.is_some())
                     || (it == Item::Background && self.bg_panel.open);
-                captb::button(&clip, p, r, it.icon(), on, hovered, 1.0);
+                captb::button(&clip, p, r, self.item_icon(it), on, hovered, 1.0);
             }
             self.layout.items.push((it, r.intersect(rect)));
             // `BringIntoView`: the least scroll that shows the item.
@@ -1472,12 +1497,13 @@ impl EditorWindow {
         // `TrySelectToolForToolbarHotkey` for the items that aren't tools
         // (Canvas size: X), outside text editing.
         if self.ws.text_edit().is_none()
-            && let Some(it) = Self::hotkey_item(k, mods)
+            && let Some(it) = self.hotkey_item(k, mods)
         {
             self.select_item(it);
             return;
         }
-        let r = self.ws.key_down(k, mods, &Self::hotkey_tool);
+        let bar = self.bar.clone();
+        let r = self.ws.key_down(k, mods, &|k, m| Self::bar_item_for(&bar, k, m).and_then(Item::tool));
         if let Some(c) = r.command {
             self.run(c);
         }
@@ -2304,6 +2330,8 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         task.ToolsSettings.get_or_insert_default().ImageEditorOptions = opts.to_value();
     }
     let mut w = EditorWindow::new(image, o.image.clone(), task, false, PathBuf::new());
+    // (`--state emoji-sunglasses` shows the one-in-ten icon.)
+    w.emoji_sunglasses = o.state.as_deref() == Some("emoji-sunglasses");
     // `image-editor-context`: the context menu opened at 300,200.
     if name == "image-editor-file" {
         w.open_file_menu = true;
