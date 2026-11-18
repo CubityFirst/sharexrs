@@ -4877,6 +4877,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "flate2",
+ "gif",
  "image",
  "md-5",
  "png 0.18.1",

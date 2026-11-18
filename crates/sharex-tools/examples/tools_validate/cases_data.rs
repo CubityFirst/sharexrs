@@ -317,6 +317,58 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             });
             out.and(json_eq(&ours, &theirs))
         }
+        "gif-reencode" => {
+            let theirs = read_json(ctx, name);
+            let dir = ctx.sharex.join(name);
+            let ours_dir = ctx.out.join(name);
+            std::fs::create_dir_all(&ours_dir).unwrap();
+            let path = ctx.inputs.join(c["file"].as_str().unwrap());
+            let data = std::fs::read(&path).unwrap();
+            let image = gif_trimmer::AnimatedGif::decode(&data).unwrap();
+            let mut out = Outcome::exact();
+            for i in 0..image.frame_count() {
+                let theirs = compare::read_sxrb(&dir.join(format!("frame{i}.sxrb"))).unwrap();
+                out = out.and(compare::bitmaps(&format!("frame{i}"), &image.frame(i), &theirs, 0));
+            }
+            let doc = gif_trimmer::AnimatedGifTrimmerDocument::open(data).unwrap();
+            let preview = c["preview"].as_u64().unwrap_or(640) as u32;
+            for i in 0..doc.frame_count() {
+                let p = ours_dir.join(format!("preview{i}.png"));
+                std::fs::write(&p, doc.render_frame(i, preview)).unwrap();
+                out = out.and(compare::image_files(&format!("preview{i}"), &p, &dir.join(format!("preview{i}.png")), 0));
+            }
+            let mut results = Vec::new();
+            let src = path.to_string_lossy().to_string();
+            for (n, e) in c["exports"].as_array().unwrap().iter().enumerate() {
+                let v = |i: usize| e[i].as_i64().unwrap();
+                let a = |i: usize, j: usize| e[i][j].as_i64().unwrap() as i32;
+                let crop = gif_trimmer::CropRect { x: a(3, 0), y: a(3, 1), width: a(3, 2), height: a(3, 3) };
+                let target = ours_dir.join(format!("export{n}.gif"));
+                let _ = std::fs::remove_file(&target);
+                let r = doc.export(
+                    &src,
+                    &target.to_string_lossy(),
+                    v(0) as usize,
+                    v(1) as usize,
+                    e[2].as_bool().unwrap(),
+                    crop,
+                    (a(4, 0), a(4, 1)),
+                    None,
+                );
+                match r {
+                    Ok(ok) => {
+                        results.push(serde_json::json!(ok));
+                        if ok {
+                            let ours = std::fs::read(&target).unwrap();
+                            out = out.and(compare::bytes(&format!("export{n}"), &ours, &dir.join(format!("export{n}.gif"))));
+                        }
+                    }
+                    Err(_) => results.push(serde_json::json!("ArgumentOutOfRangeException")),
+                }
+            }
+            let ours = serde_json::json!({ "frames": image.frame_count(), "exports": results });
+            out.and(json_eq(&ours, &theirs))
+        }
         _ => Outcome::skip(format!("no validator for {tool}")),
     }
 }

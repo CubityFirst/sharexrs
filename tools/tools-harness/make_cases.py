@@ -188,5 +188,38 @@ for motion, offset in itertools.product(["VerticalBars", "HorizontalBars"], [0, 
 for f in ["trim.gif", "../sharex/gifmaker-alpha-d33-loop-r3.gif", "../sharex/gifmaker-big-d100-once-r0.gif", "meta/full.gif", "palette.gif"]:
     add(f"giftrim-{f.split('/')[-1].replace('.', '_')}", "gif-trim", file=f)
 
+# The GIF trimmer's frames, preview and export (lossless, re-encode, crop, resize).
+# Each export: [first, end exclusive, reencode, crop x/y/w/h, size w/h].
+def full(w, h):
+    return [0, 0, w, h]
+
+
+reencode_sets = {
+    "trim.gif": (60, 40, 5),
+    "disp0.gif": (48, 36, 7),
+    "disp1.gif": (48, 36, 7),
+    "disp2.gif": (48, 36, 6),
+    "../sharex/gifmaker-alpha-d33-loop-r3.gif": None,
+}
+for f, dims in reencode_sets.items():
+    exports = []
+    if dims:
+        w, h, n = dims
+        for first, end in [(0, n), (1, n), (2, n - 1), (n - 1, n), (3, n)]:
+            exports.append([first, end, False, full(w, h), [w, h]])
+            exports.append([first, end, True, full(w, h), [w, h]])
+        exports += [
+            [0, n, False, [5, 3, w - 12, h - 9], [w - 12, h - 9]],
+            [1, n, False, full(w, h), [w * 2, h + 7]],
+            [0, n - 2, True, [7, 2, w // 2, h // 2], [w // 3, h // 3]],
+            [2, n, False, [0, 0, w // 2, h], [w, h * 3 // 2]],
+            [0, 1, True, [w - 1, h - 1, 1, 1], [3, 3]],
+            # out of range: ShareX throws
+            [0, n, False, [0, 0, w + 1, h], [w, h]],
+            [n - 1, n - 1, True, full(w, h), [w, h]],
+        ]
+    add(f"gifreencode-{f.split('/')[-1].replace('.', '_')}", "gif-reencode", file=f, exports=exports,
+        preview=20 if f == "disp1.gif" else 640)
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

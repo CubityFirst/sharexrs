@@ -31,6 +31,7 @@ static partial class Program
         MakeFolders(Path.Combine(Inputs_, "folders"));
         MakeQRInputs(Path.Combine(Inputs_, "qr"));
         MakeTrimGif(Path.Combine(Inputs_, "trim.gif"));
+        MakeDisposalGifs(Inputs_);
         MetaInputs.Generate(Path.Combine(Inputs_, "meta"), Inputs_, FFmpegPath);
         File.WriteAllText(Path.Combine(Inputs_, "custom.css"), "body { color: #123456; }\r\nh1 { color: red; }\n", new System.Text.UTF8Encoding(true));
     }

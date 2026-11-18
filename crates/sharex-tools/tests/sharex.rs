@@ -149,6 +149,26 @@ fn monitor_test_patterns_match() {
 }
 
 #[test]
+fn gif_trimmer_reencode_is_byte_identical() {
+    use sharex_tools::video::gif_trimmer::{AnimatedGifTrimmerDocument, CropRect, ExportResult};
+    let data = std::fs::read(input("disp1.gif")).unwrap();
+    let doc = AnimatedGifTrimmerDocument::open(data).unwrap();
+    assert_same_bitmap(&doc.image.frame(4), &expected_bitmap("gifreencode-disp1_gif-frame4"), "frame 4");
+    let full = CropRect { x: 0, y: 0, width: 48, height: 36 };
+    let cases = [
+        (1, 7, true, full, (48, 36), "export3"),
+        (0, 7, false, CropRect { x: 5, y: 3, width: 36, height: 27 }, (36, 27), "export10"),
+        (0, 5, true, CropRect { x: 7, y: 2, width: 24, height: 18 }, (16, 12), "export12"),
+    ];
+    for (first, end, reencode, crop, size, name) in cases {
+        let ExportResult::Written(ours) = doc.export_bytes(first, end, reencode, crop, size, None).unwrap() else {
+            panic!("{name}: not written");
+        };
+        assert_eq!(ours, expected(&format!("gifreencode-disp1_gif-{name}.gif")), "{name}");
+    }
+}
+
+#[test]
 fn gif_lossless_trim_is_byte_identical() {
     let data = std::fs::read(input("trim.gif")).unwrap();
     let t = sharex_tools::video::gif_trimmer::GifLosslessTrimmer::parse(&data).unwrap();

@@ -42,8 +42,128 @@ static partial class Program
         }
     }
 
+    // GIFs for the trimmer's frame compositing: transparent and opaque,
+    // partial and full frames, with every disposal (patched into the graphic
+    // control blocks AnimatedGifCreator writes).
+    public static void MakeDisposalGifs(string dir)
+    {
+        // (left, top, width, height, transparent hole, disposal)
+        (int, int, int, int, bool, int)[][] sets =
+        [
+            [(0, 0, 48, 36, false, 1), (4, 4, 20, 14, true, 1), (10, 8, 24, 20, false, 2), (2, 18, 30, 16, true, 3),
+             (0, 0, 48, 36, true, 1), (20, 2, 26, 30, false, 1), (6, 6, 12, 12, true, 0)],
+            [(8, 6, 30, 22, true, 3), (0, 0, 48, 36, false, 2), (5, 5, 20, 20, true, 1), (0, 0, 48, 36, true, 2),
+             (12, 10, 20, 12, true, 3), (12, 10, 30, 20, false, 1), (0, 0, 48, 36, true, 0)],
+            [(0, 0, 48, 36, true, 2), (3, 3, 40, 28, true, 2), (0, 0, 48, 36, true, 3), (10, 10, 10, 10, false, 3),
+             (10, 10, 28, 20, true, 1), (0, 0, 48, 36, false, 1)],
+        ];
+        for (int s = 0; s < sets.Length; s++)
+        {
+            string path = Path.Combine(dir, $"disp{s}.gif");
+            if (File.Exists(path)) continue;
+            using (ShareX.HelpersLib.AnimatedGifCreator creator = new(path, 100, 0, true))
+            {
+                for (int i = 0; i < sets[s].Length; i++)
+                {
+                    var (l, t, w, h, hole, _) = sets[s][i];
+                    using SkiaSharp.SKBitmap bmp = new(w, h);
+                    using (SkiaSharp.SKCanvas cv = new(bmp))
+                    {
+                        cv.Clear(new SkiaSharp.SKColor((byte)(40 + i * 30 + s * 7), (byte)(200 - i * 25), (byte)(90 + s * 40)));
+                        using SkiaSharp.SKPaint p = new() { Color = new SkiaSharp.SKColor((byte)(i * 37), 20, (byte)(250 - i * 30)) };
+                        cv.DrawRect(1, h / 2, w - 2, 2, p);
+                        if (hole)
+                        {
+                            using SkiaSharp.SKPaint clear = new() { BlendMode = SkiaSharp.SKBlendMode.Clear };
+                            cv.DrawRect(w / 4, h / 4, w / 2, h / 3, clear);
+                        }
+                    }
+                    var image = ShareX.HelpersLib.SkiaImageHelpers.Quantize(bmp, ShareX.HelpersLib.GIFQuality.Adaptive);
+                    creator.AddFrame(image, 10 * (i + 2), l, t, true);
+                }
+            }
+            byte[] b = File.ReadAllBytes(path);
+            // The logical screen is 48x36 even when the first frame is smaller.
+            b[6] = 48; b[7] = 0; b[8] = 36; b[9] = 0;
+            int frame = 0, pos = 13;
+            if ((b[10] & 0x80) != 0) pos += 3 << ((b[10] & 7) + 1);
+            void SkipSubBlocks() { while (b[pos] != 0) pos += b[pos] + 1; pos++; }
+            while (b[pos] != 0x3B)
+            {
+                if (b[pos] == 0x21)
+                {
+                    if (b[pos + 1] == 0xF9)
+                        b[pos + 3] = (byte)((b[pos + 3] & ~0x1C) | (sets[s][frame].Item6 << 2));
+                    pos += 2;
+                    SkipSubBlocks();
+                }
+                else
+                {
+                    byte packed = b[pos + 9];
+                    pos += 10;
+                    if ((packed & 0x80) != 0) pos += 3 << ((packed & 7) + 1);
+                    pos++;
+                    SkipSubBlocks();
+                    frame++;
+                }
+            }
+            File.WriteAllBytes(path, b);
+        }
+    }
+
+    // The trimmer's frames (SkiaAnimatedImage.GetFrame), its preview
+    // (RenderFrame) and Export: lossless, re-encoded, cropped and resized.
+    static bool RunGifReencodeCase(JObject c, string o)
+    {
+        if ((string)c["tool"] != "gif-reencode") return false;
+        string path = Path.Combine(Inputs_, (string)c["file"]);
+        Assembly asm = typeof(MonitorTestPatternControl).Assembly;
+        Type doc = asm.GetType("ShareX.Tools.AnimatedGifTrimmerDocument");
+        JObject r = new();
+        Directory.CreateDirectory(o);
+        using (ShareX.HelpersLib.SkiaAnimatedImage image = new(path))
+        {
+            r["frames"] = image.FrameCount;
+            for (int i = 0; i < image.FrameCount; i++)
+            {
+                using SkiaSharp.SKBitmap f = image.GetFrame(i);
+                Sxrb(Path.Combine(o, $"frame{i}.sxrb"), f);
+            }
+        }
+        using (IDisposable d = (IDisposable)doc.GetMethod("Open").Invoke(null, [path, CancellationToken.None]))
+        {
+            int count = (int)doc.GetProperty("FrameCount").GetValue(d);
+            int preview = (int?)c["preview"] ?? 640;
+            for (int i = 0; i < count; i++)
+                File.WriteAllBytes(Path.Combine(o, $"preview{i}.png"),
+                    (byte[])doc.GetMethod("RenderFrame").Invoke(d, [i, CancellationToken.None, preview]));
+            JArray results = new();
+            int n = 0;
+            foreach (JArray e in (JArray)c["exports"])
+            {
+                int first = (int)e[0], end = (int)e[1];
+                bool reencode = (bool)e[2];
+                JArray cr = (JArray)e[3], sz = (JArray)e[4];
+                SkiaSharp.SKRectI crop = SkiaSharp.SKRectI.Create((int)cr[0], (int)cr[1], (int)cr[2], (int)cr[3]);
+                SkiaSharp.SKSizeI size = new((int)sz[0], (int)sz[1]);
+                string outPath = Path.Combine(o, $"export{n++}.gif");
+                File.Delete(outPath);
+                try
+                {
+                    bool ok = (bool)doc.GetMethod("Export").Invoke(d, [outPath, first, end, reencode, crop, size, null, CancellationToken.None]);
+                    results.Add(ok);
+                }
+                catch (TargetInvocationException ex) { results.Add(ex.InnerException.GetType().Name); }
+            }
+            r["exports"] = results;
+        }
+        File.WriteAllText(o + ".json", r.ToString());
+        return true;
+    }
+
     static bool RunGifTrimCase(JObject c, string o)
     {
+        if (RunGifReencodeCase(c, o)) return true;
         if ((string)c["tool"] != "gif-trim") return false;
         string path = Path.Combine(Inputs_, (string)c["file"]);
         Assembly asm = typeof(MonitorTestPatternControl).Assembly;
