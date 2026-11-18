@@ -4700,6 +4700,7 @@ dependencies = [
  "sharex-settings",
  "sharex-skia",
  "ttf-parser",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

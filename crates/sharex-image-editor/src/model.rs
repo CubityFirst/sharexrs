@@ -365,11 +365,24 @@ impl Default for SpeechBalloonProps {
     }
 }
 
-/// `ImageAnnotation`.
+/// `ImageAnnotation` (an inserted image, or a region cloned with the
+/// Clone tool, whose `ToolType` is `Clone`).
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct ImageProps {
     pub image_path: String,
+    /// `ImageBitmap`: the image the annotation shows (`LoadImage`,
+    /// `SetImage`). ShareX doesn't serialise it, so JSON leaves it empty
+    /// and nothing is drawn until it's set.
+    #[serde(skip)]
+    pub bitmap: Option<std::sync::Arc<sharex_skia::Pixmap>>,
+}
+
+impl ImageProps {
+    /// `SetImage`.
+    pub fn set_image(&mut self, bitmap: sharex_skia::Pixmap) {
+        self.bitmap = Some(std::sync::Arc::new(bitmap));
+    }
 }
 
 /// `EmojiAnnotation`.

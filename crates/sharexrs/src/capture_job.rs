@@ -259,6 +259,19 @@ impl ImageTask {
             self.metadata.image =
                 self.apply_image_effects(ui).ok_or("Error: Applying image effects resulted empty image.")?;
         }
+        // `TaskHelpers.AnnotateImage(Image, null, Info.TaskSettings, true)`:
+        // cancelled, the task stops.
+        if job.contains(AfterCaptureTasks::AnnotateImage)
+            && let Some(ui) = ui
+        {
+            match ui.annotate_image(&self.metadata.image, &self.task) {
+                Some(image) => self.metadata.image = image,
+                None => {
+                    eprintln!("Annotate image: cancelled, the task stops.");
+                    return Ok(outcome);
+                }
+            }
+        }
         if job.contains(AfterCaptureTasks::CopyImageToClipboard) {
             match sharex_capture::clipboard::copy_image(&self.metadata.image, owner) {
                 Ok(()) => {

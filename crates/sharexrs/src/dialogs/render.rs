@@ -256,6 +256,7 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         }
         s if crate::history_ui::is_render_screen(s) => crate::history_ui::render_dialog(s, o)?,
         s if crate::ocr_window::is_render_screen(s) => crate::ocr_window::render_dialog(s, o)?,
+        s if crate::image_editor::is_render_screen(s) => crate::image_editor::render_dialog(s, o)?,
         s if crate::image_tools::render::is_render_screen(s) => crate::image_tools::render::render_dialog(s, o)?,
         s if crate::image_effects::render::is_render_screen(s) => crate::image_effects::render::render_dialog(s, o)?,
         s if crate::screen_tools::render::is_render_screen(s) => crate::screen_tools::render::render_dialog(s, o)?,
@@ -285,6 +286,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
     ) || screen.starts_with("destination-")
         || crate::history_ui::is_render_screen(screen)
         || crate::ocr_window::is_render_screen(screen)
+        || crate::image_editor::is_render_screen(screen)
         || crate::image_tools::render::is_render_screen(screen)
         || crate::image_effects::render::is_render_screen(screen)
         || crate::screen_tools::render::is_render_screen(screen)

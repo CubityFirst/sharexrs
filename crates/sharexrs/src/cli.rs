@@ -398,10 +398,11 @@ impl App {
             }
             // `PinToScreen(filePath)`.
             HotkeyType::PinToScreen | HotkeyType::PinToScreenFromFile => self.pin_file(event_loop, std::path::Path::new(&file), Some(task)),
-            // `AnnotateImageFromFile`, the image and
-            // video tools on a file: their windows aren't ported.
-            HotkeyType::ImageEditor
-            | HotkeyType::PhotoEditor
+            // `AnnotateImageFromFile(filePath, safeTaskSettings)`.
+            HotkeyType::ImageEditor => self.annotate_file(event_loop, std::path::Path::new(&file), Some(task)),
+            // The image and video tools on a file: their windows aren't
+            // ported.
+            HotkeyType::PhotoEditor
             | HotkeyType::PixelEditor
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects

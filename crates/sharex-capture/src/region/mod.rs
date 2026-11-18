@@ -299,6 +299,8 @@ pub struct RegionCapture {
     annotation_right_pressed: bool,
     /// A slider of the options row being dragged.
     slider_drag: Option<options_row::OptionItem>,
+    /// The tool options' open popup.
+    pub(crate) popups: crate::editor_popups::Popups,
 
     /// Escape went to the text box, so its release doesn't cancel.
     escape_to_text: bool,
@@ -373,6 +375,7 @@ impl RegionCapture {
             region_tool_active: true,
             annotation_right_pressed: false,
             slider_drag: None,
+            popups: Default::default(),
             escape_to_text: false,
         };
         // `OnOpened`: the pointer, the toolbar on its monitor, the hover.
@@ -629,6 +632,26 @@ impl RegionCapture {
         }
         // `OnCaptureHostPointerPressed`
         self.toolbar.follows_pointer = false;
+        // An open popup has the press; one elsewhere dismisses it (its own
+        // button's press toggles it below).
+        if let Some(open) = self.popups.open {
+            match self.toolbar_hover {
+                Some(toolbar::Part::Popup) => return Outcome::Continue,
+                Some(toolbar::Part::Option(item)) if item == open && button == Button::Left => {}
+                _ => {
+                    self.popups.close();
+                    return Outcome::Continue;
+                }
+            }
+        }
+        // A right click on the shadow button opens its options.
+        if button == Button::Right
+            && self.toolbar_hover == Some(toolbar::Part::Option(options_row::OptionItem::Shadow))
+            && let Some(e) = self.editor.as_ref()
+        {
+            self.popups.toggle(options_row::OptionItem::Shadow, &e.tools);
+            return Outcome::Continue;
+        }
         if button == Button::Left
             && let Some(part) = self.toolbar_hover
         {
@@ -844,6 +867,14 @@ impl RegionCapture {
         if self.keyboard_enabled && !matches!(key, Key::Shift | Key::Control | Key::Alt | Key::Super) {
             self.toolbar.follows_pointer = false;
         }
+        // An open popup has the keys; Escape closes it.
+        if self.popups.open.is_some() {
+            if key == Key::Escape {
+                self.popups.close();
+                self.escape_to_text = true;
+            }
+            return Outcome::Continue;
+        }
         let none = m == Modifiers::default();
         if self.keyboard_enabled && none && matches!(key, Key::Tab | Key::NumPad0) {
             self.activate_region_tool();
@@ -1049,6 +1080,12 @@ impl RegionCapture {
     /// A control of the options row was pressed.
     fn option_pressed(&mut self, item: options_row::OptionItem) {
         use options_row::OptionItem as O;
+        if crate::editor_popups::Popups::has_popup(item)
+            && let Some(e) = self.editor.as_ref()
+        {
+            self.popups.toggle(item, &e.tools);
+            return;
+        }
         let Some(e) = self.editor.as_mut() else { return };
         if item.is_slider() {
             self.slider_drag = Some(item);
@@ -1285,7 +1322,7 @@ impl RegionCapture {
                 }
             }
             toolbar::Part::Option(item) => self.option_pressed(item),
-            toolbar::Part::Background => {}
+            toolbar::Part::Background | toolbar::Part::Popup => {}
         }
         Outcome::Continue
     }

@@ -24,6 +24,10 @@ pub fn anti_fill_path(path: &Path, clip: IRect, blitter: &mut dyn Blitter) {
 /// keeps the scan converters off their mask blitters (an `SkAAClip` being
 /// built, or a draw through one).
 pub fn anti_fill_path_rle(path: &Path, clip: IRect, blitter: &mut dyn Blitter, force_rle: bool) {
+    let clip = crate::blitter::device_clip(clip);
+    if clip.is_empty() {
+        return;
+    }
     let ir = path.bounds().round_out();
     if ir.is_empty() {
         return;
@@ -157,6 +161,7 @@ fn antifilldot8(l: i32, t: i32, r: i32, b: i32, blitter: &mut dyn Blitter, fill_
 
 /// `SkScan::AntiFillRect` with a rectangular clip.
 pub fn anti_fill_rect(r: Rect, clip: IRect, blitter: &mut dyn Blitter) {
+    let clip = crate::blitter::device_clip(clip);
     // antifillrect(const SkRect&): XRect_set (SkScalarToFixed, truncating),
     // then SkFixedToFDot8, which rounds: (x + 0x80) >> 8.
     let fdot8 = |v: f32| {

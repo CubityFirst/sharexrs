@@ -2088,6 +2088,4080 @@
      "StrokeWidth": 4
     }
    ]
+  },
+  {
+   "name": "image-1to1",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 40,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 104,
+      "Y": 78
+     },
+     "ImagePath": "images/sticker.png"
+    }
+   ]
+  },
+  {
+   "name": "image-fractional",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 40.4,
+      "Y": 30.7
+     },
+     "EndPoint": {
+      "X": 104.4,
+      "Y": 78.7
+     },
+     "ImagePath": "images/sticker.png"
+    }
+   ]
+  },
+  {
+   "name": "image-scaled-up",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 135,
+      "Y": 105
+     },
+     "ImagePath": "images/tile.png"
+    }
+   ]
+  },
+  {
+   "name": "image-scaled-down",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 200,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 232,
+      "Y": 174
+     },
+     "ImagePath": "images/sticker.png"
+    }
+   ]
+  },
+  {
+   "name": "image-stretched-reversed",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 300,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 180.5,
+      "Y": 160.25
+     },
+     "ImagePath": "images/sticker.png"
+    }
+   ]
+  },
+  {
+   "name": "image-rotated",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 150,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 214,
+      "Y": 148
+     },
+     "ImagePath": "images/sticker.png",
+     "RotationAngle": 30
+    }
+   ]
+  },
+  {
+   "name": "image-tiny",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 10.6,
+      "Y": 280.2
+     },
+     "EndPoint": {
+      "X": 10.9,
+      "Y": 280.4
+     },
+     "ImagePath": "images/tile.png"
+    }
+   ]
+  },
+  {
+   "name": "image-over-shapes",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 30,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 160,
+      "Y": 120
+     },
+     "FillColor": "#8000A0FF"
+    },
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 124,
+      "Y": 88
+     },
+     "ImagePath": "images/sticker.png"
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 100,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 140
+     }
+    }
+   ]
+  },
+  {
+   "name": "cursor-bundled",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 132,
+      "Y": 132
+     },
+     "CursorType": "PanNE"
+    }
+   ]
+  },
+  {
+   "name": "cursor-bundled-uniform",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 200,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 250,
+      "Y": 100
+     },
+     "CursorType": "NoMove2D"
+    }
+   ]
+  },
+  {
+   "name": "cursor-bundled-rotated",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 60,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 92,
+      "Y": 232
+     },
+     "CursorType": "PanSW",
+     "RotationAngle": 45
+    }
+   ]
+  },
+  {
+   "name": "cursor-bundled-fractional",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 240.5,
+      "Y": 180.25
+     },
+     "EndPoint": {
+      "X": 272.5,
+      "Y": 212.25
+     },
+     "CursorType": "HSplit"
+    }
+   ]
+  },
+  {
+   "name": "cursor-system-default",
+   "systemCursor": "Default",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 300,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 332,
+      "Y": 72
+     },
+     "CursorType": "Default"
+    }
+   ]
+  },
+  {
+   "name": "cursor-system-ibeam",
+   "systemCursor": "IBeam",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 300,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 348,
+      "Y": 168
+     },
+     "CursorType": "IBeam"
+    }
+   ]
+  },
+  {
+   "name": "cursor-system-hand",
+   "systemCursor": "Hand",
+   "annotations": [
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 20,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 52,
+      "Y": 272
+     },
+     "CursorType": "Hand",
+     "RotationAngle": -20
+    }
+   ]
+  },
+  {
+   "name": "eraser-solid",
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 160,
+      "Y": 120
+     },
+     "FillColor": "#FF336699"
+    }
+   ]
+  },
+  {
+   "name": "eraser-solid-rotated",
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 200,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 110
+     },
+     "FillColor": "#C0FFAA00",
+     "RotationAngle": 20
+    }
+   ]
+  },
+  {
+   "name": "eraser-edges-json",
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 60,
+      "Y": 26
+     },
+     "FillMode": "StretchHorizontally",
+     "EdgePixels": [
+      4294901760,
+      4278255360,
+      4278190335,
+      4294967295,
+      4278190080,
+      2164195583
+     ]
+    },
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 100.5,
+      "Y": 200.5
+     },
+     "EndPoint": {
+      "X": 300.5,
+      "Y": 260.5
+     },
+     "FillMode": "StretchVertically",
+     "EdgePixels": [
+      4278190080,
+      4278848268,
+      4279506456,
+      4280164644,
+      4280822832,
+      4281481020,
+      4282139208,
+      4282797396,
+      4283455584,
+      4284113772,
+      4284771960,
+      4285430148,
+      4286088336,
+      4286746524,
+      4287404712,
+      4288062900,
+      4288721088,
+      4289379276,
+      4290037464,
+      4290695652
+     ]
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-horizontal",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 20,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 80,
+      "Y": 60
+     }
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-vertical",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 120,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 180,
+      "Y": 60
+     }
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-solid",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 40,
+      "Y": 90
+     },
+     "EndPoint": {
+      "X": 160,
+      "Y": 140
+     },
+     "FillColor": "#FF808080"
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-clamped",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 150,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 230,
+      "Y": 70
+     }
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-fractional",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 20.6,
+      "Y": 10.3
+     },
+     "EndPoint": {
+      "X": 80.2,
+      "Y": 60.9
+     }
+    }
+   ]
+  },
+  {
+   "name": "eraser-fill-reversed",
+   "base": "images/eraser-base.png",
+   "configureFill": true,
+   "annotations": [
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 90,
+      "Y": 70
+     },
+     "EndPoint": {
+      "X": 10,
+      "Y": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "op-crop",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      30.7,
+      40.2,
+      250.9,
+      210.5
+     ]
+    }
+   ]
+  },
+  {
+   "name": "op-crop-effects",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     },
+     "Amount": 6
+    },
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 180,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 130
+     },
+     "Amount": 12
+    },
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 60,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 240
+     }
+    },
+    {
+     "$type": "Spotlight",
+     "StartPoint": {
+      "X": 250,
+      "Y": 160
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 270
+     },
+     "IsEllipse": true
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      50,
+      30,
+      350,
+      250
+     ]
+    }
+   ]
+  },
+  {
+   "name": "op-crop-undo",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      30,
+      40,
+      250,
+      210
+     ]
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "name": "op-crop-undo-redo",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      30,
+      40,
+      250,
+      210
+     ]
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "redo"
+    }
+   ]
+  },
+  {
+   "name": "op-crop-whole",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      -10,
+      -10,
+      500,
+      400
+     ]
+    }
+   ]
+  },
+  {
+   "name": "op-perform-crop",
+   "annotations": [
+    {
+     "$type": "Crop",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300.6,
+      "Y": 220.4
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "performCrop"
+    }
+   ]
+  },
+  {
+   "name": "op-perform-crop-undo",
+   "annotations": [
+    {
+     "$type": "Crop",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 220
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "performCrop"
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "name": "op-cutout-vertical",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 160,
+      "Y": 140
+     },
+     "EndPoint": {
+      "X": 190,
+      "Y": 180
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "cutOut",
+     "start": 150,
+     "end": 200,
+     "vertical": true
+    }
+   ]
+  },
+  {
+   "name": "op-cutout-horizontal",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 160,
+      "Y": 125
+     },
+     "EndPoint": {
+      "X": 190,
+      "Y": 145
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "cutOut",
+     "start": 170,
+     "end": 120,
+     "vertical": false
+    }
+   ]
+  },
+  {
+   "name": "op-cutout-effects",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     },
+     "Amount": 6
+    },
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 180,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 130
+     },
+     "Amount": 12
+    },
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 60,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 240
+     }
+    },
+    {
+     "$type": "Spotlight",
+     "StartPoint": {
+      "X": 250,
+      "Y": 160
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 270
+     },
+     "IsEllipse": true
+    }
+   ],
+   "ops": [
+    {
+     "op": "cutOut",
+     "start": 100,
+     "end": 160,
+     "vertical": true
+    }
+   ]
+  },
+  {
+   "name": "op-cutout-undo",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "cutOut",
+     "start": 150,
+     "end": 200,
+     "vertical": true
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "name": "op-perform-cutout",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "performCutOut",
+     "rect": [
+      140.3,
+      0,
+      181.2,
+      300
+     ],
+     "vertical": true
+    }
+   ]
+  },
+  {
+   "name": "op-perform-cutout-horizontal",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "performCutOut",
+     "rect": [
+      0,
+      101.5,
+      400,
+      150.5
+     ],
+     "vertical": false
+    }
+   ]
+  },
+  {
+   "name": "op-rotate90cw",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate90cw"
+    }
+   ]
+  },
+  {
+   "name": "op-rotate90ccw",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate90ccw"
+    }
+   ]
+  },
+  {
+   "name": "op-rotate180",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate180"
+    }
+   ]
+  },
+  {
+   "name": "op-rotate-custom",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate",
+     "angle": 30
+    }
+   ]
+  },
+  {
+   "name": "op-rotate-custom-clipped",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate",
+     "angle": -20,
+     "autoResize": false
+    }
+   ]
+  },
+  {
+   "name": "op-flip-horizontal",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 200,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 280,
+      "Y": 90
+     },
+     "RotationAngle": 25
+    }
+   ],
+   "ops": [
+    {
+     "op": "flipH"
+    }
+   ]
+  },
+  {
+   "name": "op-flip-vertical",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 200,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 280,
+      "Y": 90
+     },
+     "RotationAngle": 25
+    }
+   ],
+   "ops": [
+    {
+     "op": "flipV"
+    }
+   ]
+  },
+  {
+   "name": "op-resize-down",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "resize",
+     "width": 300,
+     "height": 200
+    }
+   ]
+  },
+  {
+   "name": "op-resize-up",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    }
+   ],
+   "ops": [
+    {
+     "op": "resize",
+     "width": 500,
+     "height": 360
+    }
+   ]
+  },
+  {
+   "name": "op-resize-text",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Text",
+     "StartPoint": {
+      "X": 40,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 140
+     },
+     "Text": "Resized",
+     "TextColor": "#FF0000FF",
+     "FontSize": 40
+    }
+   ],
+   "ops": [
+    {
+     "op": "resize",
+     "width": 300,
+     "height": 240
+    }
+   ]
+  },
+  {
+   "name": "op-resize-canvas",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "resizeCanvas",
+     "top": 10,
+     "right": 20,
+     "bottom": 30,
+     "left": 40,
+     "color": "#FF00FF00"
+    }
+   ]
+  },
+  {
+   "name": "op-resize-canvas-crop",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "resizeCanvas",
+     "top": -20,
+     "right": 15,
+     "bottom": -10,
+     "left": -30,
+     "color": "#80FF0000"
+    }
+   ]
+  },
+  {
+   "name": "op-auto-crop",
+   "base": "images/border.png",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 20,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 60,
+      "Y": 50
+     },
+     "StrokeWidth": 2
+    }
+   ],
+   "ops": [
+    {
+     "op": "autoCrop",
+     "tolerance": 10
+    }
+   ]
+  },
+  {
+   "name": "op-auto-crop-strict",
+   "base": "images/border.png",
+   "annotations": [],
+   "ops": [
+    {
+     "op": "autoCrop",
+     "tolerance": 0
+    }
+   ]
+  },
+  {
+   "name": "op-auto-expand",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": -30,
+      "Y": -20
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 80
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 350,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 430,
+      "Y": 320
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "autoExpand",
+     "margin": 10,
+     "color": "#FFFFFFFF"
+    }
+   ]
+  },
+  {
+   "name": "op-flatten",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     },
+     "Amount": 6
+    }
+   ],
+   "ops": [
+    {
+     "op": "flatten"
+    },
+    {
+     "op": "crop",
+     "rect": [
+      20,
+      20,
+      380,
+      280
+     ]
+    }
+   ]
+  },
+  {
+   "name": "op-flatten-undo",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "flatten"
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "name": "op-clone",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    }
+   ],
+   "ops": [
+    {
+     "op": "clone",
+     "rect": [
+      30.5,
+      20.25,
+      150.75,
+      140.5
+     ]
+    },
+    {
+     "op": "resize",
+     "width": 320,
+     "height": 250
+    }
+   ]
+  },
+  {
+   "name": "op-clone-clipped",
+   "annotations": [],
+   "ops": [
+    {
+     "op": "clone",
+     "rect": [
+      -20,
+      250,
+      60,
+      330
+     ]
+    },
+    {
+     "op": "flipV"
+    }
+   ]
+  },
+  {
+   "name": "op-history-trim",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    }
+   ],
+   "ops": [
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "rotate90cw"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    }
+   ]
+  },
+  {
+   "name": "op-history-mixed",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    }
+   ],
+   "ops": [
+    {
+     "op": "crop",
+     "rect": [
+      10,
+      10,
+      390,
+      290
+     ]
+    },
+    {
+     "op": "flipH"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "cutOut",
+     "start": 50,
+     "end": 80,
+     "vertical": false
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "undo"
+    },
+    {
+     "op": "redo"
+    }
+   ]
+  },
+  {
+   "name": "emoji-grinning",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 160,
+      "Y": 160
+     },
+     "UnicodeSequence": "1f600"
+    }
+   ]
+  },
+  {
+   "name": "emoji-small",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 200,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 232,
+      "Y": 62
+     },
+     "UnicodeSequence": "1f44d"
+    }
+   ]
+  },
+  {
+   "name": "emoji-zwj",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 250,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 200
+     },
+     "UnicodeSequence": "1f469 200d 1f4bb"
+    }
+   ]
+  },
+  {
+   "name": "emoji-flag",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 60,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 280
+     },
+     "UnicodeSequence": "1f1fa-1f1f8"
+    }
+   ]
+  },
+  {
+   "name": "emoji-rotated",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 180,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 260
+     },
+     "UnicodeSequence": "2764 fe0f",
+     "RotationAngle": 30
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-blur",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 160
+     },
+     "Amount": 8,
+     "RotationAngle": 25
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-pixelate",
+   "annotations": [
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 150.5,
+      "Y": 60.25
+     },
+     "EndPoint": {
+      "X": 330.7,
+      "Y": 200.4
+     },
+     "Amount": 12,
+     "RotationAngle": -40
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-highlight",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 40,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 180
+     },
+     "RotationAngle": 15
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-magnify",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "StartPoint": {
+      "X": 180,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 320,
+      "Y": 200
+     },
+     "Amount": 2,
+     "RotationAngle": 30
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-magnify-ellipse",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "StartPoint": {
+      "X": 60,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 230
+     },
+     "Amount": 3,
+     "IsEllipse": true,
+     "StrokeColor": "#FFFF8000",
+     "StrokeWidth": 4,
+     "RotationAngle": -20
+    }
+   ]
+  },
+  {
+   "name": "shadow-step",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 100,
+      "Y": 100
+     },
+     "Number": 3,
+     "FontSize": 30,
+     "FillColor": "#FFF23C3C",
+     "StrokeWidth": 0,
+     "TextColor": "#00000000",
+     "ShadowEnabled": true,
+     "TailEnabled": false
+    }
+   ]
+  },
+  {
+   "name": "shadow-step-tail",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 120,
+      "Y": 110
+     },
+     "EndPoint": {
+      "X": 120,
+      "Y": 110
+     },
+     "Number": 5,
+     "FontSize": 30,
+     "FillColor": "#FF2080F0",
+     "StrokeWidth": 2,
+     "StrokeColor": "#FFFFFFFF",
+     "TextColor": "#00000000",
+     "ShadowEnabled": true,
+     "ShadowBlurRadius": 6,
+     "ShadowOffsetX": 5,
+     "ShadowOffsetY": -2,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 220,
+      "Y": 200
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "Text": "",
+     "ShadowEnabled": true
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon-tail",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 140
+     },
+     "Text": "",
+     "ShadowEnabled": true,
+     "ShadowColor": "#C0000080",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 120,
+      "Y": 240
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon-rotated",
+   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 120,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 150
+     },
+     "Text": "",
+     "ShadowEnabled": true,
+     "RotationAngle": 20,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 150,
+      "Y": 250
+     }
+    }
+   ]
+  },
+  {
+   "name": "shadow-rect-rotated",
+   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 120,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 280,
+      "Y": 180
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": 30,
+     "FillColor": "#80FFFFFF"
+    }
+   ]
+  },
+  {
+   "name": "region-shapes",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "snapshotRect": [
+    20,
+    15,
+    360,
+    270
+   ]
+  },
+  {
+   "name": "region-translucent",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 240,
+      "Y": 200
+     },
+     "FillColor": "#A02080F0",
+     "StrokeWidth": 6
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 150,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 260
+     },
+     "FillColor": "#60FF8000",
+     "CornerRadius": 12,
+     "StrokeColor": "#C000A050",
+     "BorderStyle": "Dash"
+    }
+   ],
+   "snapshotRect": [
+    0,
+    0,
+    400,
+    300
+   ]
+  },
+  {
+   "name": "region-lines",
+   "annotations": [
+    {
+     "$type": "Line",
+     "StartPoint": {
+      "X": 30,
+      "Y": 280
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 20
+     },
+     "StrokeWidth": 1
+    },
+    {
+     "$type": "Line",
+     "StartPoint": {
+      "X": 30,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 280
+     },
+     "StrokeWidth": 2.5
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 50,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 350,
+      "Y": 160
+     },
+     "Style": "Modern"
+    }
+   ],
+   "snapshotRect": [
+    10.5,
+    10.25,
+    380.5,
+    280.75
+   ]
+  },
+  {
+   "name": "region-effects",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     },
+     "Amount": 6
+    },
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 180,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 130
+     },
+     "Amount": 12
+    },
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 60,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 240
+     }
+    },
+    {
+     "$type": "Spotlight",
+     "StartPoint": {
+      "X": 250,
+      "Y": 160
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 270
+     },
+     "IsEllipse": true
+    }
+   ],
+   "snapshotRect": [
+    30,
+    30,
+    340,
+    240
+   ]
+  },
+  {
+   "name": "region-shadow",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 60,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 170
+     },
+     "ShadowEnabled": true
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 240,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 80
+     },
+     "ShadowEnabled": true
+    }
+   ],
+   "snapshotRect": [
+    40,
+    30,
+    340,
+    250
+   ]
+  },
+  {
+   "name": "region-shadow-rect",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 60,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 170
+     },
+     "ShadowEnabled": true
+    }
+   ],
+   "snapshotRect": [
+    40,
+    30,
+    340,
+    250
+   ]
+  },
+  {
+   "name": "region-shadow-arrow",
+   "annotations": [
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 240,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 80
+     },
+     "ShadowEnabled": true
+    }
+   ],
+   "snapshotRect": [
+    40,
+    30,
+    340,
+    250
+   ]
+  },
+  {
+   "name": "region-images",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 40,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 104,
+      "Y": 78
+     },
+     "ImagePath": "images/sticker.png",
+     "RotationAngle": 15
+    },
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 200,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 250,
+      "Y": 100
+     },
+     "CursorType": "NoMove2D"
+    },
+    {
+     "$type": "SmartEraser",
+     "StartPoint": {
+      "X": 260,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 360,
+      "Y": 260
+     },
+     "FillColor": "#C0336699"
+    }
+   ],
+   "snapshotRect": [
+    0,
+    0,
+    400,
+    300
+   ]
+  },
+  {
+   "name": "region-none",
+   "annotations": [],
+   "snapshotRect": [
+    33.4,
+    21.6,
+    120.2,
+    80.9
+   ]
+  },
+  {
+   "name": "region-clipped",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    }
+   ],
+   "snapshotRect": [
+    -50,
+    200,
+    200,
+    300
+   ]
+  },
+  {
+   "name": "region-text",
+   "annotations": [
+    {
+     "$type": "Text",
+     "StartPoint": {
+      "X": 40,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 140
+     },
+     "Text": "Region",
+     "TextColor": "#FF0000FF",
+     "FontSize": 40
+    }
+   ],
+   "snapshotRect": [
+    20,
+    40,
+    320,
+    140
+   ],
+   "fonts": [
+    "Segoe UI"
+   ]
   }
  ]
 }

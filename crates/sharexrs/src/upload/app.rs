@@ -170,6 +170,10 @@ impl App {
                 self.pin_image(event_loop, *image, None, &task);
                 return;
             }
+            super::UiRequest::Annotate(image, task, reply) => {
+                self.open_image_editor(event_loop, Some(*image), None, *task, Some(reply));
+                return;
+            }
             super::UiRequest::ImageEffects(image, task, reply) => {
                 self.open_image_effects_editor(event_loop, *image, *task, reply);
                 return;

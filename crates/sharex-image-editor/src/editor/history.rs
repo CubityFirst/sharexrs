@@ -1,25 +1,57 @@
 //! `EditorHistory`: undo and redo as snapshots of the annotation list
-//! (`EditorMemento` without a canvas: region capture and the annotation
-//! tools never change the image itself).
+//! (`EditorMemento`), with the image itself for the destructive operations
+//! (crop, cut out, rotate, resize...: [`super::editor_core::CoreMemento`]).
+
+use sharex_skia::Pixmap;
 
 use crate::model::Annotation;
 
 /// `EditorHistory.MaxMementos`.
 const MAX_MEMENTOS: usize = 50;
 
+/// `EditorHistory.MaxCanvasMementos`: full image copies kept.
+const MAX_CANVAS_MEMENTOS: usize = 5;
+
+/// What a history keeps: whether a snapshot holds the image
+/// (`EditorMemento.Canvas != null`).
+pub trait Snapshot {
+    fn has_canvas(&self) -> bool {
+        false
+    }
+}
+
+/// The workspace's `EditorMemento`: the annotations, and the image for
+/// the operations that change it (crop, cut out, flatten:
+/// `CreateCanvasMemento`).
 #[derive(Clone, Debug)]
 pub struct Memento {
     pub annotations: Vec<Annotation>,
     pub selected: Option<String>,
+    /// The image, for a canvas memento.
+    pub canvas: Option<Pixmap>,
 }
 
-#[derive(Default)]
-pub struct History {
-    undo: Vec<Memento>,
-    redo: Vec<Memento>,
+impl Snapshot for Memento {
+    fn has_canvas(&self) -> bool {
+        self.canvas.is_some()
+    }
 }
 
-impl History {
+pub struct History<M = Memento> {
+    undo: Vec<M>,
+    redo: Vec<M>,
+}
+
+impl<M> Default for History<M> {
+    fn default() -> Self {
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+        }
+    }
+}
+
+impl<M: Snapshot> History<M> {
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
@@ -28,24 +60,58 @@ impl History {
         !self.redo.is_empty()
     }
 
-    /// `AddMemento`: pushed, trimmed to the newest 50, redo cleared.
-    pub fn add(&mut self, m: Memento) {
+    /// `AddMemento`: pushed, trimmed (`TrimUndoHistory`), redo cleared.
+    pub fn add(&mut self, m: M) {
         self.undo.push(m);
-        if self.undo.len() > MAX_MEMENTOS {
-            let extra = self.undo.len() - MAX_MEMENTOS;
-            self.undo.drain(..extra);
+        self.trim();
+        self.redo.clear();
+    }
+
+    /// `TrimUndoHistory`: the newest 50 snapshots, stopping before a sixth
+    /// one with an image, so undo never skips a step.
+    fn trim(&mut self) {
+        let mut keep = 0;
+        let mut canvases = 0;
+        for m in self.undo.iter().rev() {
+            if keep >= MAX_MEMENTOS {
+                break;
+            }
+            if m.has_canvas() {
+                canvases += 1;
+                if canvases > MAX_CANVAS_MEMENTOS {
+                    break;
+                }
+            }
+            keep += 1;
         }
+        let extra = self.undo.len() - keep;
+        self.undo.drain(..extra);
+    }
+
+    /// The snapshot `undo` would restore.
+    pub fn peek_undo(&self) -> Option<&M> {
+        self.undo.last()
+    }
+
+    /// The snapshot `redo` would restore.
+    pub fn peek_redo(&self) -> Option<&M> {
+        self.redo.last()
+    }
+
+    /// `ClearAll(resetHistory: true)`: a new history.
+    pub fn reset(&mut self) {
+        self.undo.clear();
         self.redo.clear();
     }
 
     /// `Undo`: the current state goes on the redo stack.
-    pub fn undo(&mut self, current: Memento) -> Option<Memento> {
+    pub fn undo(&mut self, current: M) -> Option<M> {
         let m = self.undo.pop()?;
         self.redo.push(current);
         Some(m)
     }
 
-    pub fn redo(&mut self, current: Memento) -> Option<Memento> {
+    pub fn redo(&mut self, current: M) -> Option<M> {
         let m = self.redo.pop()?;
         self.undo.push(current);
         Some(m)

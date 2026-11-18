@@ -82,6 +82,13 @@ pub trait TaskUi: Send + Sync {
         let _ = (image, task);
         None
     }
+    /// `TaskHelpers.AnnotateImage(image, null, taskSettings, taskMode:
+    /// true)`: the image editor window on a capture; the task's thread
+    /// waits for the edited image (`None`: cancelled, the task stops).
+    fn annotate_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let _ = task;
+        Some(image.clone())
+    }
 }
 
 /// What the before upload window shows of a task (`TaskInfo`).
@@ -106,6 +113,9 @@ pub enum UiRequest {
     /// The Image effects window (Editor mode) on a capture; answered with
     /// the presets and the selected index when it closes.
     ImageEffects(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<(Vec<serde_json::Value>, i32)>),
+    /// The image editor on a capture (the Annotate image after capture
+    /// task); answered with the edited image when it closes.
+    Annotate(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
 }
@@ -119,6 +129,7 @@ impl std::fmt::Debug for UiRequest {
             Self::Ocr(..) => f.write_str("Ocr"),
             Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
+            Self::Annotate(..) => f.write_str("Annotate"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
         }
     }
@@ -204,6 +215,13 @@ impl TaskUi for SystemUi {
         let (tx, rx) = mpsc::channel();
         r(UiRequest::ImageEffects(Box::new(image.clone()), Box::new(task.clone()), tx));
         rx.recv().ok()
+    }
+
+    fn annotate_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let Some(r) = &self.requests else { return Some(image.clone()) };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::Annotate(Box::new(image.clone()), Box::new(task.clone()), tx));
+        rx.recv().ok().flatten()
     }
 
     fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {

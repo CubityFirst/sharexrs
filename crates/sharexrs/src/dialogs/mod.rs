@@ -61,6 +61,8 @@ pub struct Spec {
     pub activate: bool,
     /// `WindowDecorations="None"` with a transparent background.
     pub borderless: bool,
+    /// `WindowState="Maximized"`.
+    pub maximized: bool,
 }
 
 impl Spec {
@@ -79,6 +81,7 @@ impl Spec {
             maximizable: true,
             activate: true,
             borderless: false,
+            maximized: false,
         }
     }
 
@@ -152,6 +155,9 @@ pub enum Effect {
     HighlighterOptions(Box<sharex_tools::mouse_highlighter::MouseHighlighterOptions>),
     /// A source of the Pin to screen startup window.
     PinFrom(crate::screen_tools::pin::Source),
+    /// `TaskHelpers.PinToScreen(image, taskSettings)` (the image editor's
+    /// Pin to screen).
+    PinImage(RgbaImage, Box<TaskSettings>),
     /// The pin options window saved (`ApplyOptions` on that pin).
     PinOptionsSaved(WindowId, Box<sharex_tools::pin::PinToScreenOptions>),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -401,6 +407,9 @@ impl App {
             None => center(&w.window, event_loop),
         }
         w.window.set_visible(true);
+        if spec.maximized {
+            w.window.set_maximized(true);
+        }
         if spec.activate {
             w.window.focus_window();
         }
@@ -565,6 +574,7 @@ impl App {
                 Effect::HighlighterToggle(o) => self.highlighter_toggle(event_loop, *o),
                 Effect::HighlighterOptions(o) => self.highlighter_options_changed(*o),
                 Effect::PinFrom(source) => self.pin_from(event_loop, id, source),
+                Effect::PinImage(image, task) => self.pin_image(event_loop, image, None, &task),
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
@@ -606,7 +616,7 @@ impl App {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.upload_request(event_loop, UploadRequest::Files { files: vec![path], task, confirmed: false });
             }
-            FileService::EditImage => eprintln!("Edit image (the image editor window): not ported yet"),
+            FileService::EditImage => self.annotate_file(event_loop, &path, None),
             FileService::EditImageInPhotoEditor => eprintln!("Photo editor: deferred"),
             FileService::TrimVideo => eprintln!("Video trimmer: not ported yet"),
             FileService::TrimAnimatedGif => eprintln!("Animated GIF trimmer: not ported yet"),
@@ -680,7 +690,8 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
             egui::Theme::Light => winit::window::Theme::Light,
         }))
         .with_visible(false)
-        .with_active(spec.activate);
+        .with_active(spec.activate)
+        .with_maximized(spec.maximized);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
     }

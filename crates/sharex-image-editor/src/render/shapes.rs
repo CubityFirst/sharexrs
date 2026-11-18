@@ -761,7 +761,9 @@ impl AddSqrt for f64 {
 pub(super) fn visual_frame(a: &crate::model::Annotation) -> Option<((f64, f64), AMatrix)> {
     use crate::model::Kind;
     match &a.kind {
-        Kind::Rectangle(_) | Kind::Ellipse(_) => {
+        Kind::Number(p) => Some(super::text::step_frame(&a.common, p)),
+        Kind::SpeechBalloon(p) => Some(super::text::balloon_frame(&a.common, p)),
+        Kind::Rectangle(_) | Kind::Ellipse(_) | Kind::SmartEraser(_) => {
             let (ar, ctm) = arranged(&a.common);
             Some(((ar.width, ar.height), ctm))
         }

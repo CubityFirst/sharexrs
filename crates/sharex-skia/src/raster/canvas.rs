@@ -327,7 +327,7 @@ impl<'a> Canvas<'a> {
         paint: &Paint,
     ) {
         let total = Matrix::concat(&self.matrix, &prematrix);
-        if !sampling.is_cubic() && total.is_translate() {
+        if treat_as_sprite(&total, image.width(), image.height(), sampling, paint.anti_alias) {
             let ix = (total.tx() + 0.5).floor() as i32;
             let iy = (total.ty() + 0.5).floor() as i32;
             self.sprite(image, ix, iy, paint);
@@ -509,7 +509,8 @@ impl<'a> Canvas<'a> {
         }
         let dw = w as usize;
         let iw = image.width() as usize;
-        let plain = paint.color_filter.is_none() && paint.alpha == 255;
+        // SkSpriteBlitter_Memcpy and the legacy sprite blitters need an N32 device.
+        let plain = paint.color_filter.is_none() && paint.alpha == 255 && !crate::blitter::pipeline_blitters();
         for y in y0..y1 {
             for x in x0..x1 {
                 let si = (y - iy) as usize * iw + (x - ix) as usize;
@@ -643,7 +644,13 @@ impl<'a> Canvas<'a> {
             (Px::Low(c), Blend::SrcOver) => {
                 let d = self.dst.px(di);
                 let inv = 255 - c[3];
-                [0, 1, 2, 3].map(|i| (c[i] + div255(d[i] as u32 * inv)).min(255) as u8)
+                // srcover_rgba_8888 (div255), or on a device with a colour space
+                // load_dst + srcover (div255_accurate).
+                if crate::blitter::pipeline_blitters() {
+                    [0, 1, 2, 3].map(|i| (c[i] + div255_accurate(d[i] as u32 * inv)).min(255) as u8)
+                } else {
+                    [0, 1, 2, 3].map(|i| (c[i] + div255(d[i] as u32 * inv)).min(255) as u8)
+                }
             }
         }
     }
@@ -687,7 +694,7 @@ enum Legacy {
 }
 
 fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
-    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() {
+    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() || crate::blitter::pipeline_blitters() {
         return None;
     }
     match (&paint.shader, &sampler.kind) {
@@ -742,6 +749,37 @@ fn blend_argb32(s: [u8; 4], d: [u8; 4], aa: u8) -> [u8; 4] {
     let prod = 0xFFFF - s[3] as u32 * src_scale;
     let dst_scale = (prod + (prod >> 8)) >> 8;
     [0, 1, 2, 3].map(|c| (((s[c] as u32 * src_scale + d[c] as u32 * dst_scale) >> 8) & 0xFF) as u8)
+}
+
+/// `SkTreatAsSprite`: the bitmap lands on whole pixels (to 1/16 of a pixel when
+/// anti-aliased) with no scale, so it can be copied as a sprite.
+fn treat_as_sprite(m: &Matrix, width: u32, height: u32, sampling: Sampling, anti_alias: bool) -> bool {
+    // SkSamplingPriv::NoChangeWithIdentityMatrix: not a cubic with B != 0.
+    if sampling == Sampling::Mitchell {
+        return false;
+    }
+    if !m.is_scale_translate() {
+        return false;
+    }
+    let subpixel_bits: i32 = if anti_alias { 4 } else { 0 };
+    if subpixel_bits == 0 && m.is_translate() {
+        return true;
+    }
+    if m.sx() < 0.0 || m.sy() < 0.0 {
+        return false;
+    }
+    let round = |v: f32| (v + 0.5).floor() as i32;
+    let mut dst = m.map_rect(Rect::xywh(0.0, 0.0, width as f32, height as f32));
+    let (ox, oy) = (round(m.tx()), round(m.ty()));
+    let mut isrc = [ox, oy, ox + width as i32, oy + height as i32];
+    if subpixel_bits != 0 {
+        for v in &mut isrc {
+            *v <<= subpixel_bits;
+        }
+        let scale = (1 << subpixel_bits) as f32;
+        dst = Rect::ltrb(dst.left * scale, dst.top * scale, dst.right * scale, dst.bottom * scale);
+    }
+    isrc == [round(dst.left), round(dst.top), round(dst.right), round(dst.bottom)]
 }
 
 /// `SkMatrix::preTranslate` (plain float, as `SkMatrix` does).
@@ -912,10 +950,15 @@ impl<'a> Sampler<'a> {
                 {
                     sampling = Sampling::Nearest;
                 }
-                // The mipmap stages and the generic bilinear sampler are float only.
+                // The mipmap stages and the generic bilinear sampler are float only;
+                // lowp has the clamp and (nearest) decal stages and bilerp_clamp_8888,
+                // not repeat or mirror.
+                let lowp_tile = |t: &TileMode| {
+                    *t == TileMode::Clamp || (*t == TileMode::Decal && sampling == Sampling::Nearest)
+                };
                 let lowp = !sampling.is_cubic()
-                    && *tile_x == TileMode::Clamp
-                    && *tile_y == TileMode::Clamp
+                    && lowp_tile(tile_x)
+                    && lowp_tile(tile_y)
                     && !(mipmapped && (sampling == Sampling::Linear || lower.is_some()));
                 (
                     SamplerKind::Image(ImageSampler {
@@ -936,15 +979,7 @@ impl<'a> Sampler<'a> {
                 (SamplerKind::Gradient(s), lowp)
             }
         };
-        let lowp = lowp_shader
-            && paint.color_filter.is_none()
-            && !matches!(
-                paint.shader,
-                Shader::Image {
-                    sampling: Sampling::Linear,
-                    ..
-                }
-            );
+        let lowp = lowp_shader && paint.color_filter.is_none();
         let alpha = if matches!(paint.shader, Shader::Color(_)) {
             None
         } else {
@@ -1068,8 +1103,50 @@ impl ImageSampler<'_> {
 
     fn sample_lowp(&self, x: i32, y: i32) -> [u32; 4] {
         let (fx, fy) = self.coords(x, y);
+        // lowp's decal_x / decal_y: inside is 0 <= v < limit.
+        let outside = |v: f32, limit: u32| !(0.0 <= v && v < limit as f32);
+        if (self.tile_x == TileMode::Decal && outside(fx, self.image.width()))
+            || (self.tile_y == TileMode::Decal && outside(fy, self.image.height()))
+        {
+            return [0; 4];
+        }
+        if self.sampling == Sampling::Linear {
+            return self.bilerp_lowp(fx, fy);
+        }
         self.gather(fx, fy, self.sampling == Sampling::Nearest)
             .map(|v| v as u32)
+    }
+
+    /// lowp's `bilerp_clamp_8888`: the sample point quantised to 16.16, the
+    /// four pixels (clamped) lerped in Q15 fixed point.
+    fn bilerp_lowp(&self, x: f32, y: f32) -> [u32; 4] {
+        let qx = (65536.0f32 * x + 0.5).floor() as i32 - 32768;
+        let qy = (65536.0f32 * y + 0.5).floor() as i32 - 32768;
+        let (sx, sy) = (qx >> 16, qy >> 16);
+        let tx = (qx ^ 0x8000) as i16;
+        let ty = (qy ^ 0x8000) as i16;
+        // _mm_mulhrs_epi16
+        let mulhrs = |a: i16, b: i16| ((a as i32 * b as i32 + (1 << 14)) >> 15) as i16;
+        let lerp_x = |l: u16, r: u16| -> u16 {
+            let width = (r.wrapping_sub(l) as i16).wrapping_shl(7);
+            let middle = r.wrapping_add(l).wrapping_shl(7);
+            let v2 = (mulhrs(tx, width) as u16).wrapping_add(middle).wrapping_add(1);
+            v2 >> 1
+        };
+        let lerp_y = |t: u16, b: u16| -> u16 {
+            let width = (b as i16).wrapping_sub(t as i16);
+            let middle = b.wrapping_add(t);
+            let blend = (mulhrs(ty, width) as u16).wrapping_add(middle).wrapping_add(0x80);
+            blend >> 8
+        };
+        let (w, h) = (self.image.width() as i32, self.image.height() as i32);
+        let px = |ix: i32, iy: i32| self.image.pixel(ix.clamp(0, w - 1) as u32, iy.clamp(0, h - 1) as u32);
+        let (tl, tr, bl, br) = (px(sx, sy), px(sx + 1, sy), px(sx, sy + 1), px(sx + 1, sy + 1));
+        [0, 1, 2, 3].map(|i| {
+            let top = lerp_x(tl[i] as u16, tr[i] as u16);
+            let bottom = lerp_x(bl[i] as u16, br[i] as u16);
+            lerp_y(top, bottom) as u32
+        })
     }
 
     fn sample_highp(&self, x: i32, y: i32) -> [f32; 4] {

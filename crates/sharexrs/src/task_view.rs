@@ -116,6 +116,8 @@ pub enum TaskCommand {
     OcrImage,
     /// `UploadInfoManager.PinToScreen`.
     PinToScreen,
+    /// `UploadInfoManager.EditImage`: `AnnotateImageFromFile`.
+    EditImage,
     /// `UploadInfoManager.ResizeImages`: the image resizer on the selected images.
     ResizeImages,
     /// `UploadInfoManager.AddImageEffects`: the Image effects window on the file.
@@ -1244,7 +1246,7 @@ impl TaskView {
             ThumbnailViewClickAction::OpenFolder => actions.push(TaskAction::Command(TaskCommand::OpenFolder, vec![id])),
             ThumbnailViewClickAction::OpenURL => actions.push(TaskAction::Command(TaskCommand::NotPorted("Open URL"), vec![id])),
             ThumbnailViewClickAction::EditImage if exists && is_image_file(&p) => {
-                actions.push(TaskAction::Command(TaskCommand::NotPorted("Edit image"), vec![id]))
+                actions.push(TaskAction::Command(TaskCommand::EditImage, vec![id]))
             }
             _ => {}
         }
@@ -1287,7 +1289,7 @@ impl TaskView {
                 Key::V if ctrl => TaskCommand::NotPorted("Upload from clipboard"),
                 Key::U if ctrl => TaskCommand::NotPorted("Upload"),
                 Key::D if ctrl => TaskCommand::NotPorted("Download"),
-                Key::E if ctrl => TaskCommand::NotPorted("Edit image"),
+                Key::E if ctrl => TaskCommand::EditImage,
                 Key::P if ctrl => TaskCommand::PinToScreen,
                 Key::Delete if shift => TaskCommand::DeleteSelectedFiles,
                 Key::Delete => TaskCommand::RemoveSelected,
@@ -1418,7 +1420,7 @@ impl TaskView {
             sub(s::MainWindow_Copy(), icon::Copy, self.copy_menu(&sel, &statuses), ok),
             item(s::MainWindow_UploadSelectedFile(), icon::FileUpload, TaskCommand::Upload, uploads && ok && sel.is_file_exist).gesture("Ctrl+U"),
             item(s::MainWindow_DownloadSelectedUrl(), icon::Download, TaskCommand::Download, ok && sel.is_file_url).gesture("Ctrl+D"),
-            item(s::MainWindow_EditImage(), icon::ImageEditor, np("Edit image"), ok && sel.is_image_file).gesture("Ctrl+E"),
+            item(s::MainWindow_EditImage(), icon::ImageEditor, TaskCommand::EditImage, ok && sel.is_image_file).gesture("Ctrl+E"),
             item(s::MainWindow_EditImageInPhotoEditor(), icon::Layers, np("Photo editor"), ok && images > 0),
             item(s::MainWindow_EditImageInPixelEditor(), icon::PixelEditor, np("Pixel editor"), ok && images > 0),
             item(s::MainWindow_ResizeImage(), icon::Resize, TaskCommand::ResizeImages, ok && images > 0),

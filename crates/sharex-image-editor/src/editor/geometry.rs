@@ -266,6 +266,74 @@ pub fn balloon_effective_tail_point(body: &Rect, p: &crate::model::SpeechBalloon
     }
 }
 
+/// `SpeechBalloonAnnotation.GetDefaultTailPoint`.
+pub fn balloon_default_tail_point(body: &Rect) -> Point {
+    Point::new(body.mid_x(), body.b + DEFAULT_TAIL_OFFSET)
+}
+
+/// `HasTailPoint`.
+pub fn balloon_has_tail_point(p: &crate::model::SpeechBalloonProps) -> bool {
+    p.tail_point_initialized || p.tail_point != Point::default()
+}
+
+/// `RotateAroundBoundsCenter`.
+fn rotate_around_center(pt: Point, body: &Rect, angle: f32) -> Point {
+    if angle == 0.0 {
+        return pt;
+    }
+    let (cx, cy) = (body.mid_x(), body.mid_y());
+    let rad = angle * std::f32::consts::PI / 180.0;
+    let (cos, sin) = (rad.cos(), rad.sin());
+    let (dx, dy) = (pt.x - cx, pt.y - cy);
+    Point::new(cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+}
+
+/// `EnsureTailPointInitialized` (`UpdateSelectionHandles` does it for a
+/// selected balloon with its tail on).
+pub fn balloon_ensure_tail_point(a: &mut Annotation) {
+    let body = bounds(a);
+    if let Kind::SpeechBalloon(p) = &mut a.kind {
+        if !balloon_has_tail_point(p) {
+            p.tail_point = balloon_default_tail_point(&body);
+            p.tail_point_initialized = true;
+        } else if !p.tail_point_initialized {
+            p.tail_point_initialized = true;
+        }
+    }
+}
+
+/// `ResizeTail`: a tail never placed follows the body (snapped to the
+/// new default, or scaled with the body when an image transform moved it
+/// off its default); a placed tail stays where it points on the canvas.
+pub fn balloon_resize_tail(a: &mut Annotation, prev: &Rect) {
+    let new = bounds(a);
+    let angle = a.common.rotation_angle;
+    let Kind::SpeechBalloon(p) = &mut a.kind else { return };
+    if !p.tail_point_placed {
+        if !balloon_has_tail_point(p) {
+            return;
+        }
+        let t = p.tail_point;
+        let prev_default = balloon_default_tail_point(prev);
+        let d = ((t.x - prev_default.x).powi(2) + (t.y - prev_default.y).powi(2)).sqrt();
+        p.tail_point = if d < GEOMETRY_EPSILON || prev.width() <= 0.0 || prev.height() <= 0.0 {
+            balloon_default_tail_point(&new)
+        } else {
+            let (sx, sy) = (new.width() / prev.width(), new.height() / prev.height());
+            Point::new(new.l + (t.x - prev.l) * sx, new.t + (t.y - prev.t) * sy)
+        };
+        p.tail_point_initialized = true;
+        return;
+    }
+    if angle == 0.0 {
+        return;
+    }
+    let world = rotate_around_center(balloon_effective_tail_point(prev, p), prev, angle);
+    p.tail_point = rotate_around_center(world, &new, -angle);
+    p.tail_point_initialized = true;
+    p.tail_point_placed = true;
+}
+
 /// `SpeechBalloonAnnotation.TryGetTailPolygon`: a tail from the body's
 /// centre towards the tail point, its base where it leaves the body's
 /// rectangle.
@@ -492,6 +560,25 @@ fn effect_hit(a: &Annotation, p: Point, r: &Rect, tolerance: f32, ellipse: bool)
 /// `Annotation.MoveBy` of each type.
 pub fn move_by(a: &mut Annotation, dx: f32, dy: f32) {
     let shift = |p: &mut Point| *p = Point::new(p.x + dx, p.y + dy);
+    // `SpeechBalloonAnnotation.MoveBy`: a placed tail stays where it
+    // points on the canvas.
+    if let Kind::SpeechBalloon(p) = &a.kind
+        && p.tail_point_placed
+    {
+        let prev = bounds(a);
+        let angle = a.common.rotation_angle;
+        shift(&mut a.common.start_point);
+        shift(&mut a.common.end_point);
+        if angle != 0.0 {
+            let new = bounds(a);
+            if let Kind::SpeechBalloon(p) = &mut a.kind {
+                let world = rotate_around_center(balloon_effective_tail_point(&prev, p), &prev, angle);
+                p.tail_point = rotate_around_center(world, &new, -angle);
+                p.tail_point_initialized = true;
+            }
+        }
+        return;
+    }
     match &mut a.kind {
         Kind::Freehand(f) => {
             // Positioned by its points, not its drawing end points.
@@ -541,6 +628,51 @@ pub fn rotate_point(p: (f64, f64), c: (f64, f64), degrees: f64) -> (f64, f64) {
     let (cos, sin) = (rad.cos(), rad.sin());
     let (dx, dy) = (p.0 - c.0, p.1 - c.1);
     (c.0 + dx * cos - dy * sin, c.1 + dx * sin + dy * cos)
+}
+
+/// `Annotation.TransformAdditionalPoints` of each type: a freehand's
+/// points, a step's tail (once it has one), a balloon's tail (its
+/// effective point, kept placed or set when it has one). A line's or an
+/// arrow's curve point isn't transformed, as in ShareX.
+pub fn transform_additional_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
+    match &mut a.kind {
+        Kind::Freehand(p) => p.points.iter_mut().for_each(|q| *q = f(*q)),
+        Kind::Number(p) => {
+            if p.tail_point_initialized {
+                p.tail_point = f(p.tail_point);
+            }
+        }
+        Kind::SpeechBalloon(_) => {
+            let body = bounds(a);
+            let Kind::SpeechBalloon(p) = &mut a.kind else {
+                unreachable!()
+            };
+            let has_tail = p.tail_point_initialized || p.tail_point != Point::default();
+            let transformed = f(balloon_effective_tail_point(&body, p));
+            // SetPlacedTailPoint keeps it placed; SetTailPoint sets it.
+            if p.tail_point_placed || has_tail {
+                p.tail_point = transformed;
+                p.tail_point_initialized = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// `Annotation.TransformPoints`: the end points, then the type's own.
+pub fn transform_points(a: &mut Annotation, f: &dyn Fn(Point) -> Point) {
+    a.common.start_point = f(a.common.start_point);
+    a.common.end_point = f(a.common.end_point);
+    transform_additional_points(a, f);
+}
+
+/// `Annotation.Scale` (and `TextAnnotation.Scale`, which scales its font).
+pub fn scale(a: &mut Annotation, sx: f32, sy: f32) {
+    transform_points(a, &|p| Point::new(p.x * sx, p.y * sy));
+    a.common.stroke_width *= sx.min(sy);
+    if let Kind::Text(t) = &mut a.kind {
+        t.font_size *= sy;
+    }
 }
 
 #[cfg(test)]

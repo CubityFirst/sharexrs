@@ -59,6 +59,7 @@ const MAX_QUAD_SUBDIVIDE_LEVEL: i32 = 5;
 /// `SkScan::AntiHairPath` / `AntiHairSquarePath` / `AntiHairRoundPath`
 /// (by `cap`): `path` is in device space, `clip` the device clip.
 pub fn anti_hair_path(path: &Path, cap: Cap, clip: IRect, blitter: &mut dyn Blitter) {
+    let clip = crate::blitter::device_clip(clip);
     if path.is_empty() {
         return;
     }
@@ -915,6 +916,10 @@ fn do_anti_hairline(
 /// `SkScan::AntiHairLineRgn`: the polyline `array`, clipped to `clip` (a
 /// rect region) when there is one.
 pub fn anti_hair_line_rgn(array: &[Point], clip: Option<IRect>, blitter: &mut dyn Blitter) {
+    let clip = match clip {
+        Some(c) => Some(crate::blitter::device_clip(c)),
+        None => crate::blitter::device_clip_rect(),
+    };
     if let Some(c) = &clip
         && c.is_empty()
     {
@@ -966,6 +971,7 @@ pub fn anti_hair_line_rgn(array: &[Point], clip: Option<IRect>, blitter: &mut dy
 
 /// `SkScan::AntiHairRect`.
 pub fn anti_hair_rect(rect: Rect, clip: IRect, blitter: &mut dyn Blitter) {
+    let clip = crate::blitter::device_clip(clip);
     let pts = [
         Point::new(rect.left, rect.top),
         Point::new(rect.right, rect.top),

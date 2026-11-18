@@ -5,6 +5,7 @@
 //! pixel grid (`AnnotationEffectVisualUpdater.ApplyEffectBrush`).
 
 use sharex_skia::Pixmap;
+use sharex_skia::raster::Sampling;
 
 use super::color::parse_color;
 use crate::model::{Annotation, Kind};
@@ -23,7 +24,22 @@ fn effect_pixel_bounds(a: &Annotation) -> (i32, i32, i32, i32) {
 
 pub fn draw_effect(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut super::Cache) {
     if a.common.rotation_angle != 0.0 {
-        // Rotated effects (UpdateEffectFromProcessedSource) aren't ported.
+        match &a.kind {
+            Kind::Highlight(_) => {
+                let source = highlighted_source(base, &a.common.fill_color);
+                draw_rotated_effect(pm, &source, a);
+            }
+            Kind::Blur(p) => {
+                let source = cache.source(base, 0, p.amount, blurred_source).clone();
+                draw_rotated_effect(pm, &source, a);
+            }
+            Kind::Pixelate(p) => {
+                let source = cache.source(base, 1, p.amount, pixelated_source).clone();
+                draw_rotated_effect(pm, &source, a);
+            }
+            Kind::Magnify(p) => draw_magnify(pm, base, a, p),
+            _ => {}
+        }
         return;
     }
     match &a.kind {
@@ -41,15 +57,73 @@ pub fn draw_effect(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut s
     }
 }
 
-/// `MagnifyAnnotation.UpdateEffectCore` (unrotated): the middle of the
-/// area under the annotation, drawn `Amount` times bigger (Mitchell),
-/// filling the visual's `Rectangle`, with its optional border.
+/// `HighlightAnnotation.CreateHighlightedSourceCache`: the whole image with
+/// each channel capped at the fill colour's (`ApplyHighlightToBitmap`).
+fn highlighted_source(base: &Pixmap, fill: &str) -> Pixmap {
+    let color = parse_color(fill);
+    let mut out = base.clone();
+    if color.a == 0 {
+        return out;
+    }
+    let alpha = color.a as i32;
+    for p in out.pixels_mut() {
+        let (pa, pr, pg, pb) = ((*p >> 24) as u8, (*p >> 16) as u8, (*p >> 8) as u8, *p as u8);
+        let nr = highlight(pr, color.r, alpha) as u32;
+        let ng = highlight(pg, color.g, alpha) as u32;
+        let nb = highlight(pb, color.b, alpha) as u32;
+        *p = ((pa as u32) << 24) | (nr << 16) | (ng << 8) | nb;
+    }
+    out
+}
+
+/// A rotated blur, pixelate or highlight: `UpdateEffectFromProcessedSource`
+/// (the processed image drawn under the annotation's rotation, undone, into
+/// a bitmap as big as its truncated bounds) filling the rotated
+/// `Rectangle` through a stretched `ImageBrush`.
+fn draw_rotated_effect(pm: &mut Pixmap, processed: &Pixmap, a: &Annotation) {
+    use sharex_skia::raster::{Bitmap, Canvas};
+    let (l, t, r, b) = super::shapes::bounds(&a.common);
+    let (full_w, full_h) = ((r - l) as i32, (b - t) as i32);
+    if full_w <= 0 || full_h <= 0 {
+        return;
+    }
+    let mut result = Bitmap::new(full_w as u32, full_h as u32);
+    {
+        let mut canvas = Canvas::new(&mut result);
+        let (cx, cy) = (full_w as f32 / 2.0, full_h as f32 / 2.0);
+        canvas.translate(cx, cy);
+        canvas.rotate(-a.common.rotation_angle);
+        canvas.translate(-cx, -cy);
+        let source = Bitmap::from_premultiplied(processed.width(), processed.height(), processed.to_premul_rgba());
+        canvas.draw_bitmap(&source, -l, -t, None);
+    }
+    let effect = Pixmap::from_premul_rgba(full_w as u32, full_h as u32, result.data());
+    // The effect's Rectangle: a transparent stroke of StrokeWidth.
+    let pen = super::shapes::Pen {
+        color: sharex_skia::Color::argb(0, 0, 0, 0),
+        thickness: a.common.stroke_width as f64,
+        dashes: Vec::new(),
+        cap: sharex_skia::Cap::Butt,
+        join: sharex_skia::Join::Miter,
+    };
+    draw_effect_rectangle(pm, &effect, &a.common, (0.0, 0.0), Some(&pen), None, Sampling::Linear);
+}
+
+/// `MagnifyAnnotation.UpdateEffectCore`: the middle of the area under the
+/// annotation, drawn `Amount` times bigger (Mitchell; rotated with the
+/// annotation by `UpdateRotatedEffect`), filling the visual's `Rectangle`,
+/// with its optional border.
 fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model::MagnifyProps) {
     use sharex_skia::{IRect, Rect};
     let (l, t, r, b) = super::shapes::bounds(&a.common);
     let full_w = (r - l) as i32;
     let full_h = (b - t) as i32;
     if full_w <= 0 || full_h <= 0 {
+        return;
+    }
+    if a.common.rotation_angle != 0.0 {
+        let effect = rotated_magnify(base, a, p.amount, (l, t, r, b), full_w, full_h);
+        draw_magnify_visual(pm, &effect, a, p, (l, t, r, b));
         return;
     }
     let image = IRect::from_ltrb(0, 0, base.width() as i32, base.height() as i32);
@@ -91,9 +165,52 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
             );
         }
     }
-    // ApplyMagnifyShape: the visual is the annotation's Rectangle, clipped to
-    // an ellipse of its bounds when IsEllipse, with a border (a transparent
-    // one has no width) whose corners are rounded into an ellipse too.
+    draw_magnify_visual(pm, &effect, a, p, (l, t, r, b));
+}
+
+/// `MagnifyAnnotation.UpdateRotatedEffect`: the image mapped into the
+/// annotation's local space, scaled by the zoom about its centre and
+/// rotated back (Mitchell).
+fn rotated_magnify(
+    base: &Pixmap,
+    a: &Annotation,
+    amount: f32,
+    bounds: (f32, f32, f32, f32),
+    full_w: i32,
+    full_h: i32,
+) -> Pixmap {
+    use sharex_skia::raster::{Bitmap, Canvas, Paint, Rect as RRect, Shader};
+    let (l, t, r, b) = bounds;
+    let zoom = amount.max(1.0);
+    let mut result = Bitmap::new(full_w as u32, full_h as u32);
+    {
+        let mut canvas = Canvas::new(&mut result);
+        // SKRect.MidX / MidY
+        let (wx, wy) = (l + (r - l) / 2.0, t + (b - t) / 2.0);
+        canvas.translate(full_w as f32 / 2.0, full_h as f32 / 2.0);
+        canvas.scale(zoom, zoom);
+        canvas.rotate(-a.common.rotation_angle);
+        canvas.translate(-wx, -wy);
+        let source = Bitmap::from_premultiplied(base.width(), base.height(), base.to_premul_rgba());
+        let paint = Paint::shader(Shader::Color([0, 0, 0, 255]));
+        let dst = RRect::xywh(0.0, 0.0, base.width() as f32, base.height() as f32);
+        canvas.draw_image_rect(&source, None, dst, Sampling::Mitchell, Some(&paint));
+    }
+    Pixmap::from_premul_rgba(full_w as u32, full_h as u32, result.data())
+}
+
+/// The magnifier's visual (`ApplyMagnifyShape`): the annotation's
+/// Rectangle, clipped to an ellipse of its bounds when IsEllipse, with a
+/// border (a transparent one has no width) whose corners are rounded into
+/// an ellipse too.
+fn draw_magnify_visual(
+    pm: &mut Pixmap,
+    effect: &Pixmap,
+    a: &Annotation,
+    p: &crate::model::MagnifyProps,
+    bounds: (f32, f32, f32, f32),
+) {
+    let (l, t, r, b) = bounds;
     let color = parse_color(&a.common.stroke_color);
     let thickness = if color.a == 0 {
         0.0
@@ -118,7 +235,30 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
         join: sharex_skia::Join::Miter,
     });
     let clip = p.is_ellipse.then_some((width, height));
-    draw_effect_rectangle(pm, &effect, a, radii, pen.as_ref(), clip);
+    draw_effect_rectangle(pm, effect, &a.common, radii, pen.as_ref(), clip, Sampling::Linear);
+}
+
+/// A `Rectangle` (`RectangleAnnotation.CreateVisual`: its stroke, its
+/// corner radius) filled with `brush` through an `ImageBrush` stretched
+/// over it, the intermediate image sampled with `sampling` (the
+/// rectangle's `BitmapInterpolationMode`).
+pub(super) fn draw_brush_rectangle(
+    pm: &mut Pixmap,
+    brush: &Pixmap,
+    c: &crate::model::Common,
+    border_style: &crate::model::BorderStyle,
+    corner_radius: i32,
+    sampling: Sampling,
+) {
+    let radius = corner_radius.max(0) as f64;
+    let pen = super::shapes::Pen {
+        color: parse_color(&c.stroke_color),
+        thickness: c.stroke_width as f64,
+        dashes: super::shapes::dash_array(border_style),
+        cap: super::shapes::line_cap(border_style),
+        join: sharex_skia::Join::Miter,
+    };
+    draw_effect_rectangle(pm, brush, c, (radius, radius), Some(&pen), None, sampling);
 }
 
 /// An effect annotation's `Rectangle` visual as Avalonia renders it
@@ -132,15 +272,14 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
 fn draw_effect_rectangle(
     pm: &mut Pixmap,
     effect: &Pixmap,
-    a: &Annotation,
+    common: &crate::model::Common,
     radii: (f64, f64),
     pen: Option<&super::shapes::Pen>,
     clip: Option<(f64, f64)>,
+    sampling: Sampling,
 ) {
-    use sharex_skia::raster::{
-        Bitmap, Canvas, Matrix as RMatrix, Paint, Rect as RRect, Sampling, Shader, TileMode,
-    };
-    let (ar, ctm) = super::shapes::arranged(&a.common);
+    use sharex_skia::raster::{Bitmap, Canvas, Matrix as RMatrix, Paint, Rect as RRect, Shader, TileMode};
+    let (ar, ctm) = super::shapes::arranged(common);
     let thickness = pen.map_or(0.0, |p| p.thickness);
 
     // Rectangle.CreateDefiningGeometry
@@ -226,8 +365,9 @@ fn draw_effect_rectangle(
             let mut paint = Paint::shader(Shader::Color([255, 255, 255, 255]));
             paint.anti_alias = true;
             let r = RRect::xywh(0.0, 0.0, content.0 as f32, content.1 as f32);
-            // DrawBitmap with RenderOptions' default interpolation: linear.
-            c.draw_image_rect(&source, Some(r), r, Sampling::Linear, Some(&paint));
+            // DrawBitmap with the visual's RenderOptions (the default
+            // interpolation is linear).
+            c.draw_image_rect(&source, Some(r), r, sampling, Some(&paint));
         }
         let mut fill = path.clone();
         fill.fill_type = sharex_skia::FillType::EvenOdd;
@@ -345,6 +485,22 @@ fn draw_highlight(pm: &mut Pixmap, base: &Pixmap, a: &Annotation) {
 
 /// `SkPMSrcOver`.
 pub(super) fn src_over(src: u32, dst: u32) -> u32 {
+    if sharex_skia::blitter::pipeline_blitters() {
+        // The raster pipeline's sprite blit on a device with a colour space:
+        // load_dst, lowp srcover (div255_accurate), store.
+        let inv = 255 - (src >> 24);
+        let ch = |shift: u32| {
+            let (s, d) = ((src >> shift) & 0xFF, (dst >> shift) & 0xFF);
+            (s + sharex_skia::raster::div255_accurate(d * inv)).min(255) << shift
+        };
+        return ch(24) | ch(16) | ch(8) | ch(0);
+    }
+    src_over_legacy(src, dst)
+}
+
+/// `S32A_Opaque_BlitRow32`: `s + (d * (256 - sa) >> 8)`, the legacy N32
+/// sprite blit.
+pub(super) fn src_over_legacy(src: u32, dst: u32) -> u32 {
     let a = src >> 24;
     if a == 255 {
         return src;

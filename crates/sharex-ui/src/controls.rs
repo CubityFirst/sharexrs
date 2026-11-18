@@ -985,6 +985,12 @@ pub struct Slider {
 impl Slider {
     /// Draws the slider in `rect` (the track is centred vertically).
     pub fn show(&self, ui: &Ui, rect: Rect, id: Id, value: &mut f32) -> bool {
+        self.show_with_track(ui, rect, id, value, None)
+    }
+
+    /// [`Self::show`] with the slider `Background` (the track past the
+    /// thumb) set.
+    pub fn show_with_track(&self, ui: &Ui, rect: Rect, id: Id, value: &mut f32, background: Option<Color32>) -> bool {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let sense = if self.enabled { Sense::click_and_drag() } else { Sense::hover() };
@@ -1035,7 +1041,7 @@ impl Slider {
             }
         };
         track(rect.min.x, thumb.min.x, done_color);
-        track(thumb.max.x, rect.max.x, rest_color);
+        track(thumb.max.x, rect.max.x, if self.enabled { background.unwrap_or(rest_color) } else { rest_color });
         // The thumb: the accent border colour with a ring of control
         // background (ShareX's horizontal `Thumb` keeps it when disabled).
         let ring = if over_thumb { 3.0 } else { 4.0 };
