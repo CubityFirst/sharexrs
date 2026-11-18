@@ -125,7 +125,7 @@ fn dashed_axis_line(painter: &egui::Painter, m: &Mapper, a: (f64, f64), b: (f64,
 }
 
 /// `SelectionResizeNode`: a 15px white circle with a soft shadow.
-fn paint_node(painter: &egui::Painter, m: &Mapper, c: (f64, f64)) {
+pub fn paint_node(painter: &egui::Painter, m: &Mapper, c: (f64, f64)) {
     let half = super::RESIZE_NODE_SIZE / 2.0;
     let r = m.rect(c.0 - half, c.1 - half, half * 2.0, half * 2.0);
     let radius = CornerRadius::same((r.width() / 2.0).round() as u8);
@@ -136,7 +136,7 @@ fn paint_node(painter: &egui::Painter, m: &Mapper, c: (f64, f64)) {
 
 /// `AccentPalette.GetHaloColor`: black or white, whichever contrasts more
 /// with the accent.
-fn halo(accent: Color32) -> Color32 {
+pub fn halo(accent: Color32) -> Color32 {
     let lum = |c: Color32| {
         let f = |v: u8| {
             let v = v as f64 / 255.0;
@@ -150,18 +150,18 @@ fn halo(accent: Color32) -> Color32 {
 }
 
 /// Converts screenshot pixels to this window's points.
-struct Mapper {
+pub struct Mapper {
     /// The window's top-left corner in screenshot pixels.
-    origin: (f64, f64),
-    ppp: f32,
+    pub origin: (f64, f64),
+    pub ppp: f32,
 }
 
 impl Mapper {
-    fn pos(&self, x: f64, y: f64) -> Pos2 {
+    pub fn pos(&self, x: f64, y: f64) -> Pos2 {
         pos2(((x - self.origin.0) as f32) / self.ppp, ((y - self.origin.1) as f32) / self.ppp)
     }
 
-    fn rect(&self, x: f64, y: f64, w: f64, h: f64) -> Rect {
+    pub fn rect(&self, x: f64, y: f64, w: f64, h: f64) -> Rect {
         Rect::from_min_max(self.pos(x, y), self.pos(x + w, y + h))
     }
 }
@@ -221,7 +221,7 @@ fn pixel_rect(painter: &egui::Painter, r: Rect, color: Color32) {
 
 /// `DrawAntRectangle` of `GetAntRectangle(r)`: on the region's own edge
 /// pixels.
-fn ant_rectangle(painter: &egui::Painter, m: &Mapper, r: RectF, accent: Color32, halo: Color32) {
+pub fn ant_rectangle(painter: &egui::Painter, m: &Mapper, r: RectF, accent: Color32, halo: Color32) {
     let (x, y) = (r.x.floor(), r.y.floor());
     let (w, h) = ((r.w - 1.0).max(0.0), (r.h - 1.0).max(0.0));
     let (right, bottom) = (x + w, y + h);
@@ -244,7 +244,7 @@ fn ant_rectangle(painter: &egui::Painter, m: &Mapper, r: RectF, accent: Color32,
 }
 
 /// `DrawPixelCross`: 21 pixels each way through (`cx`, `cy`).
-fn pixel_cross(painter: &egui::Painter, m: &Mapper, color: Color32, cx: f64, cy: f64) {
+pub fn pixel_cross(painter: &egui::Painter, m: &Mapper, color: Color32, cx: f64, cy: f64) {
     painter.rect_filled(m.rect(cx - 10.0, cy, 21.0, 1.0), 0.0, color);
     painter.rect_filled(m.rect(cx, cy - 10.0, 1.0, 21.0), 0.0, color);
 }

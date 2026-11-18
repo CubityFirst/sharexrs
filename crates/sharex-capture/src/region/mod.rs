@@ -27,7 +27,7 @@
 pub mod cursors;
 pub mod magnifier;
 pub mod options_row;
-mod paint;
+pub mod paint;
 pub mod toolbar;
 
 use std::time::{Duration, Instant};

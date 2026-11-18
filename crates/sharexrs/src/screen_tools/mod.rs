@@ -7,6 +7,7 @@
 //! `OpenRuler`, `OpenClassicRuler`, `OpenMouseHighlighter`, `PinToScreen*`,
 //! `MouseHighlighterManager`).
 
+pub mod classic_ruler;
 pub mod color_picker;
 pub mod overlay;
 pub mod pin;
@@ -45,6 +46,8 @@ pub struct ScreenTools {
     /// The screen colour picker that just closed, kept until its colour
     /// is copied (its window owns the clipboard).
     closing_picker: Option<ScreenPicker>,
+    /// Tools › Ruler, while it's open.
+    classic: Option<classic_ruler::ClassicRuler>,
     /// Tools › Measure, while it's open.
     ruler: Option<ruler::Ruler>,
     /// `PinToScreenManager.Windows`.
@@ -140,7 +143,24 @@ impl App {
                     }
                 }
             }
-            HotkeyType::ClassicRuler | HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
+            // `OpenClassicRuler`: the task's region capture options.
+            HotkeyType::ClassicRuler => {
+                if self.screen_tools.classic.is_none() {
+                    let o = task.CaptureSettings.clone().unwrap_or_default().RegionCaptureOptions;
+                    let options = classic_ruler::ClassicRulerOptions::from_region(&o);
+                    let theme = self.theme();
+                    let opened = match &self.gpu {
+                        Some(g) => Ok(g),
+                        None => sharex_ui::gpu::Gpu::new().map(|g| &*self.gpu.insert(g)),
+                    }
+                    .and_then(|gpu| classic_ruler::ClassicRuler::open(event_loop, gpu, options, theme));
+                    match opened {
+                        Ok(r) => self.screen_tools.classic = Some(r),
+                        Err(e) => eprintln!("Ruler: {e}"),
+                    }
+                }
+            }
+            HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
             _ => return false,
         }
         true
@@ -355,6 +375,18 @@ impl App {
 
     /// Routes an event to a screen tool's window; false when it's none of theirs.
     pub(crate) fn screen_tools_window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: &WindowEvent) -> bool {
+        if let Some(r) = self.screen_tools.classic.as_mut().filter(|r| r.owns(id)) {
+            match r.window_event(event_loop, id, event.clone()) {
+                classic_ruler::Outcome::Close => self.screen_tools.classic = None,
+                classic_ruler::Outcome::Copy(text) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_text(&text, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy text failed: {e}");
+                    }
+                }
+                classic_ruler::Outcome::Continue => {}
+            }
+            return true;
+        }
         if let Some(r) = self.screen_tools.ruler.as_mut().filter(|r| r.owns(id)) {
             match r.window_event(id, event.clone()) {
                 ruler::Outcome::Close => self.screen_tools.ruler = None,
@@ -406,6 +438,7 @@ impl App {
         t.ruler
             .as_ref()
             .map(|r| r.window())
+            .or(t.classic.as_ref().map(|r| r.window()))
             .or(t.closing_picker.as_ref().map(|p| p.window()))
             .or(t.pins.first().map(|p| &*p.window.window))
     }
@@ -422,6 +455,9 @@ impl App {
             at(p.wake_at(now));
         }
         if let Some(r) = self.screen_tools.ruler.as_mut() {
+            at(r.wake_at(now));
+        }
+        if let Some(r) = self.screen_tools.classic.as_mut() {
             at(r.wake_at(now));
         }
         for p in &mut self.screen_tools.pins {
