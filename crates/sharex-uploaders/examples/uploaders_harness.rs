@@ -269,72 +269,19 @@ fn run_oauth(case: &Value, out: &mut Value) {
 /// A "remote" case: the remote storage browser's provider, step by step.
 fn run_remote(case: &Value, out: &mut Value) {
     use sharex_uploaders::destinations::ftp::FTPAccount;
-    use sharex_uploaders::remote_storage::{
-        AmazonS3RemoteStorageProvider, CancelToken, FtpRemoteStorageProvider, RemoteStorageItem, RemoteStorageProvider, SftpRemoteStorageProvider,
-    };
-    let allow_upload = case["allow_upload"].as_bool().unwrap_or(true);
-    let error = |e: &dyn std::fmt::Display| json!({"exception": e.to_string()});
-    let mut provider: Box<dyn RemoteStorageProvider> = match case["provider"].as_str().unwrap_or("") {
-        "ftp" => {
-            let account: FTPAccount = serde_json::from_value(case["account"].clone()).expect("account");
-            match FtpRemoteStorageProvider::new(account, allow_upload) {
-                Ok(p) => Box::new(p),
-                Err(e) => {
-                    out["steps"] = json!([]);
-                    out["create"] = error(&e);
-                    return;
-                }
-            }
+    let account = case.get("account").filter(|a| !a.is_null()).map(|a| {
+        let mut account: FTPAccount = serde_json::from_value(a.clone()).expect("account");
+        // Key files are relative to the repository.
+        if let Some(k) = account.Keypath.clone().filter(|k| !k.is_empty()) {
+            let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            account.Keypath = Some(repo.join(k).to_string_lossy().into_owned());
         }
-        "sftp" => {
-            let mut account: FTPAccount = serde_json::from_value(case["account"].clone()).expect("account");
-            // Key files are relative to the repository.
-            if let Some(k) = account.Keypath.clone().filter(|k| !k.is_empty()) {
-                let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-                account.Keypath = Some(repo.join(k).to_string_lossy().into_owned());
-            }
-            Box::new(SftpRemoteStorageProvider::new(account, allow_upload))
-        }
-        "s3" => Box::new(AmazonS3RemoteStorageProvider::new(serde_json::from_value(case["s3"].clone()).expect("s3 settings"), allow_upload)),
-        other => panic!("unknown provider {other}"),
-    };
-    out["display_name"] = json!(provider.display_name());
-    out["root_display_name"] = json!(provider.root_display_name());
-    out["root_path"] = json!(provider.root_path());
-    out["capabilities"] = json!(provider.capabilities().0);
-    let item = |v: &Value| RemoteStorageItem::new(v["name"].as_str().unwrap_or(""), v["path"].as_str().unwrap_or(""), v["is_folder"].as_bool().unwrap_or(false), v["size"].as_i64());
-    let item_json = |i: &RemoteStorageItem| {
-        json!({"name": i.name, "path": i.path, "is_folder": i.is_folder, "size": i.size,
-               // DateTimeOffset.ToString("o").
-               "modified": i.modified.map(|m| format!("{}.{:07}{}", m.format("%Y-%m-%dT%H:%M:%S"), m.timestamp_subsec_nanos() / 100, m.format("%:z")))})
-    };
-    let cancel = CancelToken::new();
-    let mut steps = Vec::new();
-    for step in case["steps"].as_array().into_iter().flatten() {
-        let s = |k: &str| step[k].as_str().unwrap_or("").to_owned();
-        let r: Result<Value, sharex_uploaders::remote_storage::RemoteStorageError> = match step["op"].as_str().unwrap_or("") {
-            "display_path" => Ok(json!(provider.get_display_path(&s("path")))),
-            "parent_path" => Ok(json!(provider.get_parent_path(&s("path")))),
-            "url" => Ok(json!(provider.get_url(&item(&step["item"])))),
-            "list" => provider.get_items(&s("path"), &cancel).map(|items| Value::Array(items.iter().map(item_json).collect())),
-            "has_children" => provider.has_children(&item(&step["item"]), &cancel).map(|b| json!(b)),
-            "download" => {
-                let mut bytes = Vec::new();
-                provider.download(&item(&step["item"]), &mut bytes, &cancel).map(|()| json!(base64::engine::general_purpose::STANDARD.encode(bytes)))
-            }
-            "upload" => {
-                let bytes = base64::engine::general_purpose::STANDARD.decode(s("content_base64")).expect("base64");
-                provider.upload(&s("dir"), &s("name"), &mut Cursor::new(bytes), &cancel).map(|()| json!("ok"))
-            }
-            "create_folder" => provider.create_folder(&s("dir"), &s("name"), &cancel).map(|()| json!("ok")),
-            "rename" => provider.rename(&item(&step["item"]), &s("name"), &cancel).map(|()| json!("ok")),
-            "delete" => provider.delete(&item(&step["item"]), &cancel).map(|()| json!("ok")),
-            op => panic!("unknown op {op}"),
-        };
-        steps.push(r.unwrap_or_else(|e| error(&e)));
+        account
+    });
+    let r = sharex_uploaders::testing::remote::run_remote_case(case, account);
+    for (k, v) in r.as_object().expect("object") {
+        out[k] = v.clone();
     }
-    provider.dispose();
-    out["steps"] = Value::Array(steps);
 }
 
 /// A "listing" case: a destination picker's list (Imgur albums, MEGA folders).

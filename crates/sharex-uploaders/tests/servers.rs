@@ -137,6 +137,108 @@ fn ftp_and_sftp_cases_match_sharex() {
     assert!(ran >= 20, "only {ran} FTP/SFTP cases ran");
 }
 
+/// A step's dates without their UTC offset (ShareX's run was in its
+/// machine's time zone; FTP listings give local times); a listing whose
+/// dates depend on the year it ran in loses them.
+fn norm_dates(v: &Value, drop: bool) -> Value {
+    match v {
+        Value::Object(o) => Value::Object(
+            o.iter()
+                .filter_map(|(k, x)| match (k.as_str(), x) {
+                    ("modified", _) if drop => None,
+                    ("modified", Value::String(s)) => Some((k.clone(), Value::String(s.chars().take(27).collect()))),
+                    _ => Some((k.clone(), norm_dates(x, drop))),
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(|x| norm_dates(x, drop)).collect()),
+        other => other.clone(),
+    }
+}
+
+#[test]
+fn remote_storage_cases_match_sharex() {
+    use sharex_uploaders::destinations::ftp::FTPAccount;
+    let cases = load("../../tools/uploaders-harness/cases.json");
+    let fixture = load("tests/fixtures/servers.sharex.json");
+    let tls = test_tls_acceptor().is_some();
+    let plain = FtpMockServer::start(FtpMockConfig::default()).unwrap();
+    let explicit = FtpMockServer::start(FtpMockConfig::default()).unwrap();
+    let implicit = FtpMockServer::start(FtpMockConfig::default()).unwrap();
+    let sftp = SftpMockServer::start(SftpMockConfig::default()).unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut ran = 0;
+    for case in cases["cases"].as_array().unwrap() {
+        if case["kind"] != "remote" || case["account"].is_null() {
+            continue;
+        }
+        let id = case["id"].as_str().unwrap();
+        let expected = &fixture[id];
+        assert!(!expected.is_null(), "{id}: no ShareX fixture (run tools/uploaders-harness/run.sh)");
+        let mut account_json = case["account"].clone();
+        let port = account_json["Port"].as_u64().unwrap();
+        let mapped = match port - HARNESS_BASE {
+            1 => plain.addr.port(),
+            2 | 3 if !tls => {
+                eprintln!("{id}: skipped (no TLS)");
+                continue;
+            }
+            2 => explicit.addr.port(),
+            3 => implicit.addr.port(),
+            4 => sftp.addr.port(),
+            _ => closed_port(),
+        };
+        account_json["Port"] = mapped.into();
+        if let Some(k) = account_json["Keypath"].as_str().filter(|k| !k.is_empty()) {
+            account_json["Keypath"] = repo.join(k).to_string_lossy().into_owned().into();
+        }
+        let spec = &case["servers"];
+        for (s, t, i) in [(&plain, false, false), (&explicit, true, false), (&implicit, true, true)] {
+            s.reset(Some(ftp_config(spec, t, i)));
+        }
+        sftp.reset(Some(sftp_config(spec)));
+        let account: FTPAccount = serde_json::from_value(account_json).unwrap();
+        let got = sharex_uploaders::testing::remote::run_remote_case(case, Some(account));
+        for s in [&plain, &explicit, &implicit] {
+            s.wait_closed(std::time::Duration::from_secs(5));
+        }
+        sftp.wait_closed(std::time::Duration::from_secs(5));
+        let drop = id == "remote-ftp-listing-formats";
+        for k in ["display_name", "root_display_name", "root_path", "capabilities", "create"] {
+            if expected.get(k).is_some() || !got[k].is_null() {
+                // Display names hold the harness's port.
+                let norm = |v: &Value| Value::String(v.to_string().replace(&mapped.to_string(), "PORT").replace(&port.to_string(), "PORT"));
+                assert_eq!(norm(&got[k]), norm(&expected[k]), "{id}: {k}");
+            }
+        }
+        let norm_steps = |v: &Value| Value::String(norm_dates(v, drop).to_string().replace(&mapped.to_string(), "PORT").replace(&port.to_string(), "PORT"));
+        let (got_steps, expected_steps) = (got["steps"].as_array().cloned().unwrap_or_default(), expected["steps"].as_array().cloned().unwrap_or_default());
+        assert_eq!(got_steps.len(), expected_steps.len(), "{id}: step count");
+        for (n, (g, e)) in got_steps.iter().zip(&expected_steps).enumerate() {
+            assert_eq!(norm_steps(g), norm_steps(e), "{id}: step {n} ({})", case["steps"][n]["op"]);
+        }
+        let log: Vec<String> = [&plain, &explicit, &implicit].iter().flat_map(|s| s.log_lines()).collect();
+        assert_eq!(log, lines(&expected["servers"]["ftp"]), "{id}: FTP commands and replies");
+        // The harness merges the three FTP servers' files (each starts with
+        // the case's files), later servers over earlier ones.
+        // (A JSON object in insertion order: a later value replaces in place.)
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        for s in [&plain, &explicit, &implicit] {
+            for (k, v) in s.files() {
+                match files.iter_mut().find(|(f, _)| *f == k) {
+                    Some(e) => e.1 = v,
+                    None => files.push((k, v)),
+                }
+            }
+        }
+        assert_eq!(files, file_list(&expected["servers"]["files"]), "{id}: FTP files");
+        assert_eq!(sftp.log_lines(), lines(&expected["servers"]["sftp"]), "{id}: SFTP requests and replies");
+        assert_eq!(sftp.files().into_iter().collect::<Vec<_>>(), file_list(&expected["servers"]["sftp_files"]), "{id}: SFTP files");
+        ran += 1;
+    }
+    assert!(ran >= 15, "only {ran} remote storage cases ran");
+}
+
 /// A mail with its date and boundary (counter and GUID) normalised.
 fn norm_mail(m: &str) -> String {
     let mut out = String::new();

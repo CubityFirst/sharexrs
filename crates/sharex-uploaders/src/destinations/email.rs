@@ -415,7 +415,6 @@ pub struct EmailSettings {
 pub fn send_mail(settings: &EmailSettings, to: &str, subject: &str, body: &str, attachment: Option<(&str, &[u8])>) -> UResult<()> {
     let from = parse_addresses(&settings.from_email)?.remove(0);
     let to = parse_addresses(to)?;
-    let message = build_message(&from, &to, subject, body, attachment);
     let port = u16::try_from(settings.smtp_port).map_err(|_| smtp_error("Specified argument was out of the range of valid values. (Parameter 'value')"))?;
     let addrs: Vec<_> = (settings.smtp_server.as_str(), port).to_socket_addrs().map_err(|e| smtp_error(format!("Failure sending mail. {e}")))?.collect();
     let stream = addrs
@@ -478,6 +477,9 @@ pub fn send_mail(settings: &EmailSettings, to: &str, subject: &str, body: &str, 
     if r.code != 354 {
         return Err(smtp_error(format!("Failure sending mail. The server response was: {}", r.text)));
     }
+    // The message (its boundary number, its date) is made when it's
+    // written, after DATA, as MailMessage does.
+    let message = build_message(&from, &to, subject, body, attachment);
     let mut data = String::new();
     for line in message.split("\r\n") {
         if line.starts_with('.') {
