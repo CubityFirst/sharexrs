@@ -312,6 +312,14 @@ impl RegionSession {
     pub fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) -> Outcome {
         let Some(i) = self.overlays.iter().position(|o| o.window.window.id() == id) else { return Outcome::Continue };
         let m = self.modifiers;
+        // An open popup's widgets (palette, eyedropper, lists, sliders) are
+        // egui's: they see the pointer too (the overlay ignores presses on
+        // the popup itself).
+        if self.capture.popup_open()
+            && matches!(event, WindowEvent::CursorMoved { .. } | WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. } | WindowEvent::CursorLeft { .. })
+        {
+            self.overlays[i].window.on_event(&event);
+        }
         let outcome = match event {
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
@@ -346,8 +354,25 @@ impl RegionSession {
                 }
                 return Outcome::Continue;
             }
-            // The emoji picker has the input while it's open.
+            // The emoji picker has the input while it's open; a press that
+            // began before it opened (the Emoji tool's button) still ends
+            // in the overlay, or the toolbar would stay pressed on Emoji
+            // and the next press would open the picker again.
             other if self.emoji.is_some() => {
+                if let WindowEvent::MouseInput { state: ElementState::Released, button, .. } = &other
+                    && self.buttons_down > 0
+                {
+                    self.buttons_down -= 1;
+                    let b = match button {
+                        MouseButton::Left => Some(Button::Left),
+                        MouseButton::Right => Some(Button::Right),
+                        MouseButton::Middle => Some(Button::Middle),
+                        _ => None,
+                    };
+                    if let (Some(b), Some(p)) = (b, self.last_point(i)) {
+                        let _ = self.capture.pointer_released(p, b, m);
+                    }
+                }
                 self.overlays[i].window.on_event(&other);
                 self.overlays[i].window.window.request_redraw();
                 return Outcome::Continue;
