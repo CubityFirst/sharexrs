@@ -119,6 +119,18 @@ pub enum Effect {
     ConfirmClearCustomUploaders,
     /// `TextUploadWindow.ShowAsync(text)` for an answer, not an upload.
     AskText(String, std::sync::mpsc::Sender<Option<String>>),
+    /// `Window.Title` changed (the history windows' item counts).
+    SetTitle(String),
+    /// `ClipboardHelpers.CopyFile(files)`.
+    CopyFiles(Vec<PathBuf>),
+    /// `ClipboardHelpers.CopyImageFromFile`.
+    CopyImageFile(PathBuf),
+    /// The OCR window's Select region...: minimized, a region captured
+    /// (`RegionCaptureTasks.GetRegionImageAsync`), restored.
+    OcrSelectRegion,
+    /// `TaskHelpers` entry points of the history windows' services
+    /// (`HistoryWindowServices`), on a file.
+    FileService(FileService, PathBuf),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -133,6 +145,27 @@ pub enum Effect {
     /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
     /// flashing in the taskbar (`FlashWindowEx`).
     MinimizeAndFlash,
+}
+
+/// `HistoryWindowServices`: what the history windows hand a file to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileService {
+    /// `UploadManager.UploadFile`.
+    UploadFile,
+    /// `AnnotateImageFromFile`.
+    EditImage,
+    /// `OpenPhotoEditor` (deferred).
+    EditImageInPhotoEditor,
+    /// `OpenVideoTrimmer`.
+    TrimVideo,
+    /// `OpenAnimatedGifTrimmer`.
+    TrimAnimatedGif,
+    /// `PinToScreen`.
+    PinToScreen,
+    /// `AnalyzeImage`.
+    AnalyzeImage,
+    /// `ImageViewerWindowIntegration.ShowImage`.
+    ShowImage,
 }
 
 /// `UploadManager`'s entry points a dialog starts.
@@ -234,6 +267,9 @@ pub trait Dialog {
 
     /// `NavigateToService` on the open window.
     fn navigate(&mut self, _service: &str) {}
+
+    /// The OCR window's Select region... captured this image.
+    fn replace_image(&mut self, _image: RgbaImage, _ctx: &egui::Context) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -418,6 +454,26 @@ impl App {
                     w.reply = Some(reply);
                     self.open_dialog_window(event_loop, Box::new(w));
                 }
+                Effect::SetTitle(title) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_title(&title);
+                    }
+                }
+                Effect::CopyFiles(files) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_files(&files, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy file failed: {e}");
+                    }
+                }
+                Effect::CopyImageFile(path) => match crate::thumbnail::load(&path) {
+                    Some(image) => {
+                        if let Err(e) = sharex_capture::clipboard::copy_image(&image, self.clipboard_owner()) {
+                            eprintln!("Clipboard copy image from file failed: {e}");
+                        }
+                    }
+                    None => eprintln!("Clipboard copy image from file failed: {}", path.display()),
+                },
+                Effect::FileService(service, path) => self.file_service(event_loop, service, path),
+                Effect::OcrSelectRegion => self.ocr_select_region(id),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                 Effect::UpdateDownload(checker, origin) => self.download_update(event_loop, *checker, origin),
                 Effect::UpdateFinished { result, origin, shutdown } => self.update_finished(event_loop, result, origin, shutdown),
@@ -437,6 +493,24 @@ impl App {
                     }
                 }
             }
+        }
+    }
+
+    /// A history window's service on a file (`HistoryWindowServices`, as
+    /// `TaskHelpers.OpenHistory` fills them in).
+    pub(crate) fn file_service(&mut self, event_loop: &ActiveEventLoop, service: FileService, path: PathBuf) {
+        match service {
+            FileService::UploadFile => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.upload_request(event_loop, UploadRequest::Files { files: vec![path], task, confirmed: false });
+            }
+            FileService::EditImage => eprintln!("Edit image (the image editor window): not ported yet"),
+            FileService::EditImageInPhotoEditor => eprintln!("Photo editor: deferred"),
+            FileService::TrimVideo => eprintln!("Video trimmer: not ported yet"),
+            FileService::TrimAnimatedGif => eprintln!("Animated GIF trimmer: not ported yet"),
+            FileService::PinToScreen => eprintln!("Pin to screen: not ported yet"),
+            FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
+            FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
         }
     }
 

@@ -42,6 +42,45 @@ pub fn close() {
     HISTORY.lock().unwrap().take();
 }
 
+/// Opens `db` as the app's history (`--render --db`, tests).
+pub fn use_database(db: &Path) -> Result<(), String> {
+    let m = HistoryManagerSqlite::open(db).map_err(|e| format!("{}: {e}", db.display()))?;
+    *HISTORY.lock().unwrap() = Some(m);
+    Ok(())
+}
+
+/// Runs `f` on the open history; `None` when there's none (sandbox mode, or
+/// History.db couldn't be opened).
+pub fn with<R>(f: impl FnOnce(&mut HistoryManagerSqlite) -> R) -> Option<R> {
+    HISTORY.lock().unwrap().as_mut().map(f)
+}
+
+/// `HistoryManager.GetHistoryItemsAsync`: every item in table order (oldest
+/// first); empty without a history. A load error is ShareX's
+/// "Error occurred while reading history file".
+pub fn load() -> Result<Vec<HistoryItem>, String> {
+    with(|m| m.load().map_err(|e| e.to_string())).unwrap_or(Ok(Vec::new()))
+}
+
+/// `HistoryManagerSQLite.Edit`.
+pub fn edit(item: &HistoryItem) {
+    if let Some(Err(e)) = with(|m| m.edit(item)) {
+        eprintln!("history: couldn't edit {}: {e}", item.id);
+    }
+}
+
+/// `HistoryManagerSQLite.Delete`.
+pub fn delete(items: &[HistoryItem]) {
+    if let Some(Err(e)) = with(|m| m.delete(items)) {
+        eprintln!("history: couldn't delete: {e}");
+    }
+}
+
+/// `HistoryManager.AppendHistoryItems`.
+pub fn append(items: &mut [HistoryItem]) -> bool {
+    with(|m| m.append_history_items(items)).unwrap_or(false)
+}
+
 /// `EnumExtensions.GetLocalizedDescription()` of a destination: the
 /// `<Type>_<Value>` string of ShareX.HelpersLib's resources, else its
 /// `[Description]`.

@@ -15,6 +15,7 @@ mod capture_job;
 mod controls_gallery;
 mod dialogs;
 mod history;
+mod history_ui;
 mod hotkey_settings;
 mod hotkeys;
 mod main_menu;
@@ -22,6 +23,7 @@ mod menu_settings;
 mod main_window;
 mod message_box;
 mod ocr;
+mod ocr_window;
 mod recording;
 mod region_render;
 mod region_session;
@@ -151,6 +153,7 @@ fn main() {
         ignore_hotkey_warning: is_command_present(&args, &["NoHotkeys"]),
         region: None,
         pending_capture: None,
+        ocr_region: None,
         last_regions: Vec::new(),
         proxy,
         tray: None,
@@ -228,6 +231,8 @@ struct App {
     /// A capture waiting for its screenshot delay or for the main window to
     /// hide.
     pending_capture: Option<PendingCapture>,
+    /// Where the next region capture goes when it's for OCR.
+    ocr_region: Option<ocr_window::OcrRegion>,
     /// `RegionCaptureIntegration.LastRegionRectangles`.
     last_regions: Vec<sharex_capture::Rect>,
     /// For tasks' threads and the tray icon to report back to the event loop.
@@ -403,6 +408,19 @@ impl App {
                 self.show_custom_uploader_settings(event_loop);
                 return;
             }
+            // `MainMenuBuilder_History`, `_ImageHistory`, `_Stats`.
+            Action::Nav(13, _) => {
+                self.show_history(event_loop);
+                return;
+            }
+            Action::Nav(14, _) => {
+                self.show_image_history(event_loop);
+                return;
+            }
+            Action::Nav(15, _) => {
+                self.show_stats(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -418,6 +436,12 @@ impl App {
     /// don't (`MainMenuBuilder(trayMenu: true)`).
     fn menu_command(&mut self, event_loop: &ActiveEventLoop, command: MenuCommand, tray_menu: bool) {
         let auto_hide = !tray_menu;
+        // `TaskHelpers.OCRImage(autoHideMainWindow: !_trayMenu)`.
+        if command == MenuCommand::Tool("MainMenuBuilder_OCR") {
+            let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+            self.ocr_capture(task, auto_hide);
+            return;
+        }
         // `new Capture…().Capture(autoHide)`: the default task settings.
         let task = || TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
         let job = match &command {
@@ -468,6 +492,8 @@ impl App {
             MenuCommand::HotkeySettings => self.show_hotkey_settings(event_loop),
             MenuCommand::DestinationSettings => self.show_destination_settings(event_loop, None),
             MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
+            MenuCommand::History => self.show_history(event_loop),
+            MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
@@ -761,6 +787,17 @@ impl App {
         if hidden {
             self.show_main_window(event_loop);
         }
+        if let Some(target) = self.ocr_region.take() {
+            let image = match &outcome {
+                Outcome::Captured(result) => {
+                    self.last_regions = result.regions.clone();
+                    Some(result.image.clone())
+                }
+                _ => None,
+            };
+            self.ocr_region_captured(event_loop, target, image);
+            return;
+        }
         let Outcome::Captured(result) = outcome else { return };
         self.last_regions = result.regions.clone();
         let metadata = capture_job::Metadata::from_result(&result);
@@ -1052,6 +1089,9 @@ impl App {
             HotkeyType::OpenMainWindow => self.show_main_window(event_loop),
             HotkeyType::ToggleTrayMenu => self.toggle_tray_menu(event_loop),
             HotkeyType::ExitShareX => self.exit(event_loop),
+            HotkeyType::OCR => self.ocr_capture(task, false),
+            HotkeyType::OpenHistory => self.show_history(event_loop),
+            HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
             _ => {}
         }
     }

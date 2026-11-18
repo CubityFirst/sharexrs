@@ -41,6 +41,18 @@ pub struct Options {
     pub scale: f32,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    /// `--db`: the History.db the history windows show.
+    pub db: Option<PathBuf>,
+    /// `--state`: which state of a window (a dialog open, a menu...).
+    pub state: Option<String>,
+    /// `--select`: indexes of selected items.
+    pub select: Vec<usize>,
+    /// `--context X,Y`: a right click there.
+    pub context: Option<egui::Pos2>,
+    /// `--open`: the submenus opened along this path.
+    pub open: Vec<usize>,
+    /// `--scroll`: a scroll offset.
+    pub scroll: f32,
 }
 
 fn load_image(path: &Option<PathBuf>) -> Result<image::RgbaImage, String> {
@@ -242,6 +254,8 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(w)
         }
+        s if crate::history_ui::is_render_screen(s) => crate::history_ui::render_dialog(s, o)?,
+        s if crate::ocr_window::is_render_screen(s) => crate::ocr_window::render_dialog(s, o)?,
         other => return Err(format!("no dialog named {other}")),
     })
 }
@@ -265,10 +279,15 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "update-message"
             | "update-downloader"
     ) || screen.starts_with("destination-")
+        || crate::history_ui::is_render_screen(screen)
+        || crate::ocr_window::is_render_screen(screen)
 }
 
 /// Draws the dialog `name` at its window's size.
 pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
+    if let Some(db) = &o.db {
+        crate::history::use_database(db)?;
+    }
     let mut d = dialog(name, o)?;
     let spec = d.spec();
     let mut settings = ApplicationConfig::default();

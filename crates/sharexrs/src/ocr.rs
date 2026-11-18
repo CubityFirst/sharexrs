@@ -1,7 +1,7 @@
 //! ShareX's OCR task helpers over `sharex-ocr`: `TaskHelpers.OCRImage` (the
 //! after capture task), `AsyncOCRImage` (its silent path) and
 //! `RecognizeTextForHistoryAsync` (`HistorySaveOCRText`). The OCR window (the
-//! non-silent path) isn't ported yet; docs/OCR.md has the plan.
+//! non-silent path) is `crate::ocr_window`.
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -72,11 +72,11 @@ impl OcrOptions {
 
 /// `TaskHelpers.OCRImage(bmp, taskSettings)` from `WorkerTask.DoOCR` (no file
 /// path, so no text file is written).
-pub fn ocr_image(image: &RgbaImage, task: &TaskSettings, ui: &dyn TaskUi) {
+pub fn ocr_image(image: &Arc<RgbaImage>, task: &TaskSettings, ui: &dyn TaskUi) {
     let options = OcrOptions::from_task(task);
     if !options.silent {
-        // `ToolsIntegration.ShowOCRWindowAsync`.
-        eprintln!("The OCR window isn't ported yet; turn on \"Process OCR silently\" to copy the text.");
+        // `ToolsIntegration.ShowOCRWindowAsync`, waited for.
+        ui.show_ocr_window(image.clone(), task.clone());
         return;
     }
     // `AsyncOCRImage`; ShareX shows an error box for exceptions (`ShowError`).

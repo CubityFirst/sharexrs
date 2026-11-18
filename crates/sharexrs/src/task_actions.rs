@@ -207,6 +207,10 @@ impl App {
             infos.iter().zip(&statuses).filter(|(_, s)| ok(s)).filter_map(|(i, _)| i.file_path.clone()).collect()
         };
         match command {
+            TaskCommand::OcrImage if sel.is_image_file => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.ocr_file(event_loop, &path, task);
+            }
             TaskCommand::OpenFile if sel.is_file_exist => {
                 shell::open_file(&path);
             }

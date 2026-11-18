@@ -53,6 +53,10 @@ pub enum MenuIcon {
     None,
     /// A ShareX icon key, drawn in the accent colour (`accent-menu-icon`).
     Key(&'static str),
+    /// A ShareX icon key in the item's foreground at this size, centred in
+    /// the icon column: a plain `MenuItem.Icon` `IconPresenter` (the
+    /// history windows' context menus).
+    Plain(&'static str, f32),
     /// A full-colour bitmap, 16x16 (a window's icon in Capture › Window).
     Texture(egui::TextureId),
     /// A full-colour picture at its own size, drawn in 16x16
@@ -253,6 +257,20 @@ impl MenuStyle {
             // task picker: 34px items).
             MenuStyle::Standard => 8.0 + 18.0 + 8.0,
         }
+    }
+
+    /// A `Separator`'s margin: the density's for compact items; none in a
+    /// plain `ContextMenu` (a 1px line across the items).
+    fn separator_margin(self, d: &crate::theme::Density) -> crate::theme::Thickness {
+        match self {
+            MenuStyle::Compact => d.menu_separator_margin,
+            MenuStyle::Standard => crate::theme::Thickness::all(0.0),
+        }
+    }
+
+    fn separator_height(self, d: &crate::theme::Density) -> f32 {
+        let m = self.separator_margin(d);
+        1.0 + m.top + m.bottom
     }
 }
 
@@ -511,7 +529,7 @@ impl<C: Clone> Flyout<C> {
                             continue;
                         }
                         if entry.separator {
-                            paint_separator(ui, *item, &d);
+                            paint_separator(ui, *item, &d, self.style);
                             continue;
                         }
                         let id = layer.with(i);
@@ -851,7 +869,7 @@ fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuSty
     let item_w = pad.left + toggle_col + icon_col + header_col + gesture_col + chevron_col + pad.right;
     let mut h = 0.0;
     for e in entries.iter().filter(|e| e.visible) {
-        h += if e.separator { 1.0 + d.menu_separator_margin.top + d.menu_separator_margin.bottom } else { style.item_height(&d) };
+        h += if e.separator { style.separator_height(&d) } else { style.item_height(&d) };
     }
     let frame = frame_padding(&d, root);
     let size = vec2(
@@ -878,7 +896,7 @@ fn item_rects<C>(entries: &[MenuEntry<C>], rect: Rect, root: bool, d: &crate::th
             let h = if !e.visible {
                 0.0
             } else if e.separator {
-                1.0 + d.menu_separator_margin.top + d.menu_separator_margin.bottom
+                style.separator_height(d)
             } else {
                 style.item_height(d)
             };
@@ -901,8 +919,8 @@ fn paint_menu_frame(ui: &Ui, rect: Rect, root: bool) {
 
 /// `Separator.compact-menu-separator`: 1px of `ShareX.Brush.Separator`
 /// inside `ShareX.Density.Menu.SeparatorMargin`.
-fn paint_separator(ui: &Ui, rect: Rect, d: &crate::theme::Density) {
-    let m = d.menu_separator_margin;
+fn paint_separator(ui: &Ui, rect: Rect, d: &crate::theme::Density, style: MenuStyle) {
+    let m = style.separator_margin(d);
     let line = Rect::from_min_max(
         pos2(rect.min.x + m.left, rect.min.y + m.top),
         pos2(rect.max.x - m.right, rect.min.y + m.top + 1.0),
@@ -978,6 +996,10 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
         match entry.icon {
             // A plain item's accent icon takes the fill's text colour on hover.
             MenuIcon::Key(key) => icons::paint(painter, b, key, if accent_hover { p.accent_foreground } else { p.accent_icon }),
+            MenuIcon::Plain(key, size) => {
+                let r = Rect::from_center_size(b.center(), Vec2::splat(size));
+                icons::paint(painter, r, key, header_color);
+            }
             MenuIcon::Texture(tex) => {
                 painter.image(tex, b, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
             }
