@@ -44,7 +44,34 @@ impl EffectImpl for WindStreaksImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let len = 1.max(self.length);
+        let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
+        let src = pixels(source);
+        let mut dst = src.clone();
+        let dir = if self.direction == WindDirection::Right { 1 } else { -1 };
+        let th = self.threshold as f32;
+        for y in 0..h {
+            for x in 0..w {
+                let c = src[(y * w + x) as usize];
+                let lum = 0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32;
+                if lum < th {
+                    continue;
+                }
+                let sa = alpha * ((lum - th) / (255.0 - th));
+                for s in 1..=len {
+                    let tx = x + s * dir;
+                    if tx < 0 || tx >= w {
+                        break;
+                    }
+                    let fade = 1.0 - s as f32 / len as f32;
+                    let blend = sa * fade;
+                    let e = dst[(y * w + tx) as usize];
+                    let f = |ev: u8, cv: u8| (ev as f32 + (cv as i32 - ev as i32) as f32 * blend) as u8;
+                    dst[(y * w + tx) as usize] = SkColor::rgba(f(e.r, c.r), f(e.g, c.g), f(e.b, c.b), e.a);
+                }
+            }
+        }
+        Ok(from_pixels(w as u32, h as u32, &dst))
     }
 }
