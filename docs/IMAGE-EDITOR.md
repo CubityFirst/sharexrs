@@ -607,20 +607,125 @@ editors and copied: CF_DIB byte-identical, the PNG pixel-identical. Both
 apps place the centred insert at the monitor's centre (canvas 210,133
 for ShareX's window); the result depends on where each window sits.
 
+### The Background panel (`image_editor/background.rs`, `render::background`)
+
+`BackgroundSettingsPanel` in the left sidebar (`Border.editor-sidebar.left`,
+282 wide, the top toolbar floating over its heading), toggled by the
+Background item (`ToggleSettingsPanel`; Crop and Cut out close it): margin,
+padding, rounded corner and shadow radius sliders (Fluent's auto-height
+slider: 15 + the 20px thumb + 15), the smart padding switch
+(`LabeledToggleSwitch`, disabled and turned off when the image has no
+uniform border: `DisableBackgroundSmartPaddingIfUnavailable`), the 3x3
+output ratios (`SetOutputRatio`, not saved), the background combo box
+(Gradient, Color, Transparent, Image, and Wallpaper where the wallpaper
+service exists), the gradient preview whose halves open their colour's
+`ColorPickerPanel`, the 60 presets (`ApplyGradientPreset`), the colour
+preview, Browse background image... with its path. Everything is kept in
+`ImageEditorOptions`. While it's open the canvas shows, and every export
+(copy, save, upload, pin, print, Continue) renders, the image on its
+background.
+
+`sharex_image_editor::render::background` is `GetSnapshot()` of the
+`PreviewFrame`: the frame size (`CalculateOutputPadding`, Avalonia's layout
+rounding of the paddings, the viewport centred in its slot), the brush over
+the frame (gradient through the raster pipeline; image or wallpaper through
+`ConfigureTileBrush`'s intermediate: UniformToFill, Uniform, Fill, centred,
+tiled), the canvas shadow (`BoxShadow` 0,10, alpha scaled from the shadow
+colour's: the rounded rect in an `SkImageFilters::Blur` layer the size of
+the device grown by ceil(3 sigma), drawn back through an anti-aliased
+difference clip, `SkAAClip::op(kDifference)`), then inside the rounded clip
+the padding colour (the image's top-left pixel) and the viewport (smart
+padding's crop, `EnsureSmartPaddingCache`). `sharex-skia` gained the
+difference clip and rect/bitmap draws through an anti-aliased clip.
+
+Wallpaper: Windows' `SPI_GETDESKWALLPAPER` (then `TranscodedImageCache`),
+laid out as Fill, as `WindowsDesktopWallpaperService`;
+`SHAREXRS_TEST_WALLPAPER=<file>[;Layout]` stands in for it in tests. The
+macOS and Linux wallpaper services aren't ported (no Wallpaper option
+there).
+
+Validation: the editor harness got a `background` case field (the options,
+the panel open; a fake wallpaper service hands it a generated image, never
+the desktop's): 26 cases in `cases.json`, 9 pixel-identical, 16 within one
+level on 3-5 pixels at the blurred shadow's corners (`tolerance` in the
+case), and annotations over the viewport's edge within 5 levels on 0.03%
+(ShareX chops their edges at the frame's clip). The panel vs ShareX
+(`--render image-editor --state background[-gradient|-color|-image][-scrolled]`,
+shots in `shots/sharex/editor-background/`): dark transparent 0.16%,
+gradient 0.16%, gradient scrolled 0.06%, colour 0.15%, image 0.16%; light
+transparent 0.12%, gradient 0.12%, image 0.13%. Side by side: Gradient
+chosen in both editors and copied: 880x640, CF_DIB identical but for the
+same 4 shadow-corner pixels (one level).
+
+### Toolbar customisation (`sharex_capture::toolbar_items`, `toolbar_editor.rs`)
+
+`ToolbarCustomizationItemViewModel`'s definitions, `CreateFromOptions`
+(saved order, unknown ids dropped, missing items after their predecessor),
+`ToOptions`, tooltips and `ToolbarHotkeyHelper`; region capture's items
+(`RegionCaptureToolbar.CreateItems`: the hidden ellipse and freehand
+regions first, no Crop or Cut out). The editor's toolbar and its hotkeys
+follow `ImageEditorOptions.ToolbarItems` (the defaults saved when empty,
+`persist`), region capture's follow `RegionCaptureOptions.ToolbarItems`
+(the region shapes show when turned on; using them logs, those regions
+aren't ported). Task settings › Image editor's and › Region capture's
+Customize toolbar... open `ToolbarCustomizationDialogView` over the window
+(move up/down, begin group, show/hide, the two hotkey boxes: click, press
+a shortcut, Backspace/Delete clears; Reset, OK with `RefreshValidation`,
+Cancel, Escape, the backdrop). vs ShareX (`--render
+task-settings-tools-image-editor --content toolbar-editor`,
+`task-settings-capture-region --content region-toolbar-editor`): image
+editor dark 0.52%, light 0.46%, region capture dark 0.49% (the centred
+"NumPad" texts sit a sub-pixel apart). The ellipse region shown and OK in
+both apps saves the same 21 items (a test compares with the JSON ShareX
+wrote). Also ShareX's one-in-ten sunglasses emoji tool icon.
+
+### Print (`print.rs`, `dialogs/print_window.rs`)
+
+The editor's Print and Application settings › Image print settings...
+(the active monitor, preview only): the Print options window (unless
+`DontShowPrintSettingsDialog`), Preview (`PrintPreviewWindow`), Print...
+(on a thread: `PrintDlgEx` when `ShowPrintDialog`, else the default
+printer or `DefaultPrinterOverride`; the page from `RenderImagePage`,
+drawn with `StretchDIBits` over the page bounds). `RenderImagePage`
+against ShareX's own (`tools/tools-harness --print-page`,
+`crates/sharexrs/tests/data/print`): 3 of 4 pages pixel-identical, the
+enlarged one within one level. Print options vs ShareX dark 0.64%
+(`--render print-window`). End to end: the test image printed with no
+dialog to Microsoft Print to PDF into a temp file (`SHAREXRS_PRINT_TO_FILE`):
+one A4 page, the image (JPEG: the driver's compression) over the whole
+page, the content where ShareX's page has it (mean error 0.33 levels); the
+PDF was deleted. ShareX's own print couldn't run here: Windows 11's print
+dialog (`PrintDialog.exe`) never shows a window in this remote session.
+
+### The rest
+
+- `AutoSizeWindow` (`TryAutoSize`): once there's an image, the window fits
+  it (the frame, at least the toolbar's width, the toolbars' room above and
+  below, 24 more) centred in the work area, or is maximized.
+- A new text grows the canvas while it's typed
+  (`OnLiveTextEditorBoundsChanged`: the overflow + 150 right, + 16 down,
+  outside the history), replaced by the exact fit on commit.
+- Region capture: the Emoji tool opens the editor's emoji picker over the
+  overlay under the pointer (inserted centred on that monitor), and the
+  colour popups' screen colour picker opens the app's
+  (`ScreenColorPickerWindow.PickAsync`), its colour going to the option.
+  Unit-tested; not exercised live.
+- The 1280x720 window: a dialog created maximized was then clamped and
+  centred, which winit turned into a later restore, leaving a 1280x720
+  normal size on the 1024x768 monitor (and `winshot.ps1`'s `SW_RESTORE`
+  showing it). Dialogs are now sized, placed and shown, then maximized;
+  restored, the editor matches ShareX's (1044x759 at -10,-19).
+  CenterScreen centres in the work area.
+
 ### Not ported yet
 
-- The Background panel (`BackgroundSettingsPanel`, `MainViewModel.
-  BackgroundState`/`CanvasState`: margin, padding, smart padding, corners,
-  shadow, ratios, colour/gradient/image/wallpaper backgrounds, and the
-  export with them): its button logs.
-- Print (`PrintImageRequested` → `TaskHelpers.PrintImage`: ShareX's
-  `PrintWindow`/`PrintHelper`, not part of the editor): its button logs.
-- Toolbar customisation (`ToolbarCustomizationDialogView`): ShareX opens
-  it from Task settings › Image editor (and Region capture), not from the
-  editor; the editor doesn't read `ToolbarItems` yet (default items).
-- `AutoSizeWindow`, the live canvas growth while a new text is typed
-  (`OnLiveTextEditorBoundsChanged`; the commit's auto-expand is ported).
 - The Image effects panel (another branch ports the catalogue).
+- The macOS and Linux wallpaper services; the Background sidebar's
+  open/close animation; ellipse and freehand regions (their toolbar items
+  only log).
+- ShareX's print checked live (its print dialog doesn't show in this
+  session); the preview window and the light Print window weren't compared;
+  `AutoSizeWindow` wasn't compared with ShareX's.
 
 ## Plan for the editor UI
 
