@@ -77,13 +77,11 @@ pub fn default_personal_folder() -> PathBuf {
     dirs::document_dir().or_else(dirs::home_dir).unwrap_or_default().join(APPLICATION_NAME)
 }
 
-/// Whether a command line has `-name` or `--name` (any case), as
-/// `ApplicationCommandLine.IsCommandPresent` checks.
+/// `ApplicationCommandLine.IsCommandPresent`: whether the command line has
+/// one of these commands, read as ShareX's `CLIManager` reads it (`-name`
+/// only, any case; see [`sharex_helpers::cli`]).
 pub fn is_command_present(args: &[String], names: &[&str]) -> bool {
-    args.iter().any(|a| {
-        let a = a.trim_start_matches(['-', '/']);
-        names.iter().any(|n| a.eq_ignore_ascii_case(n))
-    })
+    sharex_helpers::cli::CliManager::parse(args).is_command_exist(names)
 }
 
 impl AppPaths {
@@ -455,10 +453,12 @@ mod tests {
 
     #[test]
     fn command_line() {
-        let args = vec!["-Portable".to_string(), "--silent".into()];
+        let args = vec!["-Portable".to_string(), "-S".into(), "/sandbox".into(), "--multi".into()];
         assert!(is_command_present(&args, &["portable", "p"]));
         assert!(is_command_present(&args, &["silent", "s"]));
+        // ShareX only reads "-": "/sandbox" is a file to upload, "--multi" the command "-multi".
         assert!(!is_command_present(&args, &["sandbox"]));
+        assert!(!is_command_present(&args, &["multi", "m"]));
     }
 
     #[test]

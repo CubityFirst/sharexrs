@@ -12,12 +12,14 @@ mod app_windows;
 mod appearance;
 mod capture;
 mod capture_job;
+mod cli;
 mod controls_gallery;
 mod dialogs;
 mod history;
 mod history_ui;
 mod hotkey_settings;
 mod hotkeys;
+mod integration;
 mod main_menu;
 mod menu_settings;
 mod main_window;
@@ -30,6 +32,8 @@ mod region_session;
 mod render;
 mod settings_form;
 mod shell;
+#[cfg(windows)]
+mod shortcut;
 mod sound;
 mod start_screen;
 mod startup;
@@ -91,9 +95,15 @@ pub enum UserEvent {
     /// A watch folder's new file is ready (`FileWatcherTrigger`): the
     /// watcher's id and the file.
     WatchFolder(u64, std::path::PathBuf),
+    /// A later launch's command line (`SingleInstanceManager.ArgumentsReceived`).
+    Arguments(Vec<String>),
+    /// The browser extension's image, downloaded
+    /// (`ProcessImagesDuringExtensionUpload`).
+    ExtensionImage(Box<cli::ExtensionImage>),
 }
 
 fn main() {
+    cli::START.get_or_init(Instant::now);
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("--render") {
         if let Err(e) = render::run(&args[1..]) {
@@ -109,17 +119,40 @@ fn main() {
         }
         return;
     }
-    // What an earlier update left behind (the replaced app or files).
-    sharex_update::install::init();
-    // `Program.Run`: where the profile is, then the settings
-    // (`SettingManager.LoadInitialSettings`), before any window.
+    // `Program.Main`: where the profile is, then one running copy
+    // (`SingleInstanceManager`): a later launch passes its command line to
+    // it and leaves. `-multi` (`-m`) runs another copy anyway.
     let system = SystemOptions::read();
     let paths = AppPaths::initialize(&args, &system);
+    let multi_instance = is_command_present(&args, &["multi", "m"]);
+    let (mutex_name, pipe_name) = cli::instance_names(&paths);
+    let (arguments_tx, arguments_rx) = std::sync::mpsc::channel::<Vec<String>>();
+    let instance = sharex_helpers::single_instance::SingleInstanceManager::new(
+        &mutex_name,
+        &pipe_name,
+        !multi_instance,
+        &args,
+        Arc::new(move |a| {
+            let _ = arguments_tx.send(a);
+        }),
+    );
+    if instance.is_single_instance && !instance.is_first_instance {
+        return;
+    }
+    // What an earlier update left behind (the replaced app or files).
+    sharex_update::install::init();
+    // `Program.Run`: the settings (`SettingManager.LoadInitialSettings`),
+    // before any window.
     if let Some(method) = &paths.detection_method {
         eprintln!("Personal path detection method: {method}");
     }
     let settings = SettingManager::load(paths, system);
     settings.paths.create_application_folders(Some(&settings.settings));
+    // `FileTypeRegistration.RegisterMissingExtensions`: .sxcu and .sxie
+    // open with this copy, unless it's portable.
+    if !settings.paths.portable {
+        integration::register_missing_extensions();
+    }
     // `LoadApplicationConfig`'s `MigrateHistoryFile` and `HistoryConnect`.
     history::connect(&settings.paths);
     // `LanguageHelper.ChangeLanguage(Settings.Language)`.
@@ -137,6 +170,18 @@ fn main() {
     }
     let event_loop = builder.build().expect("event loop");
     let proxy = event_loop.create_proxy();
+    // Later launches' command lines, to the event loop
+    // (`SingleInstanceCommandRouter.ArgumentsReceived`).
+    {
+        let proxy = proxy.clone();
+        let _ = std::thread::Builder::new().name("arguments".into()).spawn(move || {
+            for a in arguments_rx {
+                if proxy.send_event(UserEvent::Arguments(a)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
     let hotkey_proxy = proxy.clone();
     let host = hotkeys::platform_host(Arc::new(move |id| {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
@@ -185,8 +230,15 @@ fn main() {
         ffmpeg_download: None,
         updates,
         watch_folders: Default::default(),
+        // `ApplicationCommandLine.Initialize`: run once startup is done.
+        router: cli::CommandRouter::new(args.clone()),
+        // `StartupOptions.AutoClose` (`-AutoClose`): exit once no task is busy.
+        auto_close: is_command_present(&args, &["AutoClose"]),
+        exit_requested: false,
+        queued_dialogs: Vec::new(),
     };
     event_loop.run_app(&mut app).expect("run");
+    drop(instance);
 }
 
 /// A message box in its own window (`MessageBoxWindow`).
@@ -212,6 +264,9 @@ enum DialogPurpose {
     DownloadFFmpeg(std::path::PathBuf),
     /// The downloaded installer isn't signed: Yes runs it anyway.
     UpdateSignature,
+    /// A question a command line asked (importing a custom uploader or an
+    /// image effect).
+    CommandLine(cli::CliQuestion),
 }
 
 struct App {
@@ -289,6 +344,14 @@ struct App {
     updates: update::Updates,
     /// `ApplicationState.WatchFolderManager`.
     watch_folders: watch_folder::WatchFolderManager,
+    /// `SingleInstanceCommandRouter` and the first command line.
+    router: cli::CommandRouter,
+    /// `StartupOptions.AutoClose`.
+    auto_close: bool,
+    /// Exit at the next chance (`-AutoClose` once the tasks are done).
+    exit_requested: bool,
+    /// Message boxes waiting for the open one to close.
+    queued_dialogs: Vec<(MessageBox, DialogPurpose)>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -923,13 +986,12 @@ impl App {
         // `showMainWindow`: not when starting silently to the tray.
         let s = &self.settings.settings;
         let show = !(self.silent || s.SilentRun) || !s.ShowTray || self.tray.is_none();
-        if !show {
-            return;
-        }
-        if let Err(e) = self.open_main_window(event_loop) {
+        if show && let Err(e) = self.open_main_window(event_loop) {
             eprintln!("couldn't open the main window: {e}");
             event_loop.exit();
+            return;
         }
+        self.startup_finished(event_loop);
     }
 
     /// `MainWindow.RefreshHotkeyTips`.
@@ -999,6 +1061,8 @@ impl App {
                 d.dialog.answered(result == DialogResult::Yes);
                 d.window.window.request_redraw();
             }
+        } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
+            self.cli_answered(question, result);
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
             && result == DialogResult::Yes
             && let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("custom-uploader-settings"))
@@ -1006,12 +1070,30 @@ impl App {
             d.dialog.confirmed();
             d.window.window.request_redraw();
         }
-        if startup
-            && self.main.is_none()
-            && let Err(e) = self.open_main_window(event_loop)
-        {
-            eprintln!("couldn't open the main window: {e}");
-            event_loop.exit();
+        if startup {
+            if self.main.is_none()
+                && let Err(e) = self.open_main_window(event_loop)
+            {
+                eprintln!("couldn't open the main window: {e}");
+                event_loop.exit();
+                return;
+            }
+            self.startup_finished(event_loop);
+        }
+        if self.dialog.is_none() && !self.queued_dialogs.is_empty() {
+            let (message, purpose) = self.queued_dialogs.remove(0);
+            if let Err(e) = self.open_dialog(event_loop, message, purpose) {
+                eprintln!("couldn't open the message box: {e}");
+            }
+        }
+    }
+
+    /// A message box after the open one, if there's one.
+    fn queue_dialog(&mut self, event_loop: &ActiveEventLoop, message: MessageBox, purpose: DialogPurpose) {
+        if self.dialog.is_some() {
+            self.queued_dialogs.push((message, purpose));
+        } else if let Err(e) = self.open_dialog(event_loop, message, purpose) {
+            eprintln!("couldn't open the message box: {e}");
         }
     }
 
@@ -1103,7 +1185,7 @@ impl App {
             HotkeyType::OCR => self.ocr_capture(task, false),
             HotkeyType::OpenHistory => self.show_history(event_loop),
             HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
-            _ => {}
+            _ => eprintln!("{}: not ported yet", job.name()),
         }
     }
 
@@ -1326,6 +1408,8 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Recording(event) => self.recording_event(event_loop, event),
             UserEvent::Update(event) => self.update_event(event_loop, event),
             UserEvent::WatchFolder(id, path) => self.watch_folder_trigger(event_loop, id, &path),
+            UserEvent::Arguments(a) => self.arguments_received(event_loop, a),
+            UserEvent::ExtensionImage(result) => self.extension_image(*result),
         }
     }
 
@@ -1472,6 +1556,12 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // `-AutoClose`: `ApplicationLifecycle.Exit()` once the last task is done.
+        if self.exit_requested {
+            self.exit_requested = false;
+            self.exit(event_loop);
+            return;
+        }
         if let Some(d) = &self.dialog
             && d.window.repaint_at.is_some_and(|at| at <= Instant::now())
         {

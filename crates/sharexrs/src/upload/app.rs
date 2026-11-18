@@ -239,6 +239,11 @@ impl App {
         }
         self.store_recent_tasks();
         let busy = self.state.tasks.manager.tasks.iter().any(|t| t.is_busy());
+        // `TaskManager`'s `if (!IsBusy && StartupOptions.AutoClose) ApplicationLifecycle.Exit()`.
+        if !busy && self.auto_close {
+            self.exit_requested = true;
+            return;
+        }
         if self.settings.settings.SaveSettingsAfterTaskCompleted && !busy {
             self.save_all_settings_async();
         }

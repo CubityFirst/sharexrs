@@ -100,8 +100,8 @@ pub struct ApplicationSettings {
     clipboard_selected: Option<usize>,
     editor: Option<FormatEditor>,
     color_open: bool,
-    /// The Explorer and browser integrations: not ported, kept for the
-    /// check boxes only.
+    /// The Explorer and browser integrations' check boxes
+    /// (`RefreshIntegration`), in `integration::SWITCHES`' order.
     integrations: [bool; 6],
     effects: Vec<Effect>,
 }
@@ -125,7 +125,7 @@ impl ApplicationSettings {
             clipboard_selected: (!settings.ClipboardContentFormats.is_empty()).then_some(0),
             editor: None,
             color_open: false,
-            integrations: [false; 6],
+            integrations: crate::integration::SWITCHES.map(crate::integration::check),
             effects: Vec::new(),
         }
     }
@@ -750,7 +750,7 @@ fn page_integration(f: &mut Form) {
             let mut v = f.w.integrations[i];
             if f.check(name, &mut v, true) {
                 f.w.integrations[i] = v;
-                f.effect(Effect::NotPorted("Explorer integration"));
+                set_integration(f, i, v);
             }
         }
     });
@@ -764,7 +764,7 @@ fn page_integration(f: &mut Form) {
             let mut v = f.w.integrations[4 + k];
             if f.check(check, &mut v, true) {
                 f.w.integrations[4 + k] = v;
-                f.effect(Effect::NotPorted("browser extension support"));
+                set_integration(f, 4 + k, v);
             }
             if f.button(button, f.w.integrations[4 + k]) {
                 f.effect(Effect::OpenUrl(url));
@@ -772,6 +772,14 @@ fn page_integration(f: &mut Form) {
         });
     }
     // Steam (`SteamIntegrationVisible`): only in Steam builds.
+}
+
+/// `ShellContextMenu`, `EditWithShareX`, ... setters:
+/// `IntegrationHelpers.Create*(value)`. Send To's error is shown.
+fn set_integration(f: &mut Form, i: usize, on: bool) {
+    if let Err(e) = crate::integration::set(crate::integration::SWITCHES[i], on) {
+        f.w.status = e;
+    }
 }
 
 /// `PersonalFolderPreview`.

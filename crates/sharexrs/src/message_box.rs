@@ -48,6 +48,7 @@ pub enum DialogResult {
     Ok,
     Yes,
     No,
+    Cancel,
 }
 
 /// `MessageBoxButtons` (the ones ShareXrs uses so far).
@@ -55,6 +56,7 @@ pub enum DialogResult {
 pub enum MessageBoxButtons {
     Ok,
     YesNo,
+    YesNoCancel,
 }
 
 pub struct MessageBox {
@@ -80,6 +82,11 @@ impl MessageBox {
         Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::YesNo, check_box: None, checked: false, default_button: 0 }
     }
 
+    /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNoCancel, icon)`.
+    pub fn yes_no_cancel(caption: impl Into<String>, text: impl Into<String>, icon: MessageBoxIcon) -> Self {
+        Self { buttons: MessageBoxButtons::YesNoCancel, ..Self::yes_no(caption, text, icon) }
+    }
+
     /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNo, checkBoxText, out checked)`
     /// (no icon).
     pub fn yes_no_with_check_box(caption: impl Into<String>, text: impl Into<String>, check_box: impl Into<String>) -> Self {
@@ -99,6 +106,11 @@ impl MessageBox {
         match self.buttons {
             MessageBoxButtons::Ok => vec![(DialogResult::Ok, av::MessageBox_OK())],
             MessageBoxButtons::YesNo => vec![(DialogResult::Yes, av::MessageBox_Yes()), (DialogResult::No, av::MessageBox_No())],
+            MessageBoxButtons::YesNoCancel => vec![
+                (DialogResult::Yes, av::MessageBox_Yes()),
+                (DialogResult::No, av::MessageBox_No()),
+                (DialogResult::Cancel, av::MessageBox_Cancel()),
+            ],
         }
     }
 
@@ -107,6 +119,7 @@ impl MessageBox {
         match self.buttons {
             MessageBoxButtons::Ok => DialogResult::Ok,
             MessageBoxButtons::YesNo => DialogResult::None,
+            MessageBoxButtons::YesNoCancel => DialogResult::Cancel,
         }
     }
 

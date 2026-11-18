@@ -41,9 +41,10 @@
 [Setup]
 AppCopyright=ShareXrs, a port of ShareX (Copyright (c) 2007-2026 ShareX Team)
 AppId={#MyAppId}
-; ShareX also sets AppMutex to its AppId, a mutex ShareX.exe holds. ShareXrs holds
-; none yet, so Setup closes a running copy through the Restart Manager instead
-; (CloseApplications, on by default) and the uninstaller looks for the process.
+; As ShareX: the AppId is also the mutex the installed sharexrs.exe holds
+; (crates/sharexrs/src/cli.rs). A portable copy's mutex has its folder's key added,
+; so it never holds this one.
+AppMutex={#MyAppId}
 AppName={#MyAppName}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
@@ -69,14 +70,15 @@ VersionInfoVersion={#MyAppVersionNumeric}
 
 [Tasks]
 Name: "CreateDesktopIcon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Check: not IsUpdating and not DesktopIconExists
-; Checked in ShareX. Unchecked here until ShareXrs acts on a file passed on its command
-; line (ShareX's ApplicationCommandLine isn't ported): until then they'd only start
-; ShareXrs again (docs/RELEASING.md).
-Name: "CreateContextMenuButton"; Description: "Show ""Upload with ShareXrs"" button in Windows Explorer context menu"; GroupDescription: "Additional shortcuts:"; Flags: unchecked; Check: not IsUpdating
-Name: "CreateSendToIcon"; Description: "Create a send to shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked; Check: not IsUpdating
+; Checked, as ShareX's: sharexrs.exe uploads the files and folders it's given, and a
+; second launch passes them to the running copy (crates/sharexrs/src/cli.rs).
+Name: "CreateContextMenuButton"; Description: "Show ""Upload with ShareXrs"" button in Windows Explorer context menu"; GroupDescription: "Additional shortcuts:"; Check: not IsUpdating
+Name: "CreateSendToIcon"; Description: "Create a send to shortcut"; GroupDescription: "Additional shortcuts:"; Check: not IsUpdating
 Name: "CreateStartupIcon"; Description: "Run ShareXrs when Windows starts"; GroupDescription: "Other tasks:"; Check: not IsUpdating
-; ShareX's "Enable browser extension support" registers its native messaging host
-; (ShareX.NativeMessagingHost), which ShareXrs doesn't have: left out.
+; The native messaging host (crates/sharexrs-native-messaging) under ShareXrs's host
+; names. ShareX's extensions ask for ShareX's host (com.getsharex.sharex), so they reach
+; ShareXrs only once they ask for ShareXrs's.
+Name: "EnableBrowserExtensionSupport"; Description: "Enable browser extension support"; GroupDescription: "Other tasks:"; Check: not IsUpdating
 ; Only offered when Print Screen still opens the Snipping Tool, so the value is only
 ; ever removed on uninstall by the installer that set it (ShareX's may have).
 Name: "DisablePrintScreenKeyForSnippingTool"; Description: "Disable Print Screen key for Snipping Tool"; GroupDescription: "Other tasks:"; Check: not IsUpdating and PrintScreenOpensSnippingTool
@@ -86,6 +88,9 @@ Name: "DisablePrintScreenKeyForSnippingTool"; Description: "Disable Print Screen
 
 [Files]
 Source: "{#SourceDir}\{#MyAppFileName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\sharexrs-native-messaging.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\host-manifest-chrome.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\host-manifest-firefox.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\onnxruntime.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\Models\*"; DestDir: "{app}\Models"; Flags: ignoreversion recursesubdirs
@@ -121,6 +126,11 @@ Root: "HKCU"; Subkey: "Software\Classes\{#MyAppName}.sxcu"; Flags: dontcreatekey
 Root: "HKCU"; Subkey: "Software\Classes\{#MyAppName}.sxie"; Flags: dontcreatekey uninsdeletekey
 Root: "HKCU"; Subkey: "Software\Classes\SystemFileAssociations\image\shell\{#MyAppName}ImageEditor"; Flags: dontcreatekey uninsdeletekey
 Root: "HKCU"; Subkey: "Software\Classes\SystemFileAssociations\image\shell\{#MyAppName}PhotoEditor"; Flags: dontcreatekey uninsdeletekey
+Root: "HKCU"; Subkey: "SOFTWARE\Google\Chrome\NativeMessagingHosts\com.sharexrs.sharexrs"; ValueType: string; ValueData: "{app}\host-manifest-chrome.json"; Flags: uninsdeletekey; Tasks: EnableBrowserExtensionSupport
+Root: "HKCU"; Subkey: "SOFTWARE\Mozilla\NativeMessagingHosts\{#MyAppName}"; ValueType: string; ValueData: "{app}\host-manifest-firefox.json"; Flags: uninsdeletekey; Tasks: EnableBrowserExtensionSupport
+; Also when Application settings turned them on rather than this installer.
+Root: "HKCU"; Subkey: "SOFTWARE\Google\Chrome\NativeMessagingHosts\com.sharexrs.sharexrs"; Flags: dontcreatekey uninsdeletekey
+Root: "HKCU"; Subkey: "SOFTWARE\Mozilla\NativeMessagingHosts\{#MyAppName}"; Flags: dontcreatekey uninsdeletekey
 Root: "HKCU"; Subkey: "Control Panel\Keyboard"; ValueType: dword; ValueName: "PrintScreenKeyForSnippingEnabled"; ValueData: "0"; Flags: uninsdeletevalue; Tasks: DisablePrintScreenKeyForSnippingTool
 
 [Code]
@@ -134,19 +144,11 @@ begin
   end;
 end;
 
-function IsAppRunning(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result := Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq {#MyAppFileName}" /NH | find /I "{#MyAppFileName}" > nul',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
-end;
-
 function InitializeUninstall(): Boolean;
 var
   ErrorCode: Integer;
 begin
-  if IsAppRunning() then
+  if CheckForMutexes('{#MyAppId}') then
   begin
     if SuppressibleMsgBox('Uninstall has detected that {#MyAppName} is currently running.' + #13#10#13#10 + 'Would you like to close it?', mbError, MB_YESNO, IDYES) = IDYES then
     begin

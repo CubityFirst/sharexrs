@@ -1,0 +1,9 @@
+{
+  "name": "ShareXrs",
+  "description": "ShareXrs",
+  "path": "sharexrs-native-messaging.exe",
+  "type": "stdio",
+  "allowed_extensions": [
+    "firefox@getsharex.com"
+  ]
+}

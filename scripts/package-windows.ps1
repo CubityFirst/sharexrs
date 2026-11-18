@@ -6,6 +6,7 @@ ShareX.Setup does for ShareX: a portable zip and an Inno Setup installer.
 .DESCRIPTION
   scripts/package-windows.ps1 -Exe <sharexrs.exe> -Payload <dir> -Version <ver>
       -Platform x64|arm64 -Out <dir> [-SkipInstaller] [-Iscc <ISCC.exe>]
+      [-NativeMessagingHost <sharexrs-native-messaging.exe>]
 
 -Payload is scripts/fetch-bundled.py's output for the platform (ffmpeg.exe,
 onnxruntime.dll, Models, Licenses). Writes, in -Out:
@@ -17,7 +18,11 @@ onnxruntime.dll, Models, Licenses). Writes, in -Out:
 
 The folder (ShareX.Setup's CreateFolder, minus what ShareXrs doesn't have):
 
-  sharexrs.exe, ffmpeg.exe, onnxruntime.dll, Models\..., Licenses\*.txt
+  sharexrs.exe, sharexrs-native-messaging.exe, host-manifest-chrome.json,
+  host-manifest-firefox.json, ffmpeg.exe, onnxruntime.dll, Models\..., Licenses\*.txt
+
+-NativeMessagingHost defaults to sharexrs-native-messaging.exe beside -Exe; the
+manifests come from packaging\windows.
 
 The file names end as ShareX's do (portable-x64.zip, setup-x64.exe), which is
 what ShareX's update checker looks for in a GitHub release.
@@ -27,6 +32,7 @@ Runs in Windows PowerShell 5.1 and PowerShell 7.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $Exe,
+    [string] $NativeMessagingHost,
     [Parameter(Mandatory)] [string] $Payload,
     [Parameter(Mandatory)] [string] $Version,
     [Parameter(Mandatory)] [ValidateSet('x64', 'arm64')] [string] $Platform,
@@ -46,6 +52,8 @@ $root = Split-Path -Parent $PSScriptRoot
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
 $Exe = (Resolve-Path $Exe).Path
+if (-not $NativeMessagingHost) { $NativeMessagingHost = Join-Path (Split-Path -Parent $Exe) 'sharexrs-native-messaging.exe' }
+$NativeMessagingHost = (Resolve-Path $NativeMessagingHost).Path
 $Payload = (Resolve-Path $Payload).Path
 
 # The folder every package is made from.
@@ -54,10 +62,15 @@ $folder = Join-Path $stage 'ShareXrs'
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $folder | Out-Null
 Copy-Item $Exe (Join-Path $folder 'sharexrs.exe')
+# ShareX.NativeMessagingHost and its host manifests (ShareX's *.exe and *.json).
+Copy-Item $NativeMessagingHost (Join-Path $folder 'sharexrs-native-messaging.exe')
+Copy-Item (Join-Path $root 'packaging\windows\host-manifest-chrome.json') $folder
+Copy-Item (Join-Path $root 'packaging\windows\host-manifest-firefox.json') $folder
 Copy-Item (Join-Path $Payload '*') $folder -Recurse
 
 $required = @(
-    'sharexrs.exe', 'ffmpeg.exe', 'onnxruntime.dll',
+    'sharexrs.exe', 'sharexrs-native-messaging.exe', 'host-manifest-chrome.json', 'host-manifest-firefox.json',
+    'ffmpeg.exe', 'onnxruntime.dll',
     'Models\PP-OCRv6_small_det\inference.onnx', 'Models\PP-OCRv6_small_det\inference.yml',
     'Models\PP-OCRv6_small_rec\inference.onnx', 'Models\PP-OCRv6_small_rec\inference.yml',
     'Licenses\ShareXrs_license.txt', 'Licenses\FFmpeg_license.txt', 'Licenses\FFmpeg_source.txt',

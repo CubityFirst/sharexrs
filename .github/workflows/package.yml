@@ -126,7 +126,7 @@ jobs:
           SHAREXRS_KEY_BITLY_CLIENT_SECRET: ${{ secrets.SHAREXRS_KEY_BITLY_CLIENT_SECRET }}
           SHAREXRS_KEY_GOOGLE_CLIENT_ID: ${{ secrets.SHAREXRS_KEY_GOOGLE_CLIENT_ID }}
           SHAREXRS_KEY_GOOGLE_CLIENT_SECRET: ${{ secrets.SHAREXRS_KEY_GOOGLE_CLIENT_SECRET }}
-        run: cargo build --release --locked -p sharexrs --target ${{ matrix.target }}
+        run: cargo build --release --locked -p sharexrs -p sharexrs-native-messaging --target ${{ matrix.target }}
 
       - uses: actions/setup-python@v5
         with:

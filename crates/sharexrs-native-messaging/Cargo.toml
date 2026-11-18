@@ -1,0 +1,20 @@
+[package]
+name = "sharexrs-native-messaging"
+description = "ShareX.NativeMessagingHost, ported: the program ShareXrs's browser extension support starts, which passes a message on to ShareXrs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "sharexrs_native_messaging"
+
+[[bin]]
+name = "sharexrs-native-messaging"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+getrandom = "0.3"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
