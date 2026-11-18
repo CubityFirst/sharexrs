@@ -212,6 +212,8 @@ pub struct EditorWindow {
     confirm_exit: bool,
     /// Where things were drawn last frame.
     layout: Layout,
+    /// Open the File menu once the toolbar is laid out (`OpenFileMenu`).
+    open_file_menu: bool,
 }
 
 struct Layout {
@@ -292,6 +294,7 @@ impl EditorWindow {
             pan: None,
             confirm_exit: false,
             layout: Layout::default(),
+            open_file_menu: false,
         };
         w.title = w.window_title();
         w
@@ -617,6 +620,34 @@ impl EditorWindow {
             MenuEntry::separator(),
             MenuEntry::item(toggle, app_icons::ChevronsUpDown, MenuCmd::ToggleToolbars).gesture("Ctrl+H"),
         ]
+    }
+
+    /// `EditorContextMenu`: a plain `ContextMenu` (`MenuItem`s 12,8 padded)
+    /// at the pointer.
+    fn context_flyout(entries: Vec<MenuEntry<MenuCmd>>, at: Pos2) -> Flyout<MenuCmd> {
+        let entries = Self::plain_icons(entries);
+        let mut f = Flyout::menu(Id::new("editor-context"), entries, Rect::from_min_size(at, Vec2::ZERO), Placement::Pointer(at));
+        f.style = sharex_ui::menu::MenuStyle::Standard;
+        f
+    }
+
+    /// The File button's `MenuFlyout` (`BottomEdgeAlignedLeft`, 4 down).
+    fn file_flyout(&self, button: Rect) -> Flyout<MenuCmd> {
+        let entries = Self::plain_icons(self.file_menu());
+        let mut f = Flyout::menu(Id::new("editor-file"), entries, button.translate(vec2(0.0, 4.0)), Placement::BottomEdgeAlignedLeft);
+        f.style = sharex_ui::menu::MenuStyle::Standard;
+        f
+    }
+
+    /// Plain `MenuItem.Icon` `IconPresenter`s: the item's foreground.
+    fn plain_icons(entries: Vec<MenuEntry<MenuCmd>>) -> Vec<MenuEntry<MenuCmd>> {
+        entries
+            .into_iter()
+            .map(|e| match e.icon {
+                sharex_ui::menu::MenuIcon::Key(k) => e.icon(sharex_ui::menu::MenuIcon::Plain(k, 14.0)),
+                _ => e,
+            })
+            .collect()
     }
 
     fn file_menu(&self) -> Vec<MenuEntry<MenuCmd>> {
@@ -950,7 +981,7 @@ impl EditorWindow {
                             if self.ws.is_drawing() {
                                 self.ws.pointer_pressed(at, b, mods);
                             } else if self.ws.right_pressed(at) == RightClick::ContextMenu {
-                                self.flyout = Some(Flyout::menu(Id::new("editor-context"), self.context_menu(), Rect::from_min_size(pos, Vec2::ZERO), Placement::Pointer(pos)));
+                                self.flyout = Some(Self::context_flyout(self.context_menu(), pos));
                             }
                             continue;
                         }
@@ -1036,8 +1067,7 @@ impl EditorWindow {
         for (it, r) in self.layout.items.clone() {
             if ui.interact(r, Id::new(("editor-item", format!("{it:?}"))), Sense::click()).clicked() {
                 if it == Item::File {
-                    let entries = self.file_menu();
-                    self.flyout = Some(Flyout::menu(Id::new("editor-file"), entries, r, Placement::BottomEdgeAlignedLeft));
+                    self.flyout = Some(self.file_flyout(r));
                 } else {
                     self.select_item(it);
                 }
@@ -1263,6 +1293,11 @@ impl Dialog for EditorWindow {
             self.paint_top(ui, &p, full);
             self.paint_bottom(ui, &p, full);
             self.toolbar_clicks(ui);
+            if std::mem::take(&mut self.open_file_menu)
+                && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::File)
+            {
+                self.flyout = Some(self.file_flyout(*r));
+            }
         } else {
             self.layout.top = None;
             self.layout.options = None;
@@ -1351,7 +1386,15 @@ pub fn is_render_screen(name: &str) -> bool {
 pub fn render_dialog(_name: &str, o: &crate::dialogs::render::Options) -> Result<Box<dyn Dialog>, String> {
     let path = o.image.clone().ok_or("--image <png> is required")?;
     let image = image::open(&path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8();
-    let w = EditorWindow::new(Some(image), Some(path), TaskSettings::default(), false, PathBuf::new());
+    let mut w = EditorWindow::new(Some(image), Some(path), TaskSettings::default(), false, PathBuf::new());
+    // `image-editor-context`: the context menu opened at 300,200.
+    if _name == "image-editor-file" {
+        w.open_file_menu = true;
+    }
+    if _name == "image-editor-context" {
+        let at = pos2(300.0, 200.0);
+        w.flyout = Some(EditorWindow::context_flyout(w.context_menu(), at));
+    }
     Ok(Box::new(w))
 }
 
