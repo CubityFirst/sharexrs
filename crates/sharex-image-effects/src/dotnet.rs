@@ -12,6 +12,44 @@ pub trait Prop: Sized {
     fn from_json(v: &Value) -> Option<Self>;
 }
 
+/// The editor ShareX's `ImageEffectOptionsPanel.CreateEditor` picks for a
+/// property from its CLR type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropKind {
+    /// `bool`: a `ToggleSwitch`.
+    Bool,
+    /// An integer type: a `NumericUpDown` (`Increment` 1, `FormatString="0"`).
+    Int,
+    /// `float`/`double`: a `NumericUpDown` (`Increment` 0.1, `"0.###"`).
+    Float,
+    /// A non-flags enum: a `ComboBox` of `ImageEffectsLocalization.GetEnumValue`.
+    /// `names` in `Enum.GetValues` order; `resource` the type's name in the
+    /// `ImageEffectEnum_*` keys.
+    Enum { names: &'static [&'static str], resource: &'static str },
+    /// `Color`: the colour button and its `ColorView` flyout.
+    Color,
+    /// `Point`: X and Y boxes.
+    Point,
+    /// `Size`: width and height boxes.
+    Size,
+    /// `ImageMargins`: left, top, right and bottom boxes.
+    Margins,
+    /// `GradientInfo`: Edit gradient... with the `GradientOptionsPanel` flyout.
+    Gradient,
+    /// Anything else (strings, fonts, flags): a `TextBox` through the
+    /// property's `TypeConverter`.
+    Text,
+}
+
+/// A property type's [`PropKind`].
+pub trait PropMeta {
+    const KIND: PropKind;
+}
+
+macro_rules! prop_meta {
+    ($($t:ty => $k:expr),* $(,)?) => { $(impl PropMeta for $t { const KIND: PropKind = $k; })* };
+}
+
 /// An `f32` written as .NET's shortest round-trip form (`0.6`, not `0.6000000238…`).
 pub fn f32_json(v: f32) -> Value {
     let f: f64 = format!("{v}").parse().unwrap_or(v as f64);
@@ -559,6 +597,8 @@ macro_rules! dotnet_enum {
 
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant),+];
+            /// The names in `ALL`'s order.
+            pub const NAMES: &'static [&'static str] = &[$(stringify!($variant)),+];
 
             pub fn name(self) -> &'static str {
                 match self { $($name::$variant => stringify!($variant)),+ }
@@ -988,3 +1028,41 @@ pub static KNOWN_COLORS: &[(&str, u32)] = &[
     ("WindowFrame", 0xFF646464),
     ("WindowText", 0xFF000000),
 ];
+
+prop_meta! {
+    bool => PropKind::Bool,
+    i32 => PropKind::Int,
+    u8 => PropKind::Int,
+    f32 => PropKind::Float,
+    f64 => PropKind::Float,
+    String => PropKind::Text,
+    Option<ImageFont> => PropKind::Text,
+    Sides => PropKind::Text,
+    Color => PropKind::Color,
+    Point => PropKind::Point,
+    Size => PropKind::Size,
+    Margins => PropKind::Margins,
+    Option<GradientInfo> => PropKind::Gradient,
+}
+
+macro_rules! enum_meta {
+    ($($t:ident => $res:literal),* $(,)?) => {
+        $(impl PropMeta for $t { const KIND: PropKind = PropKind::Enum { names: $t::NAMES, resource: $res }; })*
+    };
+}
+
+// `ImageEffectsLocalization.GetEnumValue`'s resource type names.
+enum_meta! {
+    GradientMode => "LinearGradientMode",
+    ContentAlignment => "ContentAlignment",
+    DashStyle => "DashStyle",
+    BorderType => "BorderType",
+    InterpolationMode => "ImageInterpolationMode",
+    CompositingMode => "CompositingMode",
+    TextRenderingMode => "TextRenderingHint",
+    ResizeMode => "ResizeMode",
+    DrawImageSizeMode => "DrawImageSizeMode",
+    RotateFlipType => "ImageRotateFlipType",
+    CanvasMarginMode => "CanvasMarginMode",
+    ForceProportionsMethod => "ForceProportionsMethod",
+}

@@ -65,6 +65,8 @@ macro_rules! effect {
         impl $name {
             /// The serialised properties, in ShareX's order.
             pub const PROPERTY_NAMES: &'static [&'static str] = &[$(stringify!($field)),*];
+            /// Each property's editor kind, in the same order.
+            pub const PROPERTY_KINDS: &'static [$crate::dotnet::PropKind] = &[$(<$ty as $crate::dotnet::PropMeta>::KIND),*];
 
             fn write_props(&self, map: &mut Map<String, Value>) {
                 $( map.insert(stringify!($field).to_string(), Prop::to_json(&self.$field)); )*
@@ -1712,6 +1714,11 @@ macro_rules! registry {
             /// The property names, in ShareX's order.
             pub fn property_names(&self) -> &'static [&'static str] {
                 match self { $($( EffectKind::$ty(_) => <registry!(@rust $ty $($rust)?)>::PROPERTY_NAMES, )*)* }
+            }
+
+            /// The editor kinds of [`Self::property_names`].
+            pub fn property_kinds(&self) -> &'static [$crate::dotnet::PropKind] {
+                match self { $($( EffectKind::$ty(_) => <registry!(@rust $ty $($rust)?)>::PROPERTY_KINDS, )*)* }
             }
 
             pub fn get_property(&self, name: &str) -> Option<Value> {
