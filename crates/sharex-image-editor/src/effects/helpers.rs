@@ -701,3 +701,55 @@ pub fn div255_accurate(v: u32) -> u32 {
     let v = v + 128;
     (v + (v >> 8)) >> 8
 }
+
+/// `SKImageFilter.CreateMatrixConvolution(3x3, kernel, gain, bias, (1, 1),
+/// tile, convolveAlpha)` drawn over a transparent bitmap of the same size.
+/// Skia m119 evaluates it as an SkSL runtime shader
+/// (`SkMatrixConvolutionImageFilter`'s uniform-kernel effect) in float:
+/// each neighbour sampled from the image (transparent outside it: without
+/// a crop rect the tile mode isn't applied), unpremultiplied as `rgb /
+/// max(a, 0.0001)` unless alpha is convolved, `sum += c * k` in kernel
+/// order, then `sum * gain + bias / 255`, the original alpha restored (or
+/// the convolved one saturated), colour clamped to `[0, a]`, stored
+/// rounded.
+pub fn matrix_convolution_3x3(src: &Bitmap, kernel: &[f32; 9], gain: f32, bias: f32, convolve_alpha: bool) -> Bitmap {
+    let (w, h) = (src.width() as i32, src.height() as i32);
+    let bias = bias / 255.0;
+    let mut out = Bitmap::new(src.width(), src.height());
+    for y in 0..h {
+        for x in 0..w {
+            let mut sum = [0f32; 4];
+            let mut orig_alpha = 0f32;
+            for (i, &k) in kernel.iter().enumerate() {
+                let (kx, ky) = (i as i32 % 3, i as i32 / 3);
+                let (px, py) = (x + kx - 1, y + ky - 1);
+                let mut c = if px < 0 || py < 0 || px >= w || py >= h {
+                    [0f32; 4]
+                } else {
+                    sharex_skia::raster::load(src.pixel(px as u32, py as u32))
+                };
+                if !convolve_alpha {
+                    if kx == 1 && ky == 1 {
+                        orig_alpha = c[3];
+                    }
+                    let a = c[3].max(0.0001);
+                    c = [c[0] / a, c[1] / a, c[2] / a, c[3]];
+                }
+                for j in 0..4 {
+                    sum[j] += c[j] * k;
+                }
+            }
+            let mut color = sum.map(|v| v * gain + bias);
+            if !convolve_alpha {
+                color = [color[0] * orig_alpha, color[1] * orig_alpha, color[2] * orig_alpha, orig_alpha];
+            } else {
+                color[3] = color[3].clamp(0.0, 1.0);
+            }
+            for j in 0..3 {
+                color[j] = color[j].max(0.0).min(color[3]);
+            }
+            out.set_pixel(x as u32, y as u32, sharex_skia::raster::store(color));
+        }
+    }
+    out
+}

@@ -22,7 +22,8 @@ impl EffectImpl for MeanRemovalImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        #[rustfmt::skip]
+        const K: [f32; 9] = [-1.0, -1.0, -1.0, -1.0, 9.0, -1.0, -1.0, -1.0, -1.0];
+        Ok(matrix_convolution_3x3(source, &K, 1.0, 0.0, false))
     }
 }

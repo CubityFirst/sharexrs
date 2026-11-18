@@ -29,7 +29,13 @@ impl EffectImpl for SharpenImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.strength <= 0 {
+            return Ok(source.clone());
+        }
+        let s = clampf(self.strength as f32 / 100.0, 0.0, 1.0);
+        let center = 1.0 + 4.0 * s;
+        let edge = -s;
+        let k = [0.0, edge, 0.0, edge, center, edge, 0.0, edge, 0.0];
+        Ok(matrix_convolution_3x3(source, &k, 1.0, 0.0, true))
     }
 }

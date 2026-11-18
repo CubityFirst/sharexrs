@@ -22,7 +22,7 @@ impl EffectImpl for SmoothImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        const N: f32 = 1.0 / 9.0;
+        Ok(matrix_convolution_3x3(source, &[N; 9], 1.0, 0.0, false))
     }
 }

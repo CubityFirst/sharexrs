@@ -59,7 +59,19 @@ impl EffectImpl for ConvolutionMatrixImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let factor = 0.01f64.max(self.factor) as f32;
+        let gain = 1.0 / factor;
+        let k = [
+            self.x0_y0 as f32,
+            self.x1_y0 as f32,
+            self.x2_y0 as f32,
+            self.x0_y1 as f32,
+            self.x1_y1 as f32,
+            self.x2_y1 as f32,
+            self.x0_y2 as f32,
+            self.x1_y2 as f32,
+            self.x2_y2 as f32,
+        ];
+        Ok(matrix_convolution_3x3(source, &k, gain, self.offset as f32, false))
     }
 }
