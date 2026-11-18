@@ -178,7 +178,9 @@ impl App {
             .with_position(PhysicalPosition::new(x, y))
             .with_inner_size(PhysicalSize::new(w, h));
         let window = event_loop.create_window(attrs).map_err(|e| e.to_string())?;
-        let window = EguiWindow::new(window, gpu, None)?;
+        // Without dithering: the pattern and the page show pixel for pixel, so
+        // two grabs of the same place are the same.
+        let window = EguiWindow::exact(window, gpu)?;
         window.window.set_visible(true);
         window.window.request_redraw();
         self.panes.push(Pane { window, texture: None, origin: (x, y), kind });
@@ -290,5 +292,22 @@ mod tests {
         // No two text lines alike (so stitching has one answer).
         let rows: std::collections::HashSet<Vec<u8>> = (0..super::PAGE_HEIGHT / 22).map(|l| image::imageops::crop_imm(&a, 0, l * 22 + 8, 300, 1).to_image().into_raw()).collect();
         assert!(rows.len() > 100);
+    }
+
+    #[test]
+    fn page_stitches_back_to_itself() {
+        use sharex_capture::scrolling::Stitcher;
+        let page = super::page_image(420);
+        let mut s = Stitcher::new(true);
+        let mut off = 0;
+        loop {
+            let frame = image::imageops::crop_imm(&page, 0, off, 420, 480).to_image();
+            assert!(s.add(&frame), "offset {off}: {:?}", s.status);
+            if off == super::PAGE_HEIGHT - 480 {
+                break;
+            }
+            off = (off + 80).min(super::PAGE_HEIGHT - 480);
+        }
+        assert!(s.result.unwrap() == page);
     }
 }
