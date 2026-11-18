@@ -7,7 +7,9 @@
 //! `OpenRuler`, `OpenClassicRuler`, `OpenMouseHighlighter`, `PinToScreen*`,
 //! `MouseHighlighterManager`).
 
+pub mod color_picker;
 pub mod overlay;
+pub mod render;
 pub mod screen_picker;
 
 use sharex_settings::{HotkeyType, TaskSettings};
@@ -24,7 +26,6 @@ pub enum PickPurpose {
     /// the text to the clipboard.
     Tool(Box<TaskSettings>),
     /// A colour picker window's Pick color from screen.
-    #[allow(dead_code)]
     Dialog(WindowId),
 }
 
@@ -77,8 +78,14 @@ impl App {
         let _ = file;
         match job {
             HotkeyType::ScreenColorPicker => self.open_screen_color_picker(event_loop, PickPurpose::Tool(Box::new(task.clone()))),
-            HotkeyType::ColorPicker
-            | HotkeyType::Ruler
+            // `ShowColorPickerDialog`.
+            HotkeyType::ColorPicker => {
+                let s = &self.settings.settings;
+                let recent = sharex_tools::color::recent_colors_from_json(&s.RecentColors);
+                let w = color_picker::ColorPickerWindow::new(color_picker::recent_selected(s), recent);
+                self.open_dialog_window(event_loop, Box::new(w));
+            }
+            HotkeyType::Ruler
             | HotkeyType::ClassicRuler
             | HotkeyType::MouseHighlighter
             | HotkeyType::PinToScreen
@@ -145,7 +152,16 @@ impl App {
                     eprintln!("Notification not ported yet: ShareXrs - {}: {message}", sharex_strings::sharex::ScreenColorPicker());
                 }
             }
-            PickPurpose::Dialog(_) => {}
+            PickPurpose::Dialog(id) => {
+                // `OnPickScreenClick`'s `finally`: shown and activated again.
+                let mut cx = crate::dialogs::Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
+                if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                    d.window.window.set_minimized(false);
+                    d.window.window.focus_window();
+                    d.dialog.screen_color(result.map(|r| r.color), &mut cx);
+                    d.window.window.request_redraw();
+                }
+            }
         }
     }
 

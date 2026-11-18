@@ -142,6 +142,10 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// The colour picker's Pick color from screen: minimized, the screen
+    /// colour picker, restored, its colour handed back through
+    /// [`Dialog::screen_color`].
+    PickScreenColor,
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
     /// (portable) or the downloader window.
     UpdateDownload(Box<sharex_update::GitHubUpdateChecker>, update::UpdateOrigin),
@@ -283,6 +287,9 @@ pub trait Dialog {
 
     /// `ImageEffectsWindow.ImportPreset(json)` on the open presets window.
     fn import(&mut self, _json: &str) {}
+
+    /// The screen colour picker's colour after [`Effect::PickScreenColor`].
+    fn screen_color(&mut self, _color: Option<sharex_tools::color::Color>, _cx: &mut Cx) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -489,6 +496,12 @@ impl App {
                 Effect::FileService(service, path) => self.file_service(event_loop, service, path),
                 Effect::OcrSelectRegion => self.ocr_select_region(id),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::PickScreenColor => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_minimized(true);
+                    }
+                    self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id));
+                }
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
                 Effect::PasteImage => {

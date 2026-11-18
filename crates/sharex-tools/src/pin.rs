@@ -124,6 +124,10 @@ fn size(v: &Value, key: &str, default: (i32, i32)) -> (i32, i32) {
 }
 
 /// Sets `key` on the object (keeping its place when it's there).
+pub fn set_json(target: &mut Value, key: &str, value: Value) {
+    set(target, key, value)
+}
+
 pub(crate) fn set(target: &mut Value, key: &str, value: Value) {
     if !target.is_object() {
         *target = json!({});

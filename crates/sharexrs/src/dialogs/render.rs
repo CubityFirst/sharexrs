@@ -258,6 +258,7 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         s if crate::ocr_window::is_render_screen(s) => crate::ocr_window::render_dialog(s, o)?,
         s if crate::image_tools::render::is_render_screen(s) => crate::image_tools::render::render_dialog(s, o)?,
         s if crate::image_effects::render::is_render_screen(s) => crate::image_effects::render::render_dialog(s, o)?,
+        s if crate::screen_tools::render::is_render_screen(s) => crate::screen_tools::render::render_dialog(s, o)?,
         other => return Err(format!("no dialog named {other}")),
     })
 }
@@ -285,6 +286,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
         || crate::ocr_window::is_render_screen(screen)
         || crate::image_tools::render::is_render_screen(screen)
         || crate::image_effects::render::is_render_screen(screen)
+        || crate::screen_tools::render::is_render_screen(screen)
 }
 
 /// Draws the dialog `name` at its window's size.
