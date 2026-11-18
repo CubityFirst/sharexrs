@@ -1,1 +1,3 @@
-{}
+{
+  "fake_hair": "ShareX seeds its strand generator from Environment.TickCount, so its output changes from run to run (ShareX's own included); the port seeds from the clock the same way"
+}

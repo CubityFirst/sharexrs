@@ -49,6 +49,8 @@ pub enum Blend {
     /// `SKBlendMode.Multiply`: `s*(1-da) + d*(1-sa) + s*d`, coverage lerped
     /// (it doesn't support coverage as alpha).
     Multiply,
+    /// `SKBlendMode.Clear`: 0, coverage lerped.
+    Clear,
 }
 
 /// `SKPaint.Shader` (or its colour when there's none).
@@ -571,7 +573,7 @@ impl<'a> Canvas<'a> {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,
                         // SkRasterPipelineSpriteBlitter: load_8888, multiply (lowp), store.
-                        Blend::Multiply => self.blend_full(di, Px::Low(s.map(u32::from)), Blend::Multiply),
+                        Blend::Multiply | Blend::Clear => self.blend_full(di, Px::Low(s.map(u32::from)), paint.blend),
                         // Sprite_D32_S32 → S32A_Opaque_BlitRow32: s + (d * (256 - sa) >> 8).
                         Blend::SrcOver => {
                             let d = self.dst.px(di);
@@ -693,6 +695,7 @@ impl<'a> Canvas<'a> {
                 let inv = 1.0 - c[3];
                 [0, 1, 2, 3].map(|i| to_unorm(mad(d[i] as f32, inv, c[i] * 255.0), 1.0, 255.0))
             }
+            (_, Blend::Clear) => [0, 0, 0, 0],
             (Px::High(c), Blend::Multiply) => store(multiply_high(c, load(self.dst.px(di)))),
             (Px::Low(c), Blend::Multiply) => multiply_low(c, self.dst.px(di)).map(|v| v.min(255) as u8),
             (Px::Low(c), Blend::SrcOver) => {
@@ -734,6 +737,15 @@ impl<'a> Canvas<'a> {
             (Px::Low(c), Blend::Src) => {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + c[i] * t).min(255) as u8)
+            }
+            (Px::High(_), Blend::Clear) => {
+                let f = cov as f32 * (1.0 / 255.0);
+                let dd = load(d);
+                store([0, 1, 2, 3].map(|i| mad(0.0 - dd[i], f, dd[i])))
+            }
+            (Px::Low(_), Blend::Clear) => {
+                let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
+                [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t)).min(255) as u8)
             }
             (Px::High(c), Blend::Multiply) => {
                 let f = cov as f32 * (1.0 / 255.0);
