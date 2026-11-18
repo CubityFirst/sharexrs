@@ -55,6 +55,41 @@ pub(crate) fn fill_path_aa_clip(
     Coverage::Mask(rec.cells)
 }
 
+/// A rect through an anti-aliased clip (`SkScan::FillRect`/`AntiFillRect`
+/// with an `SkAAClipBlitterWrapper`): the clip's bounds clip the scan, the
+/// `SkAAClipBlitter` scales by the clip's coverage.
+pub(crate) fn rect_aa_clip(r: Rect, anti_alias: bool, clip: &crate::aaclip::AAClip, width: u32, height: u32) -> Coverage {
+    let mut rec = Recorder::new(width, height);
+    if clip.is_empty() {
+        return Coverage::Mask(rec.cells);
+    }
+    let mut bounds = clip.bounds();
+    if !bounds.intersect(&rec.clip()) {
+        return Coverage::Mask(rec.cells);
+    }
+    {
+        let mut blitter = crate::aaclip::AAClipBlitter {
+            inner: &mut rec,
+            clip,
+        };
+        let whole = |v: f32| v == v.floor();
+        if anti_alias && !(whole(r.left) && whole(r.top) && whole(r.right) && whole(r.bottom)) {
+            crate::scan::anti_fill_rect(
+                crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom),
+                bounds,
+                &mut blitter,
+            );
+        } else {
+            let round = |v: f32| (v + 0.5).floor() as i32;
+            let mut ir = IRect::from_ltrb(round(r.left), round(r.top), round(r.right), round(r.bottom));
+            if ir.intersect(&bounds) {
+                blitter.blit_rect(ir.left, ir.top, ir.right - ir.left, ir.bottom - ir.top);
+            }
+        }
+    }
+    Coverage::Mask(rec.cells)
+}
+
 /// An anti-aliased hairline of `path` (device space) with `cap`
 /// (`SkScan::AntiHairPath` and its cap variants).
 pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {

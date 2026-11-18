@@ -54,7 +54,38 @@ impl EffectImpl for BorderImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.size <= 0 {
+            return Ok(source.clone());
+        }
+        let size = self.size;
+        let outside = self.r#type == BorderType::Outside;
+        let (iw, ih) = (source.width() as i32, source.height() as i32);
+        let nw = if outside { iw + size * 2 } else { iw };
+        let nh = if outside { ih + size * 2 } else { ih };
+        let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let mut canvas = Canvas::new(&mut out);
+        let off = if outside { size } else { 0 };
+        canvas.draw_bitmap(source, off as f32, off as f32, None);
+        let paint = solid(self.color, true);
+        let sf = size as f32;
+        let mut pen = Pen::new(sf);
+        let intervals = match self.dash_style {
+            DashStyle::Dash => Some(vec![sf * 3.0, sf]),
+            DashStyle::Dot => Some(vec![sf, sf]),
+            DashStyle::DashDot => Some(vec![sf * 3.0, sf, sf, sf]),
+            DashStyle::Solid => None,
+        };
+        if let Some(i) = intervals {
+            pen = pen.dash(i, 0.0);
+        }
+        let half = sf / 2.0;
+        let rect = if outside {
+            RRect::ltrb(half, half, nw as f32 - half, nh as f32 - half)
+        } else {
+            RRect::ltrb(half, half, iw as f32 - half, ih as f32 - half)
+        };
+        sk::draw_rect(&mut canvas, rect, &paint, Some(&pen));
+        drop(canvas);
+        Ok(out)
     }
 }

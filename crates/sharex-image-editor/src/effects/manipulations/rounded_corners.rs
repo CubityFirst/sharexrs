@@ -29,7 +29,21 @@ impl EffectImpl for RoundedCornersImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.corner_radius <= 0 {
+            return Ok(source.clone());
+        }
+        let mut out = Bitmap::new(source.width(), source.height());
+        let mut canvas = Canvas::new(&mut out);
+        let mut clip = SkPath::new();
+        let r = self.corner_radius as f32;
+        clip.add_round_rect(
+            sharex_skia::Rect::from_ltrb(0.0, 0.0, source.width() as f32, source.height() as f32),
+            r,
+            r,
+            sharex_skia::Direction::Cw,
+        );
+        sk::with_clip_path_aa(&mut canvas, &clip, |canvas| canvas.draw_bitmap(source, 0.0, 0.0, None));
+        drop(canvas);
+        Ok(out)
     }
 }

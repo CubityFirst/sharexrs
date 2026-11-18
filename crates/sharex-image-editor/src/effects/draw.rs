@@ -8,12 +8,14 @@ use super::color::SkColor;
 
 /// The stroke half of an `SKPaint` (`Style = Stroke`). SkiaSharp's defaults:
 /// width 0 (a hairline), butt caps, miter joins, miter limit 4.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Pen {
     pub width: f32,
     pub cap: Cap,
     pub join: Join,
     pub miter: f32,
+    /// `SKPathEffect.CreateDash(intervals, phase)`.
+    pub dash: Option<(Vec<f32>, f32)>,
 }
 
 impl Pen {
@@ -23,7 +25,13 @@ impl Pen {
             cap: Cap::Butt,
             join: Join::Miter,
             miter: 4.0,
+            dash: None,
         }
+    }
+
+    pub fn dash(mut self, intervals: Vec<f32>, phase: f32) -> Self {
+        self.dash = Some((intervals, phase));
+        self
     }
 
     pub fn cap(mut self, cap: Cap) -> Self {
@@ -53,16 +61,21 @@ pub(crate) fn stroke_path(canvas: &mut Canvas, path: &Path, pen: &Pen, paint: &P
         cap: pen.cap,
         join: pen.join,
         miter_limit: pen.miter,
-        dash: None,
+        dash: pen.dash.clone(),
     };
+    let ctx = canvas.stroke_context();
     if pen.width == 0.0 || (paint.anti_alias && canvas.is_hairline(pen.width)) {
         // A non-anti-aliased hairline (SkScan::HairPath) isn't ported; none of
         // ShareX's effects draw one.
         assert!(paint.anti_alias, "non-anti-aliased hairlines aren't ported");
-        canvas.stroke_hairline(path, pen.width, pen.cap, paint);
+        let (src, fill) = sharex_skia::draw::dash_path(path, &s, 0.0, &ctx);
+        if fill {
+            canvas.fill_sk_path(&src, paint);
+        } else {
+            canvas.stroke_hairline(&src, pen.width, pen.cap, paint);
+        }
         return;
     }
-    let ctx = canvas.stroke_context();
     if let Some(mut outline) = sharex_skia::draw::stroke_to_path(path, &s, &ctx) {
         outline.fill_type = sharex_skia::FillType::Winding;
         canvas.fill_sk_path(&outline, paint);
@@ -109,7 +122,13 @@ pub(crate) fn draw_circle(canvas: &mut Canvas, cx: f32, cy: f32, radius: f32, pa
 pub(crate) fn draw_rect(canvas: &mut Canvas, rect: Rect, paint: &Paint, pen: Option<&Pen>) {
     match pen {
         None => canvas.draw_rect(rect, paint),
-        Some(pen) if pen.width > 0.0 && pen.join == Join::Miter && pen.miter >= std::f32::consts::SQRT_2 => {
+        Some(pen)
+            if pen.width > 0.0
+                && pen.dash.is_none()
+                && pen.join == Join::Miter
+                && pen.miter >= std::f32::consts::SQRT_2
+                && canvas.matrix.rect_stays_rect() =>
+        {
             canvas.stroke_rect(rect, pen.width, paint)
         }
         Some(pen) => {
@@ -173,4 +192,34 @@ pub(crate) fn rotate_about(canvas: &mut Canvas, degrees: f32, px: f32, py: f32) 
     if !m.is_identity() {
         canvas.matrix = canvas.matrix.m44_pre_concat(&m);
     }
+}
+
+/// `canvas.Save(); canvas.ClipRect(rect); draw; canvas.Restore()` for an
+/// aliased rect clip: the device rect rounded (`SkRasterClip::op` without
+/// AA).
+pub(crate) fn with_clip_rect(canvas: &mut Canvas, rect: Rect, draw: impl FnOnce(&mut Canvas)) {
+    let d = canvas.matrix.map_rect(rect);
+    let round = |v: f32| (v + 0.5).floor() as i32;
+    let (l, t, r, b) = (round(d.left), round(d.top), round(d.right), round(d.bottom));
+    let before = canvas.dst.clone();
+    // The scan converters clip edges to it (so coverage along the clip is
+    // Skia's); rect fills that ignore it are put back below.
+    let clip = sharex_skia::IRect::from_ltrb(l, t, r, b);
+    sharex_skia::blitter::with_device_clip(clip, || draw(canvas));
+    let (w, h) = (canvas.dst.width() as i32, canvas.dst.height() as i32);
+    for y in 0..h {
+        for x in 0..w {
+            if !(x >= l && x < r && y >= t && y < b) {
+                let i = (y * w + x) as usize;
+                canvas.dst.set_px(i, before.px(i));
+            }
+        }
+    }
+}
+
+/// `canvas.Save(); canvas.ClipPath(path, Intersect, antialias: true); draw; canvas.Restore()`.
+pub(crate) fn with_clip_path_aa(canvas: &mut Canvas, path: &Path, draw: impl FnOnce(&mut Canvas)) {
+    canvas.clip_path_aa(path);
+    draw(canvas);
+    canvas.aa_clip = None;
 }

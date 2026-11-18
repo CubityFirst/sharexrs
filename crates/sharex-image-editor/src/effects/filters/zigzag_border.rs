@@ -44,7 +44,82 @@ impl EffectImpl for ZigZagBorderImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let border = self.border_size.clamp(8, 200);
+        let teeth_h = clampf(self.teeth_height, 5.0, 80.0);
+        let teeth_w = clampf(self.teeth_width, 4.0, 80.0);
+        let (iw, ih) = (source.width() as i32, source.height() as i32);
+        let (nw, nh) = (iw + border * 2, ih + border * 2);
+        let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let mut canvas = Canvas::new(&mut out);
+        canvas.clear(self.frame_color.rgba_array());
+        let inner = zigzag_path(nw, nh, border, teeth_w, teeth_h);
+        sk::with_clip_path_aa(&mut canvas, &inner, |canvas| {
+            canvas.draw_bitmap(source, border as f32, border as f32, None);
+        });
+        if self.accent_stripe {
+            let stripe_w = 2f32.max(border as f32 * 0.1);
+            sk::stroke_path(&mut canvas, &inner, &Pen::new(stripe_w), &solid(self.accent_color, true));
+        }
+        drop(canvas);
+        Ok(out)
     }
+}
+
+// ---- port ----
+
+fn zigzag_path(cw: i32, ch: i32, border: i32, tw: f32, th: f32) -> SkPath {
+    let mut path = SkPath::new();
+    let (l, t) = (border as f32, border as f32);
+    let (r, b) = ((cw - border) as f32, (ch - border) as f32);
+    let mut x = l;
+    path.move_to(l, t);
+    while x < r {
+        let nx = (x + tw).min(r);
+        let mx = x + tw * 0.5;
+        if mx < r {
+            path.line_to(mx, t + th);
+            path.line_to(nx, t);
+        } else {
+            path.line_to(nx, t);
+        }
+        x = nx;
+    }
+    let mut y = t;
+    while y < b {
+        let ny = (y + tw).min(b);
+        let my = y + tw * 0.5;
+        if my < b {
+            path.line_to(r - th, my);
+            path.line_to(r, ny);
+        } else {
+            path.line_to(r, ny);
+        }
+        y = ny;
+    }
+    x = r;
+    while x > l {
+        let nx = (x - tw).max(l);
+        let mx = x - tw * 0.5;
+        if mx > l {
+            path.line_to(mx, b - th);
+            path.line_to(nx, b);
+        } else {
+            path.line_to(nx, b);
+        }
+        x = nx;
+    }
+    y = b;
+    while y > t {
+        let ny = (y - tw).max(t);
+        let my = y - tw * 0.5;
+        if my > t {
+            path.line_to(l + th, my);
+            path.line_to(l, ny);
+        } else {
+            path.line_to(l, ny);
+        }
+        y = ny;
+    }
+    path.close();
+    path
 }

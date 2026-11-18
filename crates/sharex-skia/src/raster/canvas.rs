@@ -333,8 +333,14 @@ impl<'a> Canvas<'a> {
         if treat_as_sprite(&total, image.width(), image.height(), sampling, paint.anti_alias) {
             let ix = (total.tx() + 0.5).floor() as i32;
             let iy = (total.ty() + 0.5).floor() as i32;
-            self.sprite(image, ix, iy, paint);
-            return;
+            // clipHandlesSprite: a BW clip, or an AA clip that contains the sprite.
+            let handles = self.aa_clip.as_ref().is_none_or(|c| {
+                c.quick_contains(ix, iy, ix + image.width() as i32, iy + image.height() as i32)
+            });
+            if handles {
+                self.sprite(image, ix, iy, paint);
+                return;
+            }
         }
         let _ = dst;
         let bounds = Rect::xywh(0.0, 0.0, image.width() as f32, image.height() as f32);
@@ -351,7 +357,9 @@ impl<'a> Canvas<'a> {
             ..paint.clone()
         };
         if total.rect_stays_rect() {
-            let cov = if p.anti_alias {
+            let cov = if let Some(clip) = &self.aa_clip {
+                coverage::rect_aa_clip(device, p.anti_alias, clip, self.width(), self.height())
+            } else if p.anti_alias {
                 coverage::anti_fill_rect(device, self.width(), self.height())
             } else {
                 coverage::fill_rect(device, self.width(), self.height())
@@ -428,7 +436,9 @@ impl<'a> Canvas<'a> {
         );
         if self.matrix.rect_stays_rect() {
             let device = self.matrix.map_rect(r);
-            let cov = if paint.anti_alias {
+            let cov = if let Some(clip) = &self.aa_clip {
+                coverage::rect_aa_clip(device, paint.anti_alias, clip, self.width(), self.height())
+            } else if paint.anti_alias {
                 coverage::anti_fill_rect(device, self.width(), self.height())
             } else {
                 coverage::fill_rect(device, self.width(), self.height())
