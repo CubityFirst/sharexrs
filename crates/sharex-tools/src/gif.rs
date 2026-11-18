@@ -220,6 +220,12 @@ impl AnimatedGifCreator {
         self.frame_count += 1;
     }
 
+    /// The bytes written since the last call, so a long animation can be
+    /// streamed to its file as `AnimatedGifCreator`'s `FileStream` does.
+    pub fn take_output(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.out)
+    }
+
     /// `Dispose`: the trailer, and the file's bytes.
     pub fn finish(mut self) -> Vec<u8> {
         if self.started {
