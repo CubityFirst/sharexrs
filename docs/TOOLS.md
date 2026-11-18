@@ -210,7 +210,8 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
   (uploaders' file listings), **Video player** (Media Foundation), the screen
   tools (color pickers, rulers, mouse highlighter, pin to screen) and the other
   System tools (borderless window, inspect window, clipboard viewer, network
-  monitor): OS/UI-bound, ported with their windows.
+  monitor): OS/UI-bound, ported with their windows (the screen tools: see
+  "The Screen tools in ShareXrs").
 
 ## The Images windows in ShareXrs
 
@@ -275,6 +276,78 @@ the image viewer isn't ported), Avalonia's `ColorView` flyout (the shared
 HSV popup stands in, opaque), tooltips are egui's, a drop of several files
 on the splitter or icon converter takes the last one winit reports (ShareX
 the first), focus rings and keyboard navigation of the lists.
+
+## The Screen tools in ShareXrs
+
+`crates/sharexrs/src/screen_tools/` ports the Screen category of the Tools
+menu on the engines in `sharex-tools` (`color`, `ruler`, `mouse_highlighter`,
+`pin`).
+
+| File | ShareX source | What's there |
+|---|---|---|
+| `mod.rs` | `TaskHelpers.ShowColorPickerDialog`, `OpenScreenColorPicker`, `OpenRuler`, `OpenClassicRuler`, `OpenMouseHighlighter`, `PinToScreen*`, `ToolsIntegration` | the Tools menu entries, the hotkeys (`ExecuteJob`), the task list's and history windows' Pin to screen, the after capture Pin to screen task, `-PinToScreen <file>`; `ToolsSettingsReference` (`tools`) |
+| `overlay.rs` | `ConfigureOverlayBounds` | one borderless topmost window per monitor (transparent over the live screen, or opaque), desktop-pixel pointers, ShareX's cursors |
+| `screen_picker.rs` | `ShareX.Avalonia/Windows/ScreenColorPickerWindow`, `ScreenColorPickerOptions` | the transparent overlay, the 15x15 magnifier sampled with `BitBlt` (no `CAPTUREBLT`), the swatch and `InfoText`; left click picks (Ctrl: `FormatCtrl`), right click or Escape cancels; the text copied as `CodeMenuEntryPixelInfo.Parse` makes it, the action sound |
+| `color_picker.rs` | `HelpersLib/Presentation/ColorPicker/ColorPickerWindow`, `AdvancedColorPickerControl` | the box and slider in six modes, name/hex/decimal/RGBA/CMYK/HSB, current and previous, the Copy menu, recent (`ApplicationConfig.RecentColors`, named and numbered colours kept apart as `Color.Equals` does) or standard colours, pick from screen (the window minimized) or the clipboard |
+| `ruler.rs` | `Tools/Ruler/RulerWindow`, `Controls/RulerOverlayControl` | Measure: the transparent, not topmost overlay over the screen captured at open, colour runs, content bounds, tolerance, nudging, Ctrl+C |
+| `classic_ruler.rs` | `Tools/ClassicRuler/ClassicRulerWindow`, `Controls/ClassicRulerOverlayControl` | Ruler: the frozen screen, window hover and click, drawn/moved/resized rectangles, ticks, crosshair, card, magnifier, keys, the 500 ms input delay |
+| `highlighter.rs` | `Tools/MouseHighlighter/*` | the manager (manual, recording, auto activate), the `WH_MOUSE_LL` hook thread, the layered overlays drawn with `sharex-skia` and `UpdateLayeredWindow`, the window |
+| `pin.rs` | `Tools/PinToScreen/*` | the pin window, the startup window, the options window |
+| `render.rs` | | `--render color-picker` (`--state standard|swatch`), `pin-startup` (`--state error`), `pin-options`, `mouse-highlighter` (`--state circle`) |
+
+### Validation
+
+ShareX's windows were captured with `winshot.ps1`, its overlays with
+`scripts/screen-tools-session.ps1` over `sharexrs --test-pattern` (the tool
+opened by ShareX's Tools menu or by each app's own `-<HotkeyType>` command
+line; `raise:` lifts the Measure window, which isn't topmost, above the
+pattern). `scripts/screen-tools-compare.sh` renders and compares the windows.
+Pixels differing by more than 40:
+
+| Screen | Dark | Light |
+|---|---|---|
+| Color picker (empty recent, standard, a swatch chosen) | 1.14%, 1.05%, 0.99% | standard 1.01% |
+| Pin to screen startup (empty, clipboard error) | 1.05%, 0.97% | 0.92% |
+| Pin to screen options | 0.60% | |
+| Mouse highlighter window (ripple, circle) | 0.63%, 0.60% | circle 0.42% |
+| Screen color picker overlay at 300,300 and near the corner | 0.04%, 0.04% | |
+| Measure: tolerance label, a line, vertical, mid-drag, rectangle | 0.02%, 0.01%, 0.01%, 0.04%, 0.04% | |
+| Ruler: at rest (hovered window), mid-drag, selection | 0.13%, 0.13%, 0.16% | |
+| Pin (at rest, toolbar, 110%, 90% opacity, from a region) | 0.00%, 0.05%, 0.05%, 0.00%, 0.00% | |
+| Mouse highlighter, circle mode, primary then secondary held | 0 pixels differ | |
+
+What's left in the windows is text: ClearType against grayscale, and a pixel
+of centring where a glyph run measures a pixel narrower.
+
+Behaviour, side by side over the same pattern:
+
+- Screen color picker: the same pixel (300,300) copies `2C2CC8` in both
+  apps (also with ShareXrs only in the tray).
+- Color picker: the Copy menu's six formats for (76,255,0) equal ShareX's
+  clipboard text (a unit test holds them).
+- Measure: the same 16 px line, 15 px vertical line and 201 × 151 px
+  rectangle; Ctrl+C copies `201 × 151 px` in both.
+- Ruler: Ctrl+C after drawing 200,150 to 500,400 copies the same three
+  lines (position, size/area/perimeter, distance 390.51 px, angle 39.81°).
+- Pin to screen: a pin from the clipboard sits at the same place
+  (bottom right, 10 px in) with the image pixel for pixel; a pin from the
+  same region covers it pixel for pixel, border included (only the soft
+  shadow differs, by at most 13 levels). That needed two fixes: CF_DIBV5's
+  trailing masks (sharex-capture) and egui's dithering, now off in the
+  overlay and pin windows.
+- Mouse highlighter: the held circles are identical pixels (both draw with
+  Skia's rasteriser into a layered window).
+
+Not ported or not checked: the colour flyouts (`ColorView`) of the
+highlighter's and pin options' colour buttons (logged; the pin options use
+the shared HSV popup), the colour picker's selection mode (`PickColor`,
+used by no ported caller) and its Copy menu as an OS popup (drawn inside
+the window), the highlighter on macOS/Linux (hook and overlays), the
+highlighter while recording and the ripple animation checked live, the
+settings JSON after the same edits (ShareX keeps these options in memory
+until its next save), tooltips are egui's, and other DPIs and monitors than
+one 1024x768 at 100%. ShareX keeps no pin out of captures, so neither does
+ShareXrs. ShareX's region capture has no colour picker mode in this version.
 
 ## Window plan
 
