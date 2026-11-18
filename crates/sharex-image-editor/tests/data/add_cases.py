@@ -180,6 +180,43 @@ CASES += [
 ]
 
 
+def load_case(name):
+    with open(os.path.join(HERE, "cases.json"), encoding="utf-8") as f:
+        for c in json.load(f)["cases"]:
+            if c["name"] == name:
+                return c
+    raise KeyError(name)
+
+
+# Region capture's export (EditorView.GetSnapshot(Rect): a VisualBrush).
+def region(name, annotations, rect, **kw):
+    c = {"name": name, "annotations": annotations, "snapshotRect": rect}
+    c.update(kw)
+    return c
+
+
+CASES += [
+    region("region-shapes", SHAPES, [20, 15, 360, 270]),
+    region("region-translucent", [ann("Ellipse", (60, 40), (240, 200), FillColor="#A02080F0", StrokeWidth=6),
+                                  ann("Rectangle", (150, 120), (330, 260), FillColor="#60FF8000", CornerRadius=12,
+                                      StrokeColor="#C000A050", BorderStyle="Dash")], [0, 0, 400, 300]),
+    region("region-lines", [ann("Line", (30, 280), (370, 20), StrokeWidth=1), ann("Line", (30, 20), (370, 280), StrokeWidth=2.5),
+                            ann("Arrow", (50, 150), (350, 160), Style="Modern")], [10.5, 10.25, 380.5, 280.75]),
+    region("region-effects", EFFECTS, [30, 30, 340, 240]),
+    region("region-shadow", [ann("Rectangle", (60, 50), (220, 170), ShadowEnabled=True),
+                             ann("Arrow", (240, 240), (360, 80), ShadowEnabled=True)], [40, 30, 340, 250]),
+    region("region-shadow-rect", [ann("Rectangle", (60, 50), (220, 170), ShadowEnabled=True)], [40, 30, 340, 250]),
+    region("region-shadow-arrow", [ann("Arrow", (240, 240), (360, 80), ShadowEnabled=True)], [40, 30, 340, 250]),
+    region("region-images", [ann("Image", (40, 30), (104, 78), ImagePath=STICKER, RotationAngle=15),
+                             ann("Cursor", (200, 60), (250, 100), CursorType="NoMove2D"),
+                             ann("SmartEraser", (260, 180), (360, 260), FillColor="#C0336699")], [0, 0, 400, 300]),
+    region("region-none", [], [33.4, 21.6, 120.2, 80.9]),
+    region("region-clipped", SHAPES, [-50, 200, 200, 300]),
+    region("region-text", [ann("Text", (40, 60), (300, 140), Text="Region", TextColor="#FF0000FF", FontSize=40)],
+           [20, 40, 320, 140], fonts=["Segoe UI"]),
+]
+
+
 def main():
     path = os.path.join(HERE, "cases.json")
     with open(path, encoding="utf-8") as f:

@@ -86,6 +86,11 @@ internal static class Program
             return DumpText(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3] == "1", args[4]);
         }
 
+        if (args[0] == "--probe-picture")
+        {
+            return ProbePicture(args[1]);
+        }
+
         if (args[0] == "--emoji-raw")
         {
             // WindowsEmojiBitmapRenderer.RenderWithDirect2D(glyph, canvasSize, fontSize)
@@ -185,8 +190,9 @@ internal static class Program
                 }
                 bool configureFill = node["configureFill"]?.GetValue<bool>() ?? false;
                 JsonArray? ops = node["ops"]?.AsArray();
+                JsonArray? snapshotRect = node["snapshotRect"]?.AsArray();
 
-                using SKBitmap snapshot = Render(baseImage, annotations, configureFill, ops);
+                using SKBitmap snapshot = Render(baseImage, annotations, configureFill, ops, snapshotRect);
                 using FileStream file = File.Create(Path.Combine(outDir, name + ".png"));
                 snapshot.Encode(file, SKEncodedImageFormat.Png, 100);
                 Console.WriteLine($"{name}: {snapshot.Width}x{snapshot.Height}");
@@ -201,7 +207,7 @@ internal static class Program
         return failures == 0 ? 0 : 1;
     }
 
-    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations, bool configureFill = false, JsonArray? ops = null)
+    private static SKBitmap Render(SKBitmap baseImage, List<Annotation> annotations, bool configureFill = false, JsonArray? ops = null, JsonArray? snapshotRect = null)
     {
         ImageEditorOptions options = new() { ShowExitConfirmation = false, RememberWindowState = false };
         EditorWindow window = new(options);
@@ -248,6 +254,13 @@ internal static class Program
                 RunOp(view, core, op!.AsObject());
                 Pump();
                 RestoreAnnotations(view);
+            }
+
+            if (snapshotRect != null)
+            {
+                // Region capture's export (RegionCaptureWindow: GetSnapshot(Rect), a VisualBrush).
+                double V(int i) => snapshotRect[i]!.GetValue<double>();
+                return view.GetSnapshot(new Rect(V(0), V(1), V(2), V(3))) ?? throw new InvalidOperationException("GetSnapshot(Rect) returned null");
             }
 
             return view.GetSnapshot() ?? throw new InvalidOperationException("GetSnapshot returned null");
@@ -376,6 +389,56 @@ internal static class Program
         }
         SaveRaw(bitmap, outFile);
         Console.WriteLine($"{bitmap.Width}x{bitmap.Height}");
+        return 0;
+    }
+
+    /// <summary>
+    /// Draws the same anti-aliased shapes over an image directly and through an SKPicture
+    /// shader (what a VisualBrush becomes), and saves both, to see where they differ.
+    /// </summary>
+    private static int ProbePicture(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        const int w = 200, h = 150;
+        using var image = new SKBitmap(w, h);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                image.SetPixel(x, y, new SKColor((byte)(x * 255 / w), (byte)(y * 255 / h), 128));
+        void DrawContent(SKCanvas c)
+        {
+            c.DrawBitmap(image, 0, 0);
+            using var p = new SKPaint { IsAntialias = true, Color = new SKColor(0xEF, 0x44, 0x44), Style = SKPaintStyle.Stroke, StrokeWidth = 4 };
+            c.DrawOval(new SKRect(20.5f, 15.25f, 160.5f, 120.75f), p);
+            using var f = new SKPaint { IsAntialias = true, Color = new SKColor(0x20, 0x80, 0xF0, 0xA0) };
+            c.DrawCircle(120, 90, 37.3f, f);
+        }
+        using (var direct = new SKBitmap(w, h))
+        {
+            using (var c = new SKCanvas(direct)) { c.Clear(); DrawContent(c); }
+            SaveRaw(direct, Path.Combine(outDir, "direct.bgra"));
+        }
+        using var recorder = new SKPictureRecorder();
+        DrawContent(recorder.BeginRecording(new SKRect(0, 0, w, h)));
+        using SKPicture picture = recorder.EndRecording();
+        foreach (var (name, info) in new[] {
+            ("picture", new SKImageInfo(w, h)),
+            ("picture-srgb", new SKImageInfo(w, h, SKImageInfo.PlatformColorType, SKAlphaType.Premul, SKColorSpace.CreateSrgb())) })
+        {
+            using var target = new SKBitmap(info);
+            using (var c = new SKCanvas(target))
+            {
+                c.Clear();
+                using var shader = picture.ToShader(SKShaderTileMode.Decal, SKShaderTileMode.Decal, SKMatrix.Identity, new SKRect(0, 0, w, h));
+                using var paint = new SKPaint { Shader = shader };
+                c.DrawRect(new SKRect(0, 0, w, h), paint);
+            }
+            SaveRaw(target, Path.Combine(outDir, name + ".bgra"));
+        }
+        using (var played = new SKBitmap(w, h))
+        {
+            using (var c = new SKCanvas(played)) { c.Clear(); c.DrawPicture(picture); }
+            SaveRaw(played, Path.Combine(outDir, "drawpicture.bgra"));
+        }
         return 0;
     }
 

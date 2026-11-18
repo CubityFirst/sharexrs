@@ -180,5 +180,11 @@ pub fn render_case(case: &Value, data: &Path, default_base: &Pixmap) -> Pixmap {
             other => panic!("unknown op {other}"),
         }
     }
-    core.composite()
+    match case.get("snapshotRect").and_then(|r| r.as_array()) {
+        Some(r) => {
+            let v = |i: usize| r[i].as_f64().unwrap();
+            core.snapshot_region((v(0), v(1), v(2), v(3))).unwrap()
+        }
+        None => core.composite(),
+    }
 }
