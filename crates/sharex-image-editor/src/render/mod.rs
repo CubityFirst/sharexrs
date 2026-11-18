@@ -10,6 +10,7 @@
 mod color;
 pub mod cursor;
 mod effects;
+pub mod emoji;
 mod image;
 mod layout;
 mod shadow;
@@ -99,7 +100,17 @@ fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache
                 image::draw_image_control(pm, bounds, a.common.rotation_angle, &bitmap, image::Stretch::Uniform);
             }
         }
+        Kind::Emoji(p) => {
+            // EmojiAnnotation.UpdateVisual: a square sticker as big as the
+            // bounds' larger side, shown with the Image's Stretch.Uniform.
+            let bounds = shapes::bounds(&a.common);
+            let side = (bounds.2 - bounds.0).max(bounds.3 - bounds.1);
+            let size = (side.ceil() as i64).max(1) as u32;
+            if let Some(bitmap) = emoji::sticker_bitmap(&p.unicode_sequence, size) {
+                image::draw_image_control(pm, bounds, a.common.rotation_angle, &bitmap, image::Stretch::Uniform);
+            }
+        }
         Kind::SmartEraser(p) => image::draw_smart_eraser(pm, &a.common, p),
-        Kind::Emoji(_) | Kind::Spotlight(_) | Kind::Crop => {}
+        Kind::Spotlight(_) | Kind::Crop => {}
     }
 }
