@@ -5,6 +5,7 @@
 //! pixel grid (`AnnotationEffectVisualUpdater.ApplyEffectBrush`).
 
 use sharex_skia::Pixmap;
+use sharex_skia::raster::Sampling;
 
 use super::color::parse_color;
 use crate::model::{Annotation, Kind};
@@ -118,7 +119,30 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
         join: sharex_skia::Join::Miter,
     });
     let clip = p.is_ellipse.then_some((width, height));
-    draw_effect_rectangle(pm, &effect, a, radii, pen.as_ref(), clip);
+    draw_effect_rectangle(pm, &effect, &a.common, radii, pen.as_ref(), clip, Sampling::Linear);
+}
+
+/// A `Rectangle` (`RectangleAnnotation.CreateVisual`: its stroke, its
+/// corner radius) filled with `brush` through an `ImageBrush` stretched
+/// over it, the intermediate image sampled with `sampling` (the
+/// rectangle's `BitmapInterpolationMode`).
+pub(super) fn draw_brush_rectangle(
+    pm: &mut Pixmap,
+    brush: &Pixmap,
+    c: &crate::model::Common,
+    border_style: &crate::model::BorderStyle,
+    corner_radius: i32,
+    sampling: Sampling,
+) {
+    let radius = corner_radius.max(0) as f64;
+    let pen = super::shapes::Pen {
+        color: parse_color(&c.stroke_color),
+        thickness: c.stroke_width as f64,
+        dashes: super::shapes::dash_array(border_style),
+        cap: super::shapes::line_cap(border_style),
+        join: sharex_skia::Join::Miter,
+    };
+    draw_effect_rectangle(pm, brush, c, (radius, radius), Some(&pen), None, sampling);
 }
 
 /// An effect annotation's `Rectangle` visual as Avalonia renders it
@@ -132,15 +156,14 @@ fn draw_magnify(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, p: &crate::model
 fn draw_effect_rectangle(
     pm: &mut Pixmap,
     effect: &Pixmap,
-    a: &Annotation,
+    common: &crate::model::Common,
     radii: (f64, f64),
     pen: Option<&super::shapes::Pen>,
     clip: Option<(f64, f64)>,
+    sampling: Sampling,
 ) {
-    use sharex_skia::raster::{
-        Bitmap, Canvas, Matrix as RMatrix, Paint, Rect as RRect, Sampling, Shader, TileMode,
-    };
-    let (ar, ctm) = super::shapes::arranged(&a.common);
+    use sharex_skia::raster::{Bitmap, Canvas, Matrix as RMatrix, Paint, Rect as RRect, Shader, TileMode};
+    let (ar, ctm) = super::shapes::arranged(common);
     let thickness = pen.map_or(0.0, |p| p.thickness);
 
     // Rectangle.CreateDefiningGeometry
@@ -226,8 +249,9 @@ fn draw_effect_rectangle(
             let mut paint = Paint::shader(Shader::Color([255, 255, 255, 255]));
             paint.anti_alias = true;
             let r = RRect::xywh(0.0, 0.0, content.0 as f32, content.1 as f32);
-            // DrawBitmap with RenderOptions' default interpolation: linear.
-            c.draw_image_rect(&source, Some(r), r, Sampling::Linear, Some(&paint));
+            // DrawBitmap with the visual's RenderOptions (the default
+            // interpolation is linear).
+            c.draw_image_rect(&source, Some(r), r, sampling, Some(&paint));
         }
         let mut fill = path.clone();
         fill.fill_type = sharex_skia::FillType::EvenOdd;

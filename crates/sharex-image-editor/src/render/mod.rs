@@ -8,7 +8,9 @@
 //! Skia calls Avalonia makes for it, through `sharex-skia`.
 
 mod color;
+pub mod cursor;
 mod effects;
+mod image;
 mod layout;
 mod shadow;
 mod shapes;
@@ -85,6 +87,19 @@ fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache
         Kind::Highlight(_) | Kind::Blur(_) | Kind::Pixelate(_) | Kind::Magnify(_) => {
             effects::draw_effect(pm, base, a, cache)
         }
-        _ => {}
+        Kind::Image(p) => {
+            if let Some(bitmap) = &p.bitmap {
+                let bounds = shapes::bounds(&a.common);
+                image::draw_image_control(pm, bounds, a.common.rotation_angle, bitmap, image::Stretch::Fill);
+            }
+        }
+        Kind::Cursor(p) => {
+            if let Some(bitmap) = cursor::cursor_bitmap(&p.cursor_type) {
+                let bounds = shapes::bounds(&a.common);
+                image::draw_image_control(pm, bounds, a.common.rotation_angle, &bitmap, image::Stretch::Uniform);
+            }
+        }
+        Kind::SmartEraser(p) => image::draw_smart_eraser(pm, &a.common, p),
+        Kind::Emoji(_) | Kind::Spotlight(_) | Kind::Crop => {}
     }
 }

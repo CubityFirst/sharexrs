@@ -83,6 +83,11 @@ impl AMatrix {
     }
 }
 
+/// Avalonia's `Matrix.ToRadians`: `angle * 0.0174532925` (not pi / 180).
+pub fn to_radians(degrees: f64) -> f64 {
+    degrees * 0.0174532925
+}
+
 /// The transform `ImmediateRenderer` pushes for a visual arranged at
 /// `a`, with a `RotateTransform(angle)` about its centre when the
 /// annotation is rotated (`ApplyRotationTransform`).
@@ -94,7 +99,7 @@ pub fn visual_transform(a: &Arranged, rotation_degrees: f32) -> AMatrix {
     let origin = AMatrix::translation(a.width * 0.5, a.height * 0.5);
     let neg_origin = AMatrix::translation(-(a.width * 0.5), -(a.height * 0.5));
     // RotateTransform.Value: Matrix.CreateRotation(Matrix.ToRadians(Angle))
-    let rot = AMatrix::rotation(rotation_degrees as f64 * std::f64::consts::PI / 180.0);
+    let rot = AMatrix::rotation(to_radians(rotation_degrees as f64));
     neg_origin.mul(&rot).mul(&origin).mul(&pos)
 }
 
@@ -109,6 +114,6 @@ pub fn visual_transform_origin(a: &Arranged, rotation_degrees: f32, origin: (f64
     let (ox, oy) = (origin.0 * a.width, origin.1 * a.height);
     let origin = AMatrix::translation(ox, oy);
     let neg_origin = AMatrix::translation(-ox, -oy);
-    let rot = AMatrix::rotation(rotation_degrees as f64 * std::f64::consts::PI / 180.0);
+    let rot = AMatrix::rotation(to_radians(rotation_degrees as f64));
     neg_origin.mul(&rot).mul(&origin).mul(&pos)
 }
