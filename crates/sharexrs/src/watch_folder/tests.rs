@@ -70,15 +70,18 @@ fn equal_sizes_count_even_between_changes() {
     let f = dir.join("g.bin");
     std::fs::write(&f, b"1").unwrap();
     let path = f.clone();
+    // Writes far enough apart (and ShareX's real 5 s timeout) that several
+    // checks fall between two writes even on a slow CI runner, whose sleeps
+    // can stretch well past the 25 ms interval.
     let writer = std::thread::spawn(move || {
         for i in 0..10 {
-            std::thread::sleep(Duration::from_millis(60));
+            std::thread::sleep(Duration::from_millis(150));
             let mut v = std::fs::read(&path).unwrap();
             v.push(i);
             std::fs::write(&path, v).unwrap();
         }
     });
-    assert!(wait_until_ready(&f, fast()));
+    assert!(wait_until_ready(&f, Timing { timeout: Duration::from_secs(5), ..fast() }));
     let size_when_ready = std::fs::metadata(&f).map(|m| m.len()).unwrap_or(0);
     writer.join().unwrap();
     assert!(size_when_ready < 11, "ready only after the writes stopped");
