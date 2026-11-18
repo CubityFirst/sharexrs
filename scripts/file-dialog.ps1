@@ -34,6 +34,33 @@ public static class FileDlg {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageW(IntPtr h, uint msg, IntPtr w, string l);
     [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent, EnumProc f, IntPtr l);
+    [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+    [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
+    /// A descendant Edit with control id 1001 (the save dialog's file name).
+    public static IntPtr EditById(IntPtr dlg, int id) {
+        IntPtr hit = IntPtr.Zero;
+        EnumChildWindows(dlg, (h, l) => {
+            var sb = new StringBuilder(64); GetClassNameW(h, sb, 64);
+            if (sb.ToString() == "Edit" && GetDlgCtrlID(h) == id) { hit = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return hit;
+    }
+    /// The Edit of the first ComboBox among the dialog's descendants (the
+    /// save dialog keeps its file name box deep in its view).
+    public static IntPtr ComboEdit(IntPtr dlg) {
+        IntPtr hit = IntPtr.Zero;
+        EnumChildWindows(dlg, (h, l) => {
+            var sb = new StringBuilder(64); GetClassNameW(h, sb, 64);
+            if (sb.ToString() == "Edit") {
+                var pb = new StringBuilder(64); GetClassNameW(GetParent(h), pb, 64);
+                if (pb.ToString() == "ComboBox") { hit = h; return false; }
+            }
+            return true;
+        }, IntPtr.Zero);
+        return hit;
+    }
     public static IntPtr Find(HashSet<uint> pids) {
         IntPtr hit = IntPtr.Zero;
         EnumWindows((h, l) => {
@@ -93,8 +120,22 @@ if ($edit -eq [IntPtr]::Zero) {
         break
     }
 }
-if ($edit -eq [IntPtr]::Zero) { throw 'no file name box' }
-[void][FileDlg]::SendMessageW($edit, $WM_SETTEXT, [IntPtr]::Zero, $text)
+if ($edit -eq [IntPtr]::Zero) { $edit = [FileDlg]::EditById($dlg, 1001) }
+if ($edit -eq [IntPtr]::Zero) {
+    # The Vista save dialog: the file name box is a DirectUI host
+    # (FileNameControlHost); set it through UI Automation.
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $AE = [System.Windows.Automation.AutomationElement]
+    $root = $AE::FromHandle($dlg)
+    $host0 = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, 'FileNameControlHost')))
+    if (-not $host0) { throw 'no file name box' }
+    $editCond = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+    $box = $host0.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCond)
+    if (-not $box) { $box = $host0 }
+    $box.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text)
+} else {
+    [void][FileDlg]::SendMessageW($edit, $WM_SETTEXT, [IntPtr]::Zero, $text)
+}
 Start-Sleep -Milliseconds 150
 Press 1
 "answered: $text"

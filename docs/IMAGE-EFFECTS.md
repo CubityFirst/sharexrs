@@ -187,8 +187,8 @@ loop), Saturation (`Value` = 1), Selective color (`LightColor` = White,
   `TaskHelpers.ApplyImageEffects` without the window. The after capture task
   calls it (`crates/sharexrs/src/capture_job.rs`, before the clipboard and save
   tasks, as `DoAfterCaptureJobs`), with `ImageEffectOnlyRegionCapture` honoured in
-  `App::after_capture`. `ShowImageEffectsWindowAfterCapture` only logs until the
-  window exists.
+  `App::after_capture`. `ShowImageEffectsWindowAfterCapture` opens the window
+  in Editor mode and the task waits for it (`TaskUi::image_effects_window`).
 - `package::{package, extract}`: `.sxie`.
 - `sharex-settings` keeps `ImageEffectPresets` as raw JSON (`Vec<Value>`), so
   settings files round-trip untouched; the crate parses them where they're used.
@@ -260,13 +260,49 @@ the default preset and a named, disabled effect). Effect labels
 
 ### Not ported
 
-- The Image effects window and the packager window (plan below), the
-  confirmation window, `ShowImageEffectsWindowAfterCapture`.
-- Wiring `.sxie` import (CLI `-ImageEffect`, file association, drag and drop) and
-  the Tools › Image effects entry: they need the window.
+- `.sxie` import from the command line (`-ImageEffect`) and the file
+  association, with `WouldYouLikeToEnableImageEffects`; dropping a `.sxie` on
+  the window imports it.
 - Text watermark's DirectWrite glyph rasteriser (see above).
 
-## Plan for the Image effects window
+## The window in ShareXrs
+
+`crates/sharexrs/src/image_effects/` (on `crate::image_tools`' shared pieces):
+
+| File | ShareX source | What's there |
+|---|---|---|
+| `mod.rs` | `ImageEffectsWindow.axaml(.cs)`, `ImageEffectsViewModel`, `ImageEffectsIntegration`, `TaskHelpers.OpenImageEffects*` | the three modes (Tool: an image, Open image / Load from clipboard / Save image / Upload image; Presets: the one window from Task settings › Effects; Editor: after capture, Continue/Cancel, the task waits and applies the selected preset either way, as ShareX); presets (new, remove, duplicate, move, rename, `Unnamed preset`); effects (enable, the catalog's Add menu with a submenu per category, remove, duplicate, move, clear with its confirmation, rename, Delete and F5); the options panel; the preview on a thread (newest only, 100 ms after a change, at once on opening; `CreateSampleImage` without an image) on the checkered border (`Uniform`, `DownOnly`), the busy bar and the error badge; the title with the preview's size and time; Package preset (a name needed) → the packager; a dropped `.sxie` imported (`ExtractPackage`, `SanitizeImportedPreset`), a dropped image loaded in Tool mode; presets written back to the default task settings as they change and the selected index when closing |
+| `options.rs` | `ImageEffectOptionsPanel`, `GradientOptionsPanel` | an editor per property kind (`PropKind` from `sharex-image-effects`): `ToggleSwitch`, enum `ComboBox` (Normal items, `ImageEffectEnum_*` names), `NumericUpDown` (`0.###` and 0.1 for floats), the colour button (swatch, `#RRGGBB`/`#AARRGGBB`) with the colour popup, X/Y and width/height boxes, the four margin boxes (62px boxes centred on narrower columns, as ShareX overflows them), Edit gradient... with the gradient flyout (direction, Add stop, stops with colour, location and Remove; sorted when it closes), a `TextBox` through the converter (strings, fonts, flags) with the validation line; labels from `ImageEffectProperty_*`, descriptions as tooltips; the scrolling stack |
+| `confirm.rs` | `ImageEffectsConfirmationWindow` | the message, Yes/No (closed: No) |
+| `packager.rs` | `ImageEffectPackagerWindow` | assets folder and package file with their pickers, Overwrite existing, the checks and status, Open effects folder / Create package / Close |
+| `render.rs` | | `--render image-effects` (`--image`: Tool mode; else Presets on the sample image; `--select N`; `--state add-menu|editor`), `image-effects-confirm`, `image-effects-packager` |
+
+Entry points: Tools › Image effects... and its hotkey (an image picked first,
+`OpenImageEffects`), the task list's Add image effects (the task's file),
+Task settings › Effects › Image effects configuration... (the presets
+window, `OpenImageEffectsSingleton`), the after capture task.
+
+### Validation
+
+Against ShareX's windows on the default preset (`scripts/image-tools-compare.sh`),
+dark / light: Tool mode on the synthetic photo with Canvas selected 0.29% /
+0.24%, Text watermark selected (text, enum, X/Y, toggles, font, colours,
+number, margins) 0.44% / 0.33%, Presets mode on the sample image 0.24% /
+0.21% — text anti-aliasing. Side by side: renaming the preset and disabling
+an effect in each app's Presets window, then closing Task settings, wrote
+byte-identical `ImageEffectPresets` text into both `ApplicationConfig.json`
+files. `capture_job`'s test checks the Editor mode's presets and index are
+the ones applied.
+
+Not checked against ShareX: the Add menu's submenus and the gradient and
+colour flyouts (ShareX's popups didn't stay open under synthetic input;
+Avalonia's `ColorView` isn't ported, the shared HSV popup stands in, opaque,
+keeping the colour's alpha), float editors (the default preset has none),
+the packager and confirmation windows, Editor mode live (only its plumbing
+is tested), Save image and Upload image live. The preview's click (the image
+viewer) only logs.
+
+## Plan for the Image effects window (done, see above)
 
 Port `Presentation/ImageEffectsWindow.axaml` + `ImageEffectsViewModel.cs` as one
 egui window (`crates/sharexrs/src/image_effects_window.rs`), three modes as

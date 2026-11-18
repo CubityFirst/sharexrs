@@ -9,7 +9,7 @@ REF=G:/scripts/sharexrs-ref/shots/sharex
 OUT=G:/scripts/sharexrs-ref/tools-ui
 IN='G:\Scripts\sharexrs-ref\tools-ui\in'
 THREE="$IN\photo.png,$IN\landscape.png,$IN\portrait.png"
-BIN=./target/debug/sharexrs
+BIN=./target/debug/sharexrs.exe
 mkdir -p "$OUT/rs" "$OUT/cmp"
 run() { # name screen args...
   local name=$1 screen=$2; shift 2

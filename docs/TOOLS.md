@@ -212,6 +212,70 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
   System tools (borderless window, inspect window, clipboard viewer, network
   monitor): OS/UI-bound, ported with their windows.
 
+## The Images windows in ShareXrs
+
+`crates/sharexrs/src/image_tools/` ports the eight Images tool windows on
+the engines above; the Image effects window is in docs/IMAGE-EFFECTS.md.
+
+| File | ShareX source | What's there |
+|---|---|---|
+| `mod.rs` | `ToolStyles.axaml`, the windows' shared blocks | `tool-panel`, `section-heading`, `row-label`, `path-text` (ellipsis); the icon+text, text and icon-only buttons; `FileList` (the `ListBox` with `SelectionMode="Multiple"`: click, Ctrl, Shift, `SelectedItem` as Avalonia's anchor; 14px item icons; SemiBold items where the template doesn't set Normal); `list_panel` (Add, Remove, Move up/down, the count, the drop hint); `preview_pane` (toolbar header with path and size, the 4px indeterminate `ProgressBar`, `ImageComparisonSlider` with `DownOnly`, the 54px placeholder); `Job` (work on a thread for the newest request only, `_previewVersion`, with the view models' 100 ms `Task.Delay`); `Picture` (an image as a texture, shrunk with Skia's linear + mipmaps); Fluent's 50px `Slider` row with its `MinWidth="40"` value text; Avalonia's `ColorPicker`; `Grid` heights that keep the spacing of hidden rows |
+| `slider.rs` | `Controls/ImageComparisonSlider.cs` | `GetImageBounds` (rounded edges, `StretchDirection`), the 12px checkerboard tiled from the control's origin, the left image clipped at the divider, the 2px line and 34x52 handle; dragging moves the divider when it moves a pixel |
+| `combiner.rs` | `ImageCombinerWindow`, `ImageCombinerViewModel`, `TaskHelpers.OpenImageCombiner` | the list with moves, orientation (switching it blanks the alignment combo as Avalonia does and saves LeftOrTop), alignment, spacing, wrap after, auto fill; options saved into the task's `ToolsSettingsReference.ImageCombinerOptions` as they change; the PNG preview (two images at least); Combine images → `RunImageTask` (the after capture tasks) |
+| `splitter.rs` | `ImageSplitterWindow`, `ImageSplitterViewModel` | image and folder pickers (the folder defaults to the image's), columns/rows, the grid size text, Split image → `<name><n>.png`, the folder opened with the first; `SizeToContent="Height"` |
+| `thumbnailer.rs` | `ImageThumbnailerWindow`, `ImageThumbnailerViewModel` | list, size, JPEG quality, template, folder (the first file's), Generate thumbnails, the message panel |
+| `resizer.rs` | `ImageResizerWindow`, `ImageResizerViewModel`, `ImageResizerService` | list (first selected), width/height/mode, PNG/JPEG with quality and background, template, folder, preview after 100 ms (`CreatePreview`), `{w} × {h}`, Resize image; also opened by the task list's Resize image with the selected images |
+| `converter.rs` | `ImageConverterWindow`, `ImageConverterViewModel`, `ImageConverterService` | list, format with each format's options (WebP lossless/quality/effort, PNG depth/level/filter, BMP depth, GIF quality, JPEG quality/subsampling), background colour where needed, template, the scrolling options column, preview, Convert images |
+| `watermark.rs` | `ImageWatermarkWindow`, `ImageWatermarkViewModel`, `ImageWatermarkService` | list, text (text, size, colour) or image (file, scale) watermark, position, margin, opacity, rotation, PNG/JPEG, template, folder, preview, Apply watermark |
+| `comparer.rs` | `ImageComparerWindow`, `ImageComparerViewModel`, `ImageComparisonService` | two pickers (`No image selected`), Slider / Diff view, the similarity (white, green when identical, in both themes as ShareX) |
+| `icon_converter.rs` | `IconConverterWindow`, `IconConverterViewModel`, `IconConverterService` | Browse or drop, sizes, bit depth, preview and dimensions, Convert... → save dialog → `.ico`, the status line |
+| `open.rs` | `TaskHelpers.Open*`, `ToolsIntegration.Show*`, `UploadInfoManager.ResizeImages/CombineImages` | the Tools menu entries, the hotkeys (`ExecuteJob`), the task list's Resize image and Combine images › Horizontally/Vertically (`TaskHelpers.CombineImages` with the default task settings' options) |
+| `render.rs` | | `--render image-combiner|image-splitter|image-thumbnailer|image-resizer|image-converter|image-watermark|image-comparer|icon-converter` (`--files`, `--image`, `--select`, `--state`) |
+
+Dialog windows (`crate::dialogs`) are now held to Windows' maximum tracking
+size (screen plus frame) as Avalonia's are: on a 1024x768 screen ShareX's
+1180x650 windows open 1028x650, and so do ShareXrs's.
+
+### Validation
+
+ShareX's windows were captured with `scripts/image-tools-shots.ps1` (UI
+Automation, the synthetic inputs fed through the file dialogs by
+`scripts/file-dialog.ps1`), and `scripts/image-tools-compare.sh` renders and
+compares every state (at the captured size). Pixels differing by more than
+40, dark / light:
+
+| Window | States (dark) | Light |
+|---|---|---|
+| Combiner | empty 0.18%, three images 0.24%, row selected 0.25%, horizontal 0.39% | 0.14%, 0.17%, 0.15%, 0.23% |
+| Splitter | empty 0.13%, loaded 3×2 0.37% | 0.11%, 0.31% |
+| Thumbnailer | empty 0.22%, three images 0.37% | 0.17%, 0.28% |
+| Resizer | empty 0.14%, three images (Fit 1920×1080 preview) 0.30%, JPEG 0.37% | 0.10%, 0.18%, 0.25% |
+| Converter | empty 0.19%, PNG 0.36%, JPEG 0.37%, WebP 0.31%, GIF 0.29%, BMP 0.31% | 0.12%, 0.21%, 0.24%, 0.20%, 0.17%, 0.18% |
+| Watermark | empty 0.25%, text 0.37%, image 0.43% | 0.20%, 0.25%, 0.31% |
+| Comparer | empty 0.14%, one image 0.16%, slider 0.13%, diff 0.12%, identical 0.10% | 0.13%, 0.15%, 0.11%, 0.18%, 0.11% |
+| Icon converter | empty 0.20%, loaded 0.21% | 0.17%, 0.19% |
+
+What's left is text anti-aliasing (ClearType) and a pixel here and there on
+downscaled previews. A live ShareXrs window (the thumbnailer with three
+images) is identical to its render (0 pixels over 40).
+
+Behaviour, side by side (`scripts/image-tools-behaviour.ps1`: the same
+client-coordinate clicks and dialog answers in both apps, default
+settings): thumbnails byte-identical (3 JPEGs); splitter (6 PNGs), resizer
+(3 × 1920×1080), converter (3 PNGs) and the combined image (through the
+after capture tasks into each app's Screenshots folder) pixel-identical;
+watermark identical but for the text glyphs (DirectWrite, see above); the
+icon's six entries pixel-identical, the 256px PNG entry's zlib stream
+differing as in the harness. Saved settings: after the same edits
+(Horizontal, spacing 2, auto fill off) both apps wrote the same
+`ImageCombinerOptions`.
+
+Not ported in these windows: the preview's click (`ImageViewerWindowIntegration`,
+the image viewer isn't ported), Avalonia's `ColorView` flyout (the shared
+HSV popup stands in, opaque), tooltips are egui's, a drop of several files
+on the splitter or icon converter takes the last one winit reports (ShareX
+the first), focus rings and keyboard navigation of the lists.
+
 ## Window plan
 
 Every window ports its `.axaml` (layout, sizes, strings) and code-behind
