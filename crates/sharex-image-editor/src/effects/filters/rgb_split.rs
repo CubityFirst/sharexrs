@@ -44,7 +44,26 @@ impl EffectImpl for RGBSplitImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let (right, bottom) = (width - 1, height - 1);
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let rr = clamp_int(y - self.offset_red_y, 0, bottom) * width;
+            let gr = clamp_int(y - self.offset_green_y, 0, bottom) * width;
+            let br = clamp_int(y - self.offset_blue_y, 0, bottom) * width;
+            for x in 0..width {
+                let cr = src[(rr + clamp_int(x - self.offset_red_x, 0, right)) as usize];
+                let cg = src[(gr + clamp_int(x - self.offset_green_x, 0, right)) as usize];
+                let cb = src[(br + clamp_int(x - self.offset_blue_x, 0, right)) as usize];
+                dst[(y * width + x) as usize] = SkColor::rgba(
+                    (cr.r as i32 * cr.a as i32 / 255) as u8,
+                    (cg.g as i32 * cg.a as i32 / 255) as u8,
+                    (cb.b as i32 * cb.a as i32 / 255) as u8,
+                    ((cr.a as i32 + cg.a as i32 + cb.a as i32) / 3) as u8,
+                );
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }
