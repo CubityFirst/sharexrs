@@ -206,6 +206,67 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             );
             json_eq(&serde_json::json!(ours), &read_json(ctx, name))
         }
+        "clipboard-preview" => {
+            use sharex_tools::system::clipboard_viewer::{ClipboardSnapshot, ClipboardValue, Preview};
+            let theirs = read_json(ctx, name);
+            let dir = ctx.inputs.join("clipboard");
+            let manifest: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap();
+            let ours_dir = ctx.out.join(name);
+            std::fs::create_dir_all(&ours_dir).unwrap();
+            let mut out = Outcome::exact();
+            let mut i = 0;
+            for (entries, theirs) in manifest.as_array().unwrap().iter().zip(theirs["snapshots"].as_array().unwrap()) {
+                let mut snap = ClipboardSnapshot::new();
+                for e in entries.as_array().unwrap() {
+                    let value = if let Some(t) = e["text"].as_str() {
+                        ClipboardValue::Text(t.into())
+                    } else if let Some(f) = e["files"].as_array() {
+                        ClipboardValue::Files(f.iter().map(|x| x.as_str().unwrap().to_string()).collect())
+                    } else {
+                        ClipboardValue::Bytes(std::fs::read(dir.join(e["bytes"].as_str().unwrap())).unwrap())
+                    };
+                    snap.set(e["format"].as_str().unwrap(), value);
+                }
+                out = out.and(json_eq(&serde_json::json!(snap.formats()), &theirs["formats"]));
+                for t in theirs["previews"].as_array().unwrap() {
+                    let format = t["format"].as_str().unwrap();
+                    let label = format!("{i} {format}: ");
+                    out = out.and(match snap.preview(format) {
+                        Ok(Preview::Image(b)) if t["image"].is_string() => {
+                            let p = ours_dir.join(format!("{i}.png"));
+                            std::fs::write(&p, imaging::encode_png(&b)).unwrap();
+                            if serde_json::json!([b.width(), b.height()]) == serde_json::json!([t["width"], t["height"]]) {
+                                compare::image_files(&label, &p, &ctx.sharex.join(name).join(t["image"].as_str().unwrap()), 0)
+                            } else {
+                                Outcome::fail(format!("{label}size"))
+                            }
+                        }
+                        Ok(Preview::Text(s)) if t["text"].is_string() => {
+                            if s == t["text"].as_str().unwrap() { Outcome::exact() } else { Outcome::fail(format!("{label}{s:?}")) }
+                        }
+                        Err(_) if t["error"].is_string() => Outcome::exact(),
+                        r => Outcome::fail(format!("{label}ours {:?}, ShareX {t}", r.map(|p| matches!(p, Preview::Image(_))))),
+                    });
+                    i += 1;
+                }
+            }
+            out
+        }
+        "inspect-styles" => {
+            use sharex_tools::system::inspect_window::{format_rectangle, window_styles_to_string, Rect};
+            let theirs = read_json(ctx, name);
+            let strings: Vec<String> = c["values"].as_array().unwrap().iter().map(|v| window_styles_to_string(v.as_u64().unwrap() as u32)).collect();
+            let rects: Vec<String> = c["rects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| {
+                    let v = |i: usize| a[i].as_i64().unwrap() as i32;
+                    format_rectangle(Rect { x: v(0), y: v(1), width: v(2), height: v(3) })
+                })
+                .collect();
+            json_eq(&serde_json::json!({"strings": strings, "rects": rects}), &serde_json::json!({"strings": theirs["strings"], "rects": theirs["rects"]}))
+        }
         "video-trim-time" => {
             let ours = serde_json::json!({
                 "format": c["seconds"].as_array().unwrap().iter().map(|v| trimmer::format_time(v.as_f64().unwrap())).collect::<Vec<_>>(),

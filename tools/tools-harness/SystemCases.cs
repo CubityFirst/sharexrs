@@ -206,6 +206,7 @@ static partial class Program
     static bool RunSystemCase(JObject c, string o)
     {
         if (RunGifTrimCase(c, o)) return true;
+        if (RunSystemDataCase(c, o)) return true;
         if ((string)c["tool"] != "monitor-test") return false;
         EnsureAvalonia();
         Dispatcher.UIThread.Invoke(() =>

@@ -11,7 +11,9 @@
 //! - Screen: [`color`] (the colour pickers' maths and texts), [`ruler`]
 //!   (the Ruler's pixel runs and content bounds), [`mouse_highlighter`],
 //!   [`pin`] (Pin to screen's options and sizes).
-//! - System: [`monitor_test`] (the test patterns as images).
+//! - System: [`monitor_test`] (the test patterns as images), [`system`]
+//!   (the clipboard viewer, inspect window, network monitor and borderless
+//!   window without their windows).
 //!
 //! Shared: [`imaging`] (`SkiaImageHelpers`: loading, drawing, ShareX's
 //! encoders), [`gif`] (ShareX's GIF quantizers and writer), [`dotnet`] (the
@@ -48,6 +50,7 @@ pub mod monitor_test;
 pub mod mouse_highlighter;
 pub mod options;
 pub mod pin;
+pub mod system;
 pub mod qr;
 pub mod resizer;
 pub mod ruler;
