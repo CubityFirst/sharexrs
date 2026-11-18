@@ -1,0 +1,308 @@
+{
+  "results": [
+    {
+      "action": "UploadImage",
+      "url": "data:image/png;base64,AAAA",
+      "text": null
+    },
+    {
+      "action": "UploadText",
+      "url": null,
+      "text": "hello"
+    },
+    {
+      "action": "UploadImage",
+      "url": "https://x.y/z.png",
+      "text": null
+    },
+    {
+      "action": "ShortenURL",
+      "url": "https://x.y",
+      "text": null
+    },
+    {
+      "action": "ShortenURL",
+      "url": "https://x.y",
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "9",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "-1",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "UploadImage",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "UploadAudio",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": "u",
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": "https://x.y/a.mp4",
+      "text": "t"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "5"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "true"
+    },
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    null,
+    null,
+    null,
+    null,
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "a"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "a"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "single"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "unquoted"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "b"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "b"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "bom"
+    },
+    {
+      "action": "None",
+      "url": "é",
+      "text": "line\nbreak"
+    },
+    {
+      "action": "UploadAudio",
+      "url": "https://x.y/a.mp3",
+      "text": null
+    },
+    null,
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    null,
+    {
+      "action": "UploadText",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "ShortenURL",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "UploadVideo",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "-3",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "-2147483648",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": null
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "1.50"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "1e3"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "-0.0"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "12345678901234567890"
+    },
+    {
+      "action": "None",
+      "url": "",
+      "text": null
+    },
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "a\u0000b"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "c"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "it's"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    {
+      "action": "None",
+      "url": "y",
+      "text": "x"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "x"
+    },
+    null,
+    {
+      "action": "None",
+      "url": null,
+      "text": "NaN"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "Infinity"
+    },
+    null,
+    {
+      "action": "UploadText",
+      "url": null,
+      "text": "x"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "\uD83D\uDE00"
+    },
+    {
+      "action": "None",
+      "url": null,
+      "text": "ws"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "com.sharexrs.sharexrs",
+  "description": "ShareXrs",
+  "path": "sharexrs-native-messaging.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://nlkoigbdolhchiicbonbihbphgamnaoc/"
+  ]
+}

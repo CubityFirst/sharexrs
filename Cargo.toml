@@ -24,6 +24,7 @@ sharex-screen-recording = { path = "crates/sharex-screen-recording" }
 sharex-history = { path = "crates/sharex-history" }
 sharex-ocr = { path = "crates/sharex-ocr" }
 sharex-update = { path = "crates/sharex-update" }
+sharexrs-native-messaging = { path = "crates/sharexrs-native-messaging" }
 
 egui = "0.36"
 egui-wgpu = { version = "0.36", features = ["winit"] }
