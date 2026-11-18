@@ -1,7 +1,7 @@
 //! `SKCanvas` shape calls as Skia's raster device runs them (`SkCanvas` →
 //! `SkBitmapDevice` → `SkDraw`), on top of `sharex_skia`'s canvas.
 
-use sharex_skia::raster::{Canvas, Matrix, Paint, Rect, Shader};
+use sharex_skia::raster::{Blend, Canvas, Matrix, Paint, Rect, Shader};
 use sharex_skia::{Cap, Direction, Join, Path};
 
 use super::color::SkColor;
@@ -64,7 +64,15 @@ pub(crate) fn stroke_path(canvas: &mut Canvas, path: &Path, pen: &Pen, paint: &P
         dash: pen.dash.clone(),
     };
     let ctx = canvas.stroke_context();
-    if pen.width == 0.0 || (paint.anti_alias && canvas.is_hairline(pen.width)) {
+    // SkDraw::drawPath: a hairline when the width is 0, or when it's no wider
+    // than a pixel and either fully covers or the blend mode takes coverage as
+    // alpha (src-over); otherwise the thin stroke is filled.
+    let hairline = pen.width == 0.0
+        || (paint.anti_alias
+            && canvas
+                .hairline_coverage(pen.width)
+                .is_some_and(|c| c == 1.0 || paint.blend == Blend::SrcOver));
+    if hairline {
         // A non-anti-aliased hairline (SkScan::HairPath) isn't ported; none of
         // ShareX's effects draw one.
         assert!(paint.anti_alias, "non-anti-aliased hairlines aren't ported");
@@ -241,4 +249,31 @@ pub(crate) fn linear_gradient(
     }));
     p.anti_alias = aa;
     p
+}
+
+/// `SKShader.CreateRadialGradient(center, radius, colors, positions, Clamp)` as a paint.
+pub(crate) fn radial_gradient(
+    center: (f32, f32),
+    radius: f32,
+    colors: &[SkColor],
+    positions: Option<&[f32]>,
+    aa: bool,
+) -> Paint<'static> {
+    let mut p = Paint::shader(Shader::RadialGradient(sharex_skia::raster::gradient::RadialGradient {
+        center,
+        radius,
+        colors: colors.iter().map(|c| c.rgba_array()).collect(),
+        positions: positions.map(|p| p.to_vec()),
+        local: Matrix::IDENTITY,
+    }));
+    p.anti_alias = aa;
+    p
+}
+
+/// `SKCanvas.Skew(sx, sy)`: `SkMatrix::setSkew` concatenated.
+pub(crate) fn skew(canvas: &mut Canvas, sx: f32, sy: f32) {
+    let m = Matrix([1.0, sx, 0.0, sy, 1.0, 0.0, 0.0, 0.0, 1.0]);
+    if !m.is_identity() {
+        canvas.matrix = canvas.matrix.m44_pre_concat(&m);
+    }
 }

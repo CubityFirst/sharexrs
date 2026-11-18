@@ -45,7 +45,28 @@ impl EffectImpl for LightLeakImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let alpha = clampf(self.intensity / 100.0, 0.0, 1.0);
+        if alpha <= 0.0 {
+            return Ok(source.clone());
+        }
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let (wf, hf) = (w as f32, h as f32);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let center = match self.position {
+            LightLeakPosition::TopLeft => (0.0, 0.0),
+            LightLeakPosition::TopRight => (wf, 0.0),
+            LightLeakPosition::BottomLeft => (0.0, hf),
+            LightLeakPosition::BottomRight => (wf, hf),
+            LightLeakPosition::Left => (0.0, hf / 2.0),
+            LightLeakPosition::Right => (wf, hf / 2.0),
+        };
+        let radius = ((w * w + h * h) as f32).sqrt() * 0.8;
+        let leak = self.color.with_alpha((255.0 * alpha) as u8);
+        let mut paint = sk::radial_gradient(center, radius, &[leak, color::TRANSPARENT], Some(&[0.0, 1.0]), false);
+        paint.blend = Blend::Screen;
+        sk::draw_rect_xywh(&mut canvas, 0.0, 0.0, wf, hf, &paint, None);
+        drop(canvas);
+        Ok(out)
     }
 }

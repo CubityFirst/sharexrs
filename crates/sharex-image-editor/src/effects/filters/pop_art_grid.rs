@@ -41,7 +41,42 @@ impl EffectImpl for PopArtGridImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let (hw, hh) = (w / 2, h / 2);
+        let s = clampf(self.strength / 100.0, 0.0, 1.0);
+        let mut gray = Bitmap::new(source.width(), source.height());
+        {
+            let mut gc = Canvas::new(&mut gray);
+            let mut gp = Paint::shader(Shader::Color([0, 0, 0, 255]));
+            gp.color_filter = Some([
+                0.33, 0.33, 0.33, 0.0, 0.0, //
+                0.33, 0.33, 0.33, 0.0, 0.0, //
+                0.33, 0.33, 0.33, 0.0, 0.0, //
+                0.0, 0.0, 0.0, 1.0, 0.0,
+            ]);
+            gc.draw_bitmap(source, 0.0, 0.0, Some(&gp));
+        }
+        let mut out = Bitmap::new(source.width(), source.height());
+        let mut canvas = Canvas::new(&mut out);
+        let tints = [self.color1, self.color2, self.color3, self.color4];
+        let (wf, hf, hwf, hhf) = (w as f32, h as f32, hw as f32, hh as f32);
+        let cells = [
+            RRect::ltrb(0.0, 0.0, hwf, hhf),
+            RRect::ltrb(hwf, 0.0, wf, hhf),
+            RRect::ltrb(0.0, hhf, hwf, hf),
+            RRect::ltrb(hwf, hhf, wf, hf),
+        ];
+        for i in 0..4 {
+            let cell = cells[i];
+            let tint = tints[i];
+            sk::with_clip_rect(&mut canvas, cell, |canvas| {
+                canvas.draw_image_rect(&gray, Some(RRect::ltrb(0.0, 0.0, wf, hf)), cell, Sampling::Nearest, None);
+                let mut tp = solid(tint.with_alpha((255.0 * s) as u8), false);
+                tp.blend = Blend::Modulate;
+                sk::draw_rect(canvas, cell, &tp, None);
+            });
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

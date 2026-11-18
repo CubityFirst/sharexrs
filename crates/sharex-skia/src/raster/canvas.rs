@@ -53,6 +53,12 @@ pub enum Blend {
     Clear,
     /// `SKBlendMode.Overlay`, coverage lerped.
     Overlay,
+    /// `SKBlendMode.Screen`: `s + d - s*d`, coverage lerped.
+    Screen,
+    /// `SKBlendMode.Modulate`: `s*d`, coverage lerped.
+    Modulate,
+    /// `SKBlendMode.DstIn`: `d*sa`, coverage lerped.
+    DstIn,
 }
 
 /// `SKPaint.Shader` (or its colour when there's none).
@@ -70,6 +76,7 @@ pub enum Shader<'a> {
         tile_y: TileMode,
     },
     Gradient(LinearGradient),
+    RadialGradient(super::gradient::RadialGradient),
 }
 
 /// `SKPaint`, as far as ShareX's effects set it.
@@ -130,6 +137,7 @@ impl<'a> Paint<'a> {
                 *matrix = Matrix::concat(&Matrix::translate(x, y), matrix)
             }
             Shader::Gradient(g) => g.local = Matrix::concat(&Matrix::translate(x, y), &g.local),
+            Shader::RadialGradient(g) => g.local = Matrix::concat(&Matrix::translate(x, y), &g.local),
             Shader::Color(_) => {}
         }
     }
@@ -507,6 +515,11 @@ impl<'a> Canvas<'a> {
         )
     }
 
+    /// `SkDrawTreatAsHairline`'s coverage for an anti-aliased stroke of `width`.
+    pub fn hairline_coverage(&self, width: f32) -> Option<f32> {
+        crate::hair::hairline_coverage(width, &self.ctm())
+    }
+
     /// Whether an anti-aliased stroke of `width` is a hairline here
     /// (`SkDrawTreatAsHairline`).
     pub fn is_hairline(&self, width: f32) -> bool {
@@ -575,7 +588,12 @@ impl<'a> Canvas<'a> {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,
                         // SkRasterPipelineSpriteBlitter: load_8888, multiply (lowp), store.
-                        Blend::Multiply | Blend::Clear | Blend::Overlay => {
+                        Blend::Multiply
+                        | Blend::Clear
+                        | Blend::Overlay
+                        | Blend::Screen
+                        | Blend::Modulate
+                        | Blend::DstIn => {
                             self.blend_full(di, Px::Low(s.map(u32::from)), paint.blend)
                         }
                         // Sprite_D32_S32 → S32A_Opaque_BlitRow32: s + (d * (256 - sa) >> 8).
@@ -700,8 +718,8 @@ impl<'a> Canvas<'a> {
                 [0, 1, 2, 3].map(|i| to_unorm(mad(d[i] as f32, inv, c[i] * 255.0), 1.0, 255.0))
             }
             (_, Blend::Clear) => [0, 0, 0, 0],
-            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay)) => store(separable_high(b, c, load(self.dst.px(di)))),
-            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay)) => {
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => store(separable_high(b, c, load(self.dst.px(di)))),
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
                 separable_low(b, c, self.dst.px(di)).map(|v| v.min(255) as u8)
             }
             (Px::Low(c), Blend::SrcOver) => {
@@ -753,13 +771,13 @@ impl<'a> Canvas<'a> {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t)).min(255) as u8)
             }
-            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay)) => {
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
                 let f = cov as f32 * (1.0 / 255.0);
                 let dd = load(d);
                 let m = separable_high(b, c, dd);
                 store([0, 1, 2, 3].map(|i| mad(m[i] - dd[i], f, dd[i])))
             }
-            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay)) => {
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 let m = separable_low(b, c, d);
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + m[i] * t).min(255) as u8)
@@ -768,7 +786,7 @@ impl<'a> Canvas<'a> {
     }
 }
 
-/// The highp `multiply`/`overlay` blend stages.
+/// The highp blend stages other than srcover/src/clear.
 fn separable_high(mode: Blend, s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
     let (sa, da) = (s[3], d[3]);
     match mode {
@@ -781,11 +799,15 @@ fn separable_high(mode: Blend, s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
             };
             [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), mad(da, 1.0 - sa, sa)]
         }
+        Blend::Screen => [0, 1, 2, 3].map(|i| s[i] + d[i] - s[i] * d[i]),
+        Blend::Modulate => [0, 1, 2, 3].map(|i| s[i] * d[i]),
+        Blend::DstIn => [0, 1, 2, 3].map(|i| d[i] * sa),
         _ => unreachable!(),
     }
 }
 
-/// The lowp `multiply`/`overlay` blend stages (`div255`, even with accurate blends).
+/// The lowp blend stages other than srcover/src/clear (multiply and overlay
+/// divide with `div255` even in the accurate build, the rest `div255_accurate`).
 fn separable_low(mode: Blend, s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
     let (sa, da) = (s[3], d[3] as u32);
     let d = d.map(u32::from);
@@ -798,6 +820,9 @@ fn separable_low(mode: Blend, s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
             };
             [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), sa + div255(da * (255 - sa))]
         }
+        Blend::Screen => [0, 1, 2, 3].map(|i| s[i] + d[i] - div255_accurate(s[i] * d[i])),
+        Blend::Modulate => [0, 1, 2, 3].map(|i| div255_accurate(s[i] * d[i])),
+        Blend::DstIn => [0, 1, 2, 3].map(|i| div255_accurate(d[i] * sa)),
         _ => unreachable!(),
     }
 }
@@ -1091,6 +1116,11 @@ impl<'a> Sampler<'a> {
                 )
             }
             Shader::Gradient(g) => {
+                let s = g.sampler(ctm)?;
+                let lowp = s.lowp_capable();
+                (SamplerKind::Gradient(s), lowp)
+            }
+            Shader::RadialGradient(g) => {
                 let s = g.sampler(ctm)?;
                 let lowp = s.lowp_capable();
                 (SamplerKind::Gradient(s), lowp)

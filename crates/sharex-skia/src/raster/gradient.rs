@@ -37,6 +37,8 @@ pub(crate) struct GradientSampler {
     fill: Fill,
     clamp_t: bool,
     premul: bool,
+    /// `xy_to_radius` after the matrix (a radial gradient).
+    radial: bool,
 }
 
 fn color4f(c: [u8; 4]) -> [f32; 4] {
@@ -60,6 +62,7 @@ impl LinearGradient {
                 fill: Fill::Solid(last),
                 clamp_t: true,
                 premul: !opaque,
+                radial: false,
             });
         }
         // pts_to_unit_matrix.
@@ -87,9 +90,58 @@ impl LinearGradient {
         let total_inv = Matrix::concat(ctm, &self.local).invert()?;
         let m = Matrix::concat(&p2u, &total_inv);
 
+        Some(build_sampler(colors, self.positions.clone(), m, false, opaque))
+    }
+}
+
+/// A radial gradient (`SKShader.CreateRadialGradient`, clamp): `SkRadialGradient`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RadialGradient {
+    pub center: (f32, f32),
+    pub radius: f32,
+    /// Straight RGBA colours.
+    pub colors: Vec<[u8; 4]>,
+    /// Stop positions in `[0, 1]` (`None`: evenly spaced).
+    pub positions: Option<Vec<f32>>,
+    /// The shader's local matrix.
+    pub local: Matrix,
+}
+
+impl RadialGradient {
+    pub(crate) fn sampler(&self, ctm: &Matrix) -> Option<GradientSampler> {
+        let n = self.colors.len();
+        if n == 0 || self.radius < 0.0 {
+            return None;
+        }
+        let colors: Vec<[f32; 4]> = self.colors.iter().map(|&c| color4f(c)).collect();
+        let opaque = colors.iter().all(|c| c[3] == 1.0);
+        if n == 1 || self.radius.abs() <= 1.0 / 32768.0 {
+            // A colour shader; MakeDegenerateGradient (clamp): the last colour.
+            let last = *colors.last().unwrap();
+            return Some(GradientSampler {
+                m: Matrix::IDENTITY,
+                fill: Fill::Solid(last),
+                clamp_t: true,
+                premul: !opaque,
+                radial: false,
+            });
+        }
+        // rad_to_unit_matrix: setTranslate(-center), postScale(1/radius).
+        let inv = 1.0 / self.radius;
+        let (cx, cy) = self.center;
+        let r2u = Matrix([inv, 0.0, inv * -cx, 0.0, inv, inv * -cy, 0.0, 0.0, 1.0]);
+        let total_inv = Matrix::concat(ctm, &self.local).invert()?;
+        let m = Matrix::concat(&r2u, &total_inv);
+        Some(build_sampler(colors, self.positions.clone(), m, true, opaque))
+    }
+}
+
+/// `SkGradientBaseShader`: the colour stops (`ColorStopOptimizer`, implicit
+/// end stops, uniform positions dropped) and the stages that interpolate them.
+fn build_sampler(colors: Vec<[f32; 4]>, positions: Option<Vec<f32>>, m: Matrix, radial: bool, opaque: bool) -> GradientSampler {
         // ColorStopOptimizer (3 stops at 0,0,1 or 0,1,1) and the constructor's implicit stops.
         let mut cols = colors.clone();
-        let mut pos = self.positions.clone();
+        let mut pos = positions;
         if let Some(p) = pos.as_ref().filter(|_| cols.len() == 3) {
             {
                 let near = |a: f32, b: f32| (a - b).abs() <= 1.0 / 4096.0;
@@ -214,13 +266,13 @@ impl LinearGradient {
             }
         };
         let clamp_t = !matches!(fill, Fill::Stops { evenly: false, .. });
-        Some(GradientSampler {
+        GradientSampler {
             m,
             fill,
             clamp_t,
             premul: !opaque,
-        })
-    }
+            radial,
+        }
 }
 
 impl GradientSampler {
@@ -232,7 +284,20 @@ impl GradientSampler {
         let mad_ = super::mad;
         let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
         let m = &self.m;
-        let t = if m.is_identity() {
+        let t = if self.radial {
+            // append_matrix's stage for the matrix's type, then xy_to_radius.
+            let (x, y) = if m.is_identity() {
+                (fx, fy)
+            } else if m.is_translate() {
+                (fx + m.tx(), fy + m.ty())
+            } else if m.is_scale_translate() {
+                (mad_(fx, m.sx(), m.tx()), mad_(fy, m.sy(), m.ty()))
+            } else {
+                (mad_(fx, m.sx(), mad_(fy, m.kx(), m.tx())), mad_(fx, m.ky(), mad_(fy, m.sy(), m.ty())))
+            };
+            let (x2, y2) = (x * x, y * y);
+            (x2 + y2).sqrt()
+        } else if m.is_identity() {
             fx
         } else if m.is_translate() {
             fx + m.tx()

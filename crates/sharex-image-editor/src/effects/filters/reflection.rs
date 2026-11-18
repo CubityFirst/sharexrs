@@ -44,7 +44,54 @@ impl EffectImpl for ReflectionImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.percentage <= 0 {
+            return Ok(source.clone());
+        }
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let rh = ((sh * self.percentage) as f32 / 100.0) as i32;
+        let nh = sh + self.offset + rh;
+        let mut nw = sw;
+        if self.skew && self.skew_size > 0 {
+            nw += (rh as f32 * (self.skew_size as f32 / 100.0)) as i32;
+        }
+        if rh <= 0 {
+    // DrawBitmap(flipped): SKImage.FromBitmap of an empty bitmap is null.
+    return throw("Value cannot be null. (Parameter 'image')");
+}
+let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let mut canvas = Canvas::new(&mut out);
+        canvas.draw_bitmap(source, 0.0, 0.0, None);
+        let mut flipped = Bitmap::new(sw as u32, rh.max(0) as u32);
+        {
+            let mut rc = Canvas::new(&mut flipped);
+            rc.translate(0.0, sh as f32);
+            rc.scale(1.0, -1.0);
+            rc.draw_bitmap(source, 0.0, 0.0, None);
+        }
+        let mut gp = sk::linear_gradient(
+            (0.0, 0.0),
+            (0.0, rh as f32),
+            &[SkColor::rgba(255, 255, 255, self.max_alpha as u8), SkColor::rgba(255, 255, 255, self.min_alpha as u8)],
+            None,
+            false,
+        );
+        gp.blend = Blend::DstIn;
+        let mut reflection = Bitmap::new(sw as u32, rh.max(0) as u32);
+        {
+            let mut mc = Canvas::new(&mut reflection);
+            mc.draw_bitmap(&flipped, 0.0, 0.0, None);
+            sk::draw_rect(&mut mc, RRect::ltrb(0.0, 0.0, sw as f32, rh as f32), &gp, None);
+        }
+        if self.skew && self.skew_size > 0 {
+            let saved = canvas.matrix;
+            canvas.translate(0.0, (sh + self.offset) as f32);
+            sk::skew(&mut canvas, self.skew_size as f32 / 100.0, 0.0);
+            canvas.draw_bitmap(&reflection, 0.0, 0.0, None);
+            canvas.matrix = saved;
+        } else {
+            canvas.draw_bitmap(&reflection, 0.0, (sh + self.offset) as f32, None);
+        }
+        drop(canvas);
+        Ok(out)
     }
 }
