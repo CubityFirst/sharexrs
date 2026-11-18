@@ -44,7 +44,39 @@ impl EffectImpl for DoubleExposureImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let blend = clampf(self.blend_amount, 0.0, 100.0) / 100.0;
+        let blur = clampf(self.ghost_blur, 0.0, 30.0);
+        let hb = clampf(self.highlight_bias, 0.0, 100.0) / 100.0;
+        let contrast = clampf(self.contrast, 50.0, 200.0) / 100.0;
+        if blend <= 0.0001 && blur <= 0.0001 && self.offset_x == 0 && self.offset_y == 0 {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let src = pixels(source);
+        let ghost_px = (blur > 0.01).then(|| pixels(&create_blurred_clamp(source, blur)));
+        let gp = ghost_px.as_ref().unwrap_or(&src);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let s = src[(row + x) as usize];
+                let ghost = bilinear_sample(gp, width, height, (x - self.offset_x) as f32, (y - self.offset_y) as f32);
+                let (sr, sg, sb) = (s.r as f32 / 255.0, s.g as f32 / 255.0, s.b as f32 / 255.0);
+                let gl = analog_luminance01(ghost);
+                let mut gr = lerp(ghost.r as f32 / 255.0, gl * (1.12 + (hb * 0.48)), 0.68);
+                let mut gg = lerp(ghost.g as f32 / 255.0, gl * 0.95, 0.78);
+                let mut gb = lerp(ghost.b as f32 / 255.0, gl * 0.82, 0.84);
+                gr = apply_contrast(gr, contrast);
+                gg = apply_contrast(gg, contrast);
+                gb = apply_contrast(gb, contrast);
+                let lb = blend * (0.55 + (gl * 0.45));
+                let r = lerp(sr, screen(sr, gr), lb);
+                let g = lerp(sg, screen(sg, gg), lb * 0.92);
+                let b = lerp(sb, screen(sb, gb), lb * 0.88);
+                dst[(row + x) as usize] =
+                    SkColor::rgba(clamp_to_byte(r * 255.0), clamp_to_byte(g * 255.0), clamp_to_byte(b * 255.0), s.a);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }

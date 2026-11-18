@@ -32,7 +32,23 @@ impl EffectImpl for FilmGrainImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let mut rng = random::Compat::new(42);
+        let range = (self.amount as f32 * 2.55) as i32;
+        let cb = |v: i32| v.clamp(0, 255) as u8;
+        let dst: Vec<SkColor> = pixels(source)
+            .iter()
+            .map(|c| {
+                if self.monochrome {
+                    let n = rng.next_range(-range, range + 1);
+                    SkColor::rgba(cb(c.r as i32 + n), cb(c.g as i32 + n), cb(c.b as i32 + n), c.a)
+                } else {
+                    let r = cb(c.r as i32 + rng.next_range(-range, range + 1));
+                    let g = cb(c.g as i32 + rng.next_range(-range, range + 1));
+                    let b = cb(c.b as i32 + rng.next_range(-range, range + 1));
+                    SkColor::rgba(r, g, b, c.a)
+                }
+            })
+            .collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
 }
