@@ -214,18 +214,24 @@ pub fn step_radius(a: &Annotation) -> f32 {
 /// `NumberAnnotation.TryGetTailPolygon`: base start, tip, base end.
 pub fn step_tail(a: &Annotation) -> Option<(Point, Point, Point)> {
     let Kind::Number(p) = &a.kind else { return None };
+    step_tail_points(a.common.start_point, step_radius(a), p)
+}
+
+/// `NumberAnnotation.TryGetTailPolygon` for a circle of `radius` at
+/// `center`: the tail's base meets the circle at its tangent points.
+pub fn step_tail_points(center: Point, radius: f32, p: &crate::model::NumberProps) -> Option<(Point, Point, Point)> {
     if !p.tail_enabled || !p.tail_point_initialized {
         return None;
     }
-    let c = a.common.start_point;
-    let r = step_radius(a);
-    if r <= 0.001 {
+    let c = center;
+    let r = radius;
+    if r <= GEOMETRY_EPSILON {
         return None;
     }
     let tip = p.tail_point;
     let (dx, dy) = (tip.x - c.x, tip.y - c.y);
     let len = (dx * dx + dy * dy).sqrt();
-    if len <= r + 0.001 {
+    if len <= r + GEOMETRY_EPSILON {
         return None;
     }
     let (nx, ny) = (dx / len, dy / len);
@@ -240,8 +246,110 @@ pub fn step_tail(a: &Annotation) -> Option<(Point, Point, Point)> {
     ))
 }
 
+/// `TailGeometryHelper.GeometryEpsilon`.
+const GEOMETRY_EPSILON: f32 = 0.001;
+
+/// `SpeechBalloonAnnotation.TailWidthMultiplier`.
+const TAIL_WIDTH_MULTIPLIER: f32 = 0.3;
+
+/// `SpeechBalloonAnnotation.DefaultTailOffset`.
+const DEFAULT_TAIL_OFFSET: f32 = 30.0;
+
+/// `SpeechBalloonAnnotation.GetEffectiveTailPoint`: the tail point, or
+/// below the middle of the body when it was never set.
+pub fn balloon_effective_tail_point(body: &Rect, p: &crate::model::SpeechBalloonProps) -> Point {
+    let has_tail_point = p.tail_point_initialized || p.tail_point != Point::default();
+    if has_tail_point {
+        p.tail_point
+    } else {
+        Point::new(body.mid_x(), body.b + DEFAULT_TAIL_OFFSET)
+    }
+}
+
+/// `SpeechBalloonAnnotation.TryGetTailPolygon`: a tail from the body's
+/// centre towards the tail point, its base where it leaves the body's
+/// rectangle.
+pub fn balloon_tail_points(body: &Rect, p: &crate::model::SpeechBalloonProps) -> Option<(Point, Point, Point)> {
+    if !p.tail_enabled {
+        return None;
+    }
+    let bounds = *body;
+    if bounds.width() <= 0.0 || bounds.height() <= 0.0 {
+        return None;
+    }
+    let tail_tip = balloon_effective_tail_point(body, p);
+    if bounds.contains(tail_tip) {
+        return None;
+    }
+    let center = Point::new(bounds.mid_x(), bounds.mid_y());
+    let direction_x = tail_tip.x - center.x;
+    let direction_y = tail_tip.y - center.y;
+    let direction_length = (direction_x * direction_x + direction_y * direction_y).sqrt();
+    if direction_length <= GEOMETRY_EPSILON {
+        return None;
+    }
+    let normalized_direction_x = direction_x / direction_length;
+    let normalized_direction_y = direction_y / direction_length;
+    let rect_average_size = (bounds.width() + bounds.height()) / 2.0;
+    let mut tail_width = TAIL_WIDTH_MULTIPLIER * rect_average_size;
+    tail_width = tail_width.min(bounds.width().min(bounds.height()));
+    if tail_width <= GEOMETRY_EPSILON {
+        return None;
+    }
+    let half_tail_width = tail_width / 2.0;
+    let perpendicular = (-normalized_direction_y, normalized_direction_x);
+    let base_start = Point::new(center.x + perpendicular.0 * half_tail_width, center.y + perpendicular.1 * half_tail_width);
+    let base_end = Point::new(center.x - perpendicular.0 * half_tail_width, center.y - perpendicular.1 * half_tail_width);
+    let s = segment_exit_point(&bounds, base_start, tail_tip)?;
+    let e = segment_exit_point(&bounds, base_end, tail_tip)?;
+    Some((s, tail_tip, e))
+}
+
+/// `SpeechBalloonAnnotation.TryGetSegmentExitPoint` (NaN t passes the
+/// range test, as in C#).
+#[allow(clippy::manual_range_contains)]
+fn segment_exit_point(bounds: &Rect, start: Point, end: Point) -> Option<Point> {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let mut best_t = f32::INFINITY;
+    let mut best = Point::default();
+    let mut consider = |t: f32| {
+        if t < -GEOMETRY_EPSILON || t > 1.0 + GEOMETRY_EPSILON || t >= best_t {
+            return;
+        }
+        let x = start.x + dx * t;
+        let y = start.y + dy * t;
+        if x < bounds.l - GEOMETRY_EPSILON
+            || x > bounds.r + GEOMETRY_EPSILON
+            || y < bounds.t - GEOMETRY_EPSILON
+            || y > bounds.b + GEOMETRY_EPSILON
+        {
+            return;
+        }
+        best_t = t.clamp(0.0, 1.0);
+        best = Point::new(x.clamp(bounds.l, bounds.r), y.clamp(bounds.t, bounds.b));
+    };
+    if dx.abs() > GEOMETRY_EPSILON {
+        consider((bounds.l - start.x) / dx);
+        consider((bounds.r - start.x) / dx);
+    }
+    if dy.abs() > GEOMETRY_EPSILON {
+        consider((bounds.t - start.y) / dy);
+        consider((bounds.b - start.y) / dy);
+    }
+    if best_t.is_infinite() { None } else { Some(best) }
+}
+
+/// `SpeechBalloonAnnotation.GetInteractionBounds(0)`: the body and its tail.
+pub fn balloon_interaction_bounds(body: &Rect, p: &crate::model::SpeechBalloonProps) -> Rect {
+    match balloon_tail_points(body, p) {
+        Some((s, t, e)) => body.union(&triangle_bounds(s, t, e)),
+        None => *body,
+    }
+}
+
 /// `TailGeometryHelper.GetBounds`.
-fn triangle_bounds(a: Point, b: Point, c: Point) -> Rect {
+pub fn triangle_bounds(a: Point, b: Point, c: Point) -> Rect {
     Rect::new(a.x.min(b.x).min(c.x), a.y.min(b.y).min(c.y), a.x.max(b.x).max(c.x), a.y.max(b.y).max(c.y))
 }
 
