@@ -53,6 +53,65 @@ pub fn open_folder_with_file(path: &Path) -> bool {
     }
 }
 
+/// `RegistryHelpers.SearchProgramPath`: an installed program by its file
+/// name, from `HKCR\Applications\<file>\shell\open|edit\command`, then
+/// from the programs Explorer has run (`MuiCache`). Windows only.
+#[cfg(windows)]
+pub fn search_program_path(file_name: &str) -> Option<String> {
+    use windows::Win32::System::Registry::*;
+    use windows::core::{HSTRING, PCWSTR, PWSTR};
+    for command in ["open", "edit"] {
+        let key = HSTRING::from(format!(r"Applications\{file_name}\shell\{command}\command"));
+        let mut data = vec![0u16; 2048];
+        let mut len = (data.len() * 2) as u32;
+        // SAFETY: `data` is `len` bytes long; the default value (no name).
+        let r = unsafe { RegGetValueW(HKEY_CLASSES_ROOT, &key, PCWSTR::null(), RRF_RT_REG_SZ, None, Some(data.as_mut_ptr().cast()), Some(&mut len)) };
+        if r.is_ok() {
+            let value = String::from_utf16_lossy(&data[..(len as usize / 2)]).trim_end_matches('\0').to_owned();
+            let path = sharex_settings::external_program::parse_quote_string(&value);
+            if Path::new(&path).is_file() {
+                return Some(path);
+            }
+        }
+    }
+    let mut hkey = HKEY::default();
+    let sub = HSTRING::from(r"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache");
+    // SAFETY: `hkey` receives the opened key, closed below.
+    if unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, &sub, None, KEY_READ, &mut hkey) }.is_err() {
+        return None;
+    }
+    let mut found = None;
+    let mut index = 0;
+    loop {
+        let mut name = vec![0u16; 32768];
+        let mut len = name.len() as u32;
+        // SAFETY: `name` holds `len` UTF-16 units.
+        let r = unsafe { RegEnumValueW(hkey, index, Some(PWSTR(name.as_mut_ptr())), &mut len, None, None, None, None) };
+        if r.is_err() {
+            break;
+        }
+        index += 1;
+        let mut program = String::from_utf16_lossy(&name[..len as usize]);
+        for trim in [".ApplicationCompany", ".FriendlyAppName"] {
+            if program.len() >= trim.len() && program[program.len() - trim.len()..].eq_ignore_ascii_case(trim) {
+                program.truncate(program.len() - trim.len());
+            }
+        }
+        if program.to_lowercase().ends_with(&file_name.to_lowercase()) && Path::new(&program).is_file() {
+            found = Some(program);
+            break;
+        }
+    }
+    // SAFETY: opened above.
+    let _ = unsafe { RegCloseKey(hkey) };
+    found
+}
+
+#[cfg(not(windows))]
+pub fn search_program_path(_file_name: &str) -> Option<String> {
+    None
+}
+
 /// `FileHelpers.DeleteFile(path, sendToRecycleBin: true)`.
 pub fn delete_file_to_recycle_bin(path: &Path) -> bool {
     if !path.is_file() {

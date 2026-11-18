@@ -1,0 +1,525 @@
+{
+  "parse": [
+    "\"C:\\a b\\x.png\"",
+    "\"C:\\a b\\x.png\" \"C:\\a b\\x.jpg\"",
+    "C:\\a\\x.png -o C:\\a\\x.jpg",
+    "inx %\"in\" $out %OUTPUT $Input",
+    "%output then \"C:\\i.png\"",
+    "$input C:\\o.png",
+    "",
+    "\"a\"\"b\""
+  ],
+  "check_extension": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+    false,
+    true,
+    false,
+    true,
+    true,
+    true,
+    false,
+    false
+  ],
+  "json": [
+    "{\"IsActive\":false,\"Name\":null,\"Path\":null,\"Args\":\"\\\"$input\\\"\",\"OutputExtension\":null,\"Extensions\":null,\"HiddenWindow\":false,\"DeleteInputFile\":false}",
+    "{\"IsActive\":false,\"Name\":\"Paint\",\"Path\":\"C:\\\\Windows\\\\System32\\\\mspaint.exe\",\"Args\":\"\\\"$input\\\"\",\"OutputExtension\":null,\"Extensions\":null,\"HiddenWindow\":false,\"DeleteInputFile\":false}",
+    "{\"FolderPath\":null,\"Filter\":null,\"IncludeSubdirectories\":false,\"MoveFilesToScreenshotsFolder\":false}",
+    "{\"FolderPath\":\"C:\\\\in\",\"Filter\":\"*.png\",\"IncludeSubdirectories\":true,\"MoveFilesToScreenshotsFolder\":true}"
+  ],
+  "runs": [
+    {
+      "name": "default-args",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" \"<dir>\\shot.png\"",
+          "args": [
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 79
+    },
+    {
+      "name": "empty-args",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" \"<dir>\\shot.png\"",
+          "args": [
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "null-args",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" \"<dir>\\shot.png\"",
+          "args": [
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 6
+    },
+    {
+      "name": "copy-to-output",
+      "result": "<dir>\\shot.jpg",
+      "files": [
+        "shot.jpg",
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\shot.png\" \"<dir>\\shot.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\shot.png",
+            "<dir>\\shot.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 9
+    },
+    {
+      "name": "copy-dot-extension",
+      "result": "<dir>\\shot.webp",
+      "files": [
+        "shot.png",
+        "shot.webp"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\shot.png\" \"<dir>\\shot.webp\"",
+          "args": [
+            "copy",
+            "<dir>\\shot.png",
+            "<dir>\\shot.webp"
+          ]
+        }
+      ],
+      "elapsed_ms": 8
+    },
+    {
+      "name": "output-not-made",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log <dir>\\shot.png <dir>\\shot.jpg",
+          "args": [
+            "log",
+            "<dir>\\shot.png",
+            "<dir>\\shot.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "blank-output-extension",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\shot.png\" \"<dir>\\shot.png\"",
+          "args": [
+            "copy",
+            "<dir>\\shot.png",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 8
+    },
+    {
+      "name": "delete-input",
+      "result": "<dir>\\shot.jpg",
+      "files": [
+        "shot.jpg"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\shot.png\" \"<dir>\\shot.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\shot.png",
+            "<dir>\\shot.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 8
+    },
+    {
+      "name": "delete-input-without-output",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\shot.png\"",
+          "args": [
+            "log",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 6
+    },
+    {
+      "name": "delete-input-same-path",
+      "result": "<dir>\\shot.PNG",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" append \"<dir>\\shot.PNG\"",
+          "args": [
+            "append",
+            "<dir>\\shot.PNG"
+          ]
+        }
+      ],
+      "elapsed_ms": 6
+    },
+    {
+      "name": "edit-in-place",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" append \"<dir>\\shot.png\"",
+          "args": [
+            "append",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "filter-rejects",
+      "result": null,
+      "files": [
+        "shot.png"
+      ],
+      "log": [],
+      "elapsed_ms": 0
+    },
+    {
+      "name": "filter-accepts",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\shot.png\"",
+          "args": [
+            "log",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 11
+    },
+    {
+      "name": "quoted-input",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\shot.png\"",
+          "args": [
+            "log",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 6
+    },
+    {
+      "name": "missing-program",
+      "result": null,
+      "files": [
+        "shot.png"
+      ],
+      "log": [],
+      "elapsed_ms": 0
+    },
+    {
+      "name": "no-program-path",
+      "result": null,
+      "files": [
+        "shot.png"
+      ],
+      "log": [],
+      "elapsed_ms": 0
+    },
+    {
+      "name": "blank-input",
+      "result": null,
+      "files": [
+        "shot.png"
+      ],
+      "log": [],
+      "elapsed_ms": 0
+    },
+    {
+      "name": "missing-input",
+      "result": "<dir>\\gone.png",
+      "files": [],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\gone.png\" \"<dir>\\gone.jpg\"",
+          "args": [
+            "log",
+            "<dir>\\gone.png",
+            "<dir>\\gone.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "environment-variable-path",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\shot.png\"",
+          "args": [
+            "log",
+            "<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 6
+    },
+    {
+      "name": "tokens",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\shot.png\" <dir>\\shot.png \"<dir>\\shot.txt\" <dir>\\shot.txt <dir>\\shot.pngx %INPUT $<dir>\\shot.png",
+          "args": [
+            "log",
+            "<dir>\\shot.png",
+            "<dir>\\shot.png",
+            "<dir>\\shot.txt",
+            "<dir>\\shot.txt",
+            "<dir>\\shot.pngx",
+            "%INPUT",
+            "$<dir>\\shot.png"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "dotted-folder",
+      "result": "<dir>\\my dir.v2\\shot.final.jpg",
+      "files": [
+        "my dir.v2\\shot.final.jpg",
+        "my dir.v2\\shot.final.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\my dir.v2\\shot.final.png\" \"<dir>\\my dir.v2\\shot.final.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\my dir.v2\\shot.final.png",
+            "<dir>\\my dir.v2\\shot.final.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 8
+    },
+    {
+      "name": "no-extension",
+      "result": "<dir>\\noext.jpg",
+      "files": [
+        "noext",
+        "noext.jpg"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\noext\" \"<dir>\\noext.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\noext",
+            "<dir>\\noext.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 8
+    },
+    {
+      "name": "hidden-file-name",
+      "result": "<dir>.bak",
+      "files": [
+        ".hidden"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\.hidden\" \"<dir>.bak\"",
+          "args": [
+            "copy",
+            "<dir>\\.hidden",
+            "<dir>.bak"
+          ]
+        }
+      ],
+      "elapsed_ms": 9
+    },
+    {
+      "name": "forward-slashes",
+      "result": "<dir>\\sub\\shot.jpg",
+      "files": [
+        "sub\\shot.jpg",
+        "sub\\shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>/sub/shot.png\" \"<dir>\\sub\\shot.jpg\"",
+          "args": [
+            "copy",
+            "<dir>/sub/shot.png",
+            "<dir>\\sub\\shot.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 9
+    },
+    {
+      "name": "hidden-window",
+      "result": "<dir>\\shot.jpg",
+      "files": [
+        "shot.jpg",
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\shot.png\" \"<dir>\\shot.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\shot.png",
+            "<dir>\\shot.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 21
+    },
+    {
+      "name": "waits-for-exit",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" sleep 300",
+          "args": [
+            "sleep",
+            "300"
+          ]
+        }
+      ],
+      "elapsed_ms": 307
+    },
+    {
+      "name": "raw-quotes-and-backslashes",
+      "result": "<dir>\\shot.png",
+      "files": [
+        "shot.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"a\\\" b\" \\\\\"c\\\\\" d\\e \"\" \"x\"\"y\"",
+          "args": [
+            "log",
+            "a\" b",
+            "\\c\\",
+            "d\\e",
+            "",
+            "x\"y"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "input-is-a-folder",
+      "result": "<dir>\\folder",
+      "files": [
+        "folder\\inner.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" log \"<dir>\\folder\"",
+          "args": [
+            "log",
+            "<dir>\\folder"
+          ]
+        }
+      ],
+      "elapsed_ms": 7
+    },
+    {
+      "name": "unicode-path",
+      "result": "<dir>\\ünï cødé\\shot ✓.jpg",
+      "files": [
+        "ünï cødé\\shot ✓.jpg",
+        "ünï cødé\\shot ✓.png"
+      ],
+      "log": [
+        {
+          "cmdline": "\"<probe>\" copy \"<dir>\\ünï cødé\\shot ✓.png\" \"<dir>\\ünï cødé\\shot ✓.jpg\"",
+          "args": [
+            "copy",
+            "<dir>\\ünï cødé\\shot ✓.png",
+            "<dir>\\ünï cødé\\shot ✓.jpg"
+          ]
+        }
+      ],
+      "elapsed_ms": 11
+    }
+  ]
+}

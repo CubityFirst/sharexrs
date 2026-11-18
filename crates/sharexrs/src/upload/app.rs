@@ -160,6 +160,7 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCode(text) => Box::new(dialogs::qr_code::QrCodeWindow::new(Some(text))),
+            super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
         };
         self.open_dialog_window(event_loop, dialog);
     }

@@ -1,0 +1,96 @@
+{
+  "cases": [
+    {
+      "name": "filter-png",
+      "triggers": [
+        {
+          "path": "B.PNG",
+          "ms": 2050
+        },
+        {
+          "path": "a.png",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "all-with-subfolders",
+      "triggers": [
+        {
+          "path": "sub\\deeper\\low.jpg",
+          "ms": 2050
+        },
+        {
+          "path": "top.txt",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "star-dot-star",
+      "triggers": [
+        {
+          "path": "noext",
+          "ms": 2050
+        },
+        {
+          "path": "x.y",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "question-mark",
+      "triggers": [
+        {
+          "path": "shot1.png",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "growing",
+      "triggers": [
+        {
+          "path": "g.bin",
+          "ms": 3093
+        }
+      ]
+    },
+    {
+      "name": "held-then-released",
+      "triggers": [
+        {
+          "path": "l.png",
+          "ms": 4124
+        }
+      ]
+    },
+    {
+      "name": "held-past-timeout",
+      "triggers": []
+    },
+    {
+      "name": "recreated-quickly",
+      "triggers": [
+        {
+          "path": "a.png",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "moved-in",
+      "triggers": [
+        {
+          "path": "m.png",
+          "ms": 2050
+        }
+      ]
+    },
+    {
+      "name": "renamed-inside",
+      "triggers": []
+    }
+  ]
+}

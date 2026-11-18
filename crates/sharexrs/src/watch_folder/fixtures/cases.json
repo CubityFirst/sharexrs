@@ -1,0 +1,105 @@
+{
+  "cases": [
+    {
+      "name": "filter-png",
+      "settings": { "Filter": "*.png" },
+      "dirs": ["sub"],
+      "steps": [
+        { "op": "write", "path": "a.png" },
+        { "op": "write", "path": "B.PNG" },
+        { "op": "write", "path": "c.txt" },
+        { "op": "write", "path": "noext" },
+        { "op": "write", "path": "e.png.txt" },
+        { "op": "write", "path": "sub\\d.png" },
+        { "op": "write", "path": "empty.png", "bytes": 0 }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "all-with-subfolders",
+      "settings": { "Filter": "", "IncludeSubdirectories": true },
+      "dirs": ["sub", "sub\\deeper"],
+      "steps": [
+        { "op": "write", "path": "top.txt" },
+        { "op": "write", "path": "sub\\deeper\\low.jpg" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "star-dot-star",
+      "settings": { "Filter": "*.*" },
+      "steps": [
+        { "op": "write", "path": "noext" },
+        { "op": "write", "path": "x.y" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "question-mark",
+      "settings": { "Filter": "shot?.png" },
+      "steps": [
+        { "op": "write", "path": "shot1.png" },
+        { "op": "write", "path": "shot.png" },
+        { "op": "write", "path": "shot12.png" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "growing",
+      "settings": { "Filter": "" },
+      "steps": [
+        { "op": "write", "path": "g.bin", "bytes": 1 },
+        { "at_ms": 400, "op": "append", "path": "g.bin" },
+        { "at_ms": 800, "op": "append", "path": "g.bin" },
+        { "at_ms": 1200, "op": "append", "path": "g.bin" },
+        { "at_ms": 1600, "op": "append", "path": "g.bin" },
+        { "at_ms": 2000, "op": "append", "path": "g.bin" },
+        { "at_ms": 2400, "op": "append", "path": "g.bin" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "held-then-released",
+      "settings": { "Filter": "" },
+      "steps": [
+        { "op": "write_held", "path": "l.png", "hold_ms": 3000 }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "held-past-timeout",
+      "settings": { "Filter": "" },
+      "steps": [
+        { "op": "write_held", "path": "l.png", "hold_ms": 7000 }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "recreated-quickly",
+      "settings": { "Filter": "" },
+      "steps": [
+        { "op": "write", "path": "a.png" },
+        { "at_ms": 100, "op": "delete", "path": "a.png" },
+        { "at_ms": 200, "op": "write", "path": "a.png" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "moved-in",
+      "settings": { "Filter": "*.png" },
+      "steps": [
+        { "op": "move_in", "path": "m.png" }
+      ],
+      "wait_ms": 7500
+    },
+    {
+      "name": "renamed-inside",
+      "settings": { "Filter": "*.png" },
+      "steps": [
+        { "op": "write", "path": "a.tmp" },
+        { "at_ms": 100, "op": "rename", "from": "a.tmp", "path": "a.png" }
+      ],
+      "wait_ms": 7500
+    }
+  ]
+}

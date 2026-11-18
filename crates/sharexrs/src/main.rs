@@ -32,6 +32,7 @@ mod sound;
 mod start_screen;
 mod startup;
 mod task_actions;
+mod task_editors;
 mod task_settings_window;
 mod task_view;
 mod tasks;
@@ -42,6 +43,7 @@ mod tray;
 mod tray_menu;
 mod update;
 mod upload;
+mod watch_folder;
 mod window;
 
 use std::sync::Arc;
@@ -84,6 +86,9 @@ pub enum UserEvent {
     Recording(recording::Event),
     /// The automatic update check found an update.
     Update(update::UpdateEvent),
+    /// A watch folder's new file is ready (`FileWatcherTrigger`): the
+    /// watcher's id and the file.
+    WatchFolder(u64, std::path::PathBuf),
 }
 
 fn main() {
@@ -176,6 +181,7 @@ fn main() {
         ffmpeg_options: None,
         ffmpeg_download: None,
         updates,
+        watch_folders: Default::default(),
     };
     event_loop.run_app(&mut app).expect("run");
 }
@@ -276,6 +282,8 @@ struct App {
     ffmpeg_download: Option<recording::ffmpeg_options::Download>,
     /// `ApplicationState.UpdateManager`.
     updates: update::Updates,
+    /// `ApplicationState.WatchFolderManager`.
+    watch_folders: watch_folder::WatchFolderManager,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -865,6 +873,9 @@ impl App {
         eprintln!("HotkeyManager started.");
         self.refresh_hotkey_tips();
         self.init_task_view();
+        // `ReloadCoreAsync`: `WatchFolderManager.UpdateWatchFolders()`.
+        self.update_watch_folders();
+        eprintln!("WatchFolderManager started.");
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
             match self.open_dialog(event_loop, message, DialogPurpose::HotkeysFailed) {
@@ -1274,6 +1285,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Ui(request) => self.ui_request(event_loop, request),
             UserEvent::Recording(event) => self.recording_event(event_loop, event),
             UserEvent::Update(event) => self.update_event(event_loop, event),
+            UserEvent::WatchFolder(id, path) => self.watch_folder_trigger(event_loop, id, &path),
         }
     }
 
@@ -1282,6 +1294,7 @@ impl ApplicationHandler<UserEvent> for App {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // `DisposeWindowResources`: the tray icon goes.
         self.tray_menu = None;
+        self.watch_folders.clear();
         self.recording = None;
         self.ffmpeg_options = None;
         if let Some(mut s) = self.settings_window.take() {

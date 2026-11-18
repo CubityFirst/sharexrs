@@ -155,6 +155,15 @@ impl QrCodeWindow {
         Self { text, size: 0.0, available: 400, preview: None, texture: None, status: String::new() }
     }
 
+    /// `QRCodeWindowOptions { InitialImageFilePath }`: no text, then the
+    /// image's codes (`ScanAsync(QRCodeScanMode.ImageFile, path)`).
+    pub fn scan_image_file(path: &std::path::Path) -> Self {
+        let mut w = Self { text: String::new(), size: 0.0, available: 400, preview: None, texture: None, status: String::new() };
+        let results = image::open(path).ok().map(|i| scan(&i.to_rgba8()));
+        w.apply_scan(results);
+        w
+    }
+
     /// `EffectiveSize`.
     fn effective_size(&self) -> u32 {
         (if self.size > 0.0 { self.size as u32 } else { self.available }).max(64)
