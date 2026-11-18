@@ -29,7 +29,7 @@ impl EffectImpl for GaussianBlurImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let radius = 1.max(self.radius);
+        Ok(blur_clamped(source, radius * 2, radius as f32 / 3.0))
     }
 }

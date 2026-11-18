@@ -53,7 +53,52 @@ impl EffectImpl for TiltShiftImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if source.is_empty() {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let blur_r = clampf(self.blur_radius, 0.0, 30.0);
+        let focus = clampf(self.focus_size, 5.0, 90.0) / 100.0;
+        let fx = clampf(self.focus_position_x, 0.0, 100.0) / 100.0;
+        let fy = clampf(self.focus_position_y, 0.0, 100.0) / 100.0;
+        let falloff = clampf(self.falloff, 1.0, 60.0) / 100.0;
+        let sat = clampf(self.saturation_boost, 0.0, 100.0) / 100.0;
+        let blurred = if blur_r > 0.01 { blur(source, blur_r, blur_r) } else { source.clone() };
+        let src = pixels(source);
+        let bl = pixels(&blurred);
+        let mut dst = vec![SkColor::default(); src.len()];
+        let cx = fx * (width - 1) as f32;
+        let cy = fy * (height - 1) as f32;
+        let min_dim = width.min(height) as f32;
+        let half_lin = (height as f32 * focus) * 0.5;
+        let rad = (min_dim * focus) * 0.5;
+        let fall_lin = 1f32.max(height as f32 * falloff);
+        let fall_rad = 1f32.max(min_dim * falloff);
+        for y in 0..height {
+            for x in 0..width {
+                let mask = if self.mode == TiltShiftMode::Radial {
+                    let dx = x as f32 - cx;
+                    let dy = y as f32 - cy;
+                    smooth_step(rad, rad + fall_rad, ((dx * dx) + (dy * dy)).sqrt())
+                } else {
+                    smooth_step(half_lin, half_lin + fall_lin, (y as f32 - cy).abs())
+                };
+                let i = (y * width + x) as usize;
+                let (s, b) = (src[i], bl[i]);
+                let mut r = lerp(s.r as f32, b.r as f32, mask);
+                let mut g = lerp(s.g as f32, b.g as f32, mask);
+                let mut bb = lerp(s.b as f32, b.b as f32, mask);
+                let amount = sat * (1.0 - (mask * 0.7));
+                if amount > 0.0 {
+                    let gray = (r + g + bb) / 3.0;
+                    let f = 1.0 + amount;
+                    r = gray + ((r - gray) * f);
+                    g = gray + ((g - gray) * f);
+                    bb = gray + ((bb - gray) * f);
+                }
+                dst[i] = SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(bb), s.a);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }

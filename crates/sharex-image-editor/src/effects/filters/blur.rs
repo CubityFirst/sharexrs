@@ -29,7 +29,9 @@ impl EffectImpl for BlurImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.radius <= 0 {
+            return Ok(source.clone());
+        }
+        Ok(blur_clamped(source, self.radius * 2, self.radius as f32))
     }
 }

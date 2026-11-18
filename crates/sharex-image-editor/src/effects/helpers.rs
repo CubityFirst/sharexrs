@@ -227,8 +227,27 @@ pub fn create_blurred_clamp(source: &Bitmap, radius: f32) -> Bitmap {
         return source.clone();
     }
     let padding = 2.max((radius * 2.0).ceil() as i32);
+    blur_clamped(source, padding, 0.001f32.max(radius / 3.0))
+}
+
+/// The blur effects' shared pattern: the image grown by `padding` with its
+/// edge pixels repeated, `SKImageFilter.CreateBlur(sigma, sigma)`, the
+/// middle cut back out.
+pub fn blur_clamped(source: &Bitmap, padding: i32, sigma: f32) -> Bitmap {
     let expanded = expand_clamped(source, padding);
-    let sigma = 0.001f32.max(radius / 3.0);
+    let blurred = blur(&expanded, sigma, sigma);
+    crop_copy(&blurred, padding, padding, source.width() as i32, source.height() as i32)
+}
+
+/// The same with transparent padding (`Clear(Transparent)` then the image
+/// drawn at `(padding, padding)`).
+pub fn blur_transparent_padded(source: &Bitmap, padding: i32, sigma: f32) -> Bitmap {
+    let mut expanded = Bitmap::new((source.width() as i32 + padding * 2) as u32, (source.height() as i32 + padding * 2) as u32);
+    for y in 0..source.height() {
+        for x in 0..source.width() {
+            expanded.set_pixel(x + padding as u32, y + padding as u32, source.pixel(x, y));
+        }
+    }
     let blurred = blur(&expanded, sigma, sigma);
     crop_copy(&blurred, padding, padding, source.width() as i32, source.height() as i32)
 }
