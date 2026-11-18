@@ -268,17 +268,21 @@ pub fn image_from_dib(data: &[u8]) -> Option<RgbaImage> {
     let compression = i32_at(16)?;
     let colors = u32_at(32)?;
     let palette = if bits <= 8 { (if colors == 0 { 1u32 << bits } else { colors }) as usize * 4 } else { 0 };
-    let masks = match (header, compression) {
-        (40, 3) => 12,
-        (40, 6) => 16,
-        _ => 0,
-    };
-    let offset = header + palette + masks;
     if width <= 0 || height == 0 {
         return None;
     }
     let width = width as usize;
     let row = (width * bits).div_ceil(32) * 4;
+    let masks = match (header, compression) {
+        (40, 3) => 12,
+        (40, 6) => 16,
+        // The CF_DIBV5 Windows makes from a BI_BITFIELDS CF_DIB (what
+        // .NET's `Clipboard.SetImage` puts) keeps the DIB's three masks
+        // after its own header; ShareX reads the CF_DIB, past them.
+        (108 | 124, 3) if data.len() == header + palette + 12 + row * height => 12,
+        _ => 0,
+    };
+    let offset = header + palette + masks;
     if offset > data.len() || row * height > data.len() - offset {
         return None;
     }
@@ -320,6 +324,30 @@ mod tests {
         image.put_pixel(2, 1, image::Rgba([200, 100, 50, 255]));
         let read = image_from_dib(&dib_bytes(&image)).unwrap();
         assert_eq!(read, image);
+    }
+
+    /// A Windows-synthesized CF_DIBV5 with the CF_DIB's masks still after
+    /// its header reads as the CF_DIB does.
+    #[test]
+    fn synthesized_dibv5_skips_the_masks() {
+        let (w, h) = (2usize, 1usize);
+        let mut v5 = vec![0u8; 124];
+        v5[0..4].copy_from_slice(&124i32.to_le_bytes());
+        v5[4..8].copy_from_slice(&(w as i32).to_le_bytes());
+        v5[8..12].copy_from_slice(&(h as i32).to_le_bytes());
+        v5[12..14].copy_from_slice(&1u16.to_le_bytes());
+        v5[14..16].copy_from_slice(&32u16.to_le_bytes());
+        v5[16..20].copy_from_slice(&3i32.to_le_bytes());
+        for (o, m) in [(40, 0x00FF_0000u32), (44, 0x0000_FF00), (48, 0x0000_00FF)] {
+            v5[o..o + 4].copy_from_slice(&m.to_le_bytes());
+        }
+        for m in [0x00FF_0000u32, 0x0000_FF00, 0x0000_00FF] {
+            v5.extend_from_slice(&m.to_le_bytes());
+        }
+        v5.extend_from_slice(&[30, 20, 10, 0, 3, 2, 1, 0]);
+        let image = image_from_dib(&v5).unwrap();
+        assert_eq!(image.get_pixel(0, 0).0, [10, 20, 30, 255]);
+        assert_eq!(image.get_pixel(1, 0).0, [1, 2, 3, 255]);
     }
 
     #[test]
