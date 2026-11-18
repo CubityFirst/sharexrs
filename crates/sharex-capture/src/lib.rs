@@ -7,6 +7,7 @@
 //! - [`region`]: the region capture overlay (`Presentation/RegionCapture`):
 //!   its state, input handling and drawing, independent of any window so
 //!   it can be rendered offscreen and tested.
+//! - [`scrolling`]: scrolling capture's engine (`ScrollingCaptureManager`).
 //! - [`clipboard`]: copying images (`ClipboardHelpers.CopyImage`).
 //! - [`platform`]: what each OS does differently (Win32, AppKit, xcap).
 
@@ -15,6 +16,7 @@ pub mod geometry;
 pub mod platform;
 pub mod region;
 pub mod screenshot;
+pub mod scrolling;
 pub mod windows_list;
 
 pub use geometry::{PointF, Rect, RectF};

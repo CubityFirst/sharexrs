@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference for ShareXrs's scrolling capture and auto capture logic:
+    runs ShareX's own ScrollingCaptureManager.CombineImages and
+    SkiaImageHelpers.CompareImages (ShareX.ScreenCaptureLib.dll,
+    ShareX.HelpersLib.dll) over synthetic frame sequences, and the auto capture
+    window's status text formulas with ShareX.dll's strings, from a ShareX build
+    of REFERENCE_COMMIT. No window opens, nothing is captured. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX"><HintPath>$(ShareXBuild)\ShareX.dll</HintPath></Reference>
+    <Reference Include="ShareX.ScreenCaptureLib"><HintPath>$(ShareXBuild)\ShareX.ScreenCaptureLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="SkiaSharp"><HintPath>$(ShareXBuild)\SkiaSharp.dll</HintPath></Reference>
+    <!-- Everything else ShareX's libraries load. -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,509 @@
+{
+ "cases": [
+  {
+   "name": "basic",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png"
+   ]
+  },
+  {
+   "name": "small_step",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png",
+    "frame-13.png",
+    "frame-14.png",
+    "frame-15.png",
+    "frame-16.png",
+    "frame-17.png",
+    "frame-18.png",
+    "frame-19.png",
+    "frame-20.png",
+    "frame-21.png",
+    "frame-22.png",
+    "frame-23.png",
+    "frame-24.png",
+    "frame-25.png",
+    "frame-26.png",
+    "frame-27.png",
+    "frame-28.png",
+    "frame-29.png",
+    "frame-30.png",
+    "frame-31.png",
+    "frame-32.png",
+    "frame-33.png",
+    "frame-34.png",
+    "frame-35.png",
+    "frame-36.png",
+    "frame-37.png"
+   ]
+  },
+  {
+   "name": "half_step",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png"
+   ]
+  },
+  {
+   "name": "big_step",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png"
+   ]
+  },
+  {
+   "name": "no_overlap",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png"
+   ]
+  },
+  {
+   "name": "footer_auto",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png"
+   ]
+  },
+  {
+   "name": "footer_no_auto",
+   "auto_ignore_bottom_edge": false,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png"
+   ]
+  },
+  {
+   "name": "footer_varies",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png"
+   ]
+  },
+  {
+   "name": "header",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png"
+   ]
+  },
+  {
+   "name": "header_footer",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png",
+    "frame-13.png"
+   ]
+  },
+  {
+   "name": "scrollbar",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png"
+   ]
+  },
+  {
+   "name": "width_change",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png"
+   ]
+  },
+  {
+   "name": "taller_frame",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png"
+   ]
+  },
+  {
+   "name": "shorter_frame",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png"
+   ]
+  },
+  {
+   "name": "blank",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png"
+   ]
+  },
+  {
+   "name": "repeating",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png"
+   ]
+  },
+  {
+   "name": "partial_end",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png"
+   ]
+  },
+  {
+   "name": "flash_best_guess",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png"
+   ]
+  },
+  {
+   "name": "spinner",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png"
+   ]
+  },
+  {
+   "name": "tall_footer",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png"
+   ]
+  },
+  {
+   "name": "tall_header_scrollbar",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png"
+   ]
+  },
+  {
+   "name": "narrow",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png",
+    "frame-13.png",
+    "frame-14.png",
+    "frame-15.png"
+   ]
+  },
+  {
+   "name": "tiny",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png",
+    "frame-13.png",
+    "frame-14.png",
+    "frame-15.png",
+    "frame-16.png",
+    "frame-17.png",
+    "frame-18.png",
+    "frame-19.png",
+    "frame-20.png"
+   ]
+  },
+  {
+   "name": "jitter",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png",
+    "frame-11.png",
+    "frame-12.png",
+    "frame-13.png",
+    "frame-14.png",
+    "frame-15.png",
+    "frame-16.png",
+    "frame-17.png",
+    "frame-18.png"
+   ]
+  },
+  {
+   "name": "single",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png"
+   ]
+  },
+  {
+   "name": "noise",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png"
+   ]
+  },
+  {
+   "name": "fail_keeps_result",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png"
+   ]
+  },
+  {
+   "name": "scroll_up",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png"
+   ]
+  },
+  {
+   "name": "exhausted",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png"
+   ]
+  },
+  {
+   "name": "best_guess_twice",
+   "auto_ignore_bottom_edge": true,
+   "frames": [
+    "frame-00.png",
+    "frame-01.png",
+    "frame-02.png",
+    "frame-03.png",
+    "frame-04.png",
+    "frame-05.png",
+    "frame-06.png",
+    "frame-07.png",
+    "frame-08.png",
+    "frame-09.png",
+    "frame-10.png"
+   ]
+  }
+ ]
+}

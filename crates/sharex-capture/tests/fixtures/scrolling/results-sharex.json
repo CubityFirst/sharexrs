@@ -1,0 +1,2267 @@
+{
+  "basic": {
+    "status": "Successful",
+    "frames": 12,
+    "scrolls": 11,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 510,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 570,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 630,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 690,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "small_step": {
+    "status": "Successful",
+    "frames": 38,
+    "scrolls": 37,
+    "width": 200,
+    "height": 400,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 157,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 164,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 171,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 178,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 185,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 192,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 199,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 206,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 213,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 220,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 200,
+        "height": 227,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 200,
+        "height": 234,
+        "status": "Successful"
+      },
+      {
+        "frame": 13,
+        "outcome": "combined",
+        "width": 200,
+        "height": 241,
+        "status": "Successful"
+      },
+      {
+        "frame": 14,
+        "outcome": "combined",
+        "width": 200,
+        "height": 248,
+        "status": "Successful"
+      },
+      {
+        "frame": 15,
+        "outcome": "combined",
+        "width": 200,
+        "height": 255,
+        "status": "Successful"
+      },
+      {
+        "frame": 16,
+        "outcome": "combined",
+        "width": 200,
+        "height": 262,
+        "status": "Successful"
+      },
+      {
+        "frame": 17,
+        "outcome": "combined",
+        "width": 200,
+        "height": 269,
+        "status": "Successful"
+      },
+      {
+        "frame": 18,
+        "outcome": "combined",
+        "width": 200,
+        "height": 276,
+        "status": "Successful"
+      },
+      {
+        "frame": 19,
+        "outcome": "combined",
+        "width": 200,
+        "height": 283,
+        "status": "Successful"
+      },
+      {
+        "frame": 20,
+        "outcome": "combined",
+        "width": 200,
+        "height": 290,
+        "status": "Successful"
+      },
+      {
+        "frame": 21,
+        "outcome": "combined",
+        "width": 200,
+        "height": 297,
+        "status": "Successful"
+      },
+      {
+        "frame": 22,
+        "outcome": "combined",
+        "width": 200,
+        "height": 304,
+        "status": "Successful"
+      },
+      {
+        "frame": 23,
+        "outcome": "combined",
+        "width": 200,
+        "height": 311,
+        "status": "Successful"
+      },
+      {
+        "frame": 24,
+        "outcome": "combined",
+        "width": 200,
+        "height": 318,
+        "status": "Successful"
+      },
+      {
+        "frame": 25,
+        "outcome": "combined",
+        "width": 200,
+        "height": 325,
+        "status": "Successful"
+      },
+      {
+        "frame": 26,
+        "outcome": "combined",
+        "width": 200,
+        "height": 332,
+        "status": "Successful"
+      },
+      {
+        "frame": 27,
+        "outcome": "combined",
+        "width": 200,
+        "height": 339,
+        "status": "Successful"
+      },
+      {
+        "frame": 28,
+        "outcome": "combined",
+        "width": 200,
+        "height": 346,
+        "status": "Successful"
+      },
+      {
+        "frame": 29,
+        "outcome": "combined",
+        "width": 200,
+        "height": 353,
+        "status": "Successful"
+      },
+      {
+        "frame": 30,
+        "outcome": "combined",
+        "width": 200,
+        "height": 360,
+        "status": "Successful"
+      },
+      {
+        "frame": 31,
+        "outcome": "combined",
+        "width": 200,
+        "height": 367,
+        "status": "Successful"
+      },
+      {
+        "frame": 32,
+        "outcome": "combined",
+        "width": 200,
+        "height": 374,
+        "status": "Successful"
+      },
+      {
+        "frame": 33,
+        "outcome": "combined",
+        "width": 200,
+        "height": 381,
+        "status": "Successful"
+      },
+      {
+        "frame": 34,
+        "outcome": "combined",
+        "width": 200,
+        "height": 388,
+        "status": "Successful"
+      },
+      {
+        "frame": 35,
+        "outcome": "combined",
+        "width": 200,
+        "height": 395,
+        "status": "Successful"
+      },
+      {
+        "frame": 36,
+        "outcome": "combined",
+        "width": 200,
+        "height": 400,
+        "status": "Successful"
+      },
+      {
+        "frame": 37,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "half_step": {
+    "status": "Successful",
+    "frames": 10,
+    "scrolls": 9,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 225,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 300,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 375,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 525,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 675,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "big_step": {
+    "status": "Failed",
+    "frames": 3,
+    "scrolls": 3,
+    "width": 200,
+    "height": 125,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 125,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "no_overlap": {
+    "status": "Failed",
+    "frames": 3,
+    "scrolls": 3,
+    "width": 200,
+    "height": 140,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 140,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "footer_auto": {
+    "status": "Successful",
+    "frames": 13,
+    "scrolls": 12,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 200,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 250,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 300,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 350,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 400,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 500,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 550,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 650,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "footer_no_auto": {
+    "status": "Successful",
+    "frames": 13,
+    "scrolls": 12,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 200,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 250,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 300,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 350,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 400,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 500,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 550,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 650,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "footer_varies": {
+    "status": "Successful",
+    "frames": 13,
+    "scrolls": 13,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 200,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 250,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 300,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 350,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 400,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 500,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 550,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 650,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      }
+    ]
+  },
+  "header": {
+    "status": "Successful",
+    "frames": 12,
+    "scrolls": 11,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 205,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 260,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 315,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 370,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 425,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 480,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 535,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 590,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 645,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "header_footer": {
+    "status": "Successful",
+    "frames": 14,
+    "scrolls": 13,
+    "width": 240,
+    "height": 900,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 240,
+        "height": 180,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 240,
+        "height": 244,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 240,
+        "height": 308,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 240,
+        "height": 372,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 240,
+        "height": 436,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 240,
+        "height": 500,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 240,
+        "height": 564,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 240,
+        "height": 628,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 240,
+        "height": 692,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 240,
+        "height": 756,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 240,
+        "height": 820,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 240,
+        "height": 884,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 240,
+        "height": 900,
+        "status": "Successful"
+      },
+      {
+        "frame": 13,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "scrollbar": {
+    "status": "Successful",
+    "frames": 12,
+    "scrolls": 11,
+    "width": 200,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 510,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 570,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 630,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 690,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "width_change": {
+    "status": "Failed",
+    "frames": 4,
+    "scrolls": 4,
+    "width": 200,
+    "height": 270,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "taller_frame": {
+    "status": "Failed",
+    "frames": 2,
+    "scrolls": 2,
+    "width": 200,
+    "height": 100,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 100,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "shorter_frame": {
+    "status": "Successful",
+    "frames": 6,
+    "scrolls": 5,
+    "width": 200,
+    "height": 390,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 240,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "blank": {
+    "status": "Successful",
+    "frames": 2,
+    "scrolls": 1,
+    "width": 200,
+    "height": 150,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "repeating": {
+    "status": "Failed",
+    "frames": 3,
+    "scrolls": 3,
+    "width": 200,
+    "height": 105,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 105,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "partial_end": {
+    "status": "Successful",
+    "frames": 8,
+    "scrolls": 7,
+    "width": 200,
+    "height": 503,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 503,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "flash_best_guess": {
+    "status": "PartiallySuccessful",
+    "frames": 12,
+    "scrolls": 11,
+    "width": 200,
+    "height": 750,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 450,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 510,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 570,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 630,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 690,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 200,
+        "height": 750,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 11,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "spinner": {
+    "status": "Failed",
+    "frames": 2,
+    "scrolls": 2,
+    "width": 200,
+    "height": 150,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "tall_footer": {
+    "status": "Successful",
+    "frames": 13,
+    "scrolls": 12,
+    "width": 400,
+    "height": 2400,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 400,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 400,
+        "height": 770,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 400,
+        "height": 940,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1110,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1280,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1450,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1620,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1790,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1960,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2130,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2300,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2400,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "tall_header_scrollbar": {
+    "status": "Successful",
+    "frames": 10,
+    "scrolls": 9,
+    "width": 400,
+    "height": 2400,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 400,
+        "height": 600,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 400,
+        "height": 840,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1080,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1320,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1560,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 400,
+        "height": 1800,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2040,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2280,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 400,
+        "height": 2400,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "narrow": {
+    "status": "Successful",
+    "frames": 16,
+    "scrolls": 15,
+    "width": 100,
+    "height": 700,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 100,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 100,
+        "height": 190,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 100,
+        "height": 230,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 100,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 100,
+        "height": 310,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 100,
+        "height": 350,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 100,
+        "height": 390,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 100,
+        "height": 430,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 100,
+        "height": 470,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 100,
+        "height": 510,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 100,
+        "height": 550,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 100,
+        "height": 590,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 100,
+        "height": 630,
+        "status": "Successful"
+      },
+      {
+        "frame": 13,
+        "outcome": "combined",
+        "width": 100,
+        "height": 670,
+        "status": "Successful"
+      },
+      {
+        "frame": 14,
+        "outcome": "combined",
+        "width": 100,
+        "height": 700,
+        "status": "Successful"
+      },
+      {
+        "frame": 15,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "tiny": {
+    "status": "Successful",
+    "frames": 21,
+    "scrolls": 20,
+    "width": 40,
+    "height": 198,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 40,
+        "height": 30,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 40,
+        "height": 39,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 40,
+        "height": 48,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 40,
+        "height": 57,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 40,
+        "height": 66,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 40,
+        "height": 75,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 40,
+        "height": 84,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 40,
+        "height": 93,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 40,
+        "height": 102,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 40,
+        "height": 111,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 40,
+        "height": 120,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 40,
+        "height": 129,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 40,
+        "height": 138,
+        "status": "Successful"
+      },
+      {
+        "frame": 13,
+        "outcome": "combined",
+        "width": 40,
+        "height": 147,
+        "status": "Successful"
+      },
+      {
+        "frame": 14,
+        "outcome": "combined",
+        "width": 40,
+        "height": 156,
+        "status": "Successful"
+      },
+      {
+        "frame": 15,
+        "outcome": "combined",
+        "width": 40,
+        "height": 163,
+        "status": "Successful"
+      },
+      {
+        "frame": 16,
+        "outcome": "combined",
+        "width": 40,
+        "height": 172,
+        "status": "Successful"
+      },
+      {
+        "frame": 17,
+        "outcome": "combined",
+        "width": 40,
+        "height": 181,
+        "status": "Successful"
+      },
+      {
+        "frame": 18,
+        "outcome": "combined",
+        "width": 40,
+        "height": 190,
+        "status": "Successful"
+      },
+      {
+        "frame": 19,
+        "outcome": "combined",
+        "width": 40,
+        "height": 198,
+        "status": "Successful"
+      },
+      {
+        "frame": 20,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "jitter": {
+    "status": "Successful",
+    "frames": 19,
+    "scrolls": 18,
+    "width": 220,
+    "height": 1200,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 220,
+        "height": 160,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 220,
+        "height": 195,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 220,
+        "height": 219,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 220,
+        "height": 280,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 220,
+        "height": 358,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 220,
+        "height": 427,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 220,
+        "height": 511,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 220,
+        "height": 550,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 220,
+        "height": 623,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 220,
+        "height": 710,
+        "status": "Successful"
+      },
+      {
+        "frame": 10,
+        "outcome": "combined",
+        "width": 220,
+        "height": 790,
+        "status": "Successful"
+      },
+      {
+        "frame": 11,
+        "outcome": "combined",
+        "width": 220,
+        "height": 840,
+        "status": "Successful"
+      },
+      {
+        "frame": 12,
+        "outcome": "combined",
+        "width": 220,
+        "height": 917,
+        "status": "Successful"
+      },
+      {
+        "frame": 13,
+        "outcome": "combined",
+        "width": 220,
+        "height": 983,
+        "status": "Successful"
+      },
+      {
+        "frame": 14,
+        "outcome": "combined",
+        "width": 220,
+        "height": 1058,
+        "status": "Successful"
+      },
+      {
+        "frame": 15,
+        "outcome": "combined",
+        "width": 220,
+        "height": 1115,
+        "status": "Successful"
+      },
+      {
+        "frame": 16,
+        "outcome": "combined",
+        "width": 220,
+        "height": 1182,
+        "status": "Successful"
+      },
+      {
+        "frame": 17,
+        "outcome": "combined",
+        "width": 220,
+        "height": 1200,
+        "status": "Successful"
+      },
+      {
+        "frame": 18,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "single": {
+    "status": "Successful",
+    "frames": 2,
+    "scrolls": 1,
+    "width": 200,
+    "height": 150,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "noise": {
+    "status": "Successful",
+    "frames": 10,
+    "scrolls": 9,
+    "width": 160,
+    "height": 400,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 160,
+        "height": 120,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 160,
+        "height": 155,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 160,
+        "height": 190,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 160,
+        "height": 225,
+        "status": "Successful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 160,
+        "height": 260,
+        "status": "Successful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 160,
+        "height": 295,
+        "status": "Successful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 160,
+        "height": 330,
+        "status": "Successful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 160,
+        "height": 365,
+        "status": "Successful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 160,
+        "height": 400,
+        "status": "Successful"
+      },
+      {
+        "frame": 9,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "fail_keeps_result": {
+    "status": "PartiallySuccessful",
+    "frames": 6,
+    "scrolls": 5,
+    "width": 200,
+    "height": 390,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 390,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 5,
+        "outcome": "identical"
+      }
+    ]
+  },
+  "scroll_up": {
+    "status": "Failed",
+    "frames": 2,
+    "scrolls": 2,
+    "width": 200,
+    "height": 150,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "failed",
+        "status": "Failed"
+      }
+    ]
+  },
+  "exhausted": {
+    "status": "Successful",
+    "frames": 4,
+    "scrolls": 4,
+    "width": 200,
+    "height": 330,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 210,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 270,
+        "status": "Successful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 330,
+        "status": "Successful"
+      }
+    ]
+  },
+  "best_guess_twice": {
+    "status": "PartiallySuccessful",
+    "frames": 11,
+    "scrolls": 10,
+    "width": 200,
+    "height": 750,
+    "steps": [
+      {
+        "frame": 0,
+        "outcome": "combined",
+        "width": 200,
+        "height": 150,
+        "status": "Successful"
+      },
+      {
+        "frame": 1,
+        "outcome": "combined",
+        "width": 200,
+        "height": 220,
+        "status": "Successful"
+      },
+      {
+        "frame": 2,
+        "outcome": "combined",
+        "width": 200,
+        "height": 290,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 3,
+        "outcome": "combined",
+        "width": 200,
+        "height": 360,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 4,
+        "outcome": "combined",
+        "width": 200,
+        "height": 430,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 5,
+        "outcome": "combined",
+        "width": 200,
+        "height": 500,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 6,
+        "outcome": "combined",
+        "width": 200,
+        "height": 570,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 7,
+        "outcome": "combined",
+        "width": 200,
+        "height": 640,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 8,
+        "outcome": "combined",
+        "width": 200,
+        "height": 710,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 9,
+        "outcome": "combined",
+        "width": 200,
+        "height": 750,
+        "status": "PartiallySuccessful"
+      },
+      {
+        "frame": 10,
+        "outcome": "identical"
+      }
+    ]
+  }
+}
