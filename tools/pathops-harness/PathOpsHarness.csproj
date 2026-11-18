@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs SkiaSharp's SKPath.Op with the SkiaSharp.dll and libSkiaSharp.dll
+    ShareX ships (the reference build's), headless, and dumps the input and
+    result paths with their exact float bits. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="SkiaSharp"><HintPath>$(ShareXBuild)\SkiaSharp.dll</HintPath></Reference>
+    <None Include="$(ShareXBuild)\libSkiaSharp.dll" CopyToOutputDirectory="PreserveNewest" Link="libSkiaSharp.dll" />
+  </ItemGroup>
+</Project>
