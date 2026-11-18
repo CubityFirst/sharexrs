@@ -38,7 +38,9 @@ impl EffectImpl for FlipImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if !self.horizontally && !self.vertically {
+            return Ok(source.clone());
+        }
+        Ok(flip_bitmap(source, self.horizontally, self.vertically))
     }
 }

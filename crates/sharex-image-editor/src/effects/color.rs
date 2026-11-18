@@ -21,7 +21,10 @@ pub struct SkColor {
     pub a: u8,
 }
 
-pub const TRANSPARENT: SkColor = SkColor::rgba(0, 0, 0, 0);
+/// `SKColors.Transparent`: transparent white (`0x00FFFFFF`).
+pub const TRANSPARENT: SkColor = SkColor::argb(0x00FF_FFFF);
+/// `SKColor.Empty` / `default(SKColor)`: all zero.
+pub const EMPTY: SkColor = SkColor::rgba(0, 0, 0, 0);
 pub const BLACK: SkColor = SkColor::rgb(0, 0, 0);
 pub const WHITE: SkColor = SkColor::rgb(255, 255, 255);
 

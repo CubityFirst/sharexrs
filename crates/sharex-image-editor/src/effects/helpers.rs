@@ -387,3 +387,85 @@ pub fn blend_with_identity(effect: &[f32; 20], s: f32) -> [f32; 20] {
     }
     m
 }
+
+/// `SKBitmap.Decode(path)`: the file decoded and premultiplied as Skia's
+/// codecs do (`(c * a + 127) / 255`); `None` when it isn't an image.
+/// (PNG, BMP and GIF decode to the same pixels as Skia's; JPEG goes through
+/// the `image` crate, not libjpeg-turbo.)
+pub fn decode_file(path: &str) -> Option<Bitmap> {
+    let img = image::open(path).ok()?.into_rgba8();
+    let (w, h) = (img.width(), img.height());
+    Some(Bitmap::from_straight(w, h, img.as_raw()))
+}
+
+/// `Environment.ExpandEnvironmentVariables`: `%NAME%` replaced by the
+/// variable's value (names ignore case on Windows); unknown names stay.
+pub fn expand_environment_variables(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(start) = rest.find('%') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        match after.find('%') {
+            Some(end) => {
+                let name = &after[..end];
+                match (!name.is_empty()).then(|| std::env::var(name).ok()).flatten() {
+                    Some(v) => {
+                        out.push_str(&v);
+                        rest = &after[end + 1..];
+                    }
+                    None => {
+                        out.push('%');
+                        out.push_str(name);
+                        rest = &after[end..];
+                    }
+                }
+            }
+            None => {
+                out.push('%');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `File.Exists`.
+pub fn file_exists(path: &str) -> bool {
+    !path.is_empty() && std::path::Path::new(path).is_file()
+}
+
+/// `string.IsNullOrWhiteSpace`.
+pub fn is_blank(s: &str) -> bool {
+    s.chars().all(char::is_whitespace)
+}
+
+/// A mirror (`canvas.Scale(-1, 1, w / 2, h / 2)` and friends, then
+/// `DrawBitmap` with nearest sampling: each pixel lands on its mirror).
+pub fn flip_bitmap(source: &Bitmap, horizontal: bool, vertical: bool) -> Bitmap {
+    let (w, h) = (source.width(), source.height());
+    let mut out = Bitmap::new(w, h);
+    for y in 0..h {
+        for x in 0..w {
+            let sx = if horizontal { w - 1 - x } else { x };
+            let sy = if vertical { h - 1 - y } else { y };
+            out.set_pixel(x, y, source.pixel(sx, sy));
+        }
+    }
+    out
+}
+
+/// A rotation by 90, 180 or 270 degrees clockwise (translate, `RotateDegrees`,
+/// `DrawBitmap`: whole pixels moved).
+pub fn rotate_orthogonal(source: &Bitmap, degrees: i32) -> Bitmap {
+    let p = crate::editor::image_ops::rotate_orthogonal(&bitmap_to_pixmap(source), degrees);
+    pixmap_to_bitmap(&p)
+}
+
+/// `SKCanvas.Scale(sx, sy, px, py)`.
+pub fn scale_about(canvas: &mut Canvas, sx: f32, sy: f32, px: f32, py: f32) {
+    canvas.translate(px, py);
+    canvas.scale(sx, sy);
+    canvas.translate(-px, -py);
+}

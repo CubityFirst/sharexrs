@@ -37,7 +37,19 @@ impl EffectImpl for SymmetryImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let mut out = source.clone();
+        let (w, h) = (source.width() as f32, source.height() as f32);
+        {
+            let mut canvas = Canvas::new(&mut out);
+            let (src_rect, sx, sy, px, py) = match self.direction {
+                SymmetryDirection::LeftToRight => (RRect::ltrb(0.0, 0.0, w / 2.0, h), -1.0, 1.0, w / 2.0, 0.0),
+                SymmetryDirection::RightToLeft => (RRect::ltrb(w / 2.0, 0.0, w, h), -1.0, 1.0, w / 2.0, 0.0),
+                SymmetryDirection::TopToBottom => (RRect::ltrb(0.0, 0.0, w, h / 2.0), 1.0, -1.0, 0.0, h / 2.0),
+                SymmetryDirection::BottomToTop => (RRect::ltrb(0.0, h / 2.0, w, h), 1.0, -1.0, 0.0, h / 2.0),
+            };
+            scale_about(&mut canvas, sx, sy, px, py);
+            canvas.draw_image_rect(source, Some(src_rect), src_rect, Sampling::Nearest, None);
+        }
+        Ok(out)
     }
 }

@@ -1098,7 +1098,37 @@ impl ImageSampler<'_> {
         {
             return st.shade(&self.image, x, y, span_left);
         }
+        if self.sampling == Sampling::Nearest
+            && self.tile_x == TileMode::Clamp
+            && self.tile_y == TileMode::Clamp
+            && self.inv.is_scale_translate()
+        {
+            return self.legacy_nearest_scale(x, y, span_left);
+        }
         self.gather_nearest(x, y)
+    }
+
+    /// `SkBitmapProcState`'s `nofilter_scale<clamp, clamp>`: the span's first
+    /// pixel centre mapped in float (`ScaleTrans_xy`), converted to 32.32
+    /// fixed point less the nearest bias (`SkBitmapProcStateAutoMapper`:
+    /// 1/65536, so exact pixel edges round down), then stepped by the
+    /// inverse x scale in 32.32 for each pixel along the span.
+    fn legacy_nearest_scale(&self, x: i32, y: i32, span_left: i32) -> [u8; 4] {
+        // SkFloatToFixed3232: (int64)(x * 2^32), x times an exact power of two.
+        let to3232 = |v: f32| (v * (65536.0f32 * 65536.0f32)) as i64;
+        let m = &self.inv;
+        let px = (span_left as f32 + 0.5) * m.sx() + m.tx();
+        let py = (y as f32 + 0.5) * m.sy() + m.ty();
+        let bias = 1i64 << 16;
+        let fy = to3232(py).wrapping_sub(bias);
+        let fx0 = to3232(px).wrapping_sub(bias);
+        let dx = to3232(m.sx());
+        let fx = fx0.wrapping_add(dx.wrapping_mul((x - span_left) as i64));
+        let max_x = self.image.width() as i32 - 1;
+        let max_y = self.image.height() as i32 - 1;
+        let ix = ((fx >> 32) as i32).clamp(0, max_x);
+        let iy = ((fy >> 32) as i32).clamp(0, max_y);
+        self.image.pixel(ix as u32, iy as u32)
     }
 
     fn sample_lowp(&self, x: i32, y: i32) -> [u32; 4] {

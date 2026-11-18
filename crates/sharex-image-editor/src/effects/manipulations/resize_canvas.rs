@@ -41,7 +41,17 @@ impl EffectImpl for ResizeCanvasImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let nw = source.width() as i32 + self.left + self.right;
+        let nh = source.height() as i32 + self.top + self.bottom;
+        if nw <= 0 || nh <= 0 {
+            return Ok(source.clone());
+        }
+        let mut out = Bitmap::new(nw as u32, nh as u32);
+        {
+            let mut canvas = Canvas::new(&mut out);
+            canvas.clear(self.background_color.rgba_array());
+            canvas.draw_bitmap(source, self.left as f32, self.top as f32, None);
+        }
+        Ok(out)
     }
 }

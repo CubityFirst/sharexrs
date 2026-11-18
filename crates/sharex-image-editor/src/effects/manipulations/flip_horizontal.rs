@@ -22,7 +22,6 @@ impl EffectImpl for FlipHorizontalImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        Ok(flip_bitmap(source, true, false))
     }
 }

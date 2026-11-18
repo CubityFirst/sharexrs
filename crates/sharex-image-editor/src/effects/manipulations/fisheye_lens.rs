@@ -38,7 +38,34 @@ impl EffectImpl for FisheyeLensImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let strength01 = clampf(self.strength, 0.0, 100.0) / 100.0;
+        if strength01 <= 0.0 {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let cx = percentage_to_x(width, self.center_x_percentage);
+        let cy = percentage_to_y(height, self.center_y_percentage);
+        let exponent = 1.0 + (strength01 * 2.4);
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let dx = x as f32 - cx;
+                let dy = y as f32 - cy;
+                let distance = ((dx * dx) + (dy * dy)).sqrt();
+                let i = (row + x) as usize;
+                if distance <= 0.0001 || distance >= radius {
+                    dst[i] = src[i];
+                    continue;
+                }
+                let normalized = distance / radius;
+                let sample_distance = normalized.powf(exponent) * radius;
+                let scale = sample_distance / distance;
+                dst[i] = bilinear_sample(&src, width, height, cx + (dx * scale), cy + (dy * scale));
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }

@@ -32,7 +32,7 @@ impl EffectImpl for RotateImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let p = crate::editor::image_ops::rotate(&crate::effects::to_pixmap(source), self.angle, self.auto_resize);
+        Ok(crate::effects::to_bitmap(&p))
     }
 }

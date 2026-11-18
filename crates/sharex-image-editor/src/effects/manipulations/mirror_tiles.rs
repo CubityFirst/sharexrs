@@ -38,7 +38,40 @@ impl EffectImpl for MirrorTilesImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let columns = self.columns.clamp(1, 16);
+        let rows = self.rows.clamp(1, 16);
+        if columns == 1 && rows == 1 && !self.mirror_alternate_columns && !self.mirror_alternate_rows {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let row = y * width;
+            let tiled_y = ((y as f32 + 0.5) / height as f32) * rows as f32;
+            let tile_y = (rows - 1).min(0.max(tiled_y.floor() as i32));
+            let mut local_y = tiled_y - tile_y as f32;
+            if tile_y == rows - 1 {
+                local_y = 1f32.min(local_y);
+            }
+            if self.mirror_alternate_rows && (tile_y & 1) == 1 {
+                local_y = 1.0 - local_y;
+            }
+            let sample_y = local_y * 0.max(height - 1) as f32;
+            for x in 0..width {
+                let tiled_x = ((x as f32 + 0.5) / width as f32) * columns as f32;
+                let tile_x = (columns - 1).min(0.max(tiled_x.floor() as i32));
+                let mut local_x = tiled_x - tile_x as f32;
+                if tile_x == columns - 1 {
+                    local_x = 1f32.min(local_x);
+                }
+                if self.mirror_alternate_columns && (tile_x & 1) == 1 {
+                    local_x = 1.0 - local_x;
+                }
+                let sample_x = local_x * 0.max(width - 1) as f32;
+                dst[(row + x) as usize] = bilinear_sample(&src, width, height, sample_x, sample_y);
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }

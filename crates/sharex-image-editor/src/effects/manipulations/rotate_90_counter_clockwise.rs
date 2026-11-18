@@ -22,7 +22,6 @@ impl EffectImpl for Rotate90CCWImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        Ok(rotate_orthogonal(source, 270))
     }
 }

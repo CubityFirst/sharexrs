@@ -38,7 +38,14 @@ impl EffectImpl for CropImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        let x = self.x.clamp(0, sw);
+        let y = self.y.clamp(0, sh);
+        let w = self.width.clamp(0, sw - x);
+        let h = self.height.clamp(0, sh - y);
+        if w <= 0 || h <= 0 {
+            return Ok(source.clone());
+        }
+        Ok(crop_copy(source, x, y, w, h))
     }
 }

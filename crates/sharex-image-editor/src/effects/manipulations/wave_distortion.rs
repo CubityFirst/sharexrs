@@ -42,7 +42,31 @@ impl EffectImpl for WaveDistortionImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if self.amplitude <= 0 {
+            return Ok(source.clone());
+        }
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        let freq = std::f32::consts::PI * 2.0 / 10.max(self.wavelength) as f32;
+        let horizontal = matches!(self.direction, WaveDirection::Horizontal | WaveDirection::Both);
+        let vertical = matches!(self.direction, WaveDirection::Vertical | WaveDirection::Both);
+        for y in 0..h {
+            for x in 0..w {
+                let (mut sx, mut sy) = (x, y);
+                if horizontal {
+                    sx = x + (self.amplitude as f32 * (y as f32 * freq).sin()) as i32;
+                }
+                if vertical {
+                    sy = y + (self.amplitude as f32 * (x as f32 * freq).sin()) as i32;
+                }
+                dst[(y * w + x) as usize] = if sx >= 0 && sx < w && sy >= 0 && sy < h {
+                    src[(sy * w + sx) as usize]
+                } else {
+                    color::TRANSPARENT
+                };
+            }
+        }
+        Ok(from_pixels(w as u32, h as u32, &dst))
     }
 }

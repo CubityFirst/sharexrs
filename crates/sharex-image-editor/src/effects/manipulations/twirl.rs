@@ -38,7 +38,36 @@ impl EffectImpl for TwirlImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let (right, bottom) = (width - 1, height - 1);
+        let radius = 1f32.max(width.min(height) as f32 * clampf(self.radius_percentage, 1.0, 100.0) / 100.0);
+        let cx = clampf(self.center_x_percentage, 0.0, 100.0) / 100.0 * right as f32;
+        let cy = clampf(self.center_y_percentage, 0.0, 100.0) / 100.0 * bottom as f32;
+        let angle_rad = self.angle * std::f32::consts::PI / 180.0;
+        if angle_rad.abs() < 0.0001 {
+            return Ok(source.clone());
+        }
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let i = (row + x) as usize;
+                let dx = x as f32 - cx;
+                let dy = y as f32 - cy;
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist >= radius || dist <= 0.0001 {
+                    dst[i] = src[i];
+                    continue;
+                }
+                let normalized = dist / radius;
+                let twirl = angle_rad * (1.0 - normalized);
+                let theta = dy.atan2(dx) - twirl;
+                let sx = clamp_int((cx + dist * theta.cos()).round_ties_even() as i32, 0, right);
+                let sy = clamp_int((cy + dist * theta.sin()).round_ties_even() as i32, 0, bottom);
+                dst[i] = src[(sy * width + sx) as usize];
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }

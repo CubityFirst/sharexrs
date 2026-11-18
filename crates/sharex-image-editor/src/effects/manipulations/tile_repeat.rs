@@ -32,7 +32,27 @@ impl EffectImpl for TileRepeatImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let cols = 1.max(self.columns);
+        let rows = 1.max(self.rows);
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let tile_w = w as f32 / cols as f32;
+        let tile_h = h as f32 / rows as f32;
+        let mut out = Bitmap::new(w as u32, h as u32);
+        {
+            let mut canvas = Canvas::new(&mut out);
+            let full = RRect::ltrb(0.0, 0.0, w as f32, h as f32);
+            for r in 0..rows {
+                for c in 0..cols {
+                    let dst = RRect::ltrb(
+                        c as f32 * tile_w,
+                        r as f32 * tile_h,
+                        (c + 1) as f32 * tile_w,
+                        (r + 1) as f32 * tile_h,
+                    );
+                    canvas.draw_image_rect(source, Some(full), dst, Sampling::Nearest, None);
+                }
+            }
+        }
+        Ok(out)
     }
 }
