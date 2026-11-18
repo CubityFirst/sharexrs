@@ -35,6 +35,7 @@ use sharex_ui::{Palette, icons, palette, widgets};
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
+mod canvas_size;
 mod emoji_picker;
 mod insert_image;
 mod modal;
@@ -229,6 +230,8 @@ pub struct EditorWindow {
     capturing: bool,
     /// The middle button pans (`EditorZoomController`).
     pan: Option<Pos2>,
+    /// The last press (time, place), for the Canvas size tool's double click.
+    last_click: Option<(f64, Pos2)>,
     /// `ModalContent` (`IsModalOpen` when set).
     modal: Option<Modal>,
     /// The editor's notifications.
@@ -241,6 +244,15 @@ pub struct EditorWindow {
     open_file_menu: bool,
     /// The window's client area on the desktop (points) and its scale.
     window_inner: Option<(Rect, f32)>,
+    /// The Canvas size tool, while open (`IsCanvasSizeModeActive`).
+    canvas_resize: Option<canvas_size::CanvasResize>,
+    /// The confirmation's warning sign, drawn once.
+    sign_texture: Option<Option<TextureHandle>>,
+    /// `--render`: the Canvas size tool opened on the first frame.
+    canvas_resize_on_open: bool,
+    /// The room round the image in the scroll viewer (the scroll viewer's
+    /// content `Margin`, the Canvas size tool's).
+    room: Vec2,
 }
 
 struct Layout {
@@ -322,12 +334,17 @@ impl EditorWindow {
             title: String::new(),
             capturing: false,
             pan: None,
+            last_click: None,
             modal: None,
             notify: notify::Notifications::default(),
             url_job: None,
             layout: Layout::default(),
             open_file_menu: false,
             window_inner: None,
+            canvas_resize: None,
+            canvas_resize_on_open: false,
+            sign_texture: None,
+            room: Vec2::ZERO,
         };
         w.title = w.window_title();
         // `OnLoaded`: no image (and not a task) shows the start screen.
@@ -595,6 +612,7 @@ impl EditorWindow {
 
     /// `UpdatePreview`: a new image, no annotations, a new history.
     fn load(&mut self, img: RgbaImage) {
+        self.image_changed_elsewhere();
         self.ws.load_image(pixmap_of(&img));
         self.has_image = true;
         self.tex = None;
@@ -611,8 +629,14 @@ impl EditorWindow {
             MenuCmd::Save => self.run(Command::Save),
             MenuCmd::SaveAs => self.run(Command::SaveAs),
             MenuCmd::Exit => self.run(Command::Exit),
-            MenuCmd::Undo => self.ws.undo(),
-            MenuCmd::Redo => self.ws.redo(),
+            MenuCmd::Undo => {
+                self.image_changed_elsewhere();
+                self.ws.undo();
+            }
+            MenuCmd::Redo => {
+                self.image_changed_elsewhere();
+                self.ws.redo();
+            }
             MenuCmd::Delete => self.ws.delete_selected(),
             MenuCmd::DeleteAll => self.ws.clear_annotations(),
             MenuCmd::Flatten => {
@@ -679,6 +703,17 @@ impl EditorWindow {
         Mapper { origin: (0.0, 0.0), ppp, scale: self.zoom * ppp as f64, offset: self.layout.image.min }
     }
 
+    /// A toolbar item that isn't a tool whose hotkey this is.
+    fn hotkey_item(key: ed::Key, m: ed::Mods) -> Option<Item> {
+        let name = match key {
+            ed::Key::Letter(c) => c.to_string(),
+            _ => return None,
+        };
+        Item::all().into_iter().filter(|it| it.tool().is_none()).find(|it| {
+            it.hotkeys().iter().any(|h| !h.is_empty() && h.eq_ignore_ascii_case(&name) && m == ed::Mods::NONE)
+        })
+    }
+
     /// `TrySelectToolForToolbarHotkey`.
     fn hotkey_tool(key: ed::Key, m: ed::Mods) -> Option<EditorTool> {
         let name = match key {
@@ -702,7 +737,7 @@ impl EditorWindow {
     fn select_item(&mut self, item: Item) {
         match item {
             Item::File => {}
-            Item::CanvasSize => self.effects.push(Effect::NotPorted("Image editor: Canvas size")),
+            Item::CanvasSize => self.toggle_canvas_resize(),
             Item::Background => self.effects.push(Effect::NotPorted("Image editor: Background panel")),
             Item::ImageEffects => self.effects.push(Effect::NotPorted("Image editor: Image effects panel")),
             _ => {
@@ -905,7 +940,7 @@ impl EditorWindow {
                 let angle = if open { std::f32::consts::PI } else { 0.0 };
                 icons::paint_transformed(&clip, Rect::from_min_size(pos2(r.max.x - 17.0, r.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary, Vec2::ZERO, angle);
             } else {
-                let on = it.tool().is_some_and(|t| t == active);
+                let on = it.tool().is_some_and(|t| t == active) || (it == Item::CanvasSize && self.canvas_resize.is_some());
                 captb::button(&clip, p, r, it.icon(), on, hovered, 1.0);
             }
             self.layout.items.push((it, r.intersect(rect)));
@@ -1030,13 +1065,11 @@ impl EditorWindow {
         let (w, h) = self.ws.size();
         // One image pixel is one DIP at 100%.
         let size = vec2(w as f32, h as f32) * self.zoom as f32;
-        // Centred when it fits, scrolled when it doesn't.
-        let max_scroll = vec2((size.x - canvas.width()).max(0.0), (size.y - canvas.height()).max(0.0));
+        // Centred when it fits (with its room), scrolled when it doesn't.
+        let content = size + self.room * 2.0;
+        let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
         self.scroll = self.scroll.clamp(Vec2::ZERO, max_scroll);
-        let min = pos2(
-            if size.x <= canvas.width() { canvas.center().x - size.x / 2.0 } else { canvas.min.x - self.scroll.x },
-            if size.y <= canvas.height() { canvas.center().y - size.y / 2.0 } else { canvas.min.y - self.scroll.y },
-        );
+        let min = self.image_origin(self.room, self.scroll);
         let min = pos2((min.x * ppp).round() / ppp, (min.y * ppp).round() / ppp);
         let image = Rect::from_min_size(min, size);
         self.layout.image = image;
@@ -1058,8 +1091,10 @@ impl EditorWindow {
             }
         }
         let painter = ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
-        // `ShareX.Brush.Checkered` under the image (transparent pixels).
-        painter.rect_filled(image, 0.0, p.checkered[0]);
+        // The `Border` with `ShareX.Brush.Checkered` (15px squares, scaled
+        // with the zoom) and its 1px border, under the image.
+        paint_checkered(&painter, image, image.min, self.zoom as f32, p);
+        painter.rect_stroke(image, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
         if let Some((_, t)) = &self.tex {
             painter.image(t.id(), image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
@@ -1067,6 +1102,32 @@ impl EditorWindow {
         let hovered = ctx.pointer_hover_pos().is_some_and(|p| self.layout.crop_button.is_some_and(|r| r.contains(p)));
         let chrome = editor_chrome::paint(ui, &painter, p, &m, &self.ws, hovered);
         self.layout.crop_button = chrome.crop_button;
+        // The canvas size tool's overlay (`OverlayHost`, unclipped).
+        if self.canvas_resize.is_some() {
+            self.paint_canvas_resize(ui, p);
+        }
+        // `CanvasScrollViewer`'s collapsed scroll bars: 2px thumbs on the
+        // bottom and right edges (overlaid), each track between Fluent's
+        // 16px line buttons, the horizontal one short of the vertical
+        // bar's column.
+        let thumb = sharex_ui::theme::fluent(ui.ctx()).base_medium;
+        let (hx, vy) = (max_scroll.x > 0.0, max_scroll.y > 0.0);
+        if hx {
+            let right = canvas.max.x - if vy { 16.0 } else { 0.0 };
+            let track = (canvas.min.x + 16.0, right - 16.0);
+            let len = track.1 - track.0;
+            let tw = (len * canvas.width() / content.x).max(16.0);
+            let x = track.0 + (len - tw) * self.scroll.x / max_scroll.x;
+            ui.painter().rect_filled(Rect::from_min_size(pos2(x, canvas.max.y - 4.0), vec2(tw, 2.0)), CornerRadius::same(1), thumb);
+        }
+        if vy {
+            let bottom = canvas.max.y - if hx { 16.0 } else { 0.0 };
+            let track = (canvas.min.y + 16.0, bottom - 16.0);
+            let len = track.1 - track.0;
+            let th = (len * canvas.height() / content.y).max(16.0);
+            let y = track.0 + (len - th) * self.scroll.y / max_scroll.y;
+            ui.painter().rect_filled(Rect::from_min_size(pos2(canvas.max.x - 4.0, y), vec2(2.0, th)), CornerRadius::same(1), thumb);
+        }
     }
 
     /// The part of the window the toolbars, menus and popups cover.
@@ -1136,6 +1197,10 @@ impl EditorWindow {
                     if modal {
                         continue;
                     }
+                    if self.canvas_resize.is_some() {
+                        self.canvas_resize_moved(pos);
+                        continue;
+                    }
                     let mods = Self::mods(ctx.input(|i| i.modifiers));
                     if self.capturing || (!self.over_ui(pos) && self.layout.canvas.contains(pos)) {
                         self.ws.pointer_moved(m.image_pos(pos), mods);
@@ -1155,6 +1220,26 @@ impl EditorWindow {
                         egui::PointerButton::Secondary => ed::Button::Right,
                         _ => continue,
                     };
+                    // The Canvas size tool has the canvas host's presses
+                    // (but for its panel and popup).
+                    if let Some(cr) = &self.canvas_resize {
+                        if pressed {
+                            if self.over_ui(pos) || cr.passes_through(pos) || !self.layout.view.contains(pos) {
+                                continue;
+                            }
+                            if b == ed::Button::Right {
+                                self.cancel_canvas_resize();
+                            } else {
+                                let now = ctx.input(|i| i.time);
+                                let double = self.last_click.is_some_and(|(t, q)| now - t < 0.5 && q.distance(pos) < 4.0);
+                                self.last_click = Some((now, pos));
+                                self.canvas_resize_pressed(pos, double);
+                            }
+                        } else if b == ed::Button::Left {
+                            self.canvas_resize_released();
+                        }
+                        continue;
+                    }
                     if pressed {
                         if self.over_ui(pos) || !self.layout.canvas.contains(pos) {
                             continue;
@@ -1231,6 +1316,10 @@ impl EditorWindow {
                         self.key_down(k, mods);
                     } else {
                         self.ws.key_up(k, mods);
+                        // `OnKeyUp`: Escape closes the Canvas size tool first.
+                        if key == egui::Key::Escape && mods == ed::Mods::NONE && self.cancel_canvas_resize() {
+                            continue;
+                        }
                         if key == egui::Key::Escape && !mods.ctrl && !mods.shift && !mods.alt {
                             let r = self.ws.escape();
                             if let Some(c) = r.command {
@@ -1245,6 +1334,18 @@ impl EditorWindow {
     }
 
     fn key_down(&mut self, k: ed::Key, mods: ed::Mods) {
+        // Enter applies the canvas size first (`TryConfirmCanvasResize`).
+        if k == ed::Key::Enter && mods == ed::Mods::NONE && self.confirm_canvas_resize() {
+            return;
+        }
+        // `TrySelectToolForToolbarHotkey` for the items that aren't tools
+        // (Canvas size: X), outside text editing.
+        if self.ws.text_edit().is_none()
+            && let Some(it) = Self::hotkey_item(k, mods)
+        {
+            self.select_item(it);
+            return;
+        }
         let r = self.ws.key_down(k, mods, &Self::hotkey_tool);
         if let Some(c) = r.command {
             self.run(c);
@@ -1387,67 +1488,82 @@ impl EditorWindow {
         }
     }
 
-    /// `ConfirmationDialogView` over the `modal-scrim`: 400 wide, a title
-    /// bar (the toolbar background, 15px), the message beside a 40px
-    /// warning sign (25px padding), and Yes, No and Cancel at the right of
-    /// a button bar.
+    /// `ConfirmationDialogView` over the `modal-scrim`: 400 wide, the
+    /// title, the warning sign (40px, the colour emoji font) and the
+    /// message (wrapped) 25 apart in `Padding="25"`, Yes, No and Cancel at
+    /// the right of the button bar.
     fn confirm_dialog(&mut self, ui: &Ui, p: &Palette, full: Rect) {
-        let painter = ui.painter();
-        let w = 400.0;
-        let title_font = widgets::font(15.0, 600);
-        let font = widgets::font(14.0, 400);
-        let title_h = 8.0 + widgets::line_height(ui, &title_font) + 8.0 + 1.0;
-        let msg_w = w - 2.0 - 50.0 - 40.0 - 25.0;
-        let lines = sharex_ui::controls::wrap_lines(ui, ie::ConfirmationDialogView_Message(), &font, msg_w);
-        let msg_h = (widgets::line_height(ui, &font) * lines.len() as f32).max(54.0);
-        let body_h = 25.0 + msg_h + 25.0;
-        let bar_h = 1.0 + 10.0 + 32.0 + 10.0;
-        let r = modal::centered(full, vec2(w, title_h + body_h + bar_h + 2.0));
+        const SIGN: &str = "\u{26A0}\u{FE0F}";
+        let font = modal::text_font(13.0, 400);
+        let lh = ui.fonts_mut(|f| f.row_height(&font));
+        // The line's metrics are the `TextBlock`'s font's (Segoe UI); the
+        // glyph comes from the emoji font.
+        let (adv, _, _) = sharex_image_editor::render::emoji::line_metrics(SIGN, 40.0).unwrap_or((40.0, 30.0, 43.0));
+        let primary = modal::text_font(40.0, 400);
+        let sign_lh = ui.fonts_mut(|f| f.row_height(&primary));
+        let ascent = widgets::galley(ui, "A", primary, p.text, f32::INFINITY).rows.first().and_then(|r| r.glyphs.first()).map_or(sign_lh * 0.8, |g| g.font_face_ascent);
+        let sign_w = adv.ceil();
+        let msg_w = 400.0 - 2.0 - 50.0 - sign_w - 25.0;
+        let lines: Vec<String> = ie::ConfirmationDialogView_Message()
+            .split('\n')
+            .flat_map(|l| if l.is_empty() { vec![String::new()] } else { sharex_ui::controls::wrap_lines(ui, l, &font, msg_w) })
+            .collect();
+        let msg_h = (lh * lines.len() as f32).ceil();
+        let content_h = msg_h.max(sign_lh.ceil());
+        let size = vec2(400.0, 2.0 + modal::title_height(ui, false) + 25.0 + content_h + 25.0 + modal::BUTTON_BAR);
+        let r = modal::centered(full, size);
         if modal::scrim(ui, p, full, r) {
             self.modal = None;
         }
-        let shadow = egui::epaint::Shadow { offset: [0, 4], blur: 10, spread: 0, color: Color32::from_black_alpha(0x40) };
-        painter.add(shadow.as_shape(r, CornerRadius::same(4)));
-        sharex_ui::border::border(painter, r, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(p.background_panel)), Some(p.border));
-        let inner = r.shrink(1.0);
-        let title = Rect::from_min_size(inner.min, vec2(inner.width(), title_h));
-        painter.rect_filled(Rect::from_min_max(title.min, pos2(title.max.x, title.max.y - 1.0)), CornerRadius { nw: 3, ne: 3, sw: 0, se: 0 }, p.background_toolbar);
-        painter.rect_filled(Rect::from_min_max(pos2(title.min.x, title.max.y - 1.0), title.max), 0.0, p.border);
-        let g = widgets::galley(ui, ie::ConfirmationDialogView_Title(), title_font.clone(), p.text, f32::INFINITY);
-        painter.galley(pos2(title.min.x + 14.0, title.min.y + 8.0), g, p.text);
-        let body = Rect::from_min_size(pos2(inner.min.x, title.max.y), vec2(inner.width(), body_h));
-        let sign = egui::FontId::proportional(40.0);
-        let g = painter.layout_no_wrap("\u{26A0}\u{FE0F}".to_string(), sign, p.text);
-        painter.galley(pos2(body.min.x + 25.0, body.center().y - g.size().y / 2.0), g, p.text);
-        let mut y = body.center().y - widgets::line_height(ui, &font) * lines.len() as f32 / 2.0;
-        for line in &lines {
-            let g = widgets::galley(ui, line, font.clone(), p.text, f32::INFINITY);
-            painter.galley(pos2(body.min.x + 25.0 + 40.0 + 25.0, y), g, p.text);
-            y += widgets::line_height(ui, &font);
-        }
-        let bar = Rect::from_min_max(pos2(inner.min.x, body.max.y), inner.max);
-        painter.rect_filled(bar, CornerRadius { nw: 0, ne: 0, sw: 3, se: 3 }, p.background_toolbar);
-        painter.rect_filled(Rect::from_min_size(bar.min, vec2(bar.width(), 1.0)), 0.0, p.border);
-        let labels = [(ie::ConfirmationDialogView_Yes(), 2u8), (ie::ConfirmationDialogView_No(), 1), (ie::ConfirmationDialogView_Cancel(), 0)];
-        let b = sharex_ui::controls::Button { padding: sharex_ui::theme::Thickness::new(20.0, 0.0, 20.0, 0.0), ..Default::default() };
-        let total: f32 = labels.iter().map(|(l, _)| b.width(ui, l)).sum::<f32>() + 10.0;
-        let mut x = bar.max.x - 10.0 - total;
-        for (label, k) in labels {
-            let bw = b.width(ui, label);
-            let br = Rect::from_min_size(pos2(x, bar.min.y + 11.0), vec2(bw, 32.0));
-            x += bw + 5.0;
-            if b.show(ui, br, Id::new(("confirm-exit", k)), label, true).clicked() {
-                self.modal = None;
-                match k {
-                    2 => {
-                        self.save(false);
-                        if !self.ws.is_dirty() {
-                            self.finish(false);
-                        }
-                    }
-                    1 => self.finish(false),
-                    _ => {}
+        let inner = modal::frame(ui, p, r, modal::SHADOW_SMALL);
+        let (title, _) = modal::title_bar(ui, p, inner, ie::ConfirmationDialogView_Title(), p.text_secondary, None);
+        let content = Rect::from_min_size(pos2(inner.min.x + 25.0, title.max.y + 25.0), vec2(inner.width() - 50.0, content_h));
+        let painter = ui.painter();
+        // The sign, centred in the row.
+        let sign_top = content.min.y + ((content_h - sign_lh.ceil()) / 2.0).round_ties_even();
+        let tex = self.sign_texture.get_or_insert_with(|| {
+            let (w, h) = (sign_w as u32 + 4, sign_lh.ceil() as u32 + 4);
+            sharex_image_editor::render::emoji::render_line(SIGN, w, h, 40.0, ascent).map(|pm| {
+                let mut rgba = Vec::with_capacity(pm.pixels().len() * 4);
+                for c in pm.pixels() {
+                    rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, *c as u8, (c >> 24) as u8]);
                 }
+                let img = egui::ColorImage::from_rgba_premultiplied([pm.width() as usize, pm.height() as usize], &rgba);
+                ui.ctx().load_texture("confirm-sign", img, egui::TextureOptions::NEAREST)
+            })
+        });
+        if let Some(t) = tex {
+            let s = t.size_vec2();
+            painter.image(t.id(), Rect::from_min_size(pos2(content.min.x, sign_top), s), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        }
+        let mut y = content.min.y + ((content_h - msg_h) / 2.0).round_ties_even();
+        let x = content.min.x + sign_w + 25.0;
+        for line in &lines {
+            let g = widgets::galley(ui, line, font.clone(), p.text_secondary, f32::INFINITY);
+            painter.galley(pos2(x, y.round()), g, p.text_secondary);
+            y += lh;
+        }
+        let labels = [ie::ConfirmationDialogView_Yes(), ie::ConfirmationDialogView_No(), ie::ConfirmationDialogView_Cancel()];
+        if let Some(k) = modal::button_bar(ui, p, inner, Id::new("confirm-exit"), &labels) {
+            self.modal = None;
+            match k {
+                0 => {
+                    self.save(false);
+                    self.finish(false);
+                }
+                1 => self.finish(false),
+                _ => {}
+            }
+        }
+    }
+
+    /// `OnImageChangedDuringCanvasResize` for the commands that change the
+    /// image from elsewhere.
+    fn image_changed_elsewhere(&mut self) {
+        if let Some(cr) = self.canvas_resize.take() {
+            self.room = Vec2::ZERO;
+            if let Some(z) = cr.saved_zoom {
+                self.zoom = z;
             }
         }
     }
@@ -1757,6 +1873,33 @@ impl EditorWindow {
     }
 }
 
+/// `ShareX.Brush.Checkered`: 30px tiles of two 15px squares (scaled by
+/// `zoom`) from `origin`, over `rect`.
+pub(super) fn paint_checkered(painter: &egui::Painter, rect: Rect, origin: Pos2, zoom: f32, p: &Palette) {
+    painter.rect_filled(rect, 0.0, p.checkered[0]);
+    let cell = 15.0 * zoom;
+    if cell < 0.5 {
+        return;
+    }
+    let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+    let vis = rect.intersect(painter.clip_rect());
+    if vis.width() <= 0.0 || vis.height() <= 0.0 {
+        return;
+    }
+    let i0 = ((vis.min.x - origin.x) / cell).floor() as i64;
+    let i1 = ((vis.max.x - origin.x) / cell).ceil() as i64;
+    let j0 = ((vis.min.y - origin.y) / cell).floor() as i64;
+    let j1 = ((vis.max.y - origin.y) / cell).ceil() as i64;
+    for j in j0..j1 {
+        for i in i0..i1 {
+            if (i + j).rem_euclid(2) == 0 {
+                let r = Rect::from_min_size(pos2(origin.x + i as f32 * cell, origin.y + j as f32 * cell), vec2(cell, cell));
+                clip.rect_filled(r, 0.0, p.checkered[1]);
+            }
+        }
+    }
+}
+
 /// A disabled `toolbar-button`: ShareX's `Button:disabled` (the control
 /// background, no border, the base medium low foreground), at 35%.
 fn disabled_button(ui: &Ui, painter: &egui::Painter, p: &Palette, r: Rect, icon: &str) {
@@ -1834,6 +1977,10 @@ impl Dialog for EditorWindow {
             }
         }
         self.poll_url_job();
+        if std::mem::take(&mut self.canvas_resize_on_open) {
+            self.toggle_canvas_resize();
+            ui.ctx().request_repaint();
+        }
         // The notification (`ZIndex="28"`), under the modal host.
         self.notify.paint(ui, &p, full);
         self.modal_ui(ui, &p, full);
@@ -1852,7 +1999,7 @@ impl Dialog for EditorWindow {
             ui.ctx().set_cursor_icon(icon);
         }
         self.update_title();
-        if self.ws.is_interacting() || self.pan.is_some() {
+        if self.ws.is_interacting() || self.pan.is_some() || self.canvas_resize.as_ref().is_some_and(|c| c.is_dragging()) {
             ui.ctx().request_repaint();
         }
         std::mem::take(&mut self.effects)
@@ -1928,6 +2075,8 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         }
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
+        Some("canvas-size") => w.canvas_resize_on_open = true,
+        Some("confirm") => w.modal = Some(Modal::Confirm),
         Some("insert") => {
             let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));
             w.modal = Some(Modal::InsertImage(Box::new(insert_image::InsertImage { image: img })));
