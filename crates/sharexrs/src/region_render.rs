@@ -27,6 +27,8 @@ pub fn render(
     let mut steps: Option<String> = None;
     // The monitor's work area (ShareX's reference machine: a 48px taskbar).
     let mut work_area = None;
+    // `--options JSON`: `RegionCaptureOptions` members over the defaults.
+    let mut options = RegionCaptureOptions::default();
 
     for (k, v) in args {
         match k.as_str() {
@@ -38,6 +40,16 @@ pub fn render(
             "--window" => window = Some(numbers(v, 4, k)?),
             "--steps" => steps = Some(v.clone()),
             "--work-area" => work_area = Some(numbers(v, 4, k)?),
+            "--options" => {
+                let patch: serde_json::Value = serde_json::from_str(v).map_err(|e| format!("--options: {e}"))?;
+                let mut value = serde_json::to_value(&options).map_err(|e| e.to_string())?;
+                if let (Some(o), Some(p)) = (value.as_object_mut(), patch.as_object()) {
+                    for (key, v) in p {
+                        o.insert(key.clone(), v.clone());
+                    }
+                }
+                options = serde_json::from_value(value).map_err(|e| format!("--options: {e}"))?;
+            }
             _ => {}
         }
     }
@@ -62,13 +74,15 @@ pub fn render(
         screenshot: shot,
         screen_bounds: bounds,
         screens: vec![screen],
-        options: RegionCaptureOptions::default(),
+        options,
         windows,
         cursor: Some(pointer),
         last_regions: Vec::new(),
         enable_annotations: true,
         editor_options: Default::default(),
         cursor_image: None,
+        allow_multiple_regions: true,
+        pixel_info: Some(crate::capture_job::pixel_info),
     });
     let none = Modifiers::default();
     let later = Instant::now() + Duration::from_secs(1);
@@ -103,7 +117,8 @@ pub fn render(
 /// them): `tool:NAME` clicks a toolbar tool (`region` the region button),
 /// `option:NAME` an options row toggle, `move:X,Y`, `click:X,Y`,
 /// `down:X,Y`, `to:X,Y` (12 moves with the button held), `up`,
-/// `rclick:X,Y`, `key:NAME`, `ctrl:NAME`, `type:TEXT`.
+/// `rclick:X,Y`, `dclick:X,Y`, `key:NAME`, `ctrl:NAME`, `hold:Shift`,
+/// `release:Shift` (also `Ctrl`), `type:TEXT`.
 fn run_steps(
     session: &mut RegionCapture,
     steps: &str,
@@ -112,15 +127,15 @@ fn run_steps(
     hover: &mut dyn FnMut(&mut RegionCapture, PointF),
 ) -> Result<(), String> {
     use sharex_capture::region::{Key, toolbar};
-    let none = Modifiers::default();
+    let mut held = Modifiers::default();
     let mut at = PointF::new(start.0 as f64, start.1 as f64);
     // A move: the toolbar hover first while no button is down (as the
     // live session does), then the overlay.
-    let mut moved = |s: &mut RegionCapture, p: PointF, down: bool| {
+    let mut moved = |s: &mut RegionCapture, p: PointF, down: bool, m: Modifiers| {
         if !down {
             hover(s, p);
         }
-        s.pointer_moved(p, none);
+        s.pointer_moved(p, m);
     };
     let xy = |v: &str| -> Result<PointF, String> {
         let n = numbers(v, 2, "a step")?;
@@ -149,7 +164,7 @@ fn run_steps(
                     if arg == "region" {
                         toolbar::Part::RegionButton
                     } else {
-                        let i = toolbar::default_items().iter().position(|t| t.def.id == arg).ok_or(format!("no tool {arg}"))?;
+                        let i = session.toolbar_index(arg).ok_or(format!("no tool {arg}"))?;
                         toolbar::Part::Tool(i)
                     }
                 } else {
@@ -157,49 +172,72 @@ fn run_steps(
                     toolbar::Part::Option(item)
                 };
                 session.set_toolbar_hover(Some(part));
-                session.pointer_pressed(at, Button::Left, none, scale);
-                session.pointer_released(at, Button::Left, none);
+                session.pointer_pressed(at, Button::Left, held, scale);
+                session.pointer_released(at, Button::Left, held);
                 session.set_toolbar_hover(None);
             }
             "move" => {
                 at = xy(arg)?;
-                moved(session, at, false);
+                moved(session, at, false, held);
             }
-            "click" => {
+            "click" | "dclick" => {
                 at = xy(arg)?;
-                moved(session, at, false);
-                session.pointer_pressed(at, Button::Left, none, scale);
-                session.pointer_released(at, Button::Left, none);
+                moved(session, at, false, held);
+                for _ in 0..if verb == "dclick" { 2 } else { 1 } {
+                    session.pointer_pressed(at, Button::Left, held, scale);
+                    session.pointer_released(at, Button::Left, held);
+                }
             }
             "rclick" => {
                 at = xy(arg)?;
-                moved(session, at, false);
-                session.pointer_pressed(at, Button::Right, none, scale);
-                session.pointer_released(at, Button::Right, none);
+                moved(session, at, false, held);
+                session.pointer_pressed(at, Button::Right, held, scale);
+                session.pointer_released(at, Button::Right, held);
             }
             "down" => {
                 at = xy(arg)?;
-                moved(session, at, false);
-                session.pointer_pressed(at, Button::Left, none, scale);
+                moved(session, at, false, held);
+                session.pointer_pressed(at, Button::Left, held, scale);
             }
             "to" => {
                 let to = xy(arg)?;
                 let from = at;
                 for i in 1..=12 {
                     let t = i as f64 / 12.0;
+                    // As the live script places the pointer (`[int]` of a
+                    // double rounds half to even).
                     at = PointF::new((from.x + (to.x - from.x) * t).round_ties_even(), (from.y + (to.y - from.y) * t).round_ties_even());
-                    moved(session, at, true);
+                    moved(session, at, true, held);
                 }
             }
             "up" => {
-                session.pointer_released(at, Button::Left, none);
+                session.pointer_released(at, Button::Left, held);
+            }
+            "hold" | "release" => {
+                let down = verb == "hold";
+                let k = match arg {
+                    "Shift" => {
+                        held.shift = down;
+                        Key::Shift
+                    }
+                    "Ctrl" => {
+                        held.ctrl = down;
+                        Key::Control
+                    }
+                    other => return Err(format!("can't hold {other}")),
+                };
+                if down {
+                    session.key_down(k, held, &mut |_, _| {});
+                } else {
+                    session.key_up(k, held);
+                }
             }
             "key" => {
-                session.key_down(key(arg), none, &mut |_, _| {});
-                session.key_up(key(arg), none);
+                session.key_down(key(arg), held, &mut |_, _| {});
+                session.key_up(key(arg), held);
             }
             "ctrl" => {
-                let m = Modifiers { ctrl: true, ..none };
+                let m = Modifiers { ctrl: true, ..held };
                 session.key_down(key(arg), m, &mut |_, _| {});
                 session.key_up(key(arg), m);
             }

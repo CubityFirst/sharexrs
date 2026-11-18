@@ -31,11 +31,22 @@ pub struct OverlayView {
     options: Option<options_row::OptionsLayout>,
     /// Where the open option popup was drawn.
     popup: Option<Rect>,
+    /// The picture of the ellipse and freehand chrome.
+    shapes: Option<(TextureHandle, super::chrome::ShapeChrome)>,
 }
 
 impl OverlayView {
     pub fn new(monitor: RectI) -> Self {
-        Self { monitor, frozen: None, frozen_version: None, magnifier: None, toolbar: None, options: None, popup: None }
+        Self {
+            monitor,
+            frozen: None,
+            frozen_version: None,
+            magnifier: None,
+            toolbar: None,
+            options: None,
+            popup: None,
+            shapes: None,
+        }
     }
 
     /// The toolbar part under `p` (points in this window), as last drawn.
@@ -354,46 +365,16 @@ impl RegionCapture {
 
         // `RegionSelectionOverlay.Render`; with an annotation tool, only a
         // selection kept outside quick capture.
-        let show_region = self.region_tool_active || (!self.quick_capture() && self.has_valid_selection());
-        let surface = RectF::new(0.0, 0.0, self.width, self.height);
-        let active = self.active_rectangle().intersect(&surface);
-        let dim_alpha = if show_region { dim_alpha(self.options.BackgroundDimStrength) } else { 0 };
-        if dim_alpha > 0 {
-            let dim = Color32::from_rgba_unmultiplied(0, 0, 0, dim_alpha);
-            let undimmed = if self.options.DimAllExceptSelection && (self.selection_pending || !self.selection.is_valid()) {
-                RectF::default()
-            } else {
-                active
-            };
-            if undimmed.is_valid() {
-                let c = undimmed;
-                let rects = [
-                    RectF::new(surface.x, surface.y, surface.w, c.y - surface.y),
-                    RectF::new(surface.x, c.y, c.x - surface.x, c.h),
-                    RectF::new(c.right(), c.y, surface.right() - c.right(), c.h),
-                    RectF::new(surface.x, c.bottom(), surface.w, surface.bottom() - c.bottom()),
-                ];
-                for r in rects.into_iter().filter(RectF::is_valid) {
-                    painter.rect_filled(m.rect(r.x, r.y, r.w, r.h), 0.0, dim);
-                }
-            } else {
-                painter.rect_filled(m.rect(0.0, 0.0, self.width, self.height), 0.0, dim);
-            }
-        }
-        if show_region && active.is_valid() {
-            ant_rectangle(&painter, &m, active, accent, halo);
-            if self.options.ShowCenterCrosshair && self.selection.is_valid() {
-                let c = self.selection.center();
-                let (cx, cy) = (c.x.floor(), c.y.floor());
-                pixel_cross(&painter, &m, halo, cx - 1.0, cy - 1.0);
-                pixel_cross(&painter, &m, accent, cx, cy);
-            }
+        let show_region = self.region_tool_active || (!self.quick_capture() && self.has_any_region());
+        if show_region {
+            let part_image = RectF::new((part.x - sb.x) as f64, (part.y - sb.y) as f64, part.w as f64, part.h as f64);
+            self.paint_regions(&painter, &m, view, part_image, accent, halo);
         }
 
         // The resize nodes: 15 screenshot pixels, white, soft shadow.
         if self.resize_nodes_visible() {
             for node in ResizeNode::ALL {
-                let c = node.position(self.selection);
+                let c = node.position(self.selection.bounds);
                 let half = super::RESIZE_NODE_SIZE / 2.0;
                 let r = m.rect(c.x - half, c.y - half, half * 2.0, half * 2.0);
                 let radius = CornerRadius::same((r.width() / 2.0).round() as u8);
@@ -429,6 +410,145 @@ impl RegionCapture {
         }
     }
 
+    /// `RegionSelectionOverlay.Render` for this window's part of the
+    /// screenshot (`part`, image pixels): the dimming, the added regions,
+    /// a window hovered beside them, the selection (or hovered window), the
+    /// centre crosshair and the screen crosshair.
+    fn paint_regions(&self, painter: &egui::Painter, m: &Mapper, view: &mut OverlayView, part: RectF, accent: Color32, halo: Color32) {
+        use super::chrome::{ShapeChrome, cursor_crosshair, uncovered_rectangles};
+        use super::shape::{CaptureRegion, RegionShape};
+        let surface = RectF::new(0.0, 0.0, self.width, self.height);
+        let active = self.active_rectangle().intersect(&surface);
+        let selection_valid = self.selection.bounds.is_valid();
+        let active_region =
+            if selection_valid { self.selection.with_bounds(active) } else { CaptureRegion::new(self.hover_shape(), active) };
+        let extra_hover = if self.show_hover_with_selection() && selection_valid && self.hover != self.selection.bounds {
+            self.hover.intersect(&surface)
+        } else {
+            RectF::default()
+        };
+        let hover_shape = self.hover_shape();
+        let dim_all_except = self.options.DimAllExceptSelection;
+        let alpha = dim_alpha(self.options.BackgroundDimStrength);
+        let dim = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+        let fill = |r: RectF| {
+            let r = r.intersect(&part);
+            if r.is_valid() {
+                painter.rect_filled(m.rect(r.x, r.y, r.w, r.h), 0.0, dim);
+            }
+        };
+        // The non-rectangular chrome's picture: what it dims around and
+        // outlines.
+        let mut dim_shapes: Option<Vec<CaptureRegion>> = None;
+        if alpha > 0 {
+            let undimmed = if dim_all_except && (self.selection_pending || !selection_valid) { RectF::default() } else { active };
+            let geometry = !active_region.is_rectangle()
+                || (extra_hover.is_valid() && hover_shape != RegionShape::Rectangle)
+                || self.regions.iter().any(|r| !r.is_rectangle());
+            if geometry {
+                let mut clear = self.regions.clone();
+                if undimmed.is_valid() {
+                    clear.push(active_region.clone());
+                }
+                if !dim_all_except && extra_hover.is_valid() {
+                    clear.push(CaptureRegion::new(hover_shape, extra_hover));
+                }
+                dim_shapes = Some(clear);
+            } else if !self.regions.is_empty() || extra_hover.is_valid() {
+                let mut clear: Vec<RectF> = self.regions.iter().map(|r| r.bounds).collect();
+                clear.push(undimmed);
+                if !dim_all_except {
+                    clear.push(extra_hover);
+                }
+                for r in uncovered_rectangles(surface, &clear) {
+                    fill(r);
+                }
+            } else if undimmed.is_valid() {
+                let c = undimmed;
+                for r in [
+                    RectF::new(surface.x, surface.y, surface.w, c.y - surface.y),
+                    RectF::new(surface.x, c.y, c.x - surface.x, c.h),
+                    RectF::new(c.right(), c.y, surface.right() - c.right(), c.h),
+                    RectF::new(surface.x, c.bottom(), surface.w, surface.bottom() - c.bottom()),
+                ] {
+                    if r.is_valid() {
+                        fill(r);
+                    }
+                }
+            } else {
+                fill(surface);
+            }
+        }
+        // The outlines, in `Render`'s order.
+        let mut outlines: Vec<CaptureRegion> = Vec::new();
+        for region in &self.regions {
+            let visible = region.bounds.intersect(&surface);
+            if visible.is_valid() {
+                outlines.push(region.with_bounds(visible));
+            }
+        }
+        if extra_hover.is_valid() {
+            outlines.push(CaptureRegion::new(hover_shape, extra_hover));
+        }
+        if active.is_valid() {
+            outlines.push(active_region.clone());
+        }
+        // Ellipses and freehand regions (and the dimming around them) as a
+        // picture over their bounds, the rest of the dimming as rectangles.
+        let shaped: Vec<CaptureRegion> = outlines.iter().filter(|r| !r.is_rectangle()).cloned().collect();
+        let mut area: Option<RectF> = None;
+        let mut grow = |r: RectF| {
+            if r.is_valid() {
+                let r = RectF::new(r.x.floor() - 1.0, r.y.floor() - 1.0, r.w.ceil() + 3.0, r.h.ceil() + 3.0);
+                area = Some(match area {
+                    Some(a) => {
+                        let (l, t) = (a.x.min(r.x), a.y.min(r.y));
+                        RectF::new(l, t, a.right().max(r.right()) - l, a.bottom().max(r.bottom()) - t)
+                    }
+                    None => r,
+                });
+            }
+        };
+        shaped.iter().for_each(|r| grow(r.bounds));
+        if let Some(clear) = &dim_shapes {
+            clear.iter().for_each(|r| grow(r.bounds));
+        }
+        let area = area.map(|a| a.intersect(&part)).filter(RectF::is_valid);
+        // Outside the picture the dimming is whole rectangles.
+        if dim_shapes.is_some() {
+            match area {
+                Some(a) => uncovered_rectangles(part, &[a]).into_iter().for_each(&fill),
+                None => fill(part),
+            }
+        }
+        match area {
+            Some(a) => {
+                let chrome = ShapeChrome {
+                    area: crate::geometry::Rect::new(a.x as i32, a.y as i32, a.w as i32, a.h as i32),
+                    dim: dim_shapes.map(|c| (alpha, c)),
+                    outlines: shaped,
+                    accent,
+                    halo,
+                };
+                chrome.paint(painter, m, &mut view.shapes);
+            }
+            None => view.shapes = None,
+        }
+        for region in outlines.iter().filter(|r| r.is_rectangle()) {
+            ant_rectangle(painter, m, region.bounds, accent, halo);
+        }
+        if active.is_valid() && self.options.ShowCenterCrosshair && selection_valid {
+            let c = self.selection.bounds.center();
+            let (cx, cy) = (c.x.floor(), c.y.floor());
+            pixel_cross(painter, m, halo, cx - 1.0, cy - 1.0);
+            pixel_cross(painter, m, accent, cx, cy);
+        }
+        // `ShowCursorCrosshair`: with the region tool.
+        if self.options.ShowScreenCrosshair && self.region_tool_active {
+            cursor_crosshair(painter, m, surface, (self.last_pointer.x, self.last_pointer.y), accent, halo);
+        }
+    }
+
     /// The editor's selection chrome (`OverlayCanvas`).
     fn paint_editor_chrome(&self, ui: &egui::Ui, painter: &egui::Painter, m: &Mapper) {
         let Some(e) = &self.editor else { return };
@@ -455,7 +575,7 @@ impl RegionCapture {
             let pointer = m.pos(self.last_pointer.x, self.last_pointer.y);
             let ix = (self.last_pointer.x.round() as i32).clamp(0, self.width as i32 - 1);
             let iy = (self.last_pointer.y.round() as i32).clamp(0, self.height as i32 - 1);
-            let text = format!("X: {} Y: {}", sb.x + ix, sb.y + iy);
+            let text = self.pointer_info_text(ix, iy);
             let info = label_size(ui, &text);
             let mag_size = (self.options.MagnifierSize.clamp(50, 500) + 2) as f32;
             let width = if show_magnifier { mag_size.max(if show_info { info.x } else { 0.0 }) } else { info.x };
@@ -575,7 +695,8 @@ impl RegionCapture {
             return;
         }
         let active_tool = self.active_annotation_tool();
-        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, self.region_tool_active, active_tool.as_ref(), scale, 1.0 - hidden, &self.bar);
+        let active_region = self.region_tool_active.then_some(self.region_shape);
+        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, active_region, active_tool.as_ref(), scale, 1.0 - hidden, &self.bar);
         // `ShowToolOptions` while an annotation tool is active.
         if let (Some(tool), Some(e)) = (&active_tool, &self.editor) {
             let visible = ed::Visible::of(tool.clone(), e.selected());

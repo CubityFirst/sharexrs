@@ -89,6 +89,17 @@ const HANDLE: f32 = 14.0;
 /// The icon in a toolbar button (`FontSize="20"`).
 const ICON: f32 = 20.0;
 
+/// `RegionCaptureToolbar.GetRegionShape`: the region an item selects.
+pub fn region_shape(id: &str) -> Option<super::RegionShape> {
+    if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_ELLIPSE) {
+        Some(super::RegionShape::Ellipse)
+    } else if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_FREEHAND) {
+        Some(super::RegionShape::Freehand)
+    } else {
+        None
+    }
+}
+
 /// Something on the toolbar under the pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
@@ -239,7 +250,9 @@ pub fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: boo
 }
 
 /// Draws the toolbar laid out as `layout`, `opacity` for its hide
-/// animation, with `hovered` under the pointer.
+/// animation, with `hovered` under the pointer. `active_region`: the
+/// region tool's shape while it's active (the region button shows the
+/// rectangle, `SetActiveHostToolbarItem` the ellipse and freehand items);
 /// `active_tool`: the tool shown active (none while the region tool is).
 #[allow(clippy::too_many_arguments)]
 pub fn paint(
@@ -247,7 +260,7 @@ pub fn paint(
     p: &Palette,
     layout: &Layout,
     hovered: Option<Part>,
-    region_active: bool,
+    active_region: Option<super::RegionShape>,
     active_tool: Option<&EditorTool>,
     scale: f32,
     opacity: f32,
@@ -270,12 +283,16 @@ pub fn paint(
             painter.rect_filled(Rect::from_min_size(min, egui::Vec2::splat(2.0 * scale)), 0.0, fill);
         }
     }
+    let region_active = active_region == Some(super::RegionShape::Rectangle);
     button(&painter, p, layout.region_button, icon::Region, region_active, hovered == Some(Part::RegionButton), scale);
     for sep in &layout.separators {
         painter.rect_filled(*sep, 0.0, p.separator);
     }
     for (i, (rect, item)) in layout.tools.iter().zip(items.iter()).enumerate() {
-        let active = item.def.tool.is_some() && active_tool == item.def.tool.as_ref();
+        let active = match &item.def.tool {
+            Some(tool) => active_tool == Some(tool),
+            None => active_region.is_some() && region_shape(item.def.id) == active_region,
+        };
         button(&painter, p, *rect, item.def.icon, active, hovered == Some(Part::Tool(i)), scale);
     }
 }

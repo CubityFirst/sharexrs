@@ -1,6 +1,6 @@
 """Checks how much of a screen grab is `sharexrs --test-pattern`'s picture.
 
-    python scripts/pattern-check.py shot.png [--origin X,Y] [--min 0.5] [--delete]
+    python scripts/pattern-check.py shot.png [--origin X,Y] [--min 0.5] [--delete] [--opaque]
 
 Prints the share of pixels that match the pattern exactly. With --delete,
 removes the file when fewer than --min of them match: a grab that isn't
@@ -44,13 +44,20 @@ def main():
     if "--min" in args:
         minimum = float(args[args.index("--min") + 1])
     dark = int(args[args.index("--dark") + 1]) if "--dark" in args else None
-    img = Image.open(path).convert("RGB")
+    # --opaque: a capture masked to its regions (ellipse, freehand, several
+    # regions) is judged by its opaque pixels; transparent ones show nothing.
+    opaque = "--opaque" in args
+    rgba = Image.open(path).convert("RGBA")
+    img = rgba.convert("RGB")
     w, h = img.size
     px = img.load()
+    alpha = rgba.getchannel("A").load()
     match = 0
     total = 0
     for y in range(0, h, 3):
         for x in range(0, w, 3):
+            if opaque and alpha[x, y] < 255:
+                continue
             total += 1
             c = px[x, y]
             p = pattern(x + ox, y + oy)
@@ -60,7 +67,7 @@ def main():
                 ok = close(c, dim(p, dark)) or close(c, dim(q, dark))
             if ok:
                 match += 1
-    share = match / total
+    share = match / total if total else 0.0
     print(f"{path}: {share:.4f} of sampled pixels are the test pattern")
     if delete and share < minimum:
         os.remove(path)

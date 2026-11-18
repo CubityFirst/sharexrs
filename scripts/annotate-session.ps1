@@ -35,7 +35,11 @@ param(
     # Open the menu with clicks on the raised main window, not UI Automation.
     [switch] $Physical,
     # Also accept the pattern under black at this alpha (a spotlight).
-    [int] $Dark = -1
+    [int] $Dark = -1,
+    # Start the capture with this command line job sent to the running
+    # app (`-RectangleRegion`), instead of its menu.
+    [string] $Job,
+    [string] $ShareXExe = 'G:/scripts/sharexrs-ref/ShareX-build/ShareX.exe'
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @"
@@ -85,7 +89,12 @@ $buttonDown = $false
 try {
     # Only once the pattern covers the screen: an overlay freezes what's on it.
     & "$PSScriptRoot/wait-pattern.ps1"
-    if ($Process -eq 'sharexrs' -or $Physical) {
+    if ($Job) {
+        & "$PSScriptRoot/input.ps1" -MoveTo $At
+        $exe = if ($Process -eq 'sharexrs') { $Sharexrs } else { $ShareXExe }
+        # Not -Wait: Windows PowerShell waits for the whole process tree.
+        Start-Process -FilePath $exe -ArgumentList "-$Job" | Out-Null
+    } elseif ($Process -eq 'sharexrs' -or $Physical) {
         $title = if ($Process -eq 'sharexrs') { '^ShareXrs [0-9]' } else { '^ShareX [0-9]' }
         $origin = (& "$PSScriptRoot/raise.ps1" -Process $Process -Title $title) -split ','
         $ox = [int]$origin[0]; $oy = [int]$origin[1]
@@ -98,6 +107,14 @@ try {
         & "$PSScriptRoot/sharex-menu.ps1" -Process $Process -Menu Capture -Entry "Region..."
     }
     Start-Sleep -Milliseconds $WaitMs
+    if ($Job) {
+        # A forwarded job can take a while to open the overlay: wait for it
+        # while the pattern still covers the screen.
+        for ($i = 0; $i -lt 60 -and @(Overlays | Where-Object { $before -notcontains $_ }).Count -eq 0; $i++) {
+            Start-Sleep -Milliseconds 500
+        }
+        Start-Sleep -Milliseconds 500
+    }
     # Above the pattern: a background process's new topmost window can open under it.
     [void](& "$PSScriptRoot/raise.ps1" -Process $Process -Title '^Region capture$')
     foreach ($step in $Steps) {

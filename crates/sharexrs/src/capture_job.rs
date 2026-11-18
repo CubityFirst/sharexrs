@@ -70,7 +70,15 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
         enable_annotations,
         editor_options: image_editor_options(task),
         cursor_image,
+        allow_multiple_regions: true,
+        pixel_info: Some(pixel_info),
     })
+}
+
+/// `CodeMenuEntryPixelInfo.Parse` for the overlay's custom info text.
+pub(crate) fn pixel_info(text: &str, c: [u8; 4], position: (i32, i32)) -> String {
+    let color = sharex_tools::color::Color::argb(c[3], c[0], c[1], c[2]);
+    sharex_tools::color::pixel_info_parse(text, &color, position)
 }
 
 /// `RegionCaptureTasks.CaptureAsync` for `GetRectangleRegionAsync` (screen
@@ -81,6 +89,7 @@ pub fn prepare_selection(task: &TaskSettings, last_regions: Vec<Rect>) -> Result
     task.CaptureSettings.get_or_insert_default().ShowCursor = false;
     let mut request = prepare(&task, last_regions)?;
     request.enable_annotations = false;
+    request.allow_multiple_regions = false;
     request.editor_options = sharex_image_editor::ImageEditorOptions::default();
     Ok(request)
 }
