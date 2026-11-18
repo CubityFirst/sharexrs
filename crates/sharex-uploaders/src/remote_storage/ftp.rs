@@ -60,6 +60,9 @@ impl FtpRemoteStorageProvider {
         let protocol = if account.Protocol == FTPProtocol::FTPS { "FTPS" } else { "FTP" };
         let name = account_name(&account);
         let client = Ftp::new(account.clone());
+        if let Some(e) = client.creation_error() {
+            return Err(RemoteStorageError::Failed(e.to_owned()));
+        }
         Ok(Self { display_name: format!("{protocol} - {name}"), root_display_name: name, account, client, allow_upload })
     }
 

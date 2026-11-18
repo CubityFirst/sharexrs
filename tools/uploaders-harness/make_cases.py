@@ -788,6 +788,11 @@ ftp_case("ftps-implicit", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 3, FTP
          {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
 ftp_case("ftps-explicit-active", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, IsActive=True)], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+for label, cert in [("pem", "ftps_client.crt"), ("der", "ftps_client.cer"), ("pfx", "ftps_client.pfx"), ("missing", "no_such_cert.crt")]:
+    ftp_case("ftps-client-cert-" + label, [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, FTPSEncryption="Explicit",
+                                                 FTPSCertificateLocation="crates/sharex-uploaders/tests/fixtures/" + cert)], BIN_PNG, {"user": "user", "password": "pass", "dirs": []})
+ftp_case("ftps-implicit-client-cert", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 3, FTPSEncryption="Implicit",
+                                            FTPSCertificateLocation="crates/sharex-uploaders/tests/fixtures/ftps_client.crt")], BIN_PNG, {"user": "user", "password": "pass", "dirs": []})
 ftp_case("ftp-second-account", [FTP_ACCOUNT, dict(FTP_ACCOUNT, Name="two", SubFolderPath="", HttpHomePath="cdn.example.com:8080/x?f=")],
          BIN_PNG, {"user": "user", "password": "pass", "dirs": []}, selected=1)
 ftp_case("ftp-connection-refused", [dict(FTP_ACCOUNT, Port=MOCK + 9)], BIN_PNG)

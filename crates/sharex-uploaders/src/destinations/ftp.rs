@@ -1000,11 +1000,42 @@ impl FtpClient {
 /// certificate that doesn't validate this way).
 fn tls_error_message(native: &str) -> String {
     let lower = native.to_lowercase();
-    if lower.contains("certificate") || lower.contains("trust") || lower.contains("0x800b0109") || lower.contains("0x800b010f") {
-        "The remote certificate is invalid according to the validation procedure: RemoteCertificateNameMismatch, RemoteCertificateChainErrors".into()
+    // FluentFTP always validates through its callback: a certificate it
+    // doesn't accept is "rejected by the callback".
+    if lower.contains("certificate") || lower.contains("trust") || lower.contains("0x800b0109") || lower.contains("0x800b010f") || lower.contains("0x80090325") {
+        "The remote certificate was rejected by the provided RemoteCertificateValidationCallback.".into()
     } else {
         native.to_owned()
     }
+}
+
+/// `X509CertificateLoader.LoadCertificateFromFile`: an X.509 certificate,
+/// PEM or DER (a PKCS#12 file or anything else is refused). Only the
+/// certificate is read: the OS TLS stack gets no private key from it (on
+/// Windows ShareX's .NET finds the key in the user's certificate store,
+/// which the OS TLS library here can't be handed), so the certificate turns
+/// off the lenient server check and isn't presented.
+fn load_certificate(path: &str) -> Result<(), String> {
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let not_found = || "Cannot find the requested object.".to_owned();
+    if let Ok(text) = std::str::from_utf8(&bytes)
+        && text.contains("-----BEGIN CERTIFICATE-----")
+    {
+        return Ok(());
+    }
+    // DER: a SEQUENCE whose first element (tbsCertificate) is a SEQUENCE; a
+    // PFX starts with its INTEGER version instead.
+    let header = |b: &[u8]| -> Option<usize> {
+        if b.first() != Some(&0x30) {
+            return None;
+        }
+        match *b.get(1)? {
+            n if n < 0x80 => Some(2),
+            n => Some(2 + (n & 0x7f) as usize),
+        }
+    };
+    let h = header(&bytes).ok_or_else(not_found)?;
+    if bytes.get(h) == Some(&0x30) { Ok(()) } else { Err(not_found()) }
 }
 
 /// An open data connection.
@@ -1061,6 +1092,9 @@ pub struct Ftp {
     pub base: Uploader,
     pub account: FTPAccount,
     client: FtpClient,
+    /// What `new FTP(account)` threw (a client certificate file .NET
+    /// can't load): uploads and the remote storage browser fail with it.
+    creation_error: Option<String>,
 }
 
 uploader_base!(Ftp, FileUploader);
@@ -1068,16 +1102,28 @@ impl WritesBackConfig for Ftp {}
 
 impl Ftp {
     pub fn new(account: FTPAccount) -> Self {
+        let mut creation_error = None;
         let port = u16::try_from(account.Port).unwrap_or(21);
         let mut client = FtpClient::new(s(&account.Host), port, s(&account.Username), account.Password.as_str());
         client.data_connection = if account.IsActive { DataConnection::AutoActive } else { DataConnection::AutoPassive };
         if account.Protocol == FTPProtocol::FTPS {
             client.encryption = if account.FTPSEncryption == FTPSEncryption::Implicit { Encryption::Implicit } else { Encryption::Explicit };
             client.data_encryption = true;
-            // A client certificate (FTPSCertificateLocation) isn't sent: the
-            // OS TLS libraries need the private key with it.
+            // With a client certificate file, ShareX adds it and doesn't
+            // install its handler that accepts any server certificate.
+            if let Some(path) = account.FTPSCertificateLocation.as_deref().filter(|p| !p.is_empty() && std::path::Path::new(p).is_file()) {
+                match load_certificate(path) {
+                    Ok(()) => client.tls.accept_invalid = false,
+                    Err(e) => creation_error = Some(e),
+                }
+            }
         }
-        Self { base: Uploader::new(), account, client }
+        Self { base: Uploader::new(), account, client, creation_error }
+    }
+
+    /// The exception `new FTP(account)` threw, if any.
+    pub fn creation_error(&self) -> Option<&str> {
+        self.creation_error.as_deref()
     }
 
     /// The client, for the remote storage browser (listing aside).
@@ -1086,6 +1132,9 @@ impl Ftp {
     }
 
     fn upload(&mut self, data: &SharedStream, file_name: &str) -> CoreResult {
+        if let Some(e) = &self.creation_error {
+            return Err(UploadError::Exception(e.clone()));
+        }
         if self.base.stop_requested() {
             return Err(UploadError::Cancelled);
         }

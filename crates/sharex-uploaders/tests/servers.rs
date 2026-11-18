@@ -73,8 +73,10 @@ fn ftp_and_sftp_cases_match_sharex() {
             let port = account["Port"].as_u64().unwrap();
             // Key files are relative to the repository (the harness's
             // working directory).
-            if let Some(k) = account["Keypath"].as_str().filter(|k| !k.is_empty()) {
-                account["Keypath"] = repo.join(k).to_string_lossy().into_owned().into();
+            for field in ["Keypath", "FTPSCertificateLocation"] {
+                if let Some(k) = account[field].as_str().filter(|k| !k.is_empty()) {
+                    account[field] = repo.join(k).to_string_lossy().into_owned().into();
+                }
             }
             let s = match port - HARNESS_BASE {
                 1 => &plain,
