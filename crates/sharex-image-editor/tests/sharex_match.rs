@@ -2,7 +2,7 @@
 //! ShareX's rendering of the same annotations and operations
 //! (tests/data/sharex, made by tools/editor-harness from ShareX's own
 //! code). Cases without a "pending" note must be identical, pixel for
-//! pixel, and the same size.
+//! pixel, and the same size (or within their "tolerance").
 
 mod common;
 
@@ -34,8 +34,22 @@ fn renders_like_sharex() {
         }
         let (a, b) = (got.to_rgba(), expected.to_rgba());
         let differing = a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p != q).count();
-        if differing > 0 {
-            failures.push(format!("{name}: {differing} pixels differ"));
+        let max = a
+            .iter()
+            .zip(&b)
+            .map(|(p, q)| p.abs_diff(*q))
+            .max()
+            .unwrap_or(0);
+        // A case's "tolerance": at most maxPixels pixels, each within
+        // maxDelta (why it can't be exact is in the case).
+        let (max_delta, max_pixels) = case.get("tolerance").map_or((0, 0), |t| {
+            (
+                t["maxDelta"].as_u64().unwrap_or(0) as u8,
+                t["maxPixels"].as_u64().unwrap_or(0) as usize,
+            )
+        });
+        if differing > max_pixels || max > max_delta {
+            failures.push(format!("{name}: {differing} pixels differ, by up to {max}"));
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");

@@ -1018,7 +1018,15 @@ impl Slider {
         // `TrackBackground`s 10px down it and the 20px `Thumb` at its top,
         // so the thumb's centre is 1px above the track's.
         let cy = (rect.min.y + (rect.height() - 4.0) / 2.0).floor();
-        let thumb = Rect::from_center_size(pos2(cx, cy - 1.0), Vec2::splat(20.0));
+        let mut thumb = Rect::from_center_size(pos2(cx, cy - 1.0), Vec2::splat(20.0));
+        // A slider of its own height (no `Height`): the template's rows,
+        // 15 + the 20px thumb + 15, the 2px track centred on the thumb.
+        let cy = if rect.height() >= 50.0 {
+            thumb = Rect::from_center_size(pos2(cx, rect.min.y + 15.0 + 10.0), Vec2::splat(20.0));
+            rect.min.y + 15.0 + 10.0
+        } else {
+            cy
+        };
         let pressed = self.enabled && (r.is_pointer_button_down_on() || r.dragged());
         // Only the pointer over the thumb narrows its ring (the thumb's own
         // `:pointerover`); the slider's hover and press recolour the track.

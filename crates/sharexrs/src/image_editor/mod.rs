@@ -23,6 +23,7 @@ use sharex_capture::editor_chrome::{self, Mapper};
 use sharex_capture::editor_popups::Popups;
 use sharex_capture::region::options_row::{self, OptionItem};
 use sharex_capture::region::toolbar as captb;
+use sharex_capture::toolbar_items;
 use sharex_image_editor::editor::{self as ed, Command, RightClick, Visible, Workspace};
 use sharex_image_editor::model::EditorTool;
 use sharex_image_editor::options::ImageEditorOptions;
@@ -35,10 +36,11 @@ use sharex_ui::{Palette, icons, palette, widgets};
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
+mod background;
 mod canvas_size;
-mod emoji_picker;
+pub(crate) mod emoji_picker;
 mod insert_image;
-mod modal;
+pub(crate) mod modal;
 mod new_image;
 mod notify;
 mod start_screen;
@@ -51,6 +53,7 @@ enum PickTarget {
     Option(OptionItem),
     NewImage,
     CanvasFill,
+    Background(background::ColorTarget),
 }
 
 /// The dialog in `EditorView`'s modal host (`ModalContent`).
@@ -84,12 +87,26 @@ enum Item {
     ImageEffects,
 }
 
+/// A toolbar item as laid out (`VisibleToolbarItems`): the editor's own
+/// item and its customisation (`ToolbarCustomizationItemViewModel`).
+#[derive(Clone)]
+struct BarItem {
+    item: Item,
+    custom: toolbar_items::Item,
+}
+
 impl Item {
-    fn all() -> Vec<Item> {
-        let mut v = vec![Item::File];
-        v.extend((0..captb::TOOLS.len()).map(Item::Tool));
-        v.extend([Item::Crop, Item::CutOut, Item::CanvasSize, Item::Background, Item::ImageEffects]);
-        v
+    /// The item for a toolbar item id.
+    fn of(id: &str) -> Option<Item> {
+        Some(match id {
+            toolbar_items::FILE => Item::File,
+            "Crop" => Item::Crop,
+            "CutOut" => Item::CutOut,
+            toolbar_items::CANVAS_SIZE => Item::CanvasSize,
+            toolbar_items::BACKGROUND => Item::Background,
+            toolbar_items::IMAGE_EFFECTS => Item::ImageEffects,
+            id => return captb::TOOLS.iter().position(|t| t.id == id).map(Item::Tool),
+        })
     }
 
     fn tool(self) -> Option<EditorTool> {
@@ -110,22 +127,6 @@ impl Item {
             Item::CanvasSize => app_icons::Expand,
             Item::Background => app_icons::Wallpaper,
             Item::ImageEffects => app_icons::Sparkles,
-        }
-    }
-
-    /// `BeginGroupByDefault`.
-    fn begin_group(self) -> bool {
-        matches!(self, Item::Crop) || matches!(self, Item::Tool(i) if captb::TOOLS[i].begin_group)
-    }
-
-    /// The item's hotkeys (`DefaultHotkey`, `DefaultSecondaryHotkey`).
-    fn hotkeys(self) -> [&'static str; 2] {
-        match self {
-            Item::Tool(i) => [captb::TOOLS[i].hotkey, captb::TOOLS[i].secondary_hotkey],
-            Item::Crop => ["C", ""],
-            Item::CutOut => ["U", ""],
-            Item::CanvasSize => ["X", ""],
-            _ => ["", ""],
         }
     }
 
@@ -266,6 +267,20 @@ pub struct EditorWindow {
     /// The room round the image in the scroll viewer (the scroll viewer's
     /// content `Margin`, the Canvas size tool's).
     room: Vec2,
+    /// The Background panel (`IsSettingsPanelOpen` and its settings).
+    bg_panel: background::Panel,
+    /// The frame the canvas shows while the panel is open, and the key of
+    /// the texture drawn from it.
+    bg_frame: Option<background::Frame>,
+    bg_key: String,
+    /// A toolbar item to scroll into view once laid out (`BringIntoView`).
+    bring_into_view: Option<Item>,
+    /// The toolbar's items (`ToolbarItems`), from `ImageEditorOptions.ToolbarItems`.
+    bar: Vec<BarItem>,
+    /// "One editor in ten shows sunglasses for the emoji tool."
+    emoji_sunglasses: bool,
+    /// `_autoSizePending` (`AutoSizeWindow`).
+    auto_size_pending: bool,
 }
 
 struct Layout {
@@ -360,7 +375,16 @@ impl EditorWindow {
             pick_target: None,
             window_state: None,
             room: Vec2::ZERO,
+            bg_panel: background::Panel::default(),
+            bg_frame: None,
+            bg_key: String::new(),
+            bring_into_view: None,
+            bar: Vec::new(),
+            auto_size_pending: false,
+            emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_micros()).is_multiple_of(10),
         };
+        w.apply_toolbar_items();
+        w.auto_size_pending = w.ws.tools.options.AutoSizeWindow;
         w.title = w.window_title();
         // `QueueAutoCopyImageToClipboard`: the opened image copied.
         if has_image && w.ws.tools.options.AutoCopyImageToClipboard && !w.ws.host_mode {
@@ -372,6 +396,29 @@ impl EditorWindow {
             w.modal = Some(Modal::Start(start_screen::StartScreen::new(w.ws.tools.options.RecentImageFiles.clone())));
         }
         w
+    }
+
+    /// `ApplyToolbarCustomizationItems`: the toolbar from the options; with
+    /// none saved, the defaults are saved (`persist`).
+    fn apply_toolbar_items(&mut self) {
+        let items = toolbar_items::editor_items(&self.ws.tools.options.ToolbarItems);
+        if self.ws.tools.options.ToolbarItems.is_empty() {
+            self.ws.tools.options.ToolbarItems = toolbar_items::options_json(&items);
+        }
+        self.bar = items.into_iter().filter_map(|custom| Item::of(custom.id()).map(|item| BarItem { item, custom })).collect();
+    }
+
+    /// `VisibleToolbarItems`.
+    fn visible_bar(&self) -> Vec<BarItem> {
+        self.bar.iter().filter(|b| b.custom.visible).cloned().collect()
+    }
+
+    /// An item's icon (the emoji tool's sunglasses once in ten editors).
+    fn item_icon(&self, it: Item) -> &'static str {
+        match it {
+            Item::Tool(i) if self.emoji_sunglasses && captb::TOOLS[i].tool == EditorTool::Emoji => tool_icons::EmojiSunglasses,
+            _ => it.icon(),
+        }
     }
 
     fn notifications_enabled(&self) -> bool {
@@ -474,9 +521,47 @@ impl EditorWindow {
         }
     }
 
-    /// `GetSnapshot()`: the image with its annotations.
+    /// `GetSnapshot()`: the image with its annotations (on its background
+    /// while the Background panel is open).
     fn snapshot(&mut self) -> RgbaImage {
-        rgba_of(&self.ws.export())
+        let export = self.ws.export();
+        self.update_bg_frame();
+        match &self.bg_frame {
+            Some(f) => rgba_of(&f.render(&export, self.ws.source())),
+            None => rgba_of(&export),
+        }
+    }
+
+    /// The Background panel's frame for the image as it is now.
+    fn update_bg_frame(&mut self) {
+        if !self.has_image {
+            self.bg_frame = None;
+            return;
+        }
+        // The image's identity: its pixels' address and size (the editor's
+        // operations replace the bitmap).
+        let src = self.ws.source();
+        let key = (src.pixels().as_ptr() as u64) ^ ((src.width() as u64) << 40) ^ ((src.height() as u64) << 20);
+        if self.bg_panel.needs_insets(key) {
+            let insets = sharex_image_editor::render::background::smart_padding_insets(self.ws.source());
+            self.bg_panel.set_insets(key, insets, &mut self.ws.tools.options);
+        }
+        self.bg_frame = self.bg_panel.frame(self.ws.size(), &self.ws.tools.options);
+    }
+
+    /// The frame's size and where the image sits in it (image pixels):
+    /// the image itself when the panel is closed.
+    fn display_frame(&self) -> (u32, u32, i32, i32) {
+        match &self.bg_frame {
+            Some(f) => {
+                let (ox, oy) = f.image_offset();
+                (f.frame.width, f.frame.height, ox, oy)
+            }
+            None => {
+                let (w, h) = self.ws.size();
+                (w, h, 0, 0)
+            }
+        }
     }
 
     // Commands.
@@ -524,7 +609,13 @@ impl EditorWindow {
                 self.notify_task(ie::MainViewModel_ImageIsUploading(), icon::CloudUpload);
                 self.close_after_task_action();
             }
-            Command::Print => self.effects.push(Effect::NotPorted("Image editor: Print")),
+            Command::Print => {
+                // `PrintImageRequested` → `TaskHelpers.PrintImage`.
+                if self.has_image {
+                    let img = self.snapshot();
+                    self.effects.push(Effect::PrintImage(img));
+                }
+            }
             Command::ToggleToolbars => self.toolbars_hidden = !self.toolbars_hidden,
             Command::Continue => self.finish(true),
             Command::Exit => {
@@ -726,46 +817,51 @@ impl EditorWindow {
         Mapper { origin: (0.0, 0.0), ppp, scale: self.zoom * ppp as f64, offset: self.layout.image.min }
     }
 
-    /// A toolbar item that isn't a tool whose hotkey this is.
-    fn hotkey_item(key: ed::Key, m: ed::Mods) -> Option<Item> {
-        let name = match key {
+    /// The pressed key as Avalonia's `Key` names it (`D1`, `R`, ...).
+    fn key_name(key: ed::Key) -> Option<String> {
+        Some(match key {
             ed::Key::Letter(c) => c.to_string(),
+            ed::Key::Digit(d) => format!("D{d}"),
+            ed::Key::Delete => "Delete".into(),
+            ed::Key::Home => "Home".into(),
+            ed::Key::End => "End".into(),
+            ed::Key::PageUp => "PageUp".into(),
+            ed::Key::PageDown => "PageDown".into(),
             _ => return None,
-        };
-        Item::all().into_iter().filter(|it| it.tool().is_none()).find(|it| {
-            it.hotkeys().iter().any(|h| !h.is_empty() && h.eq_ignore_ascii_case(&name) && m == ed::Mods::NONE)
         })
     }
 
-    /// `TrySelectToolForToolbarHotkey`.
-    fn hotkey_tool(key: ed::Key, m: ed::Mods) -> Option<EditorTool> {
-        let name = match key {
-            ed::Key::Letter(c) => c.to_string(),
-            ed::Key::Digit(d) => format!("D{d}"),
-            _ => return None,
-        };
-        Item::all().into_iter().filter_map(|it| it.tool().map(|t| (it, t))).find_map(|(it, t)| {
-            it.hotkeys()
-                .iter()
-                .any(|h| {
-                    let mut parts: Vec<&str> = h.split('+').map(str::trim).filter(|s| !s.is_empty()).collect();
-                    let Some(k) = parts.pop() else { return false };
-                    let has = |x: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(x));
-                    k.eq_ignore_ascii_case(&name) && has("Ctrl") == m.ctrl && has("Shift") == m.shift && has("Alt") == m.alt
-                })
-                .then_some(t)
-        })
+    /// `TrySelectToolForToolbarHotkey`: the first visible item with this
+    /// hotkey.
+    fn bar_item_for(bar: &[BarItem], key: ed::Key, m: ed::Mods) -> Option<Item> {
+        let name = Self::key_name(key)?;
+        let mods = toolbar_items::Mods { ctrl: m.ctrl, shift: m.shift, alt: m.alt, meta: false };
+        bar.iter().find(|b| b.custom.visible && b.custom.matches(&name, mods)).map(|b| b.item)
+    }
+
+    /// A toolbar item that isn't a tool whose hotkey this is.
+    fn hotkey_item(&self, key: ed::Key, m: ed::Mods) -> Option<Item> {
+        Self::bar_item_for(&self.bar, key, m).filter(|it| it.tool().is_none())
     }
 
     fn select_item(&mut self, item: Item) {
         match item {
             Item::File => {}
             Item::CanvasSize => self.toggle_canvas_resize(),
-            Item::Background => self.effects.push(Effect::NotPorted("Image editor: Background panel")),
+            Item::Background => {
+                // `ToggleSettingsPanel`.
+                self.bg_panel.toggle();
+                self.tex = None;
+            }
             Item::ImageEffects => self.effects.push(Effect::NotPorted("Image editor: Image effects panel")),
             _ => {
                 if let Some(t) = item.tool() {
                     self.popups.close();
+                    // `SelectTool`: Crop and Cut out close the Background panel.
+                    if matches!(t, EditorTool::Crop | EditorTool::CutOut) && self.bg_panel.open && self.ws.active_tool() != t {
+                        self.bg_panel.toggle();
+                        self.tex = None;
+                    }
                     self.ws.select_tool(t);
                 }
             }
@@ -910,23 +1006,22 @@ impl EditorWindow {
     // Layout and drawing.
 
     /// The top toolbar's content width (items, spacing, separators).
-    fn top_content_width() -> f32 {
-        let items = Item::all();
+    fn top_content_width(&self) -> f32 {
         let mut w = 0.0;
-        for (i, it) in items.iter().enumerate() {
+        for (i, b) in self.visible_bar().iter().enumerate() {
             if i > 0 {
                 w += SPACING;
             }
-            if it.begin_group() {
+            if b.custom.separator() {
                 w += 1.0 + SPACING;
             }
-            w += it.width();
+            w += b.item.width();
         }
         w
     }
 
     fn paint_top(&mut self, ui: &Ui, p: &Palette, full: Rect) {
-        let content = Self::top_content_width();
+        let content = self.top_content_width();
         let natural = content + 2.0 * (PADDING + 1.0);
         let width = natural.min(full.width());
         let left = (full.center().x - width / 2.0).round_ties_even();
@@ -951,11 +1046,12 @@ impl EditorWindow {
         let mut x = rect.min.x + 1.0 + PADDING - self.top_scroll;
         self.layout.items.clear();
         let active = self.ws.active_tool();
-        for (i, it) in Item::all().into_iter().enumerate() {
+        for (i, b) in self.visible_bar().into_iter().enumerate() {
+            let it = b.item;
             if i > 0 {
                 x += SPACING;
             }
-            if it.begin_group() {
+            if b.custom.separator() {
                 clip.rect_filled(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON)), 0.0, p.separator);
                 x += 1.0 + SPACING;
             }
@@ -970,10 +1066,22 @@ impl EditorWindow {
                 let angle = if open { std::f32::consts::PI } else { 0.0 };
                 icons::paint_transformed(&clip, Rect::from_min_size(pos2(r.max.x - 17.0, r.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary, Vec2::ZERO, angle);
             } else {
-                let on = it.tool().is_some_and(|t| t == active) || (it == Item::CanvasSize && self.canvas_resize.is_some());
-                captb::button(&clip, p, r, it.icon(), on, hovered, 1.0);
+                let on = it.tool().is_some_and(|t| t == active)
+                    || (it == Item::CanvasSize && self.canvas_resize.is_some())
+                    || (it == Item::Background && self.bg_panel.open);
+                captb::button(&clip, p, r, self.item_icon(it), on, hovered, 1.0);
             }
             self.layout.items.push((it, r.intersect(rect)));
+            // `BringIntoView`: the least scroll that shows the item.
+            if self.bring_into_view == Some(it) {
+                let (l, rr) = (r.min.x + self.top_scroll, r.max.x + self.top_scroll);
+                let (vl, vr) = (viewport.min.x, viewport.max.x);
+                // (4px further: what ShareX's toolbar scrolls to, its row's margin.)
+                let want = if rr - self.top_scroll > vr { rr - vr + 4.0 } else if l - self.top_scroll < vl { l - vl - 4.0 } else { self.top_scroll };
+                self.top_scroll = want.clamp(0.0, max_scroll);
+                self.bring_into_view = None;
+                ui.ctx().request_repaint();
+            }
         }
         // The `ScrollViewer`'s collapsed scroll bar when the items overflow.
         if max_scroll > 0.0 {
@@ -1093,19 +1201,47 @@ impl EditorWindow {
             self.zoom_to_fit();
         }
         let (w, h) = self.ws.size();
+        let (fw, fh, ox, oy) = self.display_frame();
         // One image pixel is one DIP at 100%.
-        let size = vec2(w as f32, h as f32) * self.zoom as f32;
+        let size = vec2(fw as f32, fh as f32) * self.zoom as f32;
         // Centred when it fits (with its room), scrolled when it doesn't.
         let content = size + self.room * 2.0;
         let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
         self.scroll = self.scroll.clamp(Vec2::ZERO, max_scroll);
         let min = self.image_origin(self.room, self.scroll);
         let min = pos2((min.x * ppp).round() / ppp, (min.y * ppp).round() / ppp);
-        let image = Rect::from_min_size(min, size);
+        let z = self.zoom as f32;
+        let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
+        let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
         self.layout.image = image;
         let version = self.ws.version();
-        if self.tex.as_ref().is_none_or(|(v, _)| *v != version) {
-            let pm = self.ws.composite().clone();
+        // The frame's key: the image's version and the panel's settings.
+        let key = match &self.bg_frame {
+            Some(f) => {
+                let o = &self.ws.tools.options;
+                format!(
+                    "{version}:{:?}:{:?}:{}:{}:{}:{}:{}:{}:{}:{}",
+                    f.frame,
+                    f.insets,
+                    o.BackgroundType,
+                    o.BackgroundGradientColor1Hex,
+                    o.BackgroundGradientColor2Hex,
+                    o.BackgroundColorHex,
+                    o.BackgroundImagePath,
+                    o.BackgroundRoundedCorner,
+                    o.BackgroundShadowRadius,
+                    o.ShadowColorHex
+                )
+            }
+            None => String::new(),
+        };
+        if self.tex.as_ref().is_none_or(|(v, _)| *v != version) || key != self.bg_key {
+            self.bg_key = key;
+            let composite = self.ws.composite().clone();
+            let pm = match &self.bg_frame {
+                Some(f) => f.render(&composite, self.ws.source()),
+                None => composite,
+            };
             let mut rgba = Vec::with_capacity(pm.pixels().len() * 4);
             for c in pm.pixels() {
                 rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, *c as u8, (c >> 24) as u8]);
@@ -1123,10 +1259,10 @@ impl EditorWindow {
         let painter = ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
         // The `Border` with `ShareX.Brush.Checkered` (15px squares, scaled
         // with the zoom) and its 1px border, under the image.
-        paint_checkered(&painter, image, image.min, self.zoom as f32, p);
-        painter.rect_stroke(image, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
+        paint_checkered(&painter, frame_rect, frame_rect.min, self.zoom as f32, p);
+        painter.rect_stroke(frame_rect, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
         if let Some((_, t)) = &self.tex {
-            painter.image(t.id(), image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            painter.image(t.id(), frame_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
         let m = self.mapper_ppp(ppp);
         let hovered = ctx.pointer_hover_pos().is_some_and(|p| self.layout.crop_button.is_some_and(|r| r.contains(p)));
@@ -1162,7 +1298,7 @@ impl EditorWindow {
 
     /// The part of the window the toolbars, menus and popups cover.
     fn over_ui(&self, p: Pos2) -> bool {
-        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) {
+        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) || self.bg_panel.contains(p) {
             return true;
         }
         if self.toolbars_hidden {
@@ -1371,12 +1507,13 @@ impl EditorWindow {
         // `TrySelectToolForToolbarHotkey` for the items that aren't tools
         // (Canvas size: X), outside text editing.
         if self.ws.text_edit().is_none()
-            && let Some(it) = Self::hotkey_item(k, mods)
+            && let Some(it) = self.hotkey_item(k, mods)
         {
             self.select_item(it);
             return;
         }
-        let r = self.ws.key_down(k, mods, &Self::hotkey_tool);
+        let bar = self.bar.clone();
+        let r = self.ws.key_down(k, mods, &|k, m| Self::bar_item_for(&bar, k, m).and_then(Item::tool));
         if let Some(c) = r.command {
             self.run(c);
         }
@@ -1901,6 +2038,36 @@ impl EditorWindow {
         Some(self.mapper_ppp(1.0).image_pos(c))
     }
 
+    /// `EditorWindow.TryAutoSize`: once there's an image, the window fits
+    /// it (the image or its background frame, at least as wide as the
+    /// toolbar, the toolbars' room above and below, 24 more, the canvas
+    /// host's margins), restored and centred; maximized when that's more
+    /// than the work area.
+    fn try_auto_size(&mut self, full: Rect) {
+        if !self.auto_size_pending || !self.has_image || self.layout.top.is_none() {
+            return;
+        }
+        self.auto_size_pending = false;
+        let (fw, fh, _, _) = self.display_frame();
+        let toolbar_w = self.layout.top.map_or(0.0, |r| r.width()).max(self.layout.bottom.map_or(0.0, |r| r.width()));
+        // The top host's bottom (the toolbar and its options row) and the
+        // bottom host's height.
+        let top_h = self.layout.options.as_ref().map_or(self.layout.top.map_or(0.0, |r| r.max.y - full.min.y), |o| o.rect.max.y - full.min.y);
+        let bottom_h = self.layout.bottom.map_or(0.0, |r| full.max.y - r.min.y);
+        let toolbar_h = top_h.max(bottom_h);
+        let margin = 24.0;
+        let chrome = full.size() - self.layout.canvas.size();
+        let w = (fw as f32).max(toolbar_w) + margin + chrome.x;
+        let h = fh as f32 + toolbar_h * 2.0 + margin + chrome.y;
+        let (w, h) = (w.max(640.0), h.max(480.0));
+        let fits = sharex_capture::screenshot::screens().into_iter().find(|s| s.primary).is_none_or(|s| {
+            let ppp = self.window_inner.map_or(1.0, |(_, p)| p);
+            // The frame (title bar and borders) on top of the client size.
+            (w + 16.0) * ppp <= s.work_area.w as f32 && (h + 39.0) * ppp <= s.work_area.h as f32
+        });
+        self.effects.push(if fits { Effect::SetSizeCentered(w, h) } else { Effect::Maximize });
+    }
+
     /// The options the tools changed, for the task settings.
     pub fn options(&self) -> ImageEditorOptions {
         self.ws.tools.options.clone()
@@ -1964,7 +2131,9 @@ impl Dialog for EditorWindow {
         let saved = o.RememberWindowState && !o.AutoSizeWindow;
         let (w, h) = if saved && o.WindowWidth > 0.0 && o.WindowHeight > 0.0 { (o.WindowWidth as f32, o.WindowHeight as f32) } else { (1280.0, 720.0) };
         let maximized = if saved { o.IsWindowMaximized } else { !o.AutoSizeWindow };
-        Spec { maximized, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
+        // `AutoSizeWindow`: maximized until the image is laid out, then
+        // sized to it (`TryAutoSize`).
+        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -1990,7 +2159,20 @@ impl Dialog for EditorWindow {
         }
         ui.painter().rect_filled(full, 0.0, p.background_main);
         self.input(ui);
-        self.paint_canvas(ui, &p, full);
+        self.update_bg_frame();
+        // The left sidebar (`Grid` column 0) takes its width from the
+        // canvas host.
+        let canvas_area = if self.bg_panel.open { Rect::from_min_max(pos2(full.min.x + background::WIDTH, full.min.y), full.max) } else { full };
+        self.paint_canvas(ui, &p, canvas_area);
+        if self.bg_panel.open {
+            let modal = self.modal.is_some();
+            let r = self.bg_panel.show(ui, &p, full, &mut self.ws.tools.options, modal);
+            if r.changed {
+                self.update_bg_frame();
+            }
+        } else {
+            self.bg_panel.rect = None;
+        }
         if !self.toolbars_hidden {
             self.paint_top(ui, &p, full);
             self.paint_bottom(ui, &p, full);
@@ -2019,6 +2201,12 @@ impl Dialog for EditorWindow {
         if self.zoom_open {
             self.zoom_popup(ui, &p);
         }
+        // The Background panel's colour popup.
+        let r = self.bg_panel.show_popup(ui, &p, full, &mut self.ws.tools.options);
+        if let Some(t) = r.pick_screen_color {
+            self.pick_target = Some(PickTarget::Background(t));
+            self.effects.push(Effect::PickScreenColorOverWindow);
+        }
         if let Some(f) = self.flyout.as_mut() {
             let out = f.show(ui, full);
             if out.closed {
@@ -2030,6 +2218,7 @@ impl Dialog for EditorWindow {
             }
         }
         self.poll_url_job();
+        self.try_auto_size(full);
         if std::mem::take(&mut self.canvas_resize_on_open) {
             self.toggle_canvas_resize();
             ui.ctx().request_repaint();
@@ -2121,6 +2310,14 @@ impl Dialog for EditorWindow {
                 }
             }
             PickTarget::CanvasFill => self.ws.tools.options.CanvasFillColorHex = hex,
+            PickTarget::Background(t) => {
+                let o = &mut self.ws.tools.options;
+                match t {
+                    background::ColorTarget::Gradient1 => o.BackgroundGradientColor1Hex = hex,
+                    background::ColorTarget::Gradient2 => o.BackgroundGradientColor2Hex = hex,
+                    background::ColorTarget::Color => o.BackgroundColorHex = hex,
+                }
+            }
         }
     }
 
@@ -2176,6 +2373,8 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         task.ToolsSettings.get_or_insert_default().ImageEditorOptions = opts.to_value();
     }
     let mut w = EditorWindow::new(image, o.image.clone(), task, false, PathBuf::new());
+    // (`--state emoji-sunglasses` shows the one-in-ten icon.)
+    w.emoji_sunglasses = o.state.as_deref() == Some("emoji-sunglasses");
     // `image-editor-context`: the context menu opened at 300,200.
     if name == "image-editor-file" {
         w.open_file_menu = true;
@@ -2201,6 +2400,27 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
         Some("canvas-size") => w.canvas_resize_on_open = true,
+        Some(st) if st.starts_with("background") => {
+            // `--state background[-gradient|-color|-image][-scrolled]`:
+            // the panel open (the toolbar scrolled to show its button, as
+            // ShareX's is after Background is invoked).
+            w.bg_panel.open = true;
+            let o = &mut w.ws.tools.options;
+            o.BackgroundType = if st.contains("gradient") {
+                "Gradient"
+            } else if st.contains("color") {
+                "Color"
+            } else if st.contains("image") {
+                "Image"
+            } else {
+                "Transparent"
+            }
+            .into();
+            if st.ends_with("-scrolled") {
+                w.bg_panel.set_scroll(500.0);
+            }
+            w.bring_into_view = Some(Item::Background);
+        }
         Some("confirm") => w.modal = Some(Modal::Confirm),
         Some("insert") => {
             let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));

@@ -162,7 +162,7 @@ fn wheel_resizes_and_hides_the_magnifier() {
 }
 
 fn click_tool(s: &mut RegionCapture, id: &str) {
-    let i = toolbar::TOOLS.iter().position(|t| t.id == id).unwrap();
+    let i = s.toolbar_index(id).unwrap();
     s.set_toolbar_hover(Some(toolbar::Part::Tool(i)));
     s.pointer_pressed(PointF::new(0.0, 0.0), Button::Left, none(), 1.0);
     s.pointer_released(PointF::new(0.0, 0.0), Button::Left, none());
@@ -216,4 +216,29 @@ fn tool_hotkeys_switch_to_the_annotation_tools() {
     assert_eq!(s.active_annotation_tool(), Some(EditorTool::Rectangle));
     // Escape with nothing selected cancels.
     assert!(matches!(s.key_up(Key::Escape, none()), Outcome::Cancelled));
+}
+
+#[test]
+fn the_emoji_tool_asks_the_host_for_its_picker_and_a_picked_colour_sets_the_option() {
+    let mut s = session(Vec::new());
+    s.tick(Instant::now() + Duration::from_secs(1));
+    click_tool(&mut s, "Emoji");
+    let reqs = s.take_editor_requests();
+    assert!(reqs.iter().any(|r| matches!(r, ed::Request::EmojiPicker)), "{reqs:?}");
+    s.insert_emoji("1F600", "grinning face", (10.0, 10.0));
+    click_tool(&mut s, "Rectangle");
+    s.set_picked_color(super::options_row::OptionItem::BorderColor, egui::Color32::from_rgb(1, 2, 3));
+    assert_eq!(s.editor.as_ref().unwrap().tools.options.BorderColorHex.to_ascii_uppercase(), "#FF010203");
+}
+
+#[test]
+fn hidden_and_reordered_items_change_the_capture_toolbar() {
+    let saved = vec![
+        serde_json::json!({"Id": "RegionEllipse", "IsVisible": true}),
+        serde_json::json!({"Id": "Rectangle", "IsVisible": false}),
+    ];
+    let items = toolbar::items(&saved);
+    assert_eq!(items[0].def.id, "RegionEllipse");
+    assert!(!items.iter().any(|i| i.def.id == "Rectangle"));
+    assert!(!items.iter().any(|i| i.def.id == "RegionFreehand"));
 }

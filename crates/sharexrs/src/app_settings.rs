@@ -47,6 +47,8 @@ pub enum Effect {
     OpenUrl(&'static str),
     /// A feature that isn't ported yet was asked for.
     NotPorted(&'static str),
+    /// Image print settings (`ShowImagePrintSettings`).
+    PrintSettings,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -1134,7 +1136,7 @@ fn page_print(f: &mut Form) {
     f.card(6.0, &mut |f| {
         check!(f, s::ApplicationSettingsWindow_DontShowImagePrintSettingsDialog(), DontShowPrintSettingsDialog);
         if f.button(s::ApplicationSettingsWindow_ImagePrintSettings(), true) {
-            f.effect(Effect::NotPorted("image print settings"));
+            f.effect(Effect::PrintSettings);
         }
         let show_dialog = f.s.PrintSettings.get("ShowPrintDialog").and_then(|x| x.as_bool()).unwrap_or(true);
         let mut dont = !show_dialog;

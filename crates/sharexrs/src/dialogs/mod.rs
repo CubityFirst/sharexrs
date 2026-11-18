@@ -18,6 +18,7 @@ pub mod custom_uploaders;
 pub mod destination_settings;
 pub mod drop_window;
 pub mod layout;
+pub mod print_window;
 pub mod qr_code;
 pub mod render;
 pub mod response;
@@ -111,6 +112,11 @@ pub enum Effect {
     DragWindow,
     /// `SizeToContent="Height"` after the content changed.
     SetHeight(f32),
+    /// The window restored at this client size (points), centred in its
+    /// screen's work area (`EditorWindow.TryAutoSize`).
+    SetSizeCentered(f32, f32),
+    /// The window maximized.
+    Maximize,
     /// The QR code window's screen scan: hidden for 250 ms, the screen
     /// grabbed and scanned, shown again ([`Dialog::scanned`]).
     ScanScreen,
@@ -168,6 +174,10 @@ pub enum Effect {
     /// `TaskHelpers.PinToScreen(image, taskSettings)` (the image editor's
     /// Pin to screen).
     PinImage(RgbaImage, Box<TaskSettings>),
+    /// `TaskHelpers.PrintImage`: the Print window, or straight to the
+    /// printer (`DontShowPrintSettingsDialog`).
+    PrintImage(RgbaImage),
+
     /// The pin options window saved (`ApplyOptions` on that pin).
     PinOptionsSaved(WindowId, Box<sharex_tools::pin::PinToScreenOptions>),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -368,6 +378,16 @@ pub struct DialogWindow {
 }
 
 impl App {
+    /// `TaskHelpers.PrintImage`.
+    pub(crate) fn print_image(&mut self, event_loop: &ActiveEventLoop, image: RgbaImage) {
+        let s = &self.settings.settings;
+        if s.DontShowPrintSettingsDialog {
+            print_window::print_in_background(image, crate::print::PrintSettings::from_json(&s.PrintSettings));
+        } else {
+            self.open_dialog_window(event_loop, Box::new(print_window::PrintWindow::new(image, false)));
+        }
+    }
+
     /// Opens `dialog` in a window of its own (`Window.Show()`).
     pub(crate) fn open_dialog_window(&mut self, event_loop: &ActiveEventLoop, dialog: Box<dyn Dialog>) {
         if let Some(key) = dialog.single()
@@ -417,6 +437,9 @@ impl App {
             None => center(&w.window, event_loop),
         }
         w.window.set_visible(true);
+        // Maximized once it's sized, placed and shown: a window created
+        // maximized and then resized or moved (the clamp above, centring)
+        // is restored by winit later, leaving it at its normal size.
         if spec.maximized {
             w.window.set_maximized(true);
         }
@@ -509,6 +532,19 @@ impl App {
                         let _ = d.window.window.drag_window();
                     }
                 }
+                Effect::SetSizeCentered(w, h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let win = &d.window.window;
+                        win.set_maximized(false);
+                        let _ = win.request_inner_size(LogicalSize::new(w, h));
+                        center(win, event_loop);
+                    }
+                }
+                Effect::Maximize => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_maximized(true);
+                    }
+                }
                 Effect::SetHeight(h) => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let w = d.window.window.inner_size().to_logical::<f32>(d.window.window.scale_factor()).width;
@@ -587,6 +623,8 @@ impl App {
                 Effect::HighlighterOptions(o) => self.highlighter_options_changed(*o),
                 Effect::PinFrom(source) => self.pin_from(event_loop, id, source),
                 Effect::PinImage(image, task) => self.pin_image(event_loop, image, None, &task),
+                Effect::PrintImage(image) => self.print_image(event_loop, image),
+
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
@@ -702,8 +740,7 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
             egui::Theme::Light => winit::window::Theme::Light,
         }))
         .with_visible(false)
-        .with_active(spec.activate)
-        .with_maximized(spec.maximized);
+        .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
     }

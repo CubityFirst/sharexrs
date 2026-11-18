@@ -1728,6 +1728,30 @@ impl Workspace {
         t.text = chars.into_iter().collect();
         self.text_changed();
         self.changed();
+        self.live_text_expand();
+    }
+
+    /// `OnLiveTextEditorBoundsChanged`: while a new text is typed, the
+    /// canvas grows right (by the overflow and 150 more) and down (by the
+    /// overflow and 16) so the text stays on it; outside the history
+    /// (`ExpandCanvasLive`), replaced by an exact fit when it's committed.
+    fn live_text_expand(&mut self) {
+        if self.host_mode || !self.tools.options.AutoExpandCanvas {
+            return;
+        }
+        let Some(b) = self.text.as_ref().filter(|t| t.kind == TextKind::Create).and_then(text_box) else { return };
+        let (l, t, w, h) = b.rect;
+        let (cw, ch) = self.size();
+        let (right, bottom) = (l + w, t + h);
+        let add_right = if right > cw as f64 { (right - cw as f64).ceil() as i32 + 150 } else { 0 };
+        let add_bottom = if bottom > ch as f64 { (bottom - ch as f64).ceil() as i32 + 16 } else { 0 };
+        if add_right == 0 && add_bottom == 0 {
+            return;
+        }
+        let c = render::parse_color(&self.tools.options.CanvasFillColorHex);
+        if self.core.expand_canvas_live(add_right, add_bottom, [c.r, c.g, c.b, c.a]) {
+            self.image_changed();
+        }
     }
 
     /// `TextChanged` of a balloon's editor: an auto-sized balloon fits its
@@ -1778,6 +1802,7 @@ impl Workspace {
         t.text = chars.into_iter().collect();
         self.text_changed();
         self.changed();
+        self.live_text_expand();
         handled
     }
 
@@ -1787,6 +1812,11 @@ impl Workspace {
     pub fn commit_text(&mut self) {
         let Some(t) = self.text.take() else { return };
         self.changed();
+        // `FinishLiveTextExpansion`: the temporary growth dropped; the
+        // committed text's exact fit (below) is the undoable step.
+        if self.core.end_live_canvas_expansion() {
+            self.image_changed();
+        }
         if let Some(id) = t.existing {
             let Some(i) = self.find(&id) else { return };
             match &mut self.core.annotations[i].kind {

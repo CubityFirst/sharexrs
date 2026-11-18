@@ -53,6 +53,7 @@
 //! window does when it opens, the actions get the image editors ShareX
 //! finds installed (`AddDefaultExternalPrograms`, the registry on Windows).
 //! `--content sample` adds two made-up actions and a watch folder;
+//! `toolbar-editor` / `region-toolbar-editor` (Customize toolbar...),
 //! `action-editor` (Add action), `action-editor-edit` (the first sample
 //! action), `action-editor-error` (Save with no name),
 //! `watch-folder-editor` and `watch-folder-editor-edit` open the editors
@@ -593,6 +594,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         let mut ed = ActionEditor::new(None, None);
                         let _ = ed.save(&mut Vec::new());
                         state.action_editor = Some(ed);
+                    }
+                    "toolbar-editor" => {
+                        state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::ImageEditor, &[]));
+                    }
+                    "region-toolbar-editor" => {
+                        state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::RegionCapture, &[]));
                     }
                     "watch-folder-editor" => state.watch_editor = Some(WatchFolderEditor::new(None, None)),
                     "watch-folder-editor-edit" => {

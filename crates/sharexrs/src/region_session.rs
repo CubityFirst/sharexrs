@@ -36,6 +36,9 @@ pub struct RegionSession {
     buttons_down: u32,
     cursors: HashMap<(CustomCursor, u32), winit::window::CustomCursor>,
     cursor_shown: Option<(CursorKind, u32)>,
+    /// The emoji picker over the overlay (`ShowEmojiPickerDialog` in the
+    /// region capture's `EditorView`), on the overlay it opened on.
+    emoji: Option<(usize, Box<crate::image_editor::emoji_picker::EmojiPicker>)>,
 }
 
 /// A borderless, topmost window covering `screen`, still hidden.
@@ -161,6 +164,7 @@ impl RegionSession {
             buttons_down: 0,
             cursors: HashMap::new(),
             cursor_shown: None,
+            emoji: None,
         };
         let now = Instant::now();
         for o in &mut me.overlays {
@@ -180,6 +184,50 @@ impl RegionSession {
         }
         me.update_cursor(event_loop);
         Ok(me)
+    }
+
+    /// The workspace's emoji picker requests: the picker opens on the
+    /// overlay under the pointer.
+    pub fn handle_editor_requests(&mut self) {
+        for r in self.capture.take_editor_requests() {
+            let replace = match r {
+                sharex_image_editor::editor::Request::EmojiPicker => None,
+                sharex_image_editor::editor::Request::ReplaceEmoji { id } => Some(id),
+                _ => continue,
+            };
+            if self.emoji.is_some() {
+                continue;
+            }
+            let at = sharex_capture::screenshot::cursor_position();
+            let i = at.and_then(|(x, y)| self.overlays.iter().position(|o| o.view.monitor.contains(x, y))).unwrap_or(0);
+            self.emoji = Some((i, Box::new(crate::image_editor::emoji_picker::EmojiPicker::new(replace))));
+            self.redraw();
+        }
+    }
+
+    /// `InsertEmojiAnnotation`: centred on the monitor of overlay `i`.
+    fn insert_emoji(&mut self, i: usize, unicode: &str, name: &str) {
+        let m = self.overlays[i].view.monitor;
+        let (ox, oy) = self.capture.origin();
+        let size = sharex_image_editor::editor::EMOJI_SIZE;
+        let (cx, cy) = ((m.x + m.w / 2 - ox) as f64, (m.y + m.h / 2 - oy) as f64);
+        self.capture.insert_emoji(unicode, name, (cx - size / 2.0, cy - size / 2.0));
+    }
+
+    /// A colour popup's screen colour picker request.
+    pub fn take_pick_request(&mut self) -> Option<sharex_capture::region::options_row::OptionItem> {
+        self.capture.take_pick_request()
+    }
+
+    /// The colour picked for `item` (none: cancelled).
+    pub fn picked_color(&mut self, item: sharex_capture::region::options_row::OptionItem, color: Option<egui::Color32>) {
+        if let Some(c) = color {
+            self.capture.set_picked_color(item, c);
+        }
+        if let Some(o) = self.overlays.first() {
+            o.window.window.focus_window();
+        }
+        self.redraw();
     }
 
     pub fn owns(&self, id: WindowId) -> bool {
@@ -270,7 +318,38 @@ impl RegionSession {
                 let capture = &mut self.capture;
                 let o = &mut self.overlays[i];
                 let view = &mut o.view;
-                o.window.paint(|ui| capture.paint(ui, view, now));
+                let emoji = &mut self.emoji;
+                let mut picked = None;
+                o.window.paint(|ui| {
+                    capture.paint(ui, view, now);
+                    if let Some((on, d)) = emoji.as_mut()
+                        && *on == i
+                    {
+                        picked = Some(show_emoji(ui, d));
+                    }
+                });
+                match picked {
+                    Some(Some(EmojiOutcome::Pick(unicode, name))) => {
+                        let replace = self.emoji.take().and_then(|(_, d)| d.replace.clone());
+                        match replace {
+                            Some(id) => self.capture.replace_emoji(&id, &unicode, &name),
+                            None => self.insert_emoji(i, &unicode, &name),
+                        }
+                        self.redraw();
+                    }
+                    Some(Some(EmojiOutcome::Cancel)) => {
+                        self.emoji = None;
+                        self.redraw();
+                    }
+                    Some(None) => self.overlays[i].window.window.request_redraw(),
+                    None => {}
+                }
+                return Outcome::Continue;
+            }
+            // The emoji picker has the input while it's open.
+            other if self.emoji.is_some() => {
+                self.overlays[i].window.on_event(&other);
+                self.overlays[i].window.window.request_redraw();
                 return Outcome::Continue;
             }
             WindowEvent::CursorMoved { position, .. } => self.cursor_moved(i, position),
@@ -371,5 +450,28 @@ impl RegionSession {
         self.update_cursor(event_loop);
         self.redraw();
         outcome
+    }
+}
+
+enum EmojiOutcome {
+    Pick(String, String),
+    Cancel,
+}
+
+/// The emoji picker centred on the overlay, over a scrim (`modal-scrim`).
+fn show_emoji(ui: &mut egui::Ui, d: &mut crate::image_editor::emoji_picker::EmojiPicker) -> Option<EmojiOutcome> {
+    use crate::image_editor::{emoji_picker, modal};
+    let p = sharex_ui::palette(ui.ctx());
+    let full = ui.max_rect();
+    let size = d.size(full);
+    let rect = egui::Rect::from_min_size(egui::pos2((full.center().x - size.x / 2.0).round(), (full.center().y - size.y / 2.0).round()), size);
+    let combo_open = sharex_ui::controls::ComboBox::is_open(ui.ctx(), egui::Id::new("emoji-group"));
+    let outside = modal::scrim(ui, &p, full, rect) && !combo_open;
+    let escape = ui.input(|i| i.key_released(egui::Key::Escape));
+    match d.show(ui, &p, rect) {
+        Some(emoji_picker::Outcome::Pick(e)) => Some(EmojiOutcome::Pick(e.unicode.clone(), e.display_name().to_string())),
+        Some(emoji_picker::Outcome::Cancel) => Some(EmojiOutcome::Cancel),
+        None if outside || escape => Some(EmojiOutcome::Cancel),
+        None => None,
     }
 }

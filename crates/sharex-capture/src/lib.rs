@@ -19,6 +19,7 @@ pub mod platform;
 pub mod region;
 pub mod screenshot;
 pub mod scrolling;
+pub mod toolbar_items;
 pub mod windows_list;
 
 pub use geometry::{PointF, Rect, RectF};

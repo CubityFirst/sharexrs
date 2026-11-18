@@ -219,6 +219,14 @@ impl App {
                 Effect::OpenFolder(path) => open_path(&path),
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::PrintSettings => {
+                    // `ShowImagePrintSettings`: the active monitor, preview only.
+                    let screens = sharex_capture::screenshot::screens();
+                    let cursor = sharex_capture::screenshot::cursor_position().unwrap_or((0, 0));
+                    if let Some(img) = sharex_capture::screenshot::Screenshot::default().capture_active_monitor(&screens, cursor) {
+                        self.open_dialog_window(event_loop, Box::new(crate::dialogs::print_window::PrintWindow::new(img, true)));
+                    }
+                }
             }
         }
     }

@@ -364,3 +364,27 @@ fn the_smart_eraser_stretches_matching_edges() {
     assert_eq!(p.fill_mode, crate::model::SmartEraserFillMode::StretchVertically);
     assert_eq!(p.edge_pixels.as_ref().map(|e| e.len()), Some(100));
 }
+
+#[test]
+fn a_long_new_text_grows_the_canvas_while_typed_then_fits_it_once() {
+    // (Needs a text font: Segoe UI or the bundled fallback.)
+    let mut w = ws();
+    w.select_tool(EditorTool::Text);
+    w.pointer_pressed((300.0, 250.0), Button::Left, Mods::NONE);
+    w.pointer_released((300.0, 250.0), Button::Left, Mods::NONE);
+    if w.text_edit().and_then(text_box).is_none() {
+        return;
+    }
+    w.text_input("A rather long caption that runs off the image");
+    let (lw, lh) = w.size();
+    assert!(lw > 400 && lh > 300, "grown live to {lw}x{lh}");
+    let none = |_: Key, _: Mods| None;
+    w.key_down(Key::Enter, Mods::NONE, &none);
+    // The live growth is replaced by the exact fit (16px to spare), one
+    // undo step.
+    let (fw, fh) = w.size();
+    assert!(fw > 400 && fw < lw, "fit {fw} (live {lw})");
+    assert!(fh > 300);
+    w.undo();
+    assert_eq!(w.size(), (400, 300));
+}

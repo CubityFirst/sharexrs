@@ -9,7 +9,7 @@ pub fn parse_color(s: &str) -> Color {
     try_parse(s).unwrap_or(Color::argb(0, 0, 0, 0))
 }
 
-fn try_parse(s: &str) -> Option<Color> {
+pub fn try_parse(s: &str) -> Option<Color> {
     let s = s.trim();
     if let Some(hex) = s.strip_prefix('#') {
         let v = u32::from_str_radix(hex, 16).ok()?;

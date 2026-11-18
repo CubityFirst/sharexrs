@@ -12,6 +12,8 @@ use sharex_strings::{image_editor as ie, screen_capture_lib as sc};
 use sharex_ui::keys::image_editor_icons as icon;
 use sharex_ui::{Palette, icons};
 
+pub use crate::toolbar_items::Item;
+
 /// An annotation tool on the toolbar (`ToolbarItemDefinition`).
 #[derive(Clone, Debug)]
 pub struct ToolItem {
@@ -111,23 +113,35 @@ pub struct Layout {
     pub separators: Vec<Rect>,
 }
 
-/// The toolbar's size at `scale` (the custom button size's scale).
-pub fn size(scale: f32) -> egui::Vec2 {
-    let row = HANDLE + SPACING + BUTTON + SPACING + tools_width();
+/// The toolbar's size at `scale` (the custom button size's scale) with
+/// `items` (the visible ones, `VisibleToolbarItems`).
+pub fn size(scale: f32, items: &[Item]) -> egui::Vec2 {
+    let row = HANDLE + SPACING + BUTTON + SPACING + tools_width(items);
     vec2(row + 2.0 * (PADDING + 1.0), BUTTON + 2.0 * (PADDING + 1.0)) * scale
 }
 
-fn tools_width() -> f32 {
-    TOOLS.iter().enumerate().map(|(i, t)| {
-        let sep = if t.begin_group { 1.0 + SPACING } else { 0.0 };
+fn tools_width(items: &[Item]) -> f32 {
+    items.iter().enumerate().map(|(i, t)| {
+        let sep = if t.separator() { 1.0 + SPACING } else { 0.0 };
         sep + BUTTON + if i > 0 { SPACING } else { 0.0 }
     }).sum()
 }
 
+/// The capture toolbar's items from `RegionCaptureOptions.ToolbarItems`
+/// (`RegionCaptureToolbar.CreateItems`): the visible ones, in order.
+pub fn items(saved: &[serde_json::Value]) -> Vec<Item> {
+    crate::toolbar_items::region_items(saved).into_iter().filter(|i| i.visible).collect()
+}
+
+/// The default items.
+pub fn default_items() -> Vec<Item> {
+    items(&[])
+}
+
 /// Lays the toolbar out with its top-left corner at `min`.
-pub fn layout(min: Pos2, scale: f32) -> Layout {
+pub fn layout(min: Pos2, scale: f32, items: &[Item]) -> Layout {
     let s = scale;
-    let rect = Rect::from_min_size(min, size(s));
+    let rect = Rect::from_min_size(min, size(s, items));
     let top = min.y + (1.0 + PADDING) * s;
     let mut x = min.x + (1.0 + PADDING) * s;
     let handle = Rect::from_min_size(pos2(x, top), vec2(HANDLE, BUTTON) * s);
@@ -136,11 +150,11 @@ pub fn layout(min: Pos2, scale: f32) -> Layout {
     x += (BUTTON + SPACING) * s;
     let mut tools = Vec::new();
     let mut separators = Vec::new();
-    for (i, t) in TOOLS.iter().enumerate() {
+    for (i, t) in items.iter().enumerate() {
         if i > 0 {
             x += SPACING * s;
         }
-        if t.begin_group {
+        if t.separator() {
             separators.push(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON) * s));
             x += (1.0 + SPACING) * s;
         }
@@ -168,23 +182,16 @@ impl Layout {
     }
 }
 
-/// `ToolbarHotkeyHelper.Matches` against the items' hotkeys
-/// (`TrySelectToolForToolbarHotkey`): the tool of `key` with `m`.
-pub fn tool_for_hotkey(key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<EditorTool> {
-    TOOLS.iter().find_map(|t| {
-        [t.hotkey, t.secondary_hotkey]
-            .iter()
-            .any(|h| {
-                let mut parts: Vec<&str> = h.split('+').map(str::trim).filter(|s| !s.is_empty()).collect();
-                let Some(k) = parts.pop() else { return false };
-                let has = |m: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(m));
-                k.eq_ignore_ascii_case(key)
-                    && has("Ctrl") == ctrl
-                    && has("Shift") == shift
-                    && has("Alt") == alt
-            })
-            .then(|| t.tool.clone())
-    })
+/// `TrySelectToolForToolbarHotkey`: the first visible item whose hotkey
+/// is `key` with the modifiers (`ToolbarHotkeyHelper.Matches`).
+pub fn item_for_hotkey<'a>(items: &'a [Item], key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<&'a Item> {
+    let m = crate::toolbar_items::Mods { ctrl, shift, alt, meta: false };
+    items.iter().find(|i| i.visible && i.matches(key, m))
+}
+
+/// The tool of [`item_for_hotkey`].
+pub fn tool_for_hotkey(items: &[Item], key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<EditorTool> {
+    item_for_hotkey(items, key, ctrl, shift, alt).and_then(|i| i.def.tool.clone())
 }
 
 /// `.toolbar-button.active`'s background: `ShareX.Brush.Accent`.
@@ -244,6 +251,7 @@ pub fn paint(
     active_tool: Option<&EditorTool>,
     scale: f32,
     opacity: f32,
+    items: &[Item],
 ) {
     let painter = painter.clone().with_layer_id(painter.layer_id());
     let mut painter = painter;
@@ -266,18 +274,18 @@ pub fn paint(
     for sep in &layout.separators {
         painter.rect_filled(*sep, 0.0, p.separator);
     }
-    for (i, (rect, item)) in layout.tools.iter().zip(TOOLS.iter()).enumerate() {
-        let active = active_tool == Some(&item.tool);
-        button(&painter, p, *rect, item.icon, active, hovered == Some(Part::Tool(i)), scale);
+    for (i, (rect, item)) in layout.tools.iter().zip(items.iter()).enumerate() {
+        let active = item.def.tool.is_some() && active_tool == item.def.tool.as_ref();
+        button(&painter, p, *rect, item.def.icon, active, hovered == Some(Part::Tool(i)), scale);
     }
 }
 
 /// The tooltip of a part (`ToolTip.Tip`).
-pub fn tooltip(part: Part) -> Option<String> {
+pub fn tooltip(part: Part, items: &[Item]) -> Option<String> {
     match part {
         Part::DragHandle => Some(sc::RegionCaptureWindow_MoveToolbar().to_string()),
         Part::RegionButton => Some(sc::RegionCaptureWindow_RectangleRegionTab().to_string()),
-        Part::Tool(i) => TOOLS.get(i).map(ToolItem::tooltip),
+        Part::Tool(i) => items.get(i).map(Item::tooltip),
         Part::Option(_) | Part::Background | Part::Popup => None,
     }
 }
@@ -289,8 +297,10 @@ mod tests {
     #[test]
     fn toolbar_is_the_size_of_sharexs() {
         // Measured on ShareX at 100%: 909 x 50.
-        assert_eq!(size(1.0), vec2(909.0, 50.0));
-        let l = layout(pos2(58.0, 0.0), 1.0);
+        let items = default_items();
+        assert_eq!(items.len(), 19);
+        assert_eq!(size(1.0, &items), vec2(909.0, 50.0));
+        let l = layout(pos2(58.0, 0.0), 1.0, &items);
         assert_eq!(l.handle.min, pos2(63.0, 5.0));
         assert_eq!(l.region_button.min, pos2(81.0, 5.0));
         assert_eq!(l.separators[0].min.x, 125.0);

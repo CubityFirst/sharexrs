@@ -49,7 +49,9 @@ mod task_settings_window;
 mod task_view;
 mod tasks;
 mod test_pattern;
+mod print;
 mod thumbnail;
+mod toolbar_editor;
 mod transparent_region;
 mod tray;
 mod tray_menu;
@@ -1435,13 +1437,19 @@ fn main_window_attributes() -> WindowAttributes {
     attrs.with_decorations(false)
 }
 
+/// `WindowStartupLocation.CenterScreen`: centred in the working area of the
+/// window's screen (Avalonia's `Screen.WorkingArea`).
 fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
     let Some(monitor) = window.current_monitor().or_else(|| event_loop.primary_monitor()) else { return };
     let (m, size) = (monitor.position(), monitor.size());
+    let (mut ax, mut ay, mut aw, mut ah) = (m.x, m.y, size.width as i32, size.height as i32);
+    if let Some(s) = sharex_capture::screenshot::screens().into_iter().find(|s| s.bounds.contains(m.x, m.y)) {
+        (ax, ay, aw, ah) = (s.work_area.x, s.work_area.y, s.work_area.w, s.work_area.h);
+    }
     let outer = window.outer_size();
     window.set_outer_position(winit::dpi::PhysicalPosition::new(
-        m.x + (size.width as i32 - outer.width as i32) / 2,
-        m.y + (size.height as i32 - outer.height as i32) / 2,
+        ax + (aw - outer.width as i32) / 2,
+        ay + (ah - outer.height as i32) / 2,
     ));
 }
 
@@ -1546,8 +1554,13 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
             let outcome = region.session.window_event(event_loop, id, event);
+            region.session.handle_editor_requests();
+            let pick = region.session.take_pick_request();
             if !matches!(outcome, Outcome::Continue) {
                 self.finish_region_capture(event_loop, outcome);
+            } else if let Some(item) = pick {
+                // `ScreenColorPickerWindow.PickAsync(owner)` over the overlay.
+                self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Region(item));
             }
             return;
         }

@@ -184,6 +184,9 @@ pub fn render_case(case: &Value, data: &Path, default_base: &Pixmap) -> Pixmap {
             other => panic!("unknown op {other}"),
         }
     }
+    if let Some(bg) = case.get("background") {
+        return render_background(&core, bg, data);
+    }
     match case.get("snapshotRect").and_then(|r| r.as_array()) {
         Some(r) => {
             let v = |i: usize| r[i].as_f64().unwrap();
@@ -191,4 +194,61 @@ pub fn render_case(case: &Value, data: &Path, default_base: &Pixmap) -> Pixmap {
         }
         None => core.composite(),
     }
+}
+
+/// A Background panel case: the harness's options, the panel open.
+fn render_background(core: &EditorCore, bg: &Value, data: &Path) -> Pixmap {
+    use sharex_image_editor::render::background;
+    let mut o = sharex_image_editor::options::ImageEditorOptions::default();
+    let f = |name: &str| bg.get(name).and_then(|v| v.as_f64());
+    let s = |name: &str| bg.get(name).and_then(|v| v.as_str()).map(str::to_string);
+    if let Some(v) = f("margin") {
+        o.BackgroundMargin = v;
+    }
+    if let Some(v) = f("padding") {
+        o.BackgroundPadding = v;
+    }
+    if let Some(v) = bg.get("smartPadding").and_then(|v| v.as_bool()) {
+        o.BackgroundSmartPadding = v;
+    }
+    if let Some(v) = f("corner") {
+        o.BackgroundRoundedCorner = v;
+    }
+    if let Some(v) = f("shadow") {
+        o.BackgroundShadowRadius = v;
+    }
+    if let Some(v) = s("type") {
+        o.BackgroundType = v;
+    }
+    if let Some(v) = s("color1") {
+        o.BackgroundGradientColor1Hex = v;
+    }
+    if let Some(v) = s("color2") {
+        o.BackgroundGradientColor2Hex = v;
+    }
+    if let Some(v) = s("color") {
+        o.BackgroundColorHex = v;
+    }
+    if let Some(v) = s("shadowColor") {
+        o.ShadowColorHex = v;
+    }
+    if let Some(v) = s("image") {
+        o.BackgroundImagePath = data.join(v).display().to_string();
+    }
+    let layout = match s("layout").as_deref() {
+        Some("Fit") => background::Layout::Fit,
+        Some("Stretch") => background::Layout::Stretch,
+        Some("Center") => background::Layout::Center,
+        Some("Tile") => background::Layout::Tile,
+        Some("Span") => background::Layout::Span,
+        _ => background::Layout::Fill,
+    };
+    let wallpaper = s("wallpaper").map(|w| Some((data.join(w), layout)));
+    let ratio = s("ratio").and_then(|r| background::parse_ratio(&r));
+    let b = background::from_options(&o, ratio, wallpaper, load);
+    let source = core.source();
+    let insets = background::smart_padding_insets(source);
+    let active = b.smart_padding && background::has_smart_padding(insets);
+    let content = core.composite();
+    background::render(&content, source.pixel(0, 0), active.then_some(insets), &b)
 }

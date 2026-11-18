@@ -7,6 +7,7 @@
 //! annotation `Canvas` with Avalonia's layout rounding, and drawn with the
 //! Skia calls Avalonia makes for it, through `sharex-skia`.
 
+pub mod background;
 mod color;
 pub mod cursor;
 mod effects;
@@ -21,7 +22,7 @@ use sharex_skia::Pixmap;
 
 use crate::model::{Annotation, Kind};
 
-pub use color::parse_color;
+pub use color::{parse_color, try_parse as try_parse_color};
 pub use text::step_radius;
 
 /// Renders `annotations` (in z-order, first at the bottom) over `base`.

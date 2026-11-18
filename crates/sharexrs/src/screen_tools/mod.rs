@@ -31,6 +31,8 @@ pub enum PickPurpose {
     Tool(Box<TaskSettings>),
     /// A colour picker window's Pick color from screen.
     Dialog(WindowId),
+    /// A colour popup of region capture's tool options (its option).
+    Region(sharex_capture::region::options_row::OptionItem),
 }
 
 /// Who a region capture for Pin to screen is for.
@@ -193,7 +195,7 @@ impl App {
         let defaults = &self.settings.settings.DefaultTaskSettings;
         let options = match &purpose {
             PickPurpose::Tool(task) => tools(task, defaults).ScreenColorPickerOptions,
-            PickPurpose::Dialog(_) => tools(defaults, defaults).ScreenColorPickerOptions,
+            PickPurpose::Dialog(_) | PickPurpose::Region(_) => tools(defaults, defaults).ScreenColorPickerOptions,
         };
         let options = ScreenColorPickerOptions::from_json(&options);
         let theme = self.theme();
@@ -237,6 +239,12 @@ impl App {
                         &[text.as_str().into()],
                     );
                     eprintln!("Notification not ported yet: ShareXrs - {}: {message}", sharex_strings::sharex::ScreenColorPicker());
+                }
+            }
+            PickPurpose::Region(item) => {
+                if let Some(region) = self.region.as_mut() {
+                    let c = result.map(|r| egui::Color32::from_rgba_unmultiplied(r.color.r, r.color.g, r.color.b, r.color.a));
+                    region.session.picked_color(item, c);
                 }
             }
             PickPurpose::Dialog(id) => {
