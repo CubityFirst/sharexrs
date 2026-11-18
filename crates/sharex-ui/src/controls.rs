@@ -899,7 +899,13 @@ impl DecimalUpDown {
                 }
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
             } else {
+                // A press and release within one frame (a quick click on an
+                // idle window) never shows the button held: it steps once.
+                let held: Option<f64> = ui.ctx().data(|d| d.get_temp(key));
                 ui.ctx().data_mut(|d| d.remove::<f64>(key));
+                if r.clicked() && held.is_none() {
+                    fire = true;
+                }
             }
             if fire {
                 // Decimal arithmetic: round to the shown places.
