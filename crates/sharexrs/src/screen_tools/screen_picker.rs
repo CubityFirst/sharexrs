@@ -163,6 +163,11 @@ impl ScreenPicker {
         self.overlay.owns(id)
     }
 
+    /// A window of the overlay (to own the clipboard).
+    pub fn window(&self) -> &winit::window::Window {
+        &self.overlay.windows[0].window.window
+    }
+
     pub fn wake_at(&mut self, now: std::time::Instant) -> Option<std::time::Instant> {
         self.overlay.due(now)
     }

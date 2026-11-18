@@ -152,6 +152,14 @@ impl Overlay {
         }
     }
 
+    /// A system cursor on every window.
+    pub fn set_cursor_icon(&mut self, icon: winit::window::CursorIcon) {
+        self.shown = None;
+        for w in &self.windows {
+            w.window.window.set_cursor(icon);
+        }
+    }
+
     /// When the windows asked to be repainted.
     pub fn due(&mut self, now: std::time::Instant) -> Option<std::time::Instant> {
         let mut next = None;

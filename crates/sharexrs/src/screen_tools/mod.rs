@@ -11,6 +11,7 @@ pub mod color_picker;
 pub mod overlay;
 pub mod pin;
 pub mod render;
+pub mod ruler;
 pub mod screen_picker;
 
 use sharex_settings::{HotkeyType, TaskSettings};
@@ -41,6 +42,11 @@ pub struct PinRegion {
 #[derive(Default)]
 pub struct ScreenTools {
     picker: Option<(ScreenPicker, PickPurpose)>,
+    /// The screen colour picker that just closed, kept until its colour
+    /// is copied (its window owns the clipboard).
+    closing_picker: Option<ScreenPicker>,
+    /// Tools › Measure, while it's open.
+    ruler: Option<ruler::Ruler>,
     /// `PinToScreenManager.Windows`.
     pins: Vec<pin::PinWindow>,
     /// A region capture for Pin to screen in progress.
@@ -119,7 +125,22 @@ impl App {
                 self.screen_tools.pins.clear();
                 play_action_sound(task);
             }
-            HotkeyType::Ruler | HotkeyType::ClassicRuler | HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
+            // `OpenRuler`: `ShowRulerWindow` (a new one each time; one here).
+            HotkeyType::Ruler => {
+                if self.screen_tools.ruler.is_none() {
+                    let theme = self.theme();
+                    let opened = match &self.gpu {
+                        Some(g) => Ok(g),
+                        None => sharex_ui::gpu::Gpu::new().map(|g| &*self.gpu.insert(g)),
+                    }
+                    .and_then(|gpu| ruler::Ruler::open(event_loop, gpu, theme));
+                    match opened {
+                        Ok(r) => self.screen_tools.ruler = Some(r),
+                        Err(e) => eprintln!("Measure: {e}"),
+                    }
+                }
+            }
+            HotkeyType::ClassicRuler | HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
             _ => return false,
         }
         true
@@ -334,6 +355,18 @@ impl App {
 
     /// Routes an event to a screen tool's window; false when it's none of theirs.
     pub(crate) fn screen_tools_window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: &WindowEvent) -> bool {
+        if let Some(r) = self.screen_tools.ruler.as_mut().filter(|r| r.owns(id)) {
+            match r.window_event(id, event.clone()) {
+                ruler::Outcome::Close => self.screen_tools.ruler = None,
+                ruler::Outcome::Copy(text) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_text(&text, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy text failed: {e}");
+                    }
+                }
+                ruler::Outcome::Continue => {}
+            }
+            return true;
+        }
         if let Some(i) = self.screen_tools.pins.iter().position(|p| p.window.window.id() == id) {
             match self.screen_tools.pins[i].window_event(event_loop, event.clone()) {
                 Some(pin::PinAction::Close) => {
@@ -355,13 +388,26 @@ impl App {
 
         if let Some((p, _)) = self.screen_tools.picker.as_mut().filter(|(p, _)| p.owns(id)) {
             if let screen_picker::Outcome::Done(result) = p.window_event(id, event.clone())
-                && let Some((_, purpose)) = self.screen_tools.picker.take()
+                && let Some((picker, purpose)) = self.screen_tools.picker.take()
             {
+                self.screen_tools.closing_picker = Some(picker);
                 self.screen_color_picked(purpose, result);
+                self.screen_tools.closing_picker = None;
             }
             return true;
         }
         false
+    }
+
+    /// One of the screen tools' windows, to own the clipboard when no
+    /// other window is open.
+    pub(crate) fn screen_tool_window(&self) -> Option<&winit::window::Window> {
+        let t = &self.screen_tools;
+        t.ruler
+            .as_ref()
+            .map(|r| r.window())
+            .or(t.closing_picker.as_ref().map(|p| p.window()))
+            .or(t.pins.first().map(|p| &*p.window.window))
     }
 
     /// When the screen tools want to be woken.
@@ -374,6 +420,9 @@ impl App {
         };
         if let Some((p, _)) = self.screen_tools.picker.as_mut() {
             at(p.wake_at(now));
+        }
+        if let Some(r) = self.screen_tools.ruler.as_mut() {
+            at(r.wake_at(now));
         }
         for p in &mut self.screen_tools.pins {
             match p.window.repaint_at {
@@ -393,4 +442,12 @@ fn play_action_sound(task: &TaskSettings) {
     if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterAction) {
         crate::sound::play_action_completed();
     }
+}
+
+/// `AccentPalette.GetHaloColor`: black or white, whichever contrasts more
+/// with the accent.
+pub fn halo(accent: egui::Color32) -> egui::Color32 {
+    let l = sharex_ui::accent::relative_luminance(accent);
+    let ratio = |a: f64, b: f64| (a.max(b) + 0.05) / (a.min(b) + 0.05);
+    if ratio(l, 0.0) >= ratio(l, 1.0) { egui::Color32::BLACK } else { egui::Color32::WHITE }
 }

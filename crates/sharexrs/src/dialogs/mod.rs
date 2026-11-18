@@ -591,7 +591,9 @@ impl App {
         self.main
             .as_ref()
             .or(self.dialogs.first().map(|d| &d.window))
-            .and_then(|w| sharex_capture::platform::window_handle(&w.window))
+            .map(|w| &*w.window)
+            .or(self.screen_tool_window())
+            .and_then(sharex_capture::platform::window_handle)
     }
 
     /// Repaints dialogs that asked to be; the next time one wants to be.
