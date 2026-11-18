@@ -146,6 +146,10 @@ pub enum Effect {
     /// colour picker, restored, its colour handed back through
     /// [`Dialog::screen_color`].
     PickScreenColor,
+    /// A source of the Pin to screen startup window.
+    PinFrom(crate::screen_tools::pin::Source),
+    /// The pin options window saved (`ApplyOptions` on that pin).
+    PinOptionsSaved(WindowId, Box<sharex_tools::pin::PinToScreenOptions>),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
     /// (portable) or the downloader window.
     UpdateDownload(Box<sharex_update::GitHubUpdateChecker>, update::UpdateOrigin),
@@ -290,6 +294,9 @@ pub trait Dialog {
 
     /// The screen colour picker's colour after [`Effect::PickScreenColor`].
     fn screen_color(&mut self, _color: Option<sharex_tools::color::Color>, _cx: &mut Cx) {}
+
+    /// A Pin to screen source gave nothing.
+    fn pin_failed(&mut self, _source: crate::screen_tools::pin::Source) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -502,6 +509,8 @@ impl App {
                     }
                     self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id));
                 }
+                Effect::PinFrom(source) => self.pin_from(event_loop, id, source),
+                Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
                 Effect::PasteImage => {
@@ -546,7 +555,7 @@ impl App {
             FileService::EditImageInPhotoEditor => eprintln!("Photo editor: deferred"),
             FileService::TrimVideo => eprintln!("Video trimmer: not ported yet"),
             FileService::TrimAnimatedGif => eprintln!("Animated GIF trimmer: not ported yet"),
-            FileService::PinToScreen => eprintln!("Pin to screen: not ported yet"),
+            FileService::PinToScreen => self.pin_file(event_loop, &path, None),
             FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
             FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
         }

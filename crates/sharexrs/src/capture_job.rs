@@ -268,6 +268,11 @@ impl ImageTask {
                 Err(e) => eprintln!("Clipboard copy image failed: {e}"),
             }
         }
+        if job.contains(AfterCaptureTasks::PinToScreen)
+            && let Some(ui) = ui
+        {
+            ui.pin_to_screen(&self.metadata.image, &self.task);
+        }
         if job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::UploadImageToHost) {
             let (data, ext) = prepare_image(&self.metadata.image, &self.task)?;
             let name = change_extension(&self.file_name, ext);

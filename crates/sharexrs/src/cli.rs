@@ -396,13 +396,13 @@ impl App {
             HotkeyType::QRCode => {
                 self.open_dialog_window(event_loop, Box::new(crate::dialogs::qr_code::QrCodeWindow::scan_image_file(&file)));
             }
-            // `AnnotateImageFromFile`, `PinToScreen(filePath)`, the image and
+            // `PinToScreen(filePath)`.
+            HotkeyType::PinToScreen | HotkeyType::PinToScreenFromFile => self.pin_file(event_loop, std::path::Path::new(&file), Some(task)),
+            // `AnnotateImageFromFile`, the image and
             // video tools on a file: their windows aren't ported.
             HotkeyType::ImageEditor
             | HotkeyType::PhotoEditor
             | HotkeyType::PixelEditor
-            | HotkeyType::PinToScreen
-            | HotkeyType::PinToScreenFromFile
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects
             | HotkeyType::ImageViewer

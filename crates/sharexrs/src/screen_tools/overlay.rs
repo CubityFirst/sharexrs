@@ -85,7 +85,7 @@ impl Overlay {
             }
             let window = event_loop.create_window(attrs).map_err(|e| e.to_string())?;
             platform::prepare_overlay(&window);
-            let w = if transparent { EguiWindow::transparent(window, gpu)? } else { EguiWindow::new(window, gpu, None)? };
+            let w = if transparent { EguiWindow::transparent_exact(window, gpu)? } else { EguiWindow::exact(window, gpu)? };
             crate::set_theme(&w, theme);
             windows.push(MonitorWindow { window: w, bounds: s.bounds, scale: s.scale });
         }

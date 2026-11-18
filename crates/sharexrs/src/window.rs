@@ -30,7 +30,7 @@ pub struct EguiWindow {
 
 impl EguiWindow {
     pub fn new(window: Window, gpu: &Gpu, resize_border: Option<f32>) -> Result<Self, String> {
-        Self::with_alpha(window, gpu, resize_border, false)
+        Self::with_alpha(window, gpu, resize_border, false, true)
     }
 
     /// A window whose transparent pixels show what's behind it
@@ -38,17 +38,32 @@ impl EguiWindow {
     /// with premultiplied alpha (DirectComposition on Windows), and the
     /// window is cleared to transparent.
     pub fn transparent(window: Window, gpu: &Gpu) -> Result<Self, String> {
-        let mut w = Self::with_alpha(window, gpu, None, true)?;
+        let mut w = Self::with_alpha(window, gpu, None, true, true)?;
         w.clear_color = Some([0.0; 4]);
         Ok(w)
     }
 
-    fn with_alpha(window: Window, gpu: &Gpu, resize_border: Option<f32>, alpha: bool) -> Result<Self, String> {
+    /// [`Self::transparent`] without egui's dithering, so pictures show
+    /// pixel for pixel (pinned images, the screen tools' overlays).
+    pub fn transparent_exact(window: Window, gpu: &Gpu) -> Result<Self, String> {
+        let mut w = Self::with_alpha(window, gpu, None, true, false)?;
+        w.clear_color = Some([0.0; 4]);
+        Ok(w)
+    }
+
+    /// [`Self::new`] without egui's dithering (a frozen screen shown
+    /// pixel for pixel).
+    pub fn exact(window: Window, gpu: &Gpu) -> Result<Self, String> {
+        Self::with_alpha(window, gpu, None, false, false)
+    }
+
+    fn with_alpha(window: Window, gpu: &Gpu, resize_border: Option<f32>, alpha: bool, dithering: bool) -> Result<Self, String> {
         let window = Arc::new(window);
         let ctx = egui::Context::default();
         sharex_ui::install(&ctx);
         let config = egui_wgpu::WgpuConfiguration { wgpu_setup: gpu.egui_setup(), ..Default::default() };
-        let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, alpha, Default::default()));
+        let options = egui_wgpu::RendererOptions { dithering, ..Default::default() };
+        let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, alpha, options));
         pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window.clone())))
             .map_err(|e| format!("couldn't set up the window: {e}"))?;
         let state = egui_winit::State::new(

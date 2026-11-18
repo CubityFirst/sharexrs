@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   One safe session of a Screen tool (screen color picker, measure, ruler,
   mouse highlighter, pin to screen) in ShareX or ShareXrs, for reference
@@ -20,6 +20,7 @@
   Steps: move:X,Y  click:X,Y  rclick:X,Y  mclick:X,Y  down:X,Y  drag:X,Y
   up  rdown:X,Y  rup  mdown:X,Y  mup  wheel:N  key:Chord (Ctrl+C, H,
   Escape...)  sleep:MS  shot:PATH  clip:PATH (dump the clipboard)
+  setclip:PNG (an image on the clipboard)  cli:Job (the app's -Job)
 #>
 param(
     [Parameter(Mandatory)] [ValidateSet('ShareX', 'sharexrs')] [string] $Process,
@@ -35,6 +36,7 @@ param(
     # Escape at the end (unless the steps ended the tool themselves).
     [switch] $NoEscape,
     [string] $Sharexrs = "$PSScriptRoot/../target/debug/sharexrs.exe",
+    [string] $ShareX = 'G:/scripts/sharexrs-ref/ShareX-build/ShareX.exe',
     [string] $Pattern = "$env:TEMP/sharexrs-pattern/sharexrs.exe",
     [int] $WaitMs = 1200,
     [int] $PatternSeconds = 90,
@@ -83,6 +85,19 @@ try {
                 python "$PSScriptRoot/pattern-check.py" $arg --min 0.3 --delete
             }
             'clip' { & "$PSScriptRoot/clipboard-dump.ps1" -Out $arg }
+            'setclip' {
+                Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+                $img = [System.Drawing.Image]::FromFile((Resolve-Path $arg))
+                [System.Windows.Forms.Clipboard]::SetImage($img)
+                $img.Dispose()
+            }
+            'cli' {
+                # The app's own command line (`-<HotkeyType>`), which the
+                # running instance takes over.
+                $exe = if ($Process -eq 'ShareX') { $ShareX } else { $Sharexrs }
+                $fwd = Start-Process -FilePath $exe -ArgumentList @("-$arg") -PassThru
+                $fwd | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+            }
             default { throw "unknown step $s" }
         }
         Start-Sleep -Milliseconds 150

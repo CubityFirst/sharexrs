@@ -166,6 +166,10 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
+            super::UiRequest::PinToScreen(image, task) => {
+                self.pin_image(event_loop, *image, None, &task);
+                return;
+            }
             super::UiRequest::ImageEffects(image, task, reply) => {
                 self.open_image_effects_editor(event_loop, *image, *task, reply);
                 return;

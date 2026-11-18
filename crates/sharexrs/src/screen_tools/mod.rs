@@ -9,6 +9,7 @@
 
 pub mod color_picker;
 pub mod overlay;
+pub mod pin;
 pub mod render;
 pub mod screen_picker;
 
@@ -29,10 +30,23 @@ pub enum PickPurpose {
     Dialog(WindowId),
 }
 
+/// Who a region capture for Pin to screen is for.
+pub struct PinRegion {
+    /// The startup window that asked (`CaptureRegionAsync`), hidden meanwhile.
+    pub startup: Option<WindowId>,
+    pub task: Box<TaskSettings>,
+}
+
 /// The screen tools that are open.
 #[derive(Default)]
 pub struct ScreenTools {
     picker: Option<(ScreenPicker, PickPurpose)>,
+    /// `PinToScreenManager.Windows`.
+    pins: Vec<pin::PinWindow>,
+    /// A region capture for Pin to screen in progress.
+    pub pin_region: Option<PinRegion>,
+    /// The Pin to screen startup windows and their tasks.
+    pin_startups: Vec<(WindowId, Box<TaskSettings>)>,
 }
 
 /// The task's tools settings (`ToolsSettingsReference`): its own, or the
@@ -85,14 +99,27 @@ impl App {
                 let w = color_picker::ColorPickerWindow::new(color_picker::recent_selected(s), recent);
                 self.open_dialog_window(event_loop, Box::new(w));
             }
-            HotkeyType::Ruler
-            | HotkeyType::ClassicRuler
-            | HotkeyType::MouseHighlighter
-            | HotkeyType::PinToScreen
-            | HotkeyType::PinToScreenFromScreen
-            | HotkeyType::PinToScreenFromClipboard
-            | HotkeyType::PinToScreenFromFile
-            | HotkeyType::PinToScreenCloseAll => eprintln!("{}: not ported yet", job.name()),
+            HotkeyType::PinToScreen => match file {
+                Some(f) => self.pin_file(event_loop, std::path::Path::new(&f), Some(task.clone())),
+                None => self.show_pin_startup(event_loop, task.clone()),
+            },
+            // `PinToScreenFromScreen`: a region, pinned where it was.
+            HotkeyType::PinToScreenFromScreen => self.pin_capture_region(None, task.clone()),
+            HotkeyType::PinToScreenFromClipboard => self.pin_from_clipboard(event_loop, task),
+            HotkeyType::PinToScreenFromFile => match file {
+                Some(f) => self.pin_file(event_loop, std::path::Path::new(&f), Some(task.clone())),
+                None => {
+                    if let Some(f) = crate::image_tools::open_image_file_dialog() {
+                        self.pin_file(event_loop, std::path::Path::new(&f), Some(task.clone()));
+                    }
+                }
+            },
+            HotkeyType::PinToScreenCloseAll => {
+                // `ToolsIntegration.CloseAllPinnedImages`.
+                self.screen_tools.pins.clear();
+                play_action_sound(task);
+            }
+            HotkeyType::Ruler | HotkeyType::ClassicRuler | HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
             _ => return false,
         }
         true
@@ -165,8 +192,167 @@ impl App {
         }
     }
 
+    /// `TaskHelpers.PinToScreen(taskSettings)`: the startup window.
+    pub(crate) fn show_pin_startup(&mut self, event_loop: &ActiveEventLoop, task: TaskSettings) {
+        let before = self.dialogs.len();
+        self.open_dialog_window(event_loop, Box::new(pin::PinStartupWindow::new()));
+        if self.dialogs.len() > before
+            && let Some(d) = self.dialogs.last()
+        {
+            self.screen_tools.pin_startups.push((d.window.window.id(), Box::new(task)));
+        }
+    }
+
+    fn startup_task(&self, id: WindowId) -> TaskSettings {
+        self.screen_tools
+            .pin_startups
+            .iter()
+            .find(|(w, _)| *w == id)
+            .map(|(_, t)| (**t).clone())
+            .unwrap_or_else(|| TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings))
+    }
+
+    /// A source of the startup window (`CaptureRegionCommand`,
+    /// `FromClipboardCommand`, `FromFileCommand`).
+    pub(crate) fn pin_from(&mut self, event_loop: &ActiveEventLoop, id: WindowId, source: pin::Source) {
+        let task = self.startup_task(id);
+        let image = match source {
+            pin::Source::Region => {
+                // `RegionCaptureStarted`: hidden, 200 ms, a region.
+                if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                    d.window.window.set_visible(false);
+                }
+                self.pin_capture_region(Some(id), task);
+                if let Some(p) = self.pending_capture.as_mut() {
+                    p.at += std::time::Duration::from_millis(200);
+                }
+                return;
+            }
+            pin::Source::Clipboard => sharex_capture::clipboard::get_image(),
+            pin::Source::File => crate::image_tools::open_image_file_dialog().and_then(|f| crate::thumbnail::load(std::path::Path::new(&f))),
+        };
+        match image {
+            Some(image) => self.pinned_from_startup(event_loop, id, image, None, task),
+            None => {
+                if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                    d.dialog.pin_failed(source);
+                    d.window.window.request_redraw();
+                }
+            }
+        }
+    }
+
+    /// `SourceSelected`: pinned, the sound, the startup window closed.
+    fn pinned_from_startup(&mut self, event_loop: &ActiveEventLoop, id: WindowId, image: image::RgbaImage, location: Option<(i32, i32)>, task: TaskSettings) {
+        self.pin_image(event_loop, image, location, &task);
+        self.screen_tools.pin_startups.retain(|(w, _)| *w != id);
+        self.dialog_effects(event_loop, id, vec![crate::dialogs::Effect::Close]);
+    }
+
+    /// `RegionCaptureTasks.GetRegionImageWithRectangleAsync` for a pin.
+    fn pin_capture_region(&mut self, startup: Option<WindowId>, task: TaskSettings) {
+        if self.region.is_some() || self.transparent.is_some() || self.pending_capture.is_some() {
+            return;
+        }
+        self.screen_tools.pin_region = Some(PinRegion { startup, task: Box::new(task.clone()) });
+        self.capture(crate::capture::CaptureJob::Region, task, false);
+    }
+
+    /// The region capture for a pin ended: the image and its top-left, or `None`.
+    pub(crate) fn pin_region_captured(&mut self, event_loop: &ActiveEventLoop, target: PinRegion, captured: Option<(image::RgbaImage, (i32, i32))>) {
+        match (target.startup, captured) {
+            (Some(id), Some((image, at))) => self.pinned_from_startup(event_loop, id, image, Some(at), *target.task),
+            (Some(id), None) => {
+                // `RegionCaptureFinished` with an error: shown again.
+                if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                    d.dialog.pin_failed(pin::Source::Region);
+                    d.window.window.set_visible(true);
+                    d.window.window.focus_window();
+                    d.window.window.request_redraw();
+                }
+            }
+            (None, Some((image, at))) => self.pin_image(event_loop, image, Some(at), &target.task),
+            (None, None) => {}
+        }
+    }
+
+    /// `PinToScreenFromClipboard`: ShareX's message when there's no image.
+    fn pin_from_clipboard(&mut self, event_loop: &ActiveEventLoop, task: &TaskSettings) {
+        match sharex_capture::clipboard::get_image() {
+            Some(image) => self.pin_image(event_loop, image, None, task),
+            None => {
+                let title = format!("ShareXrs - {}", sharex_strings::sharex::PinToScreen());
+                let message = crate::message_box::MessageBox::ok(title, sharex_strings::sharex::ClipboardDoesNotContainAnImage(), crate::message_box::MessageBoxIcon::Information);
+                if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::Information) {
+                    eprintln!("couldn't open the message box: {e}");
+                }
+            }
+        }
+    }
+
+    /// `TaskHelpers.PinToScreen(filePath)`.
+    pub(crate) fn pin_file(&mut self, event_loop: &ActiveEventLoop, path: &std::path::Path, task: Option<TaskSettings>) {
+        let task = task.unwrap_or_else(|| TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings));
+        match crate::thumbnail::load(path) {
+            Some(image) => self.pin_image(event_loop, image, None, &task),
+            None => eprintln!("Pin to screen: couldn't load {}", path.display()),
+        }
+    }
+
+    /// `TaskHelpers.PinToScreen(image, location, taskSettings)`: a pin
+    /// with the task's options, and the action sound.
+    pub(crate) fn pin_image(&mut self, event_loop: &ActiveEventLoop, image: image::RgbaImage, location: Option<(i32, i32)>, task: &TaskSettings) {
+        if image.width() == 0 || image.height() == 0 {
+            return;
+        }
+        let defaults = &self.settings.settings.DefaultTaskSettings;
+        let options = sharex_tools::pin::PinToScreenOptions::from_json(&tools(task, defaults).PinToScreenOptions);
+        let theme = self.theme();
+        let opened = match &self.gpu {
+            Some(g) => Ok(g),
+            None => sharex_ui::gpu::Gpu::new().map(|g| &*self.gpu.insert(g)),
+        }
+        .and_then(|gpu| pin::PinWindow::open(event_loop, gpu, image, options, location, theme));
+        match opened {
+            Ok(p) => {
+                self.screen_tools.pins.push(p);
+                play_action_sound(task);
+            }
+            Err(e) => eprintln!("Pin to screen: {e}"),
+        }
+    }
+
+    /// The options window of pin `id` saved: the pin takes them, and so
+    /// do the default task settings' (`ToolsSettingsReference`).
+    pub(crate) fn pin_options_saved(&mut self, id: WindowId, options: sharex_tools::pin::PinToScreenOptions) {
+        if let Some(p) = self.screen_tools.pins.iter_mut().find(|p| p.window.window.id() == id) {
+            p.apply_options(options.clone());
+        }
+        let t = self.settings.settings.DefaultTaskSettings.ToolsSettings.get_or_insert_default();
+        options.write_json(&mut t.PinToScreenOptions);
+    }
+
     /// Routes an event to a screen tool's window; false when it's none of theirs.
-    pub(crate) fn screen_tools_window_event(&mut self, _event_loop: &ActiveEventLoop, id: WindowId, event: &WindowEvent) -> bool {
+    pub(crate) fn screen_tools_window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: &WindowEvent) -> bool {
+        if let Some(i) = self.screen_tools.pins.iter().position(|p| p.window.window.id() == id) {
+            match self.screen_tools.pins[i].window_event(event_loop, event.clone()) {
+                Some(pin::PinAction::Close) => {
+                    self.screen_tools.pins.remove(i);
+                }
+                Some(pin::PinAction::Copy(image)) => {
+                    if let Err(e) = sharex_capture::clipboard::copy_image(&image, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy image failed: {e}");
+                    }
+                }
+                Some(pin::PinAction::Options) => {
+                    let options = self.screen_tools.pins[i].options.clone();
+                    self.open_dialog_window(event_loop, Box::new(pin::PinOptionsWindow::new(id, options)));
+                }
+                None => {}
+            }
+            return true;
+        }
+
         if let Some((p, _)) = self.screen_tools.picker.as_mut().filter(|(p, _)| p.owns(id)) {
             if let screen_picker::Outcome::Done(result) = p.window_event(id, event.clone())
                 && let Some((_, purpose)) = self.screen_tools.picker.take()
@@ -189,6 +375,22 @@ impl App {
         if let Some((p, _)) = self.screen_tools.picker.as_mut() {
             at(p.wake_at(now));
         }
+        for p in &mut self.screen_tools.pins {
+            match p.window.repaint_at {
+                Some(t) if t <= now => {
+                    p.window.window.request_redraw();
+                    p.window.repaint_at = None;
+                }
+                t => at(t),
+            }
+        }
         next
+    }
+}
+
+/// `PlayNotificationSoundAsync(NotificationSound.ActionCompleted, taskSettings)`.
+fn play_action_sound(task: &TaskSettings) {
+    if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterAction) {
+        crate::sound::play_action_completed();
     }
 }

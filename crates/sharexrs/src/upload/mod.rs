@@ -49,6 +49,8 @@ pub trait TaskUi: Send + Sync {
     fn copy_file(&self, path: &std::path::Path);
     /// `FileHelpers.OpenFolderWithFile`: its folder, with it selected.
     fn open_folder_with_file(&self, path: &std::path::Path);
+    /// `TaskHelpers.PinToScreen(image, taskSettings)`: the after capture task.
+    fn pin_to_screen(&self, _image: &image::RgbaImage, _task: &TaskSettings) {}
     /// `TaskHelpers.OpenQRCodeScanFromImageFile`: the QR code window,
     /// scanning the image.
     fn scan_qr_code_file(&self, _path: &std::path::Path) {}
@@ -104,6 +106,8 @@ pub enum UiRequest {
     /// The Image effects window (Editor mode) on a capture; answered with
     /// the presets and the selected index when it closes.
     ImageEffects(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<(Vec<serde_json::Value>, i32)>),
+    /// A capture pinned (the Pin to screen after capture task).
+    PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -115,6 +119,7 @@ impl std::fmt::Debug for UiRequest {
             Self::Ocr(..) => f.write_str("Ocr"),
             Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
+            Self::PinToScreen(..) => f.write_str("PinToScreen"),
         }
     }
 }
@@ -165,6 +170,12 @@ impl TaskUi for SystemUi {
 
     fn open_folder_with_file(&self, path: &std::path::Path) {
         crate::shell::open_folder_with_file(path);
+    }
+
+    fn pin_to_screen(&self, image: &image::RgbaImage, task: &TaskSettings) {
+        if let Some(r) = &self.requests {
+            r(UiRequest::PinToScreen(Box::new(image.clone()), Box::new(task.clone())));
+        }
     }
 
     fn scan_qr_code_file(&self, path: &std::path::Path) {

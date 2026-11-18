@@ -869,6 +869,17 @@ impl App {
         if hidden {
             self.show_main_window(event_loop);
         }
+        if let Some(target) = self.screen_tools.pin_region.take() {
+            let captured = match &outcome {
+                Outcome::Captured(result) => {
+                    self.last_regions = result.regions.clone();
+                    Some((result.image.clone(), (result.screen_rectangle.x, result.screen_rectangle.y)))
+                }
+                _ => None,
+            };
+            self.pin_region_captured(event_loop, target, captured);
+            return;
+        }
         if let Some(target) = self.ocr_region.take() {
             let image = match &outcome {
                 Outcome::Captured(result) => {

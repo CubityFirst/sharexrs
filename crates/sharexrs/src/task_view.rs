@@ -114,6 +114,8 @@ impl ViewSettings {
 pub enum TaskCommand {
     /// `UploadInfoManager.OCRImage`.
     OcrImage,
+    /// `UploadInfoManager.PinToScreen`.
+    PinToScreen,
     /// `UploadInfoManager.ResizeImages`: the image resizer on the selected images.
     ResizeImages,
     /// `UploadInfoManager.AddImageEffects`: the Image effects window on the file.
@@ -1286,7 +1288,7 @@ impl TaskView {
                 Key::U if ctrl => TaskCommand::NotPorted("Upload"),
                 Key::D if ctrl => TaskCommand::NotPorted("Download"),
                 Key::E if ctrl => TaskCommand::NotPorted("Edit image"),
-                Key::P if ctrl => TaskCommand::NotPorted("Pin to screen"),
+                Key::P if ctrl => TaskCommand::PinToScreen,
                 Key::Delete if shift => TaskCommand::DeleteSelectedFiles,
                 Key::Delete => TaskCommand::RemoveSelected,
                 _ => continue,
@@ -1424,7 +1426,7 @@ impl TaskView {
             item(s::MainWindow_TrimAnimatedGif(), icon::Scissors, np("GIF trimmer"), ok && is_gif),
             item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, np("Image beautifier"), ok && sel.is_image_file),
             item(s::MainWindow_AddImageEffects(), icon::MagicWand, TaskCommand::AddImageEffects, ok && sel.is_image_file),
-            item(s::MainWindow_PinToScreen(), icon::Pin, np("Pin to screen"), ok && sel.is_image_file).gesture("Ctrl+P"),
+            item(s::MainWindow_PinToScreen(), icon::Pin, TaskCommand::PinToScreen, ok && sel.is_image_file).gesture("Ctrl+P"),
             sub(s::MainWindow_RunAction(), icon::Play, self.actions_menu(&path), ok && sel.is_file_exist && self.has_external_actions(&path)),
             item(s::MainWindow_DeleteSelectedItem(), icon::Trash, TaskCommand::RemoveSelected, ok).gesture("Delete"),
             item(s::MainWindow_DeleteSelectedFile(), icon::FileDelete, TaskCommand::DeleteSelectedFiles, ok && sel.is_file_exist)

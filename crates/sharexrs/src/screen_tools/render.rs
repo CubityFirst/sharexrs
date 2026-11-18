@@ -2,14 +2,16 @@
 //! ShareX's were captured:
 //!
 //! - `color-picker` (`--state standard`: Standard colors chosen;
-//!   `--state swatch`: then its seventh swatch clicked, red the previous).
+//!   `--state swatch`: then its seventh swatch clicked, red the previous),
+//! - `pin-startup` (`--state error`: the clipboard had no image),
+//! - `pin-options` (the default options).
 
 use super::color_picker::ColorPickerWindow;
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "color-picker")
+    matches!(name, "color-picker" | "pin-startup" | "pin-options")
 }
 
 pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
@@ -23,6 +25,14 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             }
             Box::new(w)
         }
+        "pin-startup" => {
+            let mut w = super::pin::PinStartupWindow::new();
+            if state == "error" {
+                w.failed(super::pin::Source::Clipboard);
+            }
+            Box::new(w)
+        }
+        "pin-options" => Box::new(super::pin::PinOptionsWindow::new(winit::window::WindowId::dummy(), Default::default())),
         _ => return Err(format!("unknown screen {name}")),
     })
 }
