@@ -508,6 +508,7 @@ pub fn language_items(ctx: &egui::Context) -> Vec<ComboItem> {
             text: l.localized_description(),
             icon: (*l == SupportedLanguage::Automatic).then_some(icon::Language),
             flag: l.flag_code().and_then(|c| icons::flag(ctx, &c, 16.0, 12.0)),
+            weight: 600,
         })
         .collect()
 }
