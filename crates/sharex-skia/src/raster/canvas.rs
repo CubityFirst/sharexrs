@@ -494,6 +494,45 @@ impl<'a> Canvas<'a> {
         self.blit(&cov, paint);
     }
 
+    /// `SkCanvas::drawPath` with `SKMaskFilter.CreateBlur(Normal, sigma)`:
+    /// `path` (local space, already stroked when the paint strokes) filled,
+    /// or drawn as a hairline with `cap`, through `SkMaskFilterBase::filterPath`
+    /// with the sigma mapped by the matrix (`computeXformedSigma`).
+    pub fn draw_path_mask_blur(&mut self, path: &crate::Path, hairline: Option<crate::Cap>, sigma: f32, paint: &Paint) {
+        if self.dst.is_empty() {
+            return;
+        }
+        let device = path.transformed(&self.ctm());
+        let s = self.map_radius(sigma).min(128.0);
+        let (w, h) = (self.width(), self.height());
+        match coverage::mask_blur_path(&device, s, hairline, w, h) {
+            Some(cov) => self.blit(&cov, paint),
+            None => {
+                let cov = match hairline {
+                    Some(cap) => coverage::anti_hair_path(&device, cap, w, h),
+                    None => coverage::fill_path(&device, paint.anti_alias, w, h),
+                };
+                self.blit(&cov, paint);
+            }
+        }
+    }
+
+    /// `SkMatrix::mapRadius`: the geometric mean of the mapped axis vectors' lengths.
+    fn map_radius(&self, r: f32) -> f32 {
+        let m = &self.matrix;
+        let len = |x: f32, y: f32| {
+            let mag2 = x * x + y * y;
+            if mag2.is_finite() {
+                mag2.sqrt()
+            } else {
+                ((x as f64) * (x as f64) + (y as f64) * (y as f64)).sqrt() as f32
+            }
+        };
+        let d0 = len(m.sx() * r, m.ky() * r);
+        let d1 = len(m.kx() * r, m.sy() * r);
+        (d0 * d1).sqrt()
+    }
+
     /// The canvas matrix as a path matrix.
     fn ctm(&self) -> crate::Matrix {
         let m = &self.matrix;

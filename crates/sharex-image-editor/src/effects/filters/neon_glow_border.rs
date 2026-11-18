@@ -44,7 +44,32 @@ impl EffectImpl for NeonGlowBorderImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let border = self.border_size.clamp(10, 200);
+        let glow = clampf(self.glow_intensity, 10.0, 100.0) / 100.0;
+        let tube = clampf(self.tube_width, 1.0, 20.0);
+        let (iw, ih) = (source.width() as i32, source.height() as i32);
+        let (nw, nh) = (iw + border * 2, ih + border * 2);
+        let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let mut canvas = Canvas::new(&mut out);
+        canvas.clear(self.bg_color.rgba_array());
+        let bf = border as f32;
+        canvas.draw_bitmap(source, bf, bf, None);
+        let off = bf * 0.5;
+        let tube_rect = RRect::ltrb(off, off, nw as f32 - off, nh as f32 - off);
+        let sigma = bf * 0.35 * glow;
+        let nc = self.neon_color;
+        let a = |v: f32| (v * glow) as u8;
+        sk::draw_rect_blur(&mut canvas, tube_rect, &solid(nc.with_alpha(a(120.0)), true), Some(&Pen::new(tube * 5.0)), sigma);
+        sk::draw_rect_blur(&mut canvas, tube_rect, &solid(nc.with_alpha(a(180.0)), true), Some(&Pen::new(tube * 3.0)), sigma * 0.35);
+        sk::draw_rect(&mut canvas, tube_rect, &solid(SkColor::rgba(255, 255, 255, a(220.0)), true), Some(&Pen::new(tube)));
+        sk::draw_rect(&mut canvas, tube_rect, &solid(nc.with_alpha(a(240.0)), true), Some(&Pen::new(tube * 1.4)));
+        if self.double_tube {
+            let io = bf * 0.78;
+            let inner = RRect::ltrb(io, io, nw as f32 - io, nh as f32 - io);
+            sk::draw_rect_blur(&mut canvas, inner, &solid(nc.with_alpha(a(100.0)), true), Some(&Pen::new(tube * 2.5)), sigma * 0.25);
+            sk::draw_rect(&mut canvas, inner, &solid(nc.with_alpha(a(200.0)), true), Some(&Pen::new(tube * 0.8)));
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

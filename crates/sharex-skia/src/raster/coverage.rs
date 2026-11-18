@@ -90,6 +90,27 @@ pub(crate) fn rect_aa_clip(r: Rect, anti_alias: bool, clip: &crate::aaclip::AACl
     Coverage::Mask(rec.cells)
 }
 
+/// A path (device space) through a normal blur mask filter of device
+/// `sigma`: a fill, or its hairline with `cap`. None when Skia would draw
+/// it unfiltered (`filterPath` returns false).
+pub(crate) fn mask_blur_path(
+    path: &crate::Path,
+    sigma: f32,
+    hairline: Option<crate::Cap>,
+    width: u32,
+    height: u32,
+) -> Option<Coverage> {
+    let mut rec = Recorder::new(width, height);
+    let clip = crate::blitter::device_clip(rec.clip());
+    if clip.is_empty() {
+        return Some(Coverage::Mask(rec.cells));
+    }
+    if !crate::maskblur::filter_path(path, sigma, hairline, clip, &mut rec) {
+        return None;
+    }
+    Some(Coverage::Mask(rec.cells))
+}
+
 /// An anti-aliased hairline of `path` (device space) with `cap`
 /// (`SkScan::AntiHairPath` and its cap variants).
 pub(crate) fn anti_hair_path(path: &crate::Path, cap: crate::Cap, width: u32, height: u32) -> Coverage {

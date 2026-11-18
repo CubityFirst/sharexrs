@@ -1216,6 +1216,156 @@ impl Path {
         ))
     }
 
+    /// `SkPathPriv::IsRectContour` from verb `*curr_verb` and point `*pts`,
+    /// advancing both (`allow_partial` stops at the first contour's end).
+    fn rect_contour(&self, allow_partial: bool, curr_verb: &mut usize, pts: &mut usize) -> Option<(Rect, bool, Direction)> {
+        let mut corners = 0usize;
+        let mut line_start = Point::new(0.0, 0.0);
+        let mut first_pt: Option<usize> = None;
+        let mut last_pt: Option<usize> = None;
+        let mut first_corner = Point::default();
+        let mut third_corner = Point::default();
+        let mut p = *pts;
+        let mut save_pts: Option<usize> = None;
+        let mut directions = [-1i32; 5];
+        let mut closed_or_moved = false;
+        let mut auto_close = false;
+        let mut insert_close = false;
+        let verb_count = self.verbs.len();
+        while *curr_verb < verb_count && (!allow_partial || !auto_close) {
+            let verb = if insert_close { Verb::Close } else { self.verbs[*curr_verb] };
+            match verb {
+                Verb::Close | Verb::Line => {
+                    if verb == Verb::Close {
+                        save_pts = Some(p);
+                        auto_close = true;
+                        insert_close = false;
+                    } else {
+                        last_pt = Some(p);
+                    }
+                    let line_end = if verb == Verb::Close {
+                        self.points[first_pt?]
+                    } else {
+                        let e = self.points[p];
+                        p += 1;
+                        e
+                    };
+                    let d = line_end - line_start;
+                    if d.x != 0.0 && d.y != 0.0 {
+                        return None;
+                    }
+                    if !d.is_finite() {
+                        return None;
+                    }
+                    if line_start == line_end {
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    let next_direction = ((d.x != 0.0) as i32) | (((d.x > 0.0 || d.y > 0.0) as i32) << 1);
+                    if corners == 0 {
+                        directions[0] = next_direction;
+                        corners = 1;
+                        closed_or_moved = false;
+                        line_start = line_end;
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    if closed_or_moved {
+                        return None;
+                    }
+                    if auto_close && next_direction == directions[0] {
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    closed_or_moved = auto_close;
+                    if directions[corners - 1] == next_direction {
+                        if corners == 3 && verb == Verb::Line {
+                            third_corner = line_end;
+                        }
+                        line_start = line_end;
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    directions[corners] = next_direction;
+                    corners += 1;
+                    match corners {
+                        2 => first_corner = line_start,
+                        3 => {
+                            if (directions[0] ^ directions[2]) != 2 {
+                                return None;
+                            }
+                            third_corner = line_end;
+                        }
+                        4 => {
+                            if (directions[1] ^ directions[3]) != 2 {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    }
+                    line_start = line_end;
+                }
+                Verb::Quad | Verb::Conic | Verb::Cubic => return None,
+                Verb::Move => {
+                    if allow_partial && !auto_close && directions[0] >= 0 {
+                        // Insert the missing close and try the move again afterwards.
+                        insert_close = true;
+                        *curr_verb -= 1;
+                        continue;
+                    }
+                    if corners == 0 {
+                        first_pt = Some(p);
+                    } else {
+                        let c = self.points[first_pt?] - self.points[last_pt?];
+                        if c.x != 0.0 && c.y != 0.0 {
+                            return None;
+                        }
+                    }
+                    line_start = self.points[p];
+                    p += 1;
+                    closed_or_moved = true;
+                }
+            }
+            *curr_verb += 1;
+        }
+        if !(3..=4).contains(&corners) {
+            return None;
+        }
+        if let Some(sp) = save_pts {
+            *pts = sp;
+        }
+        let c = self.points[first_pt?] - self.points[last_pt?];
+        if c.x != 0.0 && c.y != 0.0 {
+            return None;
+        }
+        let dir = if directions[0] == ((directions[1] + 1) & 3) { Direction::Cw } else { Direction::Ccw };
+        Some((
+            Rect::from_ltrb(
+                first_corner.x.min(third_corner.x),
+                first_corner.y.min(third_corner.y),
+                first_corner.x.max(third_corner.x),
+                first_corner.y.max(third_corner.y),
+            ),
+            auto_close,
+            dir,
+        ))
+    }
+
+    /// `SkPathPriv::IsNestedFillRects`: two rect contours, one inside the
+    /// other (outer first).
+    pub fn nested_fill_rects(&self) -> Option<[Rect; 2]> {
+        let (mut verb, mut pts) = (0usize, 0usize);
+        let (r0, _, _) = self.rect_contour(true, &mut verb, &mut pts)?;
+        let (r1, _, _) = self.rect_contour(false, &mut verb, &mut pts)?;
+        if r0.contains(&r1) {
+            Some([r0, r1])
+        } else if r1.contains(&r0) {
+            Some([r1, r0])
+        } else {
+            None
+        }
+    }
+
     /// The path for tiny-skia (conics as quads, as Skia's edge builder
     /// approximates them), for the code that still goes through tiny-skia.
     pub fn to_tiny_skia(&self) -> Option<tiny_skia::Path> {

@@ -277,3 +277,69 @@ pub(crate) fn skew(canvas: &mut Canvas, sx: f32, sy: f32) {
         canvas.matrix = canvas.matrix.m44_pre_concat(&m);
     }
 }
+
+/// `SkDraw::drawPath` with `SKMaskFilter.CreateBlur(Normal, sigma)`: a fill,
+/// or a stroke (a hairline, its alpha scaled by the coverage, or the
+/// stroke's outline filled) through the mask filter.
+pub(crate) fn draw_path_blur(canvas: &mut Canvas, path: &Path, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+    let Some(pen) = pen else {
+        canvas.draw_path_mask_blur(path, None, sigma, paint);
+        return;
+    };
+    let coverage = if pen.width == 0.0 { Some(1.0) } else if paint.anti_alias { canvas.hairline_coverage(pen.width) } else { None };
+    if let Some(c) = coverage
+        && (c == 1.0 || paint.blend == Blend::SrcOver)
+    {
+        let mut p = paint.clone();
+        if c != 1.0 {
+            match &mut p.shader {
+                Shader::Color(col) => col[3] = sharex_skia::hair::hairline_alpha(col[3], c),
+                _ => p.alpha = sharex_skia::hair::hairline_alpha(p.alpha, c),
+            }
+        }
+        canvas.draw_path_mask_blur(path, Some(pen.cap), sigma, &p);
+        return;
+    }
+    let s = sharex_skia::Stroke {
+        width: pen.width,
+        cap: pen.cap,
+        join: pen.join,
+        miter_limit: pen.miter,
+        dash: pen.dash.clone(),
+    };
+    let ctx = canvas.stroke_context();
+    if let Some(mut outline) = sharex_skia::draw::stroke_to_path(path, &s, &ctx) {
+        outline.fill_type = sharex_skia::FillType::Winding;
+        canvas.draw_path_mask_blur(&outline, None, sigma, paint);
+    }
+}
+
+/// `SKCanvas.DrawRect` with a blur mask filter: `SkDraw::drawRect`'s path case.
+pub(crate) fn draw_rect_blur(canvas: &mut Canvas, rect: Rect, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+    let r = Rect::ltrb(
+        rect.left.min(rect.right),
+        rect.top.min(rect.bottom),
+        rect.left.max(rect.right),
+        rect.top.max(rect.bottom),
+    );
+    let mut path = Path::new();
+    path.add_rect(sharex_skia::Rect::from_ltrb(r.left, r.top, r.right, r.bottom), Direction::Cw, 0);
+    draw_path_blur(canvas, &path, paint, pen, sigma);
+}
+
+/// `SKCanvas.DrawCircle` with a blur mask filter (`drawOval` → `drawPath`).
+pub(crate) fn draw_circle_blur(canvas: &mut Canvas, cx: f32, cy: f32, radius: f32, paint: &Paint, pen: Option<&Pen>, sigma: f32) {
+    let r = radius.max(0.0);
+    let mut path = Path::new();
+    path.add_oval(sharex_skia::Rect::from_ltrb(cx - r, cy - r, cx + r, cy + r), Direction::Cw);
+    draw_path_blur(canvas, &path, paint, pen, sigma);
+}
+
+/// `SKCanvas.DrawLine` with a blur mask filter.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn draw_line_blur(canvas: &mut Canvas, x0: f32, y0: f32, x1: f32, y1: f32, pen: &Pen, paint: &Paint, sigma: f32) {
+    let mut path = Path::new();
+    path.move_to(x0, y0);
+    path.line_to(x1, y1);
+    draw_path_blur(canvas, &path, paint, Some(pen), sigma);
+}

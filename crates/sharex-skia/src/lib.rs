@@ -53,6 +53,7 @@ pub mod draw;
 pub mod fixed;
 pub mod geom;
 pub mod hair;
+pub mod maskblur;
 pub mod path;
 pub mod pathops;
 pub mod pixmap;
