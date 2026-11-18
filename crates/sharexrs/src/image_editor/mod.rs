@@ -279,6 +279,8 @@ pub struct EditorWindow {
     bar: Vec<BarItem>,
     /// "One editor in ten shows sunglasses for the emoji tool."
     emoji_sunglasses: bool,
+    /// `_autoSizePending` (`AutoSizeWindow`).
+    auto_size_pending: bool,
 }
 
 struct Layout {
@@ -378,9 +380,11 @@ impl EditorWindow {
             bg_key: String::new(),
             bring_into_view: None,
             bar: Vec::new(),
+            auto_size_pending: false,
             emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_micros()).is_multiple_of(10),
         };
         w.apply_toolbar_items();
+        w.auto_size_pending = w.ws.tools.options.AutoSizeWindow;
         w.title = w.window_title();
         // `QueueAutoCopyImageToClipboard`: the opened image copied.
         if has_image && w.ws.tools.options.AutoCopyImageToClipboard && !w.ws.host_mode {
@@ -2034,6 +2038,36 @@ impl EditorWindow {
         Some(self.mapper_ppp(1.0).image_pos(c))
     }
 
+    /// `EditorWindow.TryAutoSize`: once there's an image, the window fits
+    /// it (the image or its background frame, at least as wide as the
+    /// toolbar, the toolbars' room above and below, 24 more, the canvas
+    /// host's margins), restored and centred; maximized when that's more
+    /// than the work area.
+    fn try_auto_size(&mut self, full: Rect) {
+        if !self.auto_size_pending || !self.has_image || self.layout.top.is_none() {
+            return;
+        }
+        self.auto_size_pending = false;
+        let (fw, fh, _, _) = self.display_frame();
+        let toolbar_w = self.layout.top.map_or(0.0, |r| r.width()).max(self.layout.bottom.map_or(0.0, |r| r.width()));
+        // The top host's bottom (the toolbar and its options row) and the
+        // bottom host's height.
+        let top_h = self.layout.options.as_ref().map_or(self.layout.top.map_or(0.0, |r| r.max.y - full.min.y), |o| o.rect.max.y - full.min.y);
+        let bottom_h = self.layout.bottom.map_or(0.0, |r| full.max.y - r.min.y);
+        let toolbar_h = top_h.max(bottom_h);
+        let margin = 24.0;
+        let chrome = full.size() - self.layout.canvas.size();
+        let w = (fw as f32).max(toolbar_w) + margin + chrome.x;
+        let h = fh as f32 + toolbar_h * 2.0 + margin + chrome.y;
+        let (w, h) = (w.max(640.0), h.max(480.0));
+        let fits = sharex_capture::screenshot::screens().into_iter().find(|s| s.primary).is_none_or(|s| {
+            let ppp = self.window_inner.map_or(1.0, |(_, p)| p);
+            // The frame (title bar and borders) on top of the client size.
+            (w + 16.0) * ppp <= s.work_area.w as f32 && (h + 39.0) * ppp <= s.work_area.h as f32
+        });
+        self.effects.push(if fits { Effect::SetSizeCentered(w, h) } else { Effect::Maximize });
+    }
+
     /// The options the tools changed, for the task settings.
     pub fn options(&self) -> ImageEditorOptions {
         self.ws.tools.options.clone()
@@ -2097,7 +2131,9 @@ impl Dialog for EditorWindow {
         let saved = o.RememberWindowState && !o.AutoSizeWindow;
         let (w, h) = if saved && o.WindowWidth > 0.0 && o.WindowHeight > 0.0 { (o.WindowWidth as f32, o.WindowHeight as f32) } else { (1280.0, 720.0) };
         let maximized = if saved { o.IsWindowMaximized } else { !o.AutoSizeWindow };
-        Spec { maximized, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
+        // `AutoSizeWindow`: maximized until the image is laid out, then
+        // sized to it (`TryAutoSize`).
+        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -2182,6 +2218,7 @@ impl Dialog for EditorWindow {
             }
         }
         self.poll_url_job();
+        self.try_auto_size(full);
         if std::mem::take(&mut self.canvas_resize_on_open) {
             self.toggle_canvas_resize();
             ui.ctx().request_repaint();

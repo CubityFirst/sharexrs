@@ -112,6 +112,11 @@ pub enum Effect {
     DragWindow,
     /// `SizeToContent="Height"` after the content changed.
     SetHeight(f32),
+    /// The window restored at this client size (points), centred in its
+    /// screen's work area (`EditorWindow.TryAutoSize`).
+    SetSizeCentered(f32, f32),
+    /// The window maximized.
+    Maximize,
     /// The QR code window's screen scan: hidden for 250 ms, the screen
     /// grabbed and scanned, shown again ([`Dialog::scanned`]).
     ScanScreen,
@@ -525,6 +530,19 @@ impl App {
                 Effect::DragWindow => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let _ = d.window.window.drag_window();
+                    }
+                }
+                Effect::SetSizeCentered(w, h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let win = &d.window.window;
+                        win.set_maximized(false);
+                        let _ = win.request_inner_size(LogicalSize::new(w, h));
+                        center(win, event_loop);
+                    }
+                }
+                Effect::Maximize => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_maximized(true);
                     }
                 }
                 Effect::SetHeight(h) => {
