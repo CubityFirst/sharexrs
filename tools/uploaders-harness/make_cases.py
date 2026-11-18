@@ -869,6 +869,116 @@ oauth_case("signin-mega", "mega", [{"op": "login", "email": " Someone@Example.co
 oauth_case("signin-mega-2fa", "mega", [{"op": "login", "email": "someone@example.com", "password": MEGA_PASSWORD}], [
     resp(json.dumps([{"v": 2, "s": b64url(MEGA_SALT)}])), resp("[-26]")])
 
+# ---------------------------------------------------------------------------
+# The remote storage browser (Tools › Remote storage browser): ShareX's own
+# FTP/SFTP/Amazon S3 providers, step by step, against the mock servers.
+
+
+def remote_case(id, provider, steps, servers=None, account=None, s3=None, responses=None, allow_upload=True):
+    c = {"id": id, "kind": "remote", "provider": provider, "steps": steps, "allow_upload": allow_upload, "responses": responses or []}
+    if account is not None:
+        c["account"] = account
+    if s3 is not None:
+        c["s3"] = s3
+    if servers is not None:
+        c["servers"] = servers
+    cases.append(c)
+
+
+def item(path, is_folder=False, size=None):
+    return {"name": path.rstrip("/").rsplit("/", 1)[-1], "path": path, "is_folder": is_folder, "size": size}
+
+
+def b64(b):
+    return base64.b64encode(b).decode()
+
+
+FTP_FILES = {"/docs/a.txt": b64(b"hello"), "/docs/sub/deep.bin": b64(bytes(range(64))), "/top.png": BIN_PNG["content_base64"],
+             "/Zeta.txt": b64(b"z"), "/alpha.txt": b64(b"")}
+FTP_BROWSE = [
+    {"op": "display_path", "path": ""}, {"op": "display_path", "path": "/docs/sub/"}, {"op": "display_path", "path": "a\\b"},
+    {"op": "parent_path", "path": ""}, {"op": "parent_path", "path": "docs"}, {"op": "parent_path", "path": "/docs/sub/"},
+    {"op": "list", "path": ""}, {"op": "list", "path": "docs"}, {"op": "list", "path": "missing"},
+    {"op": "has_children", "item": item("docs", True)}, {"op": "has_children", "item": item("empty", True)},
+    {"op": "has_children", "item": item("top.png")},
+    {"op": "download", "item": item("docs/a.txt")}, {"op": "download", "item": item("docs")},
+    {"op": "url", "item": item("docs/a b.txt")}, {"op": "url", "item": item("top.png")}, {"op": "url", "item": item("docs", True)},
+    {"op": "upload", "dir": "docs", "name": "new file.bin", "content_base64": b64(bytes(range(200)))},
+    {"op": "upload", "dir": "newdir/deeper", "name": "x.txt", "content_base64": b64(b"x")},
+    {"op": "create_folder", "dir": "", "name": "made"}, {"op": "create_folder", "dir": "docs", "name": "a/b"},
+    {"op": "create_folder", "dir": "", "name": ".."}, {"op": "create_folder", "dir": "made", "name": "inner"},
+    {"op": "rename", "item": item("docs/a.txt"), "name": "b.txt"}, {"op": "rename", "item": item("missing.txt"), "name": "c.txt"},
+    {"op": "delete", "item": item("docs/b.txt")}, {"op": "delete", "item": item("docs", True)},
+    {"op": "delete", "item": item("nothing.txt")}, {"op": "list", "path": ""},
+]
+FTP_SERVERS = {"user": "user", "password": "pass", "dirs": ["/empty"], "ftp_files": FTP_FILES}
+FTP_REMOTE = dict(FTP_ACCOUNT, SubFolderPath="", HttpHomePath="files.example.com/~me")
+remote_case("remote-ftp-browse", "ftp", FTP_BROWSE, FTP_SERVERS, FTP_REMOTE)
+remote_case("remote-ftp-mlsd", "ftp", FTP_BROWSE, dict(FTP_SERVERS, ftp_mlsd=True, ftp_greeting="220---------- Welcome to Pure-FTPd [privsep] [TLS] ----------\r\n"
+                                                                    "220 You will be disconnected after 15 minutes of inactivity."),
+            dict(FTP_REMOTE, Name=""))
+remote_case("remote-ftp-iis", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}, {"op": "has_children", "item": item("docs", True)}],
+            dict(FTP_SERVERS, ftp_windows_list=True, ftp_greeting="220 Microsoft FTP Service", ftp_syst="215 Windows_NT"), FTP_REMOTE)
+remote_case("remote-ftp-listing-formats", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "win"}, {"op": "list", "path": "odd"}],
+            dict(FTP_SERVERS, ftp_listings={
+                "/": ["total 12",
+                      "drwxr-xr-x    2 1000     1000         4096 Mar 04  2025 dir one",
+                      "-rw-r--r--    1 1000     1000       123456 Jan 15 10:30 recent.txt",
+                      "-rw-r--r--    1 owner    group         7 Dec  1  1999 old.txt",
+                      "lrwxrwxrwx    1 1000     1000           11 Feb 02  2024 link -> target/file",
+                      "-rw-r--r--    1 ftp      ftp      1.234.567 Jul 07 07:07 dotted size.bin",
+                      "drwxr-xr-x    3 user     group        4096 May 31 23:59 .",
+                      "drwxr-xr-x    3 user     group        4096 May 31 23:59 ..",
+                      "-rw-r--r--   1 user  group  9  Aug  9  2021  spaced   name .txt",
+                      "crw-rw-rw-    1 0        0          1, 3 Mar 04  2025 null",
+                      "-rw-r--r-- 1 0 0 5 2025-03-04 05:06 iso.txt"],
+                "/win": ["03-04-25  05:06AM       <DIR>          Folder A",
+                         "12-31-1999  11:59PM              1,234 old file.txt",
+                         "2025-03-04  17:06            5 iso time.txt"],
+                "/odd": ["été.txt", "garbage line", "-rwxr-xr-x 1 u g 10 Mar 4 2025 x"]}), FTP_REMOTE)
+remote_case("remote-ftp-upload-disabled", "ftp", [{"op": "upload", "dir": "", "name": "x.txt", "content_base64": b64(b"x")},
+                                                  {"op": "list", "path": "docs"}], FTP_SERVERS, FTP_REMOTE, allow_upload=False)
+remote_case("remote-ftps-explicit", "ftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")},
+                                            {"op": "upload", "dir": "docs", "name": "up.bin", "content_base64": b64(b"up")}],
+            FTP_SERVERS, dict(FTP_REMOTE, Protocol="FTPS", Port=MOCK + 2, FTPSEncryption="Explicit"))
+remote_case("remote-ftp-active", "ftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/sub/deep.bin")}],
+            FTP_SERVERS, dict(FTP_REMOTE, IsActive=True))
+remote_case("remote-ftp-login-failed", "ftp", [{"op": "list", "path": ""}, {"op": "download", "item": item("top.png")}],
+            FTP_SERVERS, dict(FTP_REMOTE, Password="wrong"))
+remote_case("remote-ftp-sftp-account", "ftp", [], FTP_SERVERS, dict(FTP_REMOTE, Protocol="SFTP"))
+DELETE_TREE = [{"op": "create_folder", "dir": "docs/sub", "name": "deeper"}, {"op": "delete", "item": item("docs", True)},
+               {"op": "list", "path": ""}]
+remote_case("remote-ftp-pureftpd-recursive", "ftp", DELETE_TREE,
+            dict(FTP_SERVERS, ftp_greeting="220---------- Welcome to Pure-FTPd [privsep] [TLS] ----------\r\n220 Local time is now 10:00."),
+            FTP_REMOTE)
+remote_case("remote-ftp-proftpd-site", "ftp", DELETE_TREE + [{"op": "create_folder", "dir": "new/deep", "name": "x"}],
+            dict(FTP_SERVERS, ftp_greeting="220 ProFTPD Server (ProFTPD Default Installation) [127.0.0.1]",
+                 ftp_features=["SITE MKDIR", "SITE RMDIR"]), FTP_REMOTE)
+remote_case("remote-ftp-servu-rmda", "ftp", DELETE_TREE,
+            dict(FTP_SERVERS, ftp_greeting="220 Serv-U FTP Server v15.4 ready...", ftp_features=["RMDA directoryname"]), FTP_REMOTE)
+remote_case("remote-ftp-no-utf8", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}],
+            dict(FTP_SERVERS, ftp_utf8=False, ftp_files=dict(FTP_FILES, **{"/docs/été.txt": b64(b"e")})), FTP_REMOTE)
+remote_case("remote-ftp-vms", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 VMS OpenVMS-like", ftp_listings={"/": [
+                "Directory DISK$USER:[USER]", "",
+                "FILE.TXT;1           2/4      14-JUN-2004 10:27:08  [GROUP,OWNER]  (RWED,RWED,RE,)",
+                "SUBDIR.DIR;1         1/1       1-JAN-2025 00:00:00  [GROUP,OWNER]  (RWE,RWE,RE,E)",
+                "BIG.DAT;3          123      31-DEC-1999 23:59:59  [OWNER]        (RWED,RWED,,)",
+                "Total of 3 files, 126/129 blocks."]}), FTP_REMOTE)
+remote_case("remote-ftp-nonstop", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 NONSTOP Type: L8", ftp_listings={"/": [
+                "File         Code             EOF  Last Modification    Owner  RWEP",
+                "TEST        101             807 11-Aug-25 13:56:09 255,255 \"nnnn\"",
+                "OTHER       0             12345 1-Jan-99 00:00:00 1,2 \"oooo\""]}), FTP_REMOTE)
+remote_case("remote-ftp-os400", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 UNKNOWN", ftp_listings={"/": [
+                "QSYS            77824 02/23/00 15:09:55 *DIR       QDOC/",
+                "QSYS            12288 23/02/00 15:09:55 *STMF      a file.txt",
+                "QPGMR               0 01/01/24 00:00:00 *FILE      MYLIB.FILE/",
+                "QPGMR                                   *MEM       MYLIB.FILE/MBR.MBR"]}), FTP_REMOTE)
+remote_case("remote-ftp-sanitize", "ftp", [{"op": "list", "path": "a%20b"}, {"op": "list", "path": "x;y"}, {"op": "list", "path": "../etc"},
+                                           {"op": "download", "item": item("docs/../top.png")}], FTP_SERVERS, FTP_REMOTE)
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

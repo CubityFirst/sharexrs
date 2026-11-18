@@ -272,6 +272,18 @@ impl SftpClient {
         Self::status(&p)
     }
 
+    /// `READ`: the data, or `None` at the end of the file.
+    pub fn read(&mut self, handle: &[u8], offset: u64, len: u32) -> SftpResult<Option<Vec<u8>>> {
+        let p = self.request(FXP_READ, Writer::default().bytes(handle).u64(offset).u32(len))?;
+        if p.first() == Some(&FXP_STATUS) {
+            return match Self::status(&p) {
+                Err(SftpError::Status(FX_EOF, _)) | Ok(()) => Ok(None),
+                Err(e) => Err(e),
+            };
+        }
+        Ok(Some(Self::expect(&p, FXP_DATA)?.bytes()?.to_vec()))
+    }
+
     /// `CLOSE`.
     pub fn close_handle(&mut self, handle: &[u8]) -> SftpResult<()> {
         let id = self.send_request(FXP_CLOSE, Writer::default().bytes(handle))?;

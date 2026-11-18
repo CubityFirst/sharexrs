@@ -22,7 +22,7 @@ use super::ftp::FTPAccount;
 use super::uploader_base;
 use crate::http::{self, SharedStream};
 use crate::result::UploadResult;
-use crate::sftp::{Attrs, DirEntry, PF_CREAT, PF_TRUNC, PF_WRITE, SftpClient, SftpError};
+use crate::sftp::{Attrs, DirEntry, PF_CREAT, PF_READ, PF_TRUNC, PF_WRITE, SftpClient, SftpError};
 use crate::ssh::{self, Channel, Reader, SshError, Transport, UserKey, Writer};
 use crate::uploader::{CoreResult, UResult, UploadError, Uploader, WritesBackConfig};
 use crate::url_helpers;
@@ -288,6 +288,39 @@ impl SftpSession {
         Ok(!base.stop_requested())
     }
 
+    /// `DownloadFileAsync(path, stream)`: `OPEN` (read), `READ`s until
+    /// the end, `CLOSE`.
+    pub fn download_file(&mut self, path: &str, out: &mut dyn std::io::Write) -> Result<(), SftpError> {
+        let p = self.canonical_path(path)?;
+        let handle = self.client.open(&p, PF_READ)?;
+        let chunk = self.max_packet.saturating_sub(13).max(1);
+        let mut offset = 0u64;
+        while let Some(data) = self.client.read(&handle, offset, chunk)? {
+            out.write_all(&data).map_err(|e| SftpError::Ssh(e.to_string()))?;
+            offset += data.len() as u64;
+        }
+        self.client.close_handle(&handle)
+    }
+
+    /// `UploadFileAsync(stream, path, canOverride: true)`.
+    pub fn upload_stream(&mut self, source: &mut dyn std::io::Read, path: &str, buffer_size: usize) -> Result<(), SftpError> {
+        let p = self.canonical_path(path)?;
+        let handle = self.client.open(&p, PF_WRITE | PF_CREAT | PF_TRUNC)?;
+        let chunk = (buffer_size.min(self.max_packet as usize)).saturating_sub(25 + handle.len()).max(1);
+        let mut buffer = vec![0u8; chunk];
+        let mut offset = 0u64;
+        loop {
+            let n = source.read(&mut buffer).map_err(|e| SftpError::Ssh(e.to_string()))?;
+            if n == 0 {
+                break;
+            }
+            let id = self.client.send_write(&handle, offset, &buffer[..n])?;
+            self.client.read_status(id)?;
+            offset += n as u64;
+        }
+        self.client.close_handle(&handle)
+    }
+
     /// `ListDirectoryAsync` (remote storage browser).
     pub fn list_directory(&mut self, path: &str) -> Result<Vec<DirEntry>, SftpError> {
         let p = self.canonical_path(path)?;
@@ -400,6 +433,13 @@ impl Sftp {
         let user = self.account.Username.clone().unwrap_or_default();
         self.session = Some(SftpSession::connect(&host, port, &user, &credentials, self.timeout).map_err(UploadError::Exception)?);
         Ok(true)
+    }
+
+    /// `Disconnect()`.
+    pub fn disconnect(&mut self) {
+        if let Some(s) = self.session.take() {
+            s.disconnect();
+        }
     }
 
     /// The session, connecting first (remote storage browser).

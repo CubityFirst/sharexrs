@@ -25,31 +25,11 @@ fn load(path: &str) -> Value {
 }
 
 fn ftp_config(spec: &Value, tls: bool, implicit: bool) -> FtpMockConfig {
-    FtpMockConfig {
-        user: spec["user"].as_str().unwrap_or("user").to_owned(),
-        password: spec["password"].as_str().unwrap_or("pass").to_owned(),
-        dirs: spec["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
-        tls: if tls { test_tls_acceptor() } else { None },
-        implicit_tls: implicit,
-        fail_once: spec["fail_once"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), p[1].as_str()?.to_owned()))).collect())
-            .unwrap_or_default(),
-    }
+    FtpMockConfig::from_spec(spec, tls, implicit)
 }
 
 fn sftp_config(v: &Value) -> SftpMockConfig {
-    SftpMockConfig {
-        user: v["user"].as_str().unwrap_or("user").to_owned(),
-        password: v["password"].as_str().unwrap_or("pass").to_owned(),
-        authorized_key: v["authorized_key"].as_str().map(str::to_owned),
-        home: v["home"].as_str().unwrap_or("/home/user").to_owned(),
-        dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
-        fail_once: v["sftp_fail_once"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), (p[1].as_u64()? as u32, p[2].as_str()?.to_owned())))).collect())
-            .unwrap_or_default(),
-    }
+    SftpMockConfig::from_spec(v)
 }
 
 fn lines(v: &Value) -> Vec<String> {

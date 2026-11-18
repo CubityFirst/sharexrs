@@ -110,6 +110,15 @@ pub fn current_culture_cmp(a: &str, b: &str) -> Ordering {
     fold(a).cmp(&fold(b)).then_with(|| b.cmp(a))
 }
 
+/// `StringComparer.CurrentCultureIgnoreCase.Compare`.
+pub fn current_culture_ignore_case_cmp(a: &str, b: &str) -> Ordering {
+    #[cfg(windows)]
+    if let Some(o) = nls::compare(a, b, false, true) {
+        return o;
+    }
+    fold(a).cmp(&fold(b))
+}
+
 /// `a.Equals(b, StringComparison.InvariantCultureIgnoreCase)`.
 pub fn invariant_ignore_case_eq(a: &str, b: &str) -> bool {
     #[cfg(windows)]

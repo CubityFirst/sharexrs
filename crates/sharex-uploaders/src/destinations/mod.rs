@@ -9,6 +9,7 @@ pub mod email;
 pub mod file_hosts;
 pub mod files;
 pub mod ftp;
+pub mod ftp_list;
 pub mod mega;
 pub mod oauth_services;
 pub mod images;

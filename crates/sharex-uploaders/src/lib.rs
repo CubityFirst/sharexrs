@@ -25,6 +25,7 @@ pub mod json;
 pub mod oauth;
 pub mod oauth1;
 pub mod oauth2;
+pub mod remote_storage;
 pub mod result;
 pub mod sftp;
 pub mod signin;
