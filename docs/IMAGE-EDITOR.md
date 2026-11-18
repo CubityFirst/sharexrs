@@ -184,8 +184,9 @@ round-trips untouched.
   effects, text, images, cursors, emoji, smart erasers, shadows;
   `render_region`, region capture's export), `editor::EditorCore` (the
   image, its annotations and the operations that change the image, with
-  `EditorHistory`'s canvas mementos) and `editor::image_ops` (the
-  `ImageHelpers` they call).
+  `EditorHistory`'s canvas mementos), `editor::image_ops` (the
+  `ImageHelpers` they call) and `effects` (the image effect catalogue,
+  below).
 
 ## EditorCore and its image operations
 
@@ -297,10 +298,101 @@ seeded random pairs), every result path identical verb for verb and bit for
 bit. Off Windows the cubic cases are skipped: their roots go through
 `acos`/`cos`/`cbrt`, exact only with the C runtime libSkiaSharp uses.
 
-Not ported yet: drop shadows under a rotation (above); the editor's own
-image effect catalogue (`Core/ImageEffects`, ~240 effects behind the
-effect browser; `ResizeImage`, rotation, flips and auto crop are ported for
-`EditorCore`); emoji pixels exactly as Direct2D draws them.
+Not ported yet: drop shadows under a rotation (above); emoji pixels
+exactly as Direct2D draws them.
+
+## The image effect catalogue (`sharex_image_editor::effects`)
+
+`Core/ImageEffects` is ported whole: all 230 effects ShareX's effect browser
+lists (Manipulations 33, Adjustments 32, Filters 149, Drawings 16), each in
+its own file under `src/effects/<category>/<id>.rs`, ported line for line
+from its `*.cs` with the same parameters, defaults, clamps and order of
+floating-point operations. ShareX.ImageEditor doesn't use
+`ShareX.ImageEffectsLib` (that's `sharex-image-effects`, a separate
+catalogue); the two share only Skia, through `sharex-skia`.
+
+What the effects needed from Skia m119, now in `sharex-skia`: the legacy
+sprite blits (`Sprite_D32_S32` with a global alpha), stroked rects
+(`SkScan::AntiFrameRect`/`FrameRect`), `SkPath::addArc`, radial gradients,
+the Multiply, Overlay, Screen, Modulate, DstIn and Clear blend modes,
+`SKColorFilter.CreateBlendMode(c, Modulate)`, image and rect draws through an
+anti-aliased clip, rect clips through the scan converters' device clip,
+`SkPathPriv::IsNestedFillRects`, and `SKMaskFilter.CreateBlur` (`maskblur`:
+`SkMaskFilterBase::filterPath` with `SkMaskBlurFilter`, Gaussian below
+sigma 2 and three box passes above; `filterRectsToNine` with
+`SkBlurMask::BlurRect`'s analytic profile; `filterRRectToNine`; the
+nine-patch). Effects that run as Skia image filters are ported as the
+filter graph runs on the CPU: Dilate (the exact windowed maximum) drawn
+through its lazy colour filter, colour matrices in highp. `Random.Shared`
+is .NET's xoshiro256** (`effects::random`), `new Random(seed)` its Net5
+compat generator, and `Array.Sort` .NET's introsort, so seeded effects
+draw the same values.
+
+### Using it (for the editor UI)
+
+- Listing: `effects::catalog()` (ShareX's browser order: category, then
+  name ignoring case), `effects::by_category(EffectCategory::Filters)`,
+  `effects::find("gaussian_blur")`. Each `EffectDefinition` has `id`,
+  `name`, `browser_label` (`Name...` for a dialog effect), `icon` (ShareX's
+  icon key), `description`, `category`, `apply_immediately` (no dialog)
+  and `parameters`.
+- Parameters: `ParamDef { key, label, description, kind }`, `kind` a
+  `ParamKind`: `Slider { min, max, default, tick, snap, format }`,
+  `Numeric { min, max, default, increment, format }`, `Checkbox { default }`,
+  `Enum { options, default }` (labels as ShareX shows them),
+  `Color { default }`, `Text { default }`, `FilePath { default, filter }`. `def.default_values()` gives an
+  `EffectValues`; `values.set(key, ParamValue::Number(..))` (or `Bool`,
+  `Choice(index)`, `Color(SkColor)`, `Text`) changes one, and remembers the
+  order of changes (`ResizeImage`'s aspect ratio follows the last edited
+  side, as ShareX's dialog does).
+- Preview: `EffectPreview::start(&core)`, then `preview.preview(def,
+  &values)` for each change (the bitmap to show; the editor's image is
+  untouched), `preview.apply(&mut core, def, &values)` to commit with undo
+  or `preview.cancel()`. Without a dialog: `effects::apply_to_core(&mut
+  core, def, &values)`.
+- Apply and undo: crop, resize image, resize canvas, rotate (90, 180,
+  custom), flips and auto crop go through `EditorCore` (annotations moved
+  with the image), every other effect through `apply_image_effect`; each
+  is one history step, undone with `core.undo()`. `def.apply(&bitmap,
+  &values)` runs an effect on any `Bitmap`. An effect that throws in ShareX
+  returns `Err(EffectError)` with .NET's message (Gamma always does;
+  Reflection does when its height rounds to 0).
+
+### Validation
+
+`tools/editor-harness --effects` runs every effect in ShareX's own
+ShareX.ImageEditor on two generated images (48×36 opaque, 32×24
+translucent), with the defaults on both and with each parameter set to its
+minimum, maximum and a third value, and every enum option (1202 cases;
+file parameters point at `tests/data/effects/inputs`, `Random.Shared` is
+seeded per case). It also dumps the catalogue (`catalog.json`, compared field
+by field by `tests/effects_catalog.rs`). The outputs are in
+`crates/sharex-image-editor/tests/data/effects/sharex`;
+`tests/effects_match.rs` (Windows) requires every case to be identical, pixel
+for pixel, unless `known.json` lists it, and
+`cargo run -p sharex-image-editor --example image_editor_effects_report --
+[id prefix] [out dir]` prints each differing case and the totals.
+
+**Result: 1174 of 1202 cases identical; 223 of 230 effects identical in
+every case.**
+
+| Category | Effects identical | Cases identical |
+|---|---|---|
+| Manipulations | 33/33 | 161/161 |
+| Adjustments | 32/32 | 159/159 (Gamma's 5 throw in both) |
+| Filters | 144/149 | 734/747 |
+| Drawings | 14/16 | 120/135 |
+
+Not identical, and why (all in `known.json`):
+
+| Cases | Why |
+|---|---|
+| ASCII art (5), Matrix digital rain (2), Text watermark (10), macOS window (2), Windows 11 window (2), Polaroid frame (2) | Glyphs: `SKCanvas.DrawText` rasterises DirectWrite masks (`SkScalerContext_DW`, hinted, GDI-compatible metrics); ShareXrs fills the font's outlines. Their cases without text (the windows' and frame's untitled ones, digital rain's empty cells) are identical, and Draw text, which fills `GetTextPath`'s outlines, is identical in all 13. |
+| Fake hair (5) | ShareX seeds it from `Environment.TickCount`: its own output changes from run to run. |
+
+The pixel test runs on Windows only: .NET's `MathF` calls the C runtime, as
+Rust's `f32` does there. Elsewhere every case still runs (no panics, the
+same throws), and the text effects are skipped (they need Windows fonts).
 
 ## The editor UI
 
@@ -620,7 +712,8 @@ for ShareX's window); the result depends on where each window sits.
   editor; the editor doesn't read `ToolbarItems` yet (default items).
 - `AutoSizeWindow`, the live canvas growth while a new text is typed
   (`OnLiveTextEditorBoundsChanged`; the commit's auto-expand is ported).
-- The Image effects panel (another branch ports the catalogue).
+- The Image effects panel and dialogs (the catalogue they show is
+  `sharex_image_editor::effects`, see "The image effect catalogue").
 
 ## Plan for the editor UI
 
