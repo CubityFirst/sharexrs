@@ -9074,6 +9074,592 @@
    }
   },
   {
+   "id": "remote-s3-browse",
+   "kind": "remote",
+   "provider": "s3",
+   "steps": [
+    {
+     "op": "display_path",
+     "path": ""
+    },
+    {
+     "op": "display_path",
+     "path": "a\\b/c"
+    },
+    {
+     "op": "parent_path",
+     "path": ""
+    },
+    {
+     "op": "parent_path",
+     "path": "a/"
+    },
+    {
+     "op": "parent_path",
+     "path": "/a/b/"
+    },
+    {
+     "op": "parent_path",
+     "path": "a/b.txt"
+    },
+    {
+     "op": "list",
+     "path": ""
+    },
+    {
+     "op": "list",
+     "path": "docs/"
+    },
+    {
+     "op": "has_children",
+     "item": {
+      "name": "docs",
+      "path": "docs/",
+      "is_folder": true,
+      "size": null
+     }
+    },
+    {
+     "op": "has_children",
+     "item": {
+      "name": "empty",
+      "path": "empty/",
+      "is_folder": true,
+      "size": null
+     }
+    },
+    {
+     "op": "has_children",
+     "item": {
+      "name": "top.png",
+      "path": "top.png",
+      "is_folder": false,
+      "size": null
+     }
+    },
+    {
+     "op": "download",
+     "item": {
+      "name": "a.txt",
+      "path": "docs/a.txt",
+      "is_folder": false,
+      "size": null
+     }
+    },
+    {
+     "op": "download",
+     "item": {
+      "name": "missing.txt",
+      "path": "missing.txt",
+      "is_folder": false,
+      "size": null
+     }
+    },
+    {
+     "op": "url",
+     "item": {
+      "name": "a b+c.txt",
+      "path": "docs/a b+c.txt",
+      "is_folder": false,
+      "size": null
+     }
+    },
+    {
+     "op": "url",
+     "item": {
+      "name": "docs",
+      "path": "docs/",
+      "is_folder": true,
+      "size": null
+     }
+    },
+    {
+     "op": "upload",
+     "dir": "docs",
+     "name": "new file.bin",
+     "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsc="
+    },
+    {
+     "op": "create_folder",
+     "dir": "",
+     "name": "made"
+    },
+    {
+     "op": "create_folder",
+     "dir": "docs",
+     "name": "a/b"
+    },
+    {
+     "op": "rename",
+     "item": {
+      "name": "a.txt",
+      "path": "docs/a.txt",
+      "is_folder": false,
+      "size": null
+     },
+     "name": "b.txt"
+    },
+    {
+     "op": "rename",
+     "item": {
+      "name": "docs",
+      "path": "docs/",
+      "is_folder": true,
+      "size": null
+     },
+     "name": "renamed"
+    },
+    {
+     "op": "delete",
+     "item": {
+      "name": "top.png",
+      "path": "top.png",
+      "is_folder": false,
+      "size": null
+     }
+    },
+    {
+     "op": "delete",
+     "item": {
+      "name": "renamed",
+      "path": "renamed/",
+      "is_folder": true,
+      "size": null
+     }
+    },
+    {
+     "op": "list",
+     "path": "denied"
+    },
+    {
+     "op": "rename",
+     "item": {
+      "name": "x.txt",
+      "path": "x.txt",
+      "is_folder": false,
+      "size": null
+     },
+     "name": "y.txt"
+    }
+   ],
+   "allow_upload": true,
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>true</IsTruncated><NextContinuationToken>tok/1+=</NextContinuationToken><Contents><Key>top.png</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>768</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>Zeta.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>1</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>folder/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>my+doc.txt</Key><LastModified>2025-03-04T05:06:07Z</LastModified><ETag>&quot;e&quot;</ETag><Size>3</Size><StorageClass>STANDARD</StorageClass></Contents><CommonPrefixes><Prefix>docs/</Prefix></CommonPrefixes><CommonPrefixes><Prefix>empty/</Prefix></CommonPrefixes><CommonPrefixes><Prefix>folder/</Prefix></CommonPrefixes></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>alpha.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>%C3%A9t%C3%A9.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>4</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>docs/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>docs/a.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>5</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>docs/a%20b.txt</Key><LastModified>not a date</LastModified><ETag>&quot;e&quot;</ETag><Size>7</Size><StorageClass>STANDARD</StorageClass></Contents><CommonPrefixes><Prefix>docs/sub/</Prefix></CommonPrefixes></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>docs/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>docs/a.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>5</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>empty/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain"
+      ]
+     ],
+     "body": "hello"
+    },
+    {
+     "status": 404,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>\"e\"</ETag></CopyObjectResult>"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>docs/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>docs/b.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>5</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>docs/sub/x.bin</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>9</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>\"e\"</ETag></CopyObjectResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>\"e\"</ETag></CopyObjectResult>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>\"e\"</ETag></CopyObjectResult>"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>renamed/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>renamed/b.txt</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>5</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>InternalError</Code></Error>"
+    }
+   ],
+   "s3": {
+    "AccessKeyID": "AKIAMADEUPEXAMPLE",
+    "SecretAccessKey": "made-up-secret-key",
+    "Endpoint": "s3.eu-west-2.amazonaws.com",
+    "Bucket": "made-up-bucket",
+    "ObjectPrefix": ""
+   }
+  },
+  {
+   "id": "remote-s3-path-style-errors",
+   "kind": "remote",
+   "provider": "s3",
+   "steps": [
+    {
+     "op": "list",
+     "path": ""
+    },
+    {
+     "op": "rename",
+     "item": {
+      "name": "a.txt",
+      "path": "a.txt",
+      "is_folder": false,
+      "size": null
+     },
+     "name": "b.txt"
+    },
+    {
+     "op": "upload",
+     "dir": "",
+     "name": "c.txt",
+     "content_base64": "Yw=="
+    },
+    {
+     "op": "delete",
+     "item": {
+      "name": "d",
+      "path": "d/",
+      "is_folder": true,
+      "size": null
+     }
+    },
+    {
+     "op": "list",
+     "path": "truncated"
+    }
+   ],
+   "allow_upload": true,
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "not xml"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>\"e\"</ETag></CopyObjectResult>"
+    },
+    {
+     "status": 500,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 503,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>false</IsTruncated><Contents><Key>d/</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>0</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>d/x</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>1</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<Error/>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>made-up-bucket</Name><IsTruncated>true</IsTruncated><Contents><Key>t/a</Key><LastModified>2025-03-04T05:06:07.000Z</LastModified><ETag>&quot;e&quot;</ETag><Size>1</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+    }
+   ],
+   "s3": {
+    "AccessKeyID": "AKIAMADEUPEXAMPLE",
+    "SecretAccessKey": "made-up-secret-key",
+    "Endpoint": "https://minio.example.com/",
+    "Bucket": "made.up.bucket",
+    "ObjectPrefix": "",
+    "Region": "eu-central-1",
+    "SignedPayload": true,
+    "UseCustomCNAME": true,
+    "CustomDomain": "cdn.example.com"
+   }
+  },
+  {
+   "id": "remote-s3-upload-disabled",
+   "kind": "remote",
+   "provider": "s3",
+   "steps": [
+    {
+     "op": "upload",
+     "dir": "",
+     "name": "c.txt",
+     "content_base64": "Yw=="
+    }
+   ],
+   "allow_upload": false,
+   "responses": [],
+   "s3": {
+    "AccessKeyID": "AKIAMADEUPEXAMPLE",
+    "SecretAccessKey": "made-up-secret-key",
+    "Endpoint": "s3.eu-west-2.amazonaws.com",
+    "Bucket": "made-up-bucket",
+    "ObjectPrefix": ""
+   }
+  },
+  {
    "id": "remote-ftp-sanitize",
    "kind": "remote",
    "provider": "ftp",

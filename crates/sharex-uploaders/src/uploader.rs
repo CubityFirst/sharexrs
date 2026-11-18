@@ -186,7 +186,9 @@ impl Uploader {
 
     /// `ToErrorString()`.
     pub fn to_error_string(&self) -> String {
-        if self.is_error() { self.errors.errors.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join(crate::NEW_LINE) } else { String::new() }
+        // `string.Join(NewLine, Errors)` joins one object: the manager's
+        // `ToString()`, which puts a blank line between errors.
+        if self.is_error() { self.errors.errors.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join(&crate::NEW_LINE.repeat(2)) } else { String::new() }
     }
 
     /// `ProgressChanged +=`.

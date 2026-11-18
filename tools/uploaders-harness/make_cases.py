@@ -995,6 +995,71 @@ remote_case("remote-sftp-failures", "sftp", [{"op": "list", "path": "docs"}, {"o
                                              {"op": "delete", "item": item("docs/a.txt")}, {"op": "create_folder", "dir": "docs", "name": "n"}],
             dict(SFTP_SERVERS, sftp_fail_once=[["OPENDIR", 3, "Permission denied"], ["OPEN", 4, "Failure"], ["REMOVE", 3, "Permission denied"],
                                                ["MKDIR", 4, "Failure"]]), SFTP_REMOTE)
+
+
+def s3_list(contents=(), prefixes=(), truncated=False, token=None):
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>made-up-bucket</Name>'
+    body += f"<IsTruncated>{'true' if truncated else 'false'}</IsTruncated>"
+    if token:
+        body += f"<NextContinuationToken>{token}</NextContinuationToken>"
+    for key, size, date in contents:
+        body += f"<Contents><Key>{key}</Key><LastModified>{date}</LastModified><ETag>&quot;e&quot;</ETag><Size>{size}</Size>" \
+                "<StorageClass>STANDARD</StorageClass></Contents>"
+    for p in prefixes:
+        body += f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>"
+    return resp(body + "</ListBucketResult>", headers=XML)
+
+
+S3_DATE = "2025-03-04T05:06:07.000Z"
+S3_NO_CONTENT = resp("", 204, headers=[])
+S3_COPIED = resp('<?xml version="1.0" encoding="UTF-8"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified>'
+                 '<ETag>"e"</ETag></CopyObjectResult>', headers=XML)
+S3_REMOTE = dict(S3, ObjectPrefix="")
+remote_case("remote-s3-browse", "s3", [
+    {"op": "display_path", "path": ""}, {"op": "display_path", "path": "a\\b/c"}, {"op": "parent_path", "path": ""},
+    {"op": "parent_path", "path": "a/"}, {"op": "parent_path", "path": "/a/b/"}, {"op": "parent_path", "path": "a/b.txt"},
+    {"op": "list", "path": ""}, {"op": "list", "path": "docs/"}, {"op": "has_children", "item": item("docs/", True)},
+    {"op": "has_children", "item": item("empty/", True)}, {"op": "has_children", "item": item("top.png")},
+    {"op": "download", "item": item("docs/a.txt")}, {"op": "download", "item": item("missing.txt")},
+    {"op": "url", "item": item("docs/a b+c.txt")}, {"op": "url", "item": item("docs/", True)},
+    {"op": "upload", "dir": "docs", "name": "new file.bin", "content_base64": b64(bytes(range(200)))},
+    {"op": "create_folder", "dir": "", "name": "made"}, {"op": "create_folder", "dir": "docs", "name": "a/b"},
+    {"op": "rename", "item": item("docs/a.txt"), "name": "b.txt"}, {"op": "rename", "item": item("docs/", True), "name": "renamed"},
+    {"op": "delete", "item": item("top.png")}, {"op": "delete", "item": item("renamed/", True)},
+    {"op": "list", "path": "denied"}, {"op": "rename", "item": item("x.txt"), "name": "y.txt"},
+], s3=S3_REMOTE, responses=[
+    s3_list([("top.png", 768, S3_DATE), ("Zeta.txt", 1, S3_DATE), ("folder/", 0, S3_DATE), ("my+doc.txt", 3, "2025-03-04T05:06:07Z")],
+            ["docs/", "empty/", "folder/"], True, "tok/1+="),
+    s3_list([("alpha.txt", 0, S3_DATE), ("%C3%A9t%C3%A9.txt", 4, S3_DATE)]),
+    s3_list([("docs/", 0, S3_DATE), ("docs/a.txt", 5, S3_DATE), ("docs/a%20b.txt", 7, "not a date")], ["docs/sub/"]),
+    s3_list([("docs/", 0, S3_DATE), ("docs/a.txt", 5, S3_DATE)]),
+    s3_list([("empty/", 0, S3_DATE)]),
+    resp("hello", headers=[["Content-Type", "text/plain"]]),
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>',
+         404, XML),
+    resp("", headers=[]), resp("", headers=[]),
+    S3_COPIED, S3_NO_CONTENT,
+    s3_list([("docs/", 0, S3_DATE), ("docs/b.txt", 5, S3_DATE), ("docs/sub/x.bin", 9, S3_DATE)]),
+    S3_COPIED, S3_COPIED, S3_COPIED, S3_NO_CONTENT, S3_NO_CONTENT, S3_NO_CONTENT,
+    S3_NO_CONTENT,
+    s3_list([("renamed/", 0, S3_DATE), ("renamed/b.txt", 5, S3_DATE)]), S3_NO_CONTENT, S3_NO_CONTENT,
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>', 403, XML),
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code></Error>', headers=XML),
+])
+remote_case("remote-s3-path-style-errors", "s3", [
+    {"op": "list", "path": ""}, {"op": "rename", "item": item("a.txt"), "name": "b.txt"},
+    {"op": "upload", "dir": "", "name": "c.txt", "content_base64": b64(b"c")}, {"op": "delete", "item": item("d/", True)},
+    {"op": "list", "path": "truncated"},
+], s3=dict(S3_REMOTE, Bucket="made.up.bucket", Endpoint="https://minio.example.com/", Region="eu-central-1", SignedPayload=True,
+           UseCustomCNAME=True, CustomDomain="cdn.example.com"), responses=[
+    resp("not xml", headers=XML),
+    S3_COPIED, resp("", 500, headers=[]), S3_NO_CONTENT,
+    resp("", 503, headers=[]),
+    s3_list([("d/", 0, S3_DATE), ("d/x", 1, S3_DATE)]), S3_NO_CONTENT, resp("<Error/>", 403, XML),
+    s3_list([("t/a", 1, S3_DATE)], truncated=True),
+], allow_upload=True)
+remote_case("remote-s3-upload-disabled", "s3", [{"op": "upload", "dir": "", "name": "c.txt", "content_base64": b64(b"c")}],
+            s3=S3_REMOTE, allow_upload=False)
 remote_case("remote-ftp-sanitize", "ftp", [{"op": "list", "path": "a%20b"}, {"op": "list", "path": "x;y"}, {"op": "list", "path": "../etc"},
                                            {"op": "download", "item": item("docs/../top.png")}], FTP_SERVERS, FTP_REMOTE)
 
