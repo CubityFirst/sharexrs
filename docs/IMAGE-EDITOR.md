@@ -85,6 +85,47 @@ the pixels come from:
   outlines added at float pen positions, NonZero) filled and stroked like a
   shape. **Step and speech balloon text** use `DrawingContext.DrawText`,
   which Skia rasterises through DirectWrite glyph masks.
+- **Images** (`ImageAnnotation`, the Clone tool's images, emoji, cursors):
+  an Avalonia `Image` control (`Stretch.Fill` for images, the default
+  `Uniform` for emoji and cursors) laid out by `MeasureCore`/`ArrangeCore`
+  (the slot rounded up, the uniform size centred, the position rounded),
+  drawn by `Image.Render` → `DrawBitmap` → `drawImageRect` with bilinear
+  sampling and anti-aliased edges. Skia draws whole-pixel unscaled bitmaps
+  as sprites (`SkTreatAsSprite`), the rest through an image shader whose
+  clamped bilinear sampling runs in lowp (`bilerp_clamp_8888`, fixed
+  point). Rotations use Avalonia's `Matrix.ToRadians` (`angle *
+  0.0174532925`, not pi / 180).
+- **Cursors** (`WindowsCursorBitmapRenderer`): thirteen are ShareX's
+  bundled 1-bit `.cur` files, decoded as Skia decodes them (the cursor
+  directory rewritten as an icon's; `SkIcoCodec`'s BMP, palette opaque,
+  AND mask transparent); the rest are Windows' cursors, `LoadCursor` +
+  `DrawIconEx` into a 32-bit DIB (monochrome ones recovered against black
+  and white), so they exist only on Windows, and follow the user's cursor
+  scheme.
+- **Emoji** (`WindowsEmojiBitmapRenderer.RenderStickerBitmap`): the
+  emoji's text drawn by Direct2D (`DrawTextLayout` with
+  `EnableColorFont`, grayscale anti-aliasing) in **Segoe UI Emoji**, whose
+  glyphs are COLRv1 paint graphs (glyph clips, transforms, solid fills,
+  linear and radial gradients, `SrcIn` composites), on a transparent
+  canvas twice the sticker's size at 1.32 times its size; then trimmed to
+  its non-transparent bounds and drawn (Catmull-Rom) into a `size` x
+  `size` square with 14 px of padding, `size` being the bounds' larger
+  side rounded up. ShareX sets the text format's centring after creating
+  the layout, so the layout keeps the top-left alignment. ShareXrs shapes
+  the text with HarfBuzz and paints the same COLRv1 graphs itself
+  (`render::emoji`), lands them on the same pixels with the same bounds,
+  and trims and fits as ShareX does; Direct2D's own edge coverage and
+  gradient steps differ slightly. Off Windows, ShareX falls back to
+  Skia's default typeface (no emoji); ShareXrs uses an installed COLR
+  emoji font (Noto Color Emoji) when there's no Segoe UI Emoji.
+- **Smart eraser**: a `Rectangle` filled with the sampled colour, or with
+  the stored edge (a 1-pixel row or column) stretched through an
+  `ImageBrush` with `BitmapInterpolationMode.None`.
+- **Rotated effects**: blur, pixelate and highlight draw their processed
+  image under the inverse rotation into a bitmap of the truncated bounds
+  (`UpdateEffectFromProcessedSource`), the magnifier its zoomed image the
+  same way (`UpdateRotatedEffect`, Mitchell), stretched over the rotated
+  `Rectangle`.
 
 ## Annotation types
 
@@ -110,11 +151,11 @@ missing properties taking the constructor's defaults.
 | `Text` | `Text`, `TextColor` = `#FF000000`, `FontSize` = 48, `FontFamily` = Segoe UI, `IsBold`, `IsItalic`, `HorizontalAlignment` = Center | ✅ |
 | `Number` (Step) | `Number` = 1, `StepType` = Numeric, `FontSize` = 24, `TextColor` = white, `IsBold` = true, `TailPoint`, `TailEnabled` = true | ⚠️ circle and tail exact, glyphs differ |
 | `SpeechBalloon` | `TailPoint`, `TailEnabled` = true, `AutoSize`, `Text`, `FontSize` = 20, `FontFamily`, `TextColor`, `IsBold`, `IsItalic`, `HorizontalAlignment`, `CornerRadius` = 10 | ⚠️ body and tail exact, glyphs differ |
-| `Image` | `ImagePath` | ❌ model only |
-| `Emoji` | `UnicodeSequence`, `DisplayName` | ❌ model only |
-| `Cursor` | `CursorType` = Default | ❌ model only |
-| `SmartEraser` | rectangle's + `FillMode` = SolidColor, `EdgePixels` | ❌ model only |
-| `Crop`, `CutOut` | (operations on the image, not drawn) | ❌ |
+| `Image` (and the Clone tool's, `ToolType` = Clone) | `ImagePath`; the bitmap (`ImageBitmap`, not serialised) in `ImageProps::bitmap` | ✅ |
+| `Emoji` | `UnicodeSequence`, `DisplayName` | ⚠️ same pixels and bounds, Direct2D's edges and gradients differ |
+| `Cursor` | `CursorType` = Default | ✅ (system cursors on Windows only) |
+| `SmartEraser` | rectangle's + `FillMode` = SolidColor, `EdgePixels` | ✅ |
+| `Crop`, `CutOut` | (operations on the image: `EditorCore`) | ✅ |
 
 `ImageEditorOptions` (tool defaults the toolbar starts from) is ported field
 for field in `sharex_image_editor::options` (e.g. `BorderColorHex` =
@@ -140,21 +181,75 @@ round-trips untouched.
   crate uses it too.
 - `sharex-image-editor`: `model` (annotations, JSON), `options`
   (`ImageEditorOptions`), `render` (`render(base, annotations)`: shapes,
-  effects, text, shadows).
+  effects, text, images, cursors, emoji, smart erasers, shadows;
+  `render_region`, region capture's export), `editor::EditorCore` (the
+  image, its annotations and the operations that change the image, with
+  `EditorHistory`'s canvas mementos) and `editor::image_ops` (the
+  `ImageHelpers` they call).
+
+## EditorCore and its image operations
+
+`sharex_image_editor::editor::EditorCore` is `Core/Editor/EditorCore.cs`
+without its input handling (the workspace does that): the source image and
+annotations, `AddAnnotation`/`RemoveAnnotation` (step renumbering),
+`ClearAll`, undo and redo, and every operation that changes the image, each
+recorded as a canvas memento (`EditorHistory` keeps 50 snapshots, at most
+five with an image copy, contiguous from the newest):
+
+| Operation | What happens to the annotations |
+|---|---|
+| `crop(rect)`, `perform_crop()` (the crop annotation's bounds, then the annotation removed) | the rectangle truncated to whole pixels inside the image; annotations entirely outside removed, the rest moved |
+| `cut_out(start, end, vertical)`, `perform_cut_out(rect, vertical)` (from the middle of the tool's rectangle, as long as it is wide or high) | `CutOutAnnotation.AdjustAnnotation`: inside the strip removed; across or after it both end points moved back by the cut, the type's own points collapsed |
+| `rotate_90_clockwise`, `rotate_90_counter_clockwise`, `rotate_180`, `rotate_custom_angle(angle, auto_resize)` | points rotated with the image, `RotationAngle` added |
+| `flip_horizontal`, `flip_vertical` | points mirrored, `RotationAngle` = 360 - angle |
+| `resize_image(w, h)` (Catmull-Rom) | points scaled, stroke by the smaller scale, text font by the vertical one |
+| `resize_canvas(top, right, bottom, left, colour)`, `auto_expand_canvas_to_fit`, `expand_canvas_live` (outside the history) | moved by the room added left and top |
+| `auto_crop(tolerance)` | moved by the crop's corner |
+| `flatten_image(composite)` | cleared (they're in the image now) |
+| `clone_region(rect)` (`EditorView.CloneRegion`) | a new image annotation of those pixels, `ToolType` = Clone, selected |
+
+As in ShareX, a line's or arrow's curve point isn't moved by these
+(`TransformAdditionalPoints` doesn't cover it), and `PerformCutOut` and
+`CutOut` record their memento before checking the cut. The smart eraser's
+drawing steps are `editor_core::clamp_smart_eraser` (`ClampVisualBounds`)
+and `configure_smart_eraser_fill` (`ConfigureFill`), and
+`sample_canvas_color` its starting colour.
 
 ## Validation
 
 `tools/editor-harness` (see its README) runs ShareX's own editor headless
 (Avalonia headless platform with Skia drawing; no window, no input) on
-`crates/sharex-image-editor/tests/data/cases.json` (73 cases on a 400×300
-image) and saves `EditorView.GetSnapshot()`. Those PNGs are the references
-in `tests/data/sharex/`; `cargo test -p sharex-image-editor` requires every
-case without a `"pending"` note to be identical, and
+`crates/sharex-image-editor/tests/data/cases.json` (158 cases, most on a
+400×300 image, some on generated images in `tests/data/images`) and saves
+`EditorView.GetSnapshot()`, after the case's `EditorCore` operations
+(`ops`), or `GetSnapshot(Rect)` (`snapshotRect`). Those PNGs are the
+references in `tests/data/sharex/`; `cargo test -p sharex-image-editor`
+requires every case without a `"pending"` note to be identical (and the
+same size), and
 `cargo run -p sharex-image-editor --example render_cases -- <sharex dir>`
 prints per case the largest channel difference and the share of differing
-pixels.
+pixels. Cases are generated by `tests/data/add_cases.py`; images by
+`tests/data/images/make_images.py`.
 
-**Result: 68 of 73 cases identical, pixel for pixel**: every rectangle
+**Result: 146 of 158 cases identical, pixel for pixel.** Per group:
+
+| Group | Identical | Not identical |
+|---|---|---|
+| Shapes, effects, text, steps, balloons (below) | 68/73 | 5 glyph-mask cases |
+| Image annotations (1:1, fractional, scaled up and down, reversed, rotated, tiny, over shapes) | 8/8 | |
+| Cursors (bundled: plain, uniform, rotated, fractional; system: default, I-beam, hand) | 7/7 | |
+| Smart eraser (solid, rotated, edges from JSON, `ConfigureFill` horizontal, vertical, solid, clamped, fractional, reversed) | 9/9 | |
+| Image operations (crop and `PerformCrop` with undo/redo, cut out vertical/horizontal/effects/undo, `PerformCutOut`, rotate 90/270/180/custom/clipped, flips, resize down/up/text, resize canvas grow/crop, auto crop, auto-expand, flatten, clone, history trim and mixed) | 34/34 | |
+| Rotated effects (blur, pixelate, highlight, magnify, elliptical magnify) | 5/5 | |
+| Drop shadows on steps and balloons | 4/6 | 2 rotated |
+| Region capture's export (`GetSnapshot(Rect)`: shapes, translucent fills, hairlines, effects, shadows, images, text, none, clipped) | 11/11 | |
+| Emoji | 0/5 | Direct2D |
+
+System cursor cases run only where the system's cursor is the bitmap ShareX
+drew (`tests/data/cursors`, from `EditorHarness --cursors`); emoji cases
+need Segoe UI Emoji.
+
+The first 73 cases: every rectangle
 (plain, odd width, radius, dashes, rotated, off-canvas, shadows), ellipse
 (solid, filled, dotted, dash-dot, rotated, off-canvas), line (curved, wide,
 1 px, 2 px dashed), arrow (all five styles, straight and curved, zero
@@ -174,6 +269,8 @@ Not identical, and why:
 | step, step-letter | 215–223, 0.03–0.07% | Glyphs: `DrawText` rasterises DirectWrite (hinted) masks; ShareXrs fills the same font's outlines at the same positions. The circle is exact. |
 | step-tail, balloon | 191–195, 0.11–0.14% | Glyphs only: every differing pixel is inside the text's box, and the same annotations without visible text (step-tail-notext, balloon-tail-notext) are identical. |
 | balloon-notail | 165, 0.60% | Glyphs only. |
+| emoji-grinning, -small, -zwj, -flag, -rotated | 17–89, 0.01–4% | Direct2D's rasteriser: the raw emoji lands on the same pixels with the same bounds as Direct2D's (`EditorHarness --emoji-raw`), edge coverage and gradient steps differ (mostly by a few levels). |
+| shadow-balloon-rotated, shadow-rect-rotated | 174–219 | A drop shadow under a rotation: Skia filters the layer in its unrotated space and draws it back rotated (resampled); ShareXrs blurs in device space. Unrotated shadows are identical. |
 
 Fonts: text cases use the same font files as ShareX (Segoe UI from
 `%WINDIR%\Fonts`; Avalonia's default Inter from `SHAREXRS_INTER_DIR`, dumped
@@ -200,9 +297,10 @@ seeded random pairs), every result path identical verb for verb and bit for
 bit. Off Windows the cubic cases are skipped: their roots go through
 `acos`/`cos`/`cbrt`, exact only with the C runtime libSkiaSharp uses.
 
-Not ported yet: Image, Emoji, Cursor and Smart eraser rendering; rotated
-effect annotations; drop shadows on steps and balloons; crop, cut-out and
-flatten.
+Not ported yet: drop shadows under a rotation (above); the editor's own
+image effect catalogue (`Core/ImageEffects`, ~240 effects behind the
+effect browser; `ResizeImage`, rotation, flips and auto crop are ported for
+`EditorCore`); emoji pixels exactly as Direct2D draws them.
 
 ## The editor UI
 
@@ -244,19 +342,32 @@ differ: Avalonia can coalesce pointer moves) and the step's number (glyphs,
 above).
 
 ShareX's region capture renders its output through a `VisualBrush` of the
-workspace into an intermediate surface (`GetSnapshot(Rect)`), not as
-`GetSnapshot()` draws the editor's export: shapes' anti-aliased edge pixels
-come out up to 3 levels different from the harness's (and ShareXrs's)
-rendering, solid and effect pixels identical. Probably a different blend path
-(raster pipeline rather than the legacy blitters); for sharex-skia.
+workspace (`GetSnapshot(Rect)`), not as `GetSnapshot()` draws the editor's
+export, and its anti-aliased and translucent pixels come out up to 3 levels
+different. The brush is recorded as an `SKPicture` and drawn through a
+picture shader (`UseScalableRasterization`), and Skia rasterises a picture
+shader's tile as `kRGBA_8888` with an sRGB colour space: not N32 on
+Windows (BGRA), so `SkBlitter::UseLegacyBlitter` is false and every shape
+goes through `SkRasterPipelineBlitter` (lowp: the colour premultiplied in
+float, partial coverage scaled or lerped, srcover as `load_dst` +
+`srcover` with `div255_accurate` since the tile has a colour space), while
+layers for drop shadows still draw with the legacy blitters; edges are
+clipped (curves chopped) at the tile. `EditorHarness --probe-picture`
+shows it in plain SkiaSharp: the same draws through a picture shader
+differ by up to 3 levels, through `DrawPicture` not at all. Ported:
+`sharex_skia::blitter::with_pipeline_blitters` and `with_device_clip`, and
+`render::render_region` (`EditorCore::snapshot_region`), identical to
+ShareX on the 11 region cases. The workspace's `snapshot` still crops the
+composite; it should call `render::render_region_cached`.
 
 Not ported yet: the options' dropdowns and colour popups (they draw closed;
 toggles and sliders work), the shadow options popup, the speech balloon's text
 editor and default tail on selection (ShareX opens both as soon as a balloon
 is drawn), editing an existing text in its own box (double click edits it in
 the creation box), the Image, Emoji, Clone, Cursor and Smart eraser tools
-(selectable; Image and Emoji open dialogs in ShareX, not ported), crop and
-cut out, copy/paste/duplicate of annotations, the context menu,
+(selectable; Image and Emoji open dialogs in ShareX, not ported; their
+annotations render and `EditorCore` has their steps), the crop and cut out
+tools (`EditorCore` has the operations), copy/paste/duplicate of annotations, the context menu,
 `RightClickDeletesShape`, the cursor annotation ShareX inserts for a shown
 pointer (ShareXrs draws the pointer into the frozen screen), the
 standalone editor window.
