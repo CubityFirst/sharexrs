@@ -32,7 +32,13 @@ impl EffectImpl for DreamGlowImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
+        if alpha <= 0.0 || self.radius <= 0 {
+            return Ok(source.clone());
+        }
+        let blurred = blur(source, self.radius as f32, self.radius as f32);
+        let mut out = source.clone();
+        composite_screen(&mut out, &blurred, (255.0 * alpha) as u8);
+        Ok(out)
     }
 }

@@ -44,7 +44,20 @@ impl EffectImpl for GlowImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let pad = if self.auto_resize { self.size } else { 0 };
+        let (l, r, t, b) = if self.auto_resize {
+            (0.max(-self.offset_x) + pad, 0.max(self.offset_x) + pad, 0.max(-self.offset_y) + pad, 0.max(self.offset_y) + pad)
+        } else {
+            (0, 0, 0, 0)
+        };
+        let nw = source.width() as i32 + l + r;
+        let nh = source.height() as i32 + t + b;
+        let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let (gx, gy) = (l + self.offset_x, t + self.offset_y);
+        let glow_color = self.color.with_alpha((255.0 * self.strength / 100.0) as u8);
+        let sigma = self.size as f32;
+        draw_src_in_blurred(&mut out, source, gx, gy, glow_color, sigma);
+        draw_bitmap(&mut out, source, l as f32, t as f32);
+        Ok(out)
     }
 }

@@ -621,3 +621,83 @@ pub fn float_compare(a: f32, b: f32) -> std::cmp::Ordering {
         Greater
     }
 }
+
+// ---- Skia's lowp raster pipeline, for the sprite draws the effects make ----
+
+/// `lowp::div255`: `(v + 255) >> 8`.
+#[inline]
+pub fn div255(v: u32) -> u32 {
+    (v + 255) >> 8
+}
+
+/// `append_constant_color` in lowp: the colour premultiplied in float,
+/// `* 255 + 0.5`, truncated.
+pub fn uniform_lowp(c: SkColor) -> [u32; 4] {
+    let f = |v: u8| v as f32 * (1.0 / 255.0);
+    let a = f(c.a);
+    [f(c.r) * a, f(c.g) * a, f(c.b) * a, a].map(|v| (v * 255.0 + 0.5) as u32)
+}
+
+/// `lowp::from_float`.
+#[inline]
+pub fn lowp_from_float(f: f32) -> u32 {
+    (f * 255.0 + 0.5) as u32
+}
+
+/// An image placed at `(x, y)` blurred by `SKImageFilter.CreateBlur(sigma)`
+/// and cut to a `width` x `height` canvas: the filter sees the whole image
+/// (transparent beyond it), its output is clipped to the canvas.
+pub fn blurred_layer(source: &Bitmap, x: i32, y: i32, width: i32, height: i32, sigma_x: f32, sigma_y: f32) -> Bitmap {
+    let (sw, sh) = (source.width() as i32, source.height() as i32);
+    let l = 0.min(x);
+    let t = 0.min(y);
+    let r = width.max(x + sw);
+    let b = height.max(y + sh);
+    let mut region = Bitmap::new((r - l) as u32, (b - t) as u32);
+    for yy in 0..sh {
+        for xx in 0..sw {
+            region.set_pixel((xx + x - l) as u32, (yy + y - t) as u32, source.pixel(xx as u32, yy as u32));
+        }
+    }
+    let blurred = blur(&region, sigma_x, sigma_y);
+    crop_copy(&blurred, -l, -t, width, height)
+}
+
+/// `canvas.DrawBitmap(image, x, y, paint { ColorFilter = BlendMode(color,
+/// SrcIn), ImageFilter = Blur(sigma) })` onto `dst`: a colour filter keeps
+/// Skia from filtering the image directly (`canDrawBitmapAsSprite`), so the
+/// image is drawn through the colour filter into a layer (lowp:
+/// `uniform_color`, `srcin` with `div255_accurate`, onto transparent), the
+/// layer is blurred and restored with src-over (a legacy sprite blit).
+pub fn draw_src_in_blurred(dst: &mut Bitmap, image: &Bitmap, x: i32, y: i32, color: SkColor, sigma: f32) {
+    let c = uniform_lowp(color);
+    let mut colored = Bitmap::new(image.width(), image.height());
+    for (d, s) in colored.data_mut().chunks_exact_mut(4).zip(image.data().chunks_exact(4)) {
+        let sa = s[3] as u32;
+        for i in 0..4 {
+            d[i] = div255_accurate(c[i] * sa).min(255) as u8;
+        }
+    }
+    let layer = blurred_layer(&colored, x, y, dst.width() as i32, dst.height() as i32, sigma, sigma);
+    draw_bitmap(dst, &layer, 0.0, 0.0);
+}
+
+/// A sprite draw with `SKBlendMode.Screen` and the paint colour's alpha
+/// (lowp: `scale_1_float`, `load_dst`, `screen`: `s + d - div255(s * d)`).
+pub fn composite_screen(dst: &mut Bitmap, src: &Bitmap, paint_alpha: u8) {
+    let scale = lowp_from_float(paint_alpha as f32 * (1.0 / 255.0));
+    for (d, s) in dst.data_mut().chunks_exact_mut(4).zip(src.data().chunks_exact(4)) {
+        for i in 0..4 {
+            let sv = if paint_alpha == 255 { s[i] as u32 } else { div255(s[i] as u32 * scale) };
+            let dv = d[i] as u32;
+            d[i] = (sv + dv - div255_accurate(sv * dv)).min(255) as u8;
+        }
+    }
+}
+
+/// `lowp::div255_accurate`: the blend modes' divide.
+#[inline]
+pub fn div255_accurate(v: u32) -> u32 {
+    let v = v + 128;
+    (v + (v >> 8)) >> 8
+}

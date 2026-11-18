@@ -44,7 +44,21 @@ impl EffectImpl for ShadowImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let pad = self.size;
+        let (l, r, t, b) = if self.auto_resize {
+            (0.max(-self.offset_x) + pad, 0.max(self.offset_x) + pad, 0.max(-self.offset_y) + pad, 0.max(self.offset_y) + pad)
+        } else {
+            (0, 0, 0, 0)
+        };
+        let nw = source.width() as i32 + l + r;
+        let nh = source.height() as i32 + t + b;
+        let mut out = Bitmap::new(nw.max(0) as u32, nh.max(0) as u32);
+        let (sx, sy) = (l + self.offset_x, t + self.offset_y);
+        let c = self.color;
+        let shadow_color = SkColor::rgba(c.r, c.g, c.b, (255.0 * self.opacity / 100.0) as u8);
+        let sigma = self.size as f32 / 2.0;
+        draw_src_in_blurred(&mut out, source, sx, sy, shadow_color, sigma);
+        draw_bitmap(&mut out, source, l as f32, t as f32);
+        Ok(out)
     }
 }
