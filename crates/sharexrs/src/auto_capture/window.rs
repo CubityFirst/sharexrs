@@ -132,7 +132,7 @@ fn icon_text_button_width(ui: &Ui, text: &str, spacing: f32) -> f32 {
 
 impl Dialog for AutoCaptureWindow {
     fn spec(&self) -> Spec {
-        Spec { resizable: false, maximizable: false, ..Spec::sized(s::AutoCaptureWindow_Title(), 460.0, 430.0, 420.0, 390.0) }
+        Spec { resizable: false, maximizable: false, ..Spec::sized(crate::rs_title(s::AutoCaptureWindow_Title()), 460.0, 430.0, 420.0, 390.0) }
     }
 
     fn single(&self) -> Option<&'static str> {

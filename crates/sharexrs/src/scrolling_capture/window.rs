@@ -336,7 +336,7 @@ fn toolbar_button(ui: &Ui, rect: Rect, id: Id, key: &str, text: &str, enabled: b
 
 impl Dialog for ScrollingCaptureWindow {
     fn spec(&self) -> Spec {
-        Spec::sized(s::ScrollingCaptureWindow_Title(), 900.0, 650.0, 620.0, 440.0)
+        Spec::sized(crate::rs_title(s::ScrollingCaptureWindow_Title()), 900.0, 650.0, 620.0, 440.0)
     }
 
     fn single(&self) -> Option<&'static str> {

@@ -19,6 +19,9 @@
   Steps: move:X,Y  click:X,Y  key:Chord  wheel:N  sleep:MS  shot:PATH
   win:TitleRegex=PATH  clip:PATH  invoke:TitleRegex=Name (UI Automation)
   cli:Job  wait:TitleRegex (until such a window of the app shows, 30 s)
+  raise:TitleRegex (lift the app's window above the pattern)
+  origin:TitleRegex (later cclick/cdrag are relative to its client area)
+  cclick:X,Y  cdrag:X,Y,X2,Y2  type:Text
 #>
 param(
     [Parameter(Mandatory)] [ValidateSet('ShareX', 'sharexrs')] [string] $Process,
@@ -40,6 +43,8 @@ $patternProc = Start-Process -FilePath $Pattern -ArgumentList $patternArgs -Pass
 $patternId = $patternProc.Id
 $appName = if ($Process -eq 'ShareX') { 'ShareX' } else { 'sharexrs' }
 function XY([string] $v) { $p = $v -split ','; return @([int]$p[0], [int]$p[1]) }
+$script:origin = @(0, 0)
+function CXY([string] $v) { $p = $v -split ','; return @(([int]$p[0] + $script:origin[0]), ([int]$p[1] + $script:origin[1])) }
 try {
     & "$PSScriptRoot/wait-pattern.ps1" -Min 0.6
     Start-Sleep -Milliseconds 400
@@ -70,6 +75,26 @@ try {
                 & "$PSScriptRoot/winshot.ps1" -Process $appName -Title $t -Out $out | Out-Null
             }
             'clip' { & "$PSScriptRoot/clipboard-dump.ps1" -Out $arg }
+            'raise' { & "$PSScriptRoot/raise.ps1" -Process $appName -Title $arg | Out-Null }
+            'origin' {
+                $line = & "$PSScriptRoot/winrects.ps1" -Process $appName | Where-Object { $_ -match $arg } | Select-Object -First 1
+                if ($line -match 'client=(-?\d+),(-?\d+)') { $script:origin = @([int]$Matches[1], [int]$Matches[2]) } else { throw "no window $arg" }
+            }
+            'cclick' { & "$PSScriptRoot/input.ps1" -Click (CXY $arg) }
+            'cdrag' {
+                $p = $arg -split ','
+                & "$PSScriptRoot/input.ps1" -Down (CXY "$($p[0]),$($p[1])") -Hold
+                & "$PSScriptRoot/input.ps1" -DragTo (CXY "$($p[2]),$($p[3])") -Hold
+                & "$PSScriptRoot/input.ps1" -Up
+            }
+            'drag' {
+                $p = $arg -split ','
+                & "$PSScriptRoot/input.ps1" -Down @([int]$p[0], [int]$p[1]) -Hold
+                & "$PSScriptRoot/input.ps1" -DragTo @([int]$p[2], [int]$p[3]) -Hold
+                & "$PSScriptRoot/input.ps1" -Up
+            }
+            'type' { & "$PSScriptRoot/input.ps1" -Text $arg }
+            'stamp' { Add-Content -Path $arg -Value ((Get-Date).ToString('HH:mm:ss.fff')) }
             'invoke' {
                 $t, $n = $arg -split '=', 2
                 & "$PSScriptRoot/uia.ps1" -Process $appName -Window $t -Invoke $n | Out-Null
