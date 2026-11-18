@@ -736,12 +736,28 @@ laid out as Fill, as `WindowsDesktopWallpaperService`;
 macOS and Linux wallpaper services aren't ported (no Wallpaper option
 there).
 
+The shadow's shape is drawn in Skia's own layer: a draw with an image
+filter gets a layer the size of the shape's bounds (rounded out; m119's
+`AutoLayerForImageFilter`, cut to what the blur needs for the visible
+output), so the rounded rect is rasterised at that layer's origin, then
+blurred and drawn back through the difference clip. Where it's rasterised
+matters: Skia's analytic AA isn't translation-invariant (the same rounded
+rect 28 px further into a bigger layer differs on 2 pixels, and the blur
+spreads them to 7). A SkiaSharp probe on ShareX's own `libSkiaSharp`
+(`G:/scripts/sharexrs-ref/probe-shadow`: the shadow, the shape, the blur
+and the clip separately) showed the shape and the blur each matching
+sharex-skia exactly, and only the layer's place differing.
+
 Validation: the editor harness got a `background` case field (the options,
 the panel open; a fake wallpaper service hands it a generated image, never
-the desktop's): 26 cases in `cases.json`, 9 pixel-identical, 16 within one
-level on 3-5 pixels at the blurred shadow's corners (`tolerance` in the
-case), and annotations over the viewport's edge within 5 levels on 0.03%
-(ShareX chops their edges at the frame's clip). The panel vs ShareX
+the desktop's): 26 cases in `cases.json`, 23 pixel-identical. Left: an
+image or wallpaper brush scaled up (`bg-image`, `bg-wallpaper-fill`), one
+level on 3 pixels in one column (Skia's legacy bilinear stepping), and
+annotations over the viewport's edge (`bg-annotations`), within 5 levels on
+0.03%: ShareX rasterises them at their place in the frame (120, 120), and
+ShareXrs renders the image with its annotations first and draws it there,
+so their anti-aliased edges differ (the same translation effect as the
+shadow; fixing it needs the annotation renderer to draw at an offset). The panel vs ShareX
 (`--render image-editor --state background[-gradient|-color|-image][-scrolled]`,
 shots in `shots/sharex/editor-background/`): dark transparent 0.16%,
 gradient 0.16%, gradient scrolled 0.06%, colour 0.15%, image 0.16%; light

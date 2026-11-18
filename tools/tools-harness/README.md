@@ -18,10 +18,16 @@ inputs are skipped).
 
 ```
 python tools/tools-harness/make_cases.py tools/tools-harness/cases.json
+python tools/tools-harness/make_bg_models.py G:/scripts/sharexrs-ref/tools-harness/work/inputs/bgmodels
 dotnet build tools/tools-harness -c Release -o G:/scripts/sharexrs-ref/tools-harness/bin
 G:/scripts/sharexrs-ref/tools-harness/bin/ToolsHarness.exe tools/tools-harness/cases.json G:/scripts/sharexrs-ref/tools-harness/work [case prefix]
 cargo run --release -p sharex-tools --example tools_validate -- tools/tools-harness/cases.json G:/scripts/sharexrs-ref/tools-harness/work [case prefix]
 ```
+
+`make_bg_models.py` writes the background remover's synthetic ONNX models
+(with Python's `onnx` package; no model is downloaded). The background
+remover cases need ONNX Runtime on the Rust side too: set `ORT_DYLIB_PATH`
+to ShareX's `onnxruntime.dll` (they're skipped without it).
 
 The last step runs every case through the Rust port, writes `<work>/sharexrs/*`
 and `<work>/report.md`: per tool, how many cases are exact (byte for byte, or
@@ -74,8 +80,14 @@ python tools/tools-harness/make_fixtures.py G:/scripts/sharexrs-ref/tools-harnes
   `BuildArguments`, `VideoConversionOutputInfo` over real FFmpeg probes,
   `VideoTrimmerService`'s argument builder, `VideoThumbnailer` on a synthetic
   clip.
-- System tools (`SystemCases.cs`): `GifLosslessTrimmer` and
-  `AnimatedGifTrimmerDocument`'s timing; `MonitorTestPatternControl` rendered
+- System tools (`SystemCases.cs`, `SystemDataCases.cs`): `GifLosslessTrimmer`,
+  `AnimatedGifTrimmerDocument` (`Open`, `RenderFrame`, `Export` by
+  reflection) and `SkiaAnimatedImage.GetFrame` over `disp0-2.gif` (written
+  by `AnimatedGifCreator`, their disposals patched in);
+  `ClipboardViewerData.GetPreview` over `ClipboardData` snapshots the
+  harness builds (`inputs/clipboard/manifest.json`; the real clipboard is
+  never read); `WindowStyles.ToString()` and `FormatRectangle`;
+  `BackgroundRemovalService` on the CPU over `inputs/bgmodels`; `MonitorTestPatternControl` rendered
   to a `RenderTargetBitmap` through Avalonia.Headless (Skia, no window).
 
 The image, data and video tools need no Avalonia application (their view
