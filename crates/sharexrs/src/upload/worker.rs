@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use sharex_settings::{AfterCaptureTasks, AfterUploadTasks, ApplicationConfig, TaskSettings};
 use sharex_strings::sharex as s;
-use sharex_uploaders::factory::{Ported, TaskReferenceHelper};
+use sharex_uploaders::factory::{Ported, TaskDataType, TaskReferenceHelper};
 use sharex_uploaders::http::{self, ProgressManager, SharedStream};
 use sharex_uploaders::{FileDestination, ImageDestination, TextDestination, UploadResult, UploaderErrorManager};
 
@@ -157,6 +157,13 @@ impl<'a> Worker<'a> {
             override_custom_uploader: t.task.OverrideCustomUploader,
             custom_uploader_index: t.task.CustomUploaderIndex,
             text_format: advanced.TextFormat,
+            data_type: match t.data_type {
+                crate::tasks::EDataType::Default => TaskDataType::Default,
+                crate::tasks::EDataType::File => TaskDataType::File,
+                crate::tasks::EDataType::Image => TaskDataType::Image,
+                crate::tasks::EDataType::Text => TaskDataType::Text,
+                crate::tasks::EDataType::URL => TaskDataType::Url,
+            },
         };
         Self {
             id,

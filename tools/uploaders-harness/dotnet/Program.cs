@@ -157,6 +157,12 @@ static class Harness
             output["exception_type"] = inner.GetType().FullName;
         }
         if (uploader != null) output["uploader_errors"] = ErrorsToJson(uploader.Errors);
+        string checkFile = (string)c["input"]?["check_file"];
+        if (checkFile != null)
+        {
+            output["written_file_base64"] = File.Exists(checkFile) ? Convert.ToBase64String(File.ReadAllBytes(checkFile)) : null;
+            if (File.Exists(checkFile)) File.Delete(checkFile);
+        }
         output["requests"] = Log();
         return output;
     }

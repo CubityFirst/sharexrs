@@ -18,7 +18,9 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import re
+import subprocess
 import sys
 
 RESULT_KEYS = ["url", "thumbnail_url", "deletion_url", "shortened_url", "is_success", "is_error", "is_url_expected",
@@ -61,8 +63,89 @@ def verify_sigv4(req):
     return None if expected == signature else f"bad signature (expected {expected})"
 
 
+AZURE_KEY = base64.b64decode(base64.b64encode(b"made-up-azure-key"))  # make_cases.py's
+
+
+def split_target(target):
+    """The rewritten target's (scheme, host, path, query)."""
+    rest = target[len("/__/"):]
+    scheme, rest = rest.split("/", 1)
+    host, _, path_query = rest.partition("/")
+    path, _, query = ("/" + path_query).partition("?")
+    return scheme, host, path, query
+
+
+def verify_azure(req):
+    """Checks an Azure SharedKey signature against the request as it arrived."""
+    h = {k.lower(): v for k, v in req["headers"]}
+    m = re.match(r"SharedKey ([^:]+):(.+)$", h.get("authorization", ""))
+    if not m:
+        return f"malformed Authorization {h.get('authorization')!r}"
+    account, signature = m.groups()
+    _, host, path, _ = split_target(req["target"])
+    body = base64.b64decode(req["body_base64"])
+    canonical_headers = "".join(f"{k}:{v}\n" for k, v in sorted(h.items()) if k.startswith("x-ms-"))
+    to_sign = (f"PUT\n\n\n{len(body)}\n\n{h.get('content-type', '')}\n\n\n\n\n\n\n"
+               f"{canonical_headers}/{host.split('.')[0]}{path}")
+    expected = base64.b64encode(hmac.new(AZURE_KEY, to_sign.encode(), hashlib.sha256).digest()).decode()
+    if account != host.split(".")[0]:
+        return "account doesn't match the host"
+    return None if expected == signature else f"bad signature (expected {expected})"
+
+
+BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def base58_decode(text):
+    n = 0
+    for c in text:
+        n = n * 58 + BASE58.index(c)
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
+    return b"\0" * (len(text) - len(text.lstrip("1"))) + raw
+
+
+def privatebin_plain(body, url, password):
+    """Decrypts a PrivateBin paste with the key after # in its URL."""
+    try:
+        payload = json.loads(body)
+        iv, salt = base64.b64decode(payload["adata"][0][0]), base64.b64decode(payload["adata"][0][1])
+        key_material = base58_decode(url.split("#", 1)[1]) + (password or "").encode()
+        key = hashlib.pbkdf2_hmac("sha256", key_material, salt, 100000, 32)
+        out = subprocess.run(["openssl", "enc", "-d", "-aes-256-cbc", "-K", key.hex(), "-iv", iv.hex()],
+                             input=base64.b64decode(payload["ct"]), capture_output=True, check=True).stdout
+        return out.decode("utf-8")
+    except Exception as e:  # noqa: BLE001
+        return f"undecryptable: {e}"
+
+
+def norm_privatebin(req, result, case):
+    """PrivateBin's random IV, salt and key: the decrypted paste instead."""
+    body = base64.b64decode(req["body_base64"])
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return req
+    if not isinstance(payload, dict) or "ct" not in payload:
+        return req
+    url = (result or {}).get("url") or ""
+    password = ((case or {}).get("config") or {}).get("PrivateBinSettings", {}).get("PastePassword")
+    plain = privatebin_plain(body, url, password) if "#" in url else "no key"
+    for v in [payload["ct"], payload["adata"][0][0], payload["adata"][0][1]]:
+        body = body.replace(json.dumps(v).encode(), b'"RANDOM"')
+    req = dict(req, body_base64=base64.b64encode(body).decode(), headers=req["headers"] + [["x-privatebin-plain", plain]])
+    return req
+
+
 def norm_request(req):
     headers = [[k, v] for k, v in req["headers"]]
+    if any(k.lower() == "x-ms-date" for k, _ in headers):
+        error = verify_azure(req)
+        if error:
+            headers.append(["x-azure-check", error])
+        headers = [[k, "DATE" if k.lower() == "x-ms-date" else
+                    re.sub(r":.+$", ":SIG", v) if k.lower() == "authorization" else v] for k, v in headers]
+    # B2's file time.
+    headers = [[k, "MILLIS" if k.lower() == "x-bz-info-src_last_modified_millis" else v] for k, v in headers]
     if any(k.lower() == "x-amz-date" for k, _ in headers):
         error = verify_sigv4(req)
         if error:
@@ -109,9 +192,15 @@ def cut_stack(text):
     return "\n".join(line for line in text.split("\n") if not line.startswith("   at "))
 
 
-def compare_case(a, b):
+def compare_case(a, b, case=None):
     diffs = []
     ra, rb = a.get("requests", []), b.get("requests", [])
+    if (case or {}).get("service", "").endswith(":PrivateBin"):
+        ra = [norm_privatebin(r, a.get("result"), case) for r in ra]
+        rb = [norm_privatebin(r, b.get("result"), case) for r in rb]
+        for side in (a, b):
+            if side.get("result") and "#" in (side["result"].get("url") or ""):
+                side["result"]["url"] = side["result"]["url"].split("#")[0] + "#KEY"
     if len(ra) != len(rb):
         diffs.append(f"request count: sharex {len(ra)} vs sharexrs {len(rb)}")
     order_only = False
@@ -131,7 +220,7 @@ def compare_case(a, b):
                      min(len(na['body']), len(nb['body'])))
             diffs.append(f"request {i} body differs at byte {j} (lengths {len(na['body'])}/{len(nb['body'])}): "
                          f"sharex {na['body'][max(0, j - 40):j + 40]!r} vs sharexrs {nb['body'][max(0, j - 40):j + 40]!r}")
-    for k in ["check_config", "request_url"]:
+    for k in ["check_config", "request_url", "written_file_base64"]:
         if a.get(k) != b.get(k):
             diffs.append(f"{k}: sharex {a.get(k)!r} vs sharexrs {b.get(k)!r}")
     if (a.get("sxcu_export") or "").replace("\r\n", "\n") != (b.get("sxcu_export") or "").replace("\r\n", "\n"):
@@ -160,6 +249,11 @@ def main():
     sharex = {c["id"]: c for c in json.load(open(sys.argv[1], encoding="utf-8"))}
     ours = {c["id"]: c for c in json.load(open(sys.argv[2], encoding="utf-8"))}
     report = sys.argv[sys.argv.index("--report") + 1] if "--report" in sys.argv else None
+    here = os.path.dirname(os.path.abspath(__file__))
+    try:
+        cases = {c["id"]: c for c in json.load(open(os.path.join(here, "cases.json"), encoding="utf-8"))["cases"]}
+    except OSError:
+        cases = {}
     rows, details, failed = [], [], 0
     for id, a in sharex.items():
         b = ours.get(id)
@@ -167,7 +261,7 @@ def main():
             rows.append((id, "missing in ShareXrs", 0))
             failed += 1
             continue
-        diffs, _ = compare_case(a, b)
+        diffs, _ = compare_case(a, b, cases.get(id))
         nreq = len(a.get("requests", []))
         if diffs:
             failed += 1

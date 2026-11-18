@@ -199,6 +199,13 @@ fn run_case(case: &Value, port: u16) -> Value {
     if let Some(e) = errors {
         out["uploader_errors"] = e;
     }
+    if let Some(path) = input["check_file"].as_str() {
+        out["written_file_base64"] = match std::fs::read(path) {
+            Ok(bytes) => json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
+            Err(_) => Value::Null,
+        };
+        let _ = std::fs::remove_file(path);
+    }
     out["requests"] = log(port);
     out
 }

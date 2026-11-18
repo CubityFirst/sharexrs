@@ -2755,6 +2755,1300 @@
      "body": "{\"status\":\"created\"}"
     }
    ]
+  },
+  {
+   "id": "azure",
+   "kind": "builtin",
+   "service": "file:AzureStorage",
+   "config": {
+    "AzureStorageAccountName": "madeupacct",
+    "AzureStorageAccountAccessKey": "bWFkZS11cC1henVyZS1rZXk=",
+    "AzureStorageContainer": "shots",
+    "AzureStorageUploadPath": "/ShareX/sub dir/",
+    "AzureStorageCacheControl": "max-age=60"
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    }
+   ]
+  },
+  {
+   "id": "azure-root-custom-domain",
+   "kind": "builtin",
+   "service": "file:AzureStorage",
+   "config": {
+    "AzureStorageAccountName": "madeupacct",
+    "AzureStorageAccountAccessKey": "bWFkZS11cC1henVyZS1rZXk=",
+    "AzureStorageContainer": "$root",
+    "AzureStorageUploadPath": "",
+    "AzureStorageCacheControl": "",
+    "AzureStorageCustomDomain": "cdn.example.com",
+    "AzureStorageEnvironment": "blob.core.chinacloudapi.cn"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    }
+   ]
+  },
+  {
+   "id": "azure-error",
+   "kind": "builtin",
+   "service": "file:AzureStorage",
+   "config": {
+    "AzureStorageAccountName": "madeupacct",
+    "AzureStorageAccountAccessKey": "bWFkZS11cC1henVyZS1rZXk=",
+    "AzureStorageContainer": "shots",
+    "AzureStorageUploadPath": "/ShareX/sub dir/",
+    "AzureStorageCacheControl": "max-age=60"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<?xml version=\"1.0\"?><Error><Code>AuthenticationFailed</Code></Error>"
+    }
+   ]
+  },
+  {
+   "id": "azure-missing-account",
+   "kind": "builtin",
+   "service": "file:AzureStorage",
+   "config": {
+    "AzureStorageAccountName": "",
+    "AzureStorageAccountAccessKey": "bWFkZS11cC1henVyZS1rZXk=",
+    "AzureStorageContainer": "shots",
+    "AzureStorageUploadPath": "/ShareX/sub dir/",
+    "AzureStorageCacheControl": "max-age=60"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": []
+  },
+  {
+   "id": "b2",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"accountId\": \"acc1\", \"apiUrl\": \"https://api000.backblazeb2.com\", \"authorizationToken\": \"auth-tok\", \"downloadUrl\": \"https://f000.backblazeb2.com\", \"minimumPartSize\": 100, \"allowed\": {\"capabilities\": [\"listBuckets\", \"writeFiles\"], \"bucketId\": null, \"namePrefix\": null}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"buckets\": [{\"bucketName\": \"other\", \"bucketId\": \"b0\"}, {\"bucketName\": \"made-up-bucket\", \"bucketId\": \"b1\"}]}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"bucketId\": \"b1\", \"uploadUrl\": \"https://pod-000.backblaze.com/b2api/v1/b2_upload_file/b1/c000\", \"authorizationToken\": \"up-tok\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"fileId\": \"f1\", \"fileName\": \"shots/sub/my shot.png\", \"contentLength\": 768}"
+    }
+   ]
+  },
+  {
+   "id": "b2-retry-custom-url",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub",
+    "B2UseCustomUrl": true,
+    "B2CustomUrl": "cdn.example.com/b2"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"accountId\": \"acc1\", \"apiUrl\": \"https://api000.backblazeb2.com\", \"authorizationToken\": \"auth-tok\", \"downloadUrl\": \"https://f000.backblazeb2.com\", \"minimumPartSize\": 100, \"allowed\": {\"capabilities\": [\"writeFiles\"], \"bucketId\": \"b1\", \"namePrefix\": \"shots/\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"bucketId\": \"b1\", \"uploadUrl\": \"https://pod-000.backblaze.com/b2api/v1/b2_upload_file/b1/c000\", \"authorizationToken\": \"up-tok\"}"
+    },
+    {
+     "status": 503,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 503, \"code\": \"service_unavailable\", \"message\": \"busy\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"bucketId\": \"b1\", \"uploadUrl\": \"https://pod-000.backblaze.com/b2api/v1/b2_upload_file/b1/c000\", \"authorizationToken\": \"up-tok\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"fileId\": \"f2\", \"fileName\": \"shots/sub/test image.png\"}"
+    }
+   ]
+  },
+  {
+   "id": "b2-auth-error",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 401,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 401, \"code\": \"bad_auth_token\", \"message\": \"Invalid\"}"
+    }
+   ]
+  },
+  {
+   "id": "b2-auth-error-text",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 500,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "nope"
+    }
+   ]
+  },
+  {
+   "id": "b2-prefix-not-allowed",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"accountId\": \"acc1\", \"apiUrl\": \"https://api000.backblazeb2.com\", \"authorizationToken\": \"auth-tok\", \"downloadUrl\": \"https://f000.backblazeb2.com\", \"minimumPartSize\": 100, \"allowed\": {\"capabilities\": [\"writeFiles\"], \"bucketId\": \"b1\", \"namePrefix\": \"other/\"}}"
+    }
+   ]
+  },
+  {
+   "id": "b2-no-bucket",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"accountId\": \"acc1\", \"apiUrl\": \"https://api000.backblazeb2.com\", \"authorizationToken\": \"auth-tok\", \"downloadUrl\": \"https://f000.backblazeb2.com\", \"minimumPartSize\": 100, \"allowed\": {\"capabilities\": [\"listBuckets\", \"writeFiles\"], \"bucketId\": null, \"namePrefix\": null}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"buckets\":[]}"
+    }
+   ]
+  },
+  {
+   "id": "b2-upload-error",
+   "kind": "builtin",
+   "service": "file:BackblazeB2",
+   "config": {
+    "B2ApplicationKeyId": "made-up-key-id",
+    "B2ApplicationKey": "made-up-key",
+    "B2BucketName": "made-up-bucket",
+    "B2UploadPath": "shots/sub"
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"accountId\": \"acc1\", \"apiUrl\": \"https://api000.backblazeb2.com\", \"authorizationToken\": \"auth-tok\", \"downloadUrl\": \"https://f000.backblazeb2.com\", \"minimumPartSize\": 100, \"allowed\": {\"capabilities\": [\"writeFiles\"], \"bucketId\": \"b1\", \"namePrefix\": null}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"bucketId\": \"b1\", \"uploadUrl\": \"https://pod-000.backblaze.com/b2api/v1/b2_upload_file/b1/c000\", \"authorizationToken\": \"up-tok\"}"
+    },
+    {
+     "status": 400,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 400, \"code\": \"bad_request\", \"message\": \"no\"}"
+    }
+   ]
+  },
+  {
+   "id": "hostr-direct",
+   "kind": "builtin",
+   "service": "file:Localhostr",
+   "config": {
+    "LocalhostrEmail": "someone@example.com",
+    "LocalhostrPassword": "made-up",
+    "LocalhostrDirectURL": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"added\": \"x\", \"name\": \"my shot.png\", \"href\": \"https://hostr.co/abc\", \"size\": 768, \"type\": \"image\", \"direct\": {\"150x\": \"https://hostr.co/file/150/abc/my shot.png\", \"930x\": \"y\"}, \"id\": \"abc\"}"
+    }
+   ]
+  },
+  {
+   "id": "hostr-href",
+   "kind": "builtin",
+   "service": "file:Localhostr",
+   "config": {
+    "LocalhostrEmail": "someone@example.com",
+    "LocalhostrPassword": "made-up",
+    "LocalhostrDirectURL": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"name\": \"a\", \"href\": \"https://hostr.co/def\", \"id\": \"def\", \"direct\": null}"
+    }
+   ]
+  },
+  {
+   "id": "plik",
+   "kind": "builtin",
+   "service": "file:Plik",
+   "config": {
+    "PlikSettings": {
+     "URL": "https://plik.example.com",
+     "APIKey": "made-up",
+     "IsSecured": true,
+     "Login": "user",
+     "Password": "pass",
+     "Removable": true,
+     "OneShot": false,
+     "TTLUnit": 1,
+     "TTL": 2.5,
+     "HasComment": true,
+     "Comment": "a \"comment\""
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"up1\", \"files\": {\"f1\": {\"id\": \"f1\", \"fileName\": \"my shot.png\"}}, \"uploadToken\": \"utok\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"f1\", \"status\": \"uploaded\"}"
+    }
+   ]
+  },
+  {
+   "id": "plik-forever",
+   "kind": "builtin",
+   "service": "file:Plik",
+   "config": {
+    "PlikSettings": {
+     "URL": "https://plik.example.com",
+     "APIKey": "made-up",
+     "IsSecured": false,
+     "Login": "user",
+     "Password": "pass",
+     "Removable": true,
+     "OneShot": false,
+     "TTLUnit": 3,
+     "TTL": 2.5,
+     "HasComment": false,
+     "Comment": "a \"comment\""
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"id\": \"up2\", \"files\": {\"f9\": {\"id\": \"f9\", \"fileName\": \"a&b.png\"}}, \"uploadToken\": \"u2\"}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{}"
+    }
+   ]
+  },
+  {
+   "id": "plik-error",
+   "kind": "builtin",
+   "service": "file:Plik",
+   "config": {
+    "PlikSettings": {
+     "URL": "https://plik.example.com",
+     "APIKey": "made-up",
+     "IsSecured": true,
+     "Login": "user",
+     "Password": "pass",
+     "Removable": true,
+     "OneShot": false,
+     "TTLUnit": 1,
+     "TTL": 2.5,
+     "HasComment": true,
+     "Comment": "a \"comment\""
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 500,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "bad"
+    }
+   ]
+  },
+  {
+   "id": "seafile-share-raw",
+   "kind": "builtin",
+   "service": "file:Seafile",
+   "config": {
+    "SeafileAPIURL": "sea.example.com/api2/",
+    "SeafileAuthToken": "made-up-token",
+    "SeafileRepoID": "repo-1",
+    "SeafilePath": "/ShareX",
+    "SeafileCreateShareableURLRaw": true,
+    "SeafileSharePassword": "secret",
+    "SeafileShareDaysToExpire": 7
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "\"https://sea.example.com/seafhttp/upload-api/abc\""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "fileid"
+    },
+    {
+     "status": 201,
+     "headers": [
+      [
+       "Location",
+       "https://sea.example.com/f/abc123/?dl=0"
+      ]
+     ],
+     "body": ""
+    }
+   ]
+  },
+  {
+   "id": "seafile-encrypted",
+   "kind": "builtin",
+   "service": "file:Seafile",
+   "config": {
+    "SeafileAPIURL": "sea.example.com/api2/",
+    "SeafileAuthToken": "made-up-token",
+    "SeafileRepoID": "repo-1",
+    "SeafilePath": "",
+    "SeafileCreateShareableURLRaw": true,
+    "SeafileSharePassword": "secret",
+    "SeafileShareDaysToExpire": 7,
+    "SeafileIsLibraryEncrypted": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "\"https://sea.example.com/up\""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "fileid"
+    }
+   ]
+  },
+  {
+   "id": "seafile-link-error",
+   "kind": "builtin",
+   "service": "file:Seafile",
+   "config": {
+    "SeafileAPIURL": "sea.example.com/api2/",
+    "SeafileAuthToken": "made-up-token",
+    "SeafileRepoID": "repo-1",
+    "SeafilePath": "/ShareX",
+    "SeafileCreateShareableURLRaw": true,
+    "SeafileSharePassword": "secret",
+    "SeafileShareDaysToExpire": 7
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 403,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "denied"
+    }
+   ]
+  },
+  {
+   "id": "pushbullet",
+   "kind": "builtin",
+   "service": "file:Pushbullet",
+   "config": {
+    "PushbulletSettings": {
+     "UserAPIKey": "made-up",
+     "DeviceList": [
+      {
+       "Key": "dev0",
+       "Name": "Tablet"
+      },
+      {
+       "Key": "dev1",
+       "Name": "Phone"
+      }
+     ],
+     "SelectedDevice": 1
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"file_type\": \"image/png\", \"file_name\": \"my shot.png\", \"file_url\": \"https://dl.pushbulletusercontent.com/x/my shot.png\", \"upload_url\": \"https://s3.amazonaws.com/pushbullet-uploads\", \"data\": {\"awsaccesskeyid\": \"AK\", \"acl\": \"public-read\", \"key\": \"k/my shot.png\", \"signature\": \"sig\", \"policy\": \"pol\", \"content-type\": \"image/png\"}}"
+    },
+    {
+     "status": 204,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": ""
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"iden\": \"push1\", \"created\": 1}"
+    }
+   ]
+  },
+  {
+   "id": "pushbullet-no-device",
+   "kind": "builtin",
+   "service": "file:Pushbullet",
+   "config": {
+    "PushbulletSettings": {
+     "UserAPIKey": "made-up",
+     "DeviceList": [
+      {
+       "Key": "dev0",
+       "Name": "Tablet"
+      },
+      {
+       "Key": "dev1",
+       "Name": "Phone"
+      }
+     ],
+     "SelectedDevice": 5
+    }
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": []
+  },
+  {
+   "id": "pushbullet-share",
+   "kind": "builtin",
+   "service": "sharing:Pushbullet",
+   "config": {
+    "PushbulletSettings": {
+     "UserAPIKey": "made-up",
+     "DeviceList": [
+      {
+       "Key": "dev0",
+       "Name": "Tablet"
+      },
+      {
+       "Key": "dev1",
+       "Name": "Phone"
+      }
+     ],
+     "SelectedDevice": 1
+    }
+   },
+   "input": {
+    "url": "https://example.com/some/long/path?a=1&b=two words"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"iden\": \"push2\"}"
+    }
+   ]
+  },
+  {
+   "id": "sendspace-anonymous",
+   "kind": "builtin",
+   "service": "file:SendSpace",
+   "config": {},
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"anonymous.uploadGetInfo\" status=\"ok\"><upload url=\"https://fs00.sendspace.com/upload?SPEED_LIMIT=0\" progress_url=\"https://fs00.sendspace.com/progress\" max_file_size=\"314572800\" upload_identifier=\"ui-1\" extra_info=\"ei-1\"/></result>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<upload_done><status>ok</status><download_url>https://www.sendspace.com/file/abc</download_url><delete_url>https://www.sendspace.com/delete/abc/x</delete_url><file_id>abc</file_id></upload_done>"
+    }
+   ]
+  },
+  {
+   "id": "sendspace-anonymous-fail",
+   "kind": "builtin",
+   "service": "file:SendSpace",
+   "config": {},
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"anonymous.uploadGetInfo\" status=\"fail\"><error code=\"6\" text=\"API key invalid\"/></result>"
+    }
+   ]
+  },
+  {
+   "id": "sendspace-user",
+   "kind": "builtin",
+   "service": "file:SendSpace",
+   "config": {
+    "SendSpaceAccountType": "User",
+    "SendSpaceUsername": "someone",
+    "SendSpacePassword": "made-up"
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"auth.createToken\" status=\"ok\"><token>tok123</token></result>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"auth.login\" status=\"ok\"><session_key>sess-1</session_key><user_name>someone</user_name></result>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"upload.getInfo\" status=\"ok\"><upload url=\"https://fs00.sendspace.com/upload?SPEED_LIMIT=0\" progress_url=\"https://fs00.sendspace.com/progress\" max_file_size=\"314572800\" upload_identifier=\"ui-1\" extra_info=\"ei-1\"/></result>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "upload_status=ok\nfile_id=xyz9\nfile_name=my shot.png"
+    }
+   ]
+  },
+  {
+   "id": "sendspace-user-again",
+   "kind": "builtin",
+   "service": "file:SendSpace",
+   "config": {
+    "SendSpaceAccountType": "User",
+    "SendSpaceUsername": "someone",
+    "SendSpacePassword": "made-up"
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/xml"
+      ]
+     ],
+     "body": "<result method=\"upload.getInfo\" status=\"ok\"><upload url=\"https://fs00.sendspace.com/upload?SPEED_LIMIT=0\" progress_url=\"https://fs00.sendspace.com/progress\" max_file_size=\"314572800\" upload_identifier=\"ui-1\" extra_info=\"ei-1\"/></result>"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "upload_status=ok\nfile_id=q1"
+    }
+   ]
+  },
+  {
+   "id": "mediafire",
+   "kind": "builtin",
+   "service": "file:MediaFire",
+   "config": {
+    "MediaFireUsername": "someone@example.com",
+    "MediaFirePassword": "made-up",
+    "MediaFirePath": "ShareX/shots",
+    "MediaFireUseLongLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"action\": \"user/get_session_token\", \"session_token\": \"st-1\", \"secret_key\": 123456789, \"time\": \"1700000000.1234\", \"result\": \"Success\", \"new_key\": \"no\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"doupload\": {\"result\": \"0\", \"key\": \"upkey\"}, \"result\": \"Success\", \"new_key\": \"yes\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"doupload\": {\"result\": \"0\", \"status\": \"17\", \"description\": \"Upload is in progress\"}, \"result\": \"Success\", \"new_key\": \"yes\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"doupload\": {\"result\": \"0\", \"status\": \"99\", \"quickkey\": \"qk1\", \"filename\": \"my shot.png\"}, \"result\": \"Success\", \"new_key\": \"no\"}}"
+    }
+   ]
+  },
+  {
+   "id": "mediafire-login-error",
+   "kind": "builtin",
+   "service": "file:MediaFire",
+   "config": {
+    "MediaFireUsername": "someone@example.com",
+    "MediaFirePassword": "made-up",
+    "MediaFirePath": "ShareX/shots",
+    "MediaFireUseLongLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"result\": \"Error\", \"error\": 107, \"message\": \"Invalid credentials\"}}"
+    }
+   ]
+  },
+  {
+   "id": "mediafire-poll-error",
+   "kind": "builtin",
+   "service": "file:MediaFire",
+   "config": {
+    "MediaFireUsername": "someone@example.com",
+    "MediaFirePassword": "made-up",
+    "MediaFirePath": "ShareX/shots",
+    "MediaFireUseLongLink": true
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"session_token\": \"st\", \"secret_key\": 7, \"time\": \"1.5\", \"result\": \"Success\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"doupload\": {\"result\": 0, \"key\": \"k\"}, \"result\": \"Success\"}}"
+    },
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"response\": {\"doupload\": {\"result\": 0, \"status\": 99, \"fileerror\": 4, \"description\": \"File too big\"}, \"result\": \"Success\"}}"
+    }
+   ]
+  },
+  {
+   "id": "imageshack",
+   "kind": "builtin",
+   "service": "image:ImageShack",
+   "config": {
+    "ImageShackSettings": {
+     "Username": null,
+     "Password": null,
+     "IsPublic": true,
+     "Auth_token": "made-up-token",
+     "ThumbnailWidth": 200,
+     "ThumbnailHeight": 150
+    }
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"success\": true, \"process_time\": 1, \"result\": {\"images\": [{\"server\": 123, \"bucket\": 456, \"filename\": \"abc.png\"}]}}"
+    }
+   ]
+  },
+  {
+   "id": "imageshack-error",
+   "kind": "builtin",
+   "service": "image:ImageShack",
+   "config": {
+    "ImageShackSettings": {
+     "Username": null,
+     "Password": null,
+     "IsPublic": true,
+     "Auth_token": "made-up-token",
+     "ThumbnailWidth": 200,
+     "ThumbnailHeight": 150
+    }
+   },
+   "input": {
+    "file_name": "test image.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"success\": false, \"error\": {\"error_code\": 3, \"error_message\": \"Bad image\"}}"
+    }
+   ]
+  },
+  {
+   "id": "privatebin",
+   "kind": "builtin",
+   "service": "text:PrivateBin",
+   "config": {
+    "PrivateBinSettings": {
+     "Username": "user",
+     "Password": "pass",
+     "BurnAfterReading": true,
+     "Expiration": "D1",
+     "Format": "Markdown",
+     "CustomUrl": "https://bin.example.com/pb/",
+     "PastePassword": "pw"
+    }
+   },
+   "input": {
+    "file_name": "notes.txt",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 0, \"id\": \"abc\", \"url\": \"/?abc\", \"deletetoken\": \"dt+1\"}"
+    }
+   ]
+  },
+  {
+   "id": "privatebin-defaults",
+   "kind": "builtin",
+   "service": "text:PrivateBin",
+   "config": {},
+   "input": {
+    "file_name": "notes.txt",
+    "text": "plain"
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 0, \"id\": \"d\", \"url\": \"?d\", \"deletetoken\": \"t\"}"
+    }
+   ]
+  },
+  {
+   "id": "privatebin-error",
+   "kind": "builtin",
+   "service": "text:PrivateBin",
+   "config": {
+    "PrivateBinSettings": {
+     "Username": "user",
+     "Password": "pass",
+     "BurnAfterReading": true,
+     "Expiration": "D1",
+     "Format": "Markdown",
+     "CustomUrl": "https://bin.example.com/pb/",
+     "PastePassword": "pw"
+    }
+   },
+   "input": {
+    "file_name": "notes.txt",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 200,
+     "headers": [
+      [
+       "Content-Type",
+       "application/json; charset=utf-8"
+      ]
+     ],
+     "body": "{\"status\": 1, \"message\": \"Invalid data.\"}"
+    }
+   ]
+  },
+  {
+   "id": "privatebin-401",
+   "kind": "builtin",
+   "service": "text:PrivateBin",
+   "config": {
+    "PrivateBinSettings": {
+     "Username": "user",
+     "Password": "pass",
+     "BurnAfterReading": true,
+     "Expiration": "D1",
+     "Format": "Markdown",
+     "CustomUrl": "https://bin.example.com/pb/",
+     "PastePassword": "pw"
+    }
+   },
+   "input": {
+    "file_name": "notes.txt",
+    "text": "Hello \"world\" & <friends>\nline 2 \\ tab\t é ü 🙂  "
+   },
+   "responses": [
+    {
+     "status": 401,
+     "headers": [
+      [
+       "Content-Type",
+       "text/plain; charset=utf-8"
+      ]
+     ],
+     "body": "auth"
+    }
+   ]
+  },
+  {
+   "id": "shared-folder",
+   "kind": "builtin",
+   "service": "file:SharedFolder",
+   "config": {
+    "LocalhostAccountList": [
+     {
+      "Name": "x",
+      "LocalhostRoot": "target/uploaders-harness/shared",
+      "Port": 8080,
+      "SubFolderPath": "shots",
+      "HttpHomePath": "@https://files.example.com/share/",
+      "RemoteProtocol": "https"
+     }
+    ]
+   },
+   "input": {
+    "file_name": "my shot.png",
+    "content_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/",
+    "check_file": "target/uploaders-harness/shared/shots/my shot.png"
+   },
+   "responses": []
   }
  ]
 }

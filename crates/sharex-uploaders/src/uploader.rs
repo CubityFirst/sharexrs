@@ -8,7 +8,7 @@
 //! [`UploadError::Exception`]; a stop is [`UploadError::Cancelled`], which
 //! `RunOperationAsync` turns into a `null` result ([`run_operation`]).
 
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -504,6 +504,110 @@ impl Uploader {
             result.response = self.last_response_info.as_ref().and_then(|r| r.response_text.clone());
         }
         Ok(result)
+    }
+
+    /// `GetResponseAsync(method, url, Stream data, contentType, args,
+    /// headers, cookies, allowNon2xxResponses)`: the stream (if any) sent
+    /// whole with progress.
+    #[allow(clippy::too_many_arguments)]
+    pub fn get_response_stream(
+        &mut self,
+        method: HttpMethod,
+        url: &str,
+        data: Option<&SharedStream>,
+        content_type: Option<&str>,
+        args: &[(String, String)],
+        headers: Option<&Headers>,
+        allow_non_2xx: bool,
+    ) -> UResult<Option<ResponseInfo>> {
+        let content = match data {
+            Some(d) => {
+                let len = http::stream_length(d).map_err(|e| UploadError::Exception(e.to_string()))?;
+                Some(self.stream_content(d, 0, len, content_type)?)
+            }
+            None => None,
+        };
+        self.get_response(method, url, content, args, headers, &[], allow_non_2xx)
+    }
+
+    /// `CreateRangeStreamContent`: a checked slice of the stream.
+    fn range_stream_content(&self, data: &SharedStream, position: u64, length: u64, content_type: Option<&str>) -> UResult<Content> {
+        let total = http::stream_length(data).map_err(|e| UploadError::Exception(e.to_string()))?;
+        if position > total {
+            return exception("The requested upload position must be within the stream. (Parameter 'position')");
+        }
+        if length > total - position {
+            return exception("The requested upload range must be within the stream. (Parameter 'length')");
+        }
+        self.stream_content(data, position, length, content_type)
+    }
+
+    /// `SendRequestAsync(method, url, Stream data, position, length,
+    /// contentType, args, headers)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_request_stream_range(
+        &mut self,
+        method: HttpMethod,
+        url: &str,
+        data: &SharedStream,
+        position: u64,
+        length: u64,
+        content_type: Option<&str>,
+        args: &[(String, String)],
+        headers: Option<&Headers>,
+    ) -> UResult<Option<String>> {
+        let content = self.range_stream_content(data, position, length, content_type)?;
+        Ok(self.get_response(method, url, Some(content), args, headers, &[], false)?.and_then(|r| r.response_text))
+    }
+
+    /// `SendRequestForResponseAsync(method, url, data, position, length,
+    /// contentType, headers)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn send_request_for_response_range(
+        &mut self,
+        method: HttpMethod,
+        url: &str,
+        data: &SharedStream,
+        position: u64,
+        length: u64,
+        content_type: Option<&str>,
+        headers: Option<&Headers>,
+    ) -> UResult<Option<ResponseInfo>> {
+        let content = self.range_stream_content(data, position, length, content_type)?;
+        self.get_response(method, url, Some(content), &[], headers, &[], false)
+    }
+
+    /// `TransferData(dataStream, destinationStream, dataPosition,
+    /// dataLength)`: copies the stream in `BufferSize` blocks with progress;
+    /// `false` when stopped or short.
+    pub fn transfer_data(&mut self, data: &SharedStream, destination: &mut dyn std::io::Write, position: u64, length: Option<u64>) -> UResult<bool> {
+        let io = |e: std::io::Error| UploadError::Exception(e.to_string());
+        let source_length = http::stream_length(data).map_err(io)?;
+        if position >= source_length {
+            return Ok(true);
+        }
+        let length = length.unwrap_or(source_length - position).min(source_length - position);
+        let mut progress = http::ProgressManager::new(source_length, position);
+        let mut buffer = vec![0u8; (self.buffer_size as u64).min(length).max(1) as usize];
+        let mut remaining = length;
+        let callback = self.progress_callback();
+        let mut stream = data.lock().expect("upload stream");
+        stream.seek(std::io::SeekFrom::Start(position)).map_err(io)?;
+        while !self.stop_requested() && remaining > 0 {
+            let want = (buffer.len() as u64).min(remaining) as usize;
+            let read = stream.read(&mut buffer[..want]).map_err(io)?;
+            if read == 0 {
+                break;
+            }
+            destination.write_all(&buffer[..read]).map_err(io)?;
+            remaining -= read as u64;
+            if progress.update_progress(read as u64)
+                && let Some(cb) = &callback
+            {
+                cb(&progress);
+            }
+        }
+        Ok(!self.stop_requested() && remaining == 0)
     }
 
     /// `ProcessError`: adds the error text ShareX shows in its error window.

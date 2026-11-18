@@ -476,6 +476,135 @@ builtin("immich-no-share", "file:Immich", dict(IM, ImmichAutoCreateShareableLink
         [resp('{"id":"asset-2","status":"duplicate","duplicate":true}')])
 builtin("immich-no-id", "file:Immich", IM, image_input(), [resp('{"status":"created"}')])
 
+# ---------------------------------------------------------------------------
+# Signed storage: Azure (SharedKey; compare.py checks each side's signature
+# with the made-up key, then normalises the date and signature) and B2.
+
+AZURE_KEY = base64.b64encode(b"made-up-azure-key").decode()
+AZ = {"AzureStorageAccountName": "madeupacct", "AzureStorageAccountAccessKey": AZURE_KEY, "AzureStorageContainer": "shots",
+      "AzureStorageUploadPath": "/ShareX/sub dir/", "AzureStorageCacheControl": "max-age=60"}
+builtin("azure", "file:AzureStorage", AZ, image_input("my shot.png"), [resp("", 201, [])])
+builtin("azure-root-custom-domain", "file:AzureStorage", dict(AZ, AzureStorageContainer="$root", AzureStorageCustomDomain="cdn.example.com",
+        AzureStorageUploadPath="", AzureStorageCacheControl="", AzureStorageEnvironment="blob.core.chinacloudapi.cn"), image_input(), [resp("", 201, [])])
+builtin("azure-error", "file:AzureStorage", AZ, image_input(),
+        [resp("<?xml version=\"1.0\"?><Error><Code>AuthenticationFailed</Code></Error>", 403, XML)])
+builtin("azure-missing-account", "file:AzureStorage", dict(AZ, AzureStorageAccountName=""), image_input(), [])
+
+B2 = {"B2ApplicationKeyId": "made-up-key-id", "B2ApplicationKey": "made-up-key", "B2BucketName": "made-up-bucket", "B2UploadPath": "shots/sub"}
+B2_AUTH = {"accountId": "acc1", "apiUrl": "https://api000.backblazeb2.com", "authorizationToken": "auth-tok", "downloadUrl": "https://f000.backblazeb2.com",
+           "minimumPartSize": 100, "allowed": {"capabilities": ["listBuckets", "writeFiles"], "bucketId": None, "namePrefix": None}}
+B2_UPLOAD_URL = json.dumps({"bucketId": "b1", "uploadUrl": "https://pod-000.backblaze.com/b2api/v1/b2_upload_file/b1/c000", "authorizationToken": "up-tok"})
+builtin("b2", "file:BackblazeB2", B2, image_input("my shot.png"), [
+    resp(json.dumps(B2_AUTH)),
+    resp(json.dumps({"buckets": [{"bucketName": "other", "bucketId": "b0"}, {"bucketName": "made-up-bucket", "bucketId": "b1"}]})),
+    resp(B2_UPLOAD_URL),
+    resp(json.dumps({"fileId": "f1", "fileName": "shots/sub/my shot.png", "contentLength": 768}))])
+builtin("b2-retry-custom-url", "file:BackblazeB2", dict(B2, B2UseCustomUrl=True, B2CustomUrl="cdn.example.com/b2"), image_input(), [
+    resp(json.dumps(dict(B2_AUTH, allowed={"capabilities": ["writeFiles"], "bucketId": "b1", "namePrefix": "shots/"}))),
+    resp(B2_UPLOAD_URL),
+    resp(json.dumps({"status": 503, "code": "service_unavailable", "message": "busy"}), 503),
+    resp(B2_UPLOAD_URL),
+    resp(json.dumps({"fileId": "f2", "fileName": "shots/sub/test image.png"}))])
+builtin("b2-auth-error", "file:BackblazeB2", B2, image_input(), [resp(json.dumps({"status": 401, "code": "bad_auth_token", "message": "Invalid"}), 401)])
+builtin("b2-auth-error-text", "file:BackblazeB2", B2, image_input(), [text_resp("nope", 500)])
+builtin("b2-prefix-not-allowed", "file:BackblazeB2", B2, image_input(),
+        [resp(json.dumps(dict(B2_AUTH, allowed={"capabilities": ["writeFiles"], "bucketId": "b1", "namePrefix": "other/"})))])
+builtin("b2-no-bucket", "file:BackblazeB2", B2, image_input(), [resp(json.dumps(B2_AUTH)), resp('{"buckets":[]}')])
+builtin("b2-upload-error", "file:BackblazeB2", B2, image_input(), [
+    resp(json.dumps(dict(B2_AUTH, allowed={"capabilities": ["writeFiles"], "bucketId": "b1", "namePrefix": None}))),
+    resp(B2_UPLOAD_URL), resp(json.dumps({"status": 400, "code": "bad_request", "message": "no"}), 400)])
+
+# ---------------------------------------------------------------------------
+# Account services.
+
+BIN_PNG = image_input("my shot.png")
+builtin("hostr-direct", "file:Localhostr", {"LocalhostrEmail": "someone@example.com", "LocalhostrPassword": "made-up", "LocalhostrDirectURL": True},
+        BIN_PNG, [resp(json.dumps({"added": "x", "name": "my shot.png", "href": "https://hostr.co/abc", "size": 768, "type": "image",
+                                   "direct": {"150x": "https://hostr.co/file/150/abc/my shot.png", "930x": "y"}, "id": "abc"}))])
+builtin("hostr-href", "file:Localhostr", {"LocalhostrEmail": "someone@example.com", "LocalhostrPassword": "made-up", "LocalhostrDirectURL": True},
+        BIN_PNG, [resp(json.dumps({"name": "a", "href": "https://hostr.co/def", "id": "def", "direct": None}))])
+PLIK = {"URL": "https://plik.example.com", "APIKey": "made-up", "IsSecured": True, "Login": "user", "Password": "pass", "Removable": True,
+        "OneShot": False, "TTLUnit": 1, "TTL": 2.5, "HasComment": True, "Comment": "a \"comment\""}
+builtin("plik", "file:Plik", {"PlikSettings": PLIK}, BIN_PNG, [
+    resp(json.dumps({"id": "up1", "files": {"f1": {"id": "f1", "fileName": "my shot.png"}}, "uploadToken": "utok"})),
+    resp(json.dumps({"id": "f1", "status": "uploaded"}))])
+builtin("plik-forever", "file:Plik", {"PlikSettings": dict(PLIK, TTLUnit=3, IsSecured=False, HasComment=False)}, BIN_PNG, [
+    resp(json.dumps({"id": "up2", "files": {"f9": {"id": "f9", "fileName": "a&b.png"}}, "uploadToken": "u2"})), resp("{}")])
+builtin("plik-error", "file:Plik", {"PlikSettings": PLIK}, BIN_PNG, [text_resp("bad", 500)])
+SEA = {"SeafileAPIURL": "sea.example.com/api2/", "SeafileAuthToken": "made-up-token", "SeafileRepoID": "repo-1", "SeafilePath": "/ShareX",
+       "SeafileCreateShareableURLRaw": True, "SeafileSharePassword": "secret", "SeafileShareDaysToExpire": 7}
+builtin("seafile-share-raw", "file:Seafile", SEA, BIN_PNG, [
+    text_resp('"https://sea.example.com/seafhttp/upload-api/abc"'), text_resp("fileid"),
+    resp("", 201, [["Location", "https://sea.example.com/f/abc123/?dl=0"]])])
+builtin("seafile-encrypted", "file:Seafile", dict(SEA, SeafileIsLibraryEncrypted=True, SeafilePath=""), BIN_PNG, [
+    text_resp('"https://sea.example.com/up"'), text_resp("fileid")])
+builtin("seafile-link-error", "file:Seafile", SEA, BIN_PNG, [text_resp("denied", 403)])
+PB = {"PushbulletSettings": {"UserAPIKey": "made-up", "DeviceList": [{"Key": "dev0", "Name": "Tablet"}, {"Key": "dev1", "Name": "Phone"}], "SelectedDevice": 1}}
+builtin("pushbullet", "file:Pushbullet", PB, BIN_PNG, [
+    resp(json.dumps({"file_type": "image/png", "file_name": "my shot.png", "file_url": "https://dl.pushbulletusercontent.com/x/my shot.png",
+                     "upload_url": "https://s3.amazonaws.com/pushbullet-uploads",
+                     "data": {"awsaccesskeyid": "AK", "acl": "public-read", "key": "k/my shot.png", "signature": "sig", "policy": "pol",
+                              "content-type": "image/png"}})),
+    resp("", 204, []), resp(json.dumps({"iden": "push1", "created": 1}))])
+builtin("pushbullet-no-device", "file:Pushbullet", {"PushbulletSettings": dict(PB["PushbulletSettings"], SelectedDevice=5)}, BIN_PNG, [])
+builtin("pushbullet-share", "sharing:Pushbullet", PB, url_input(), [resp(json.dumps({"iden": "push2"}))])
+SS_INFO = '<result method="anonymous.uploadGetInfo" status="ok"><upload url="https://fs00.sendspace.com/upload?SPEED_LIMIT=0" ' \
+          'progress_url="https://fs00.sendspace.com/progress" max_file_size="314572800" upload_identifier="ui-1" extra_info="ei-1"/></result>'
+builtin("sendspace-anonymous", "file:SendSpace", {}, BIN_PNG, [
+    resp(SS_INFO, headers=XML),
+    resp("<upload_done><status>ok</status><download_url>https://www.sendspace.com/file/abc</download_url>"
+         "<delete_url>https://www.sendspace.com/delete/abc/x</delete_url><file_id>abc</file_id></upload_done>", headers=XML)])
+builtin("sendspace-anonymous-fail", "file:SendSpace", {}, BIN_PNG, [
+    resp('<result method="anonymous.uploadGetInfo" status="fail"><error code="6" text="API key invalid"/></result>', headers=XML)])
+builtin("sendspace-user", "file:SendSpace", {"SendSpaceAccountType": "User", "SendSpaceUsername": "someone", "SendSpacePassword": "made-up"}, BIN_PNG, [
+    resp('<result method="auth.createToken" status="ok"><token>tok123</token></result>', headers=XML),
+    resp('<result method="auth.login" status="ok"><session_key>sess-1</session_key><user_name>someone</user_name></result>', headers=XML),
+    resp(SS_INFO.replace("anonymous.uploadGetInfo", "upload.getInfo"), headers=XML),
+    text_resp("upload_status=ok\nfile_id=xyz9\nfile_name=my shot.png")])
+builtin("sendspace-user-again", "file:SendSpace", {"SendSpaceAccountType": "User", "SendSpaceUsername": "someone", "SendSpacePassword": "made-up"},
+        BIN_PNG, [resp(SS_INFO.replace("anonymous.uploadGetInfo", "upload.getInfo"), headers=XML), text_resp("upload_status=ok\nfile_id=q1")])
+MF = {"MediaFireUsername": "someone@example.com", "MediaFirePassword": "made-up", "MediaFirePath": "ShareX/shots", "MediaFireUseLongLink": True}
+builtin("mediafire", "file:MediaFire", MF, BIN_PNG, [
+    resp(json.dumps({"response": {"action": "user/get_session_token", "session_token": "st-1", "secret_key": 123456789,
+                                  "time": "1700000000.1234", "result": "Success", "new_key": "no"}})),
+    resp(json.dumps({"response": {"doupload": {"result": "0", "key": "upkey"}, "result": "Success", "new_key": "yes"}})),
+    resp(json.dumps({"response": {"doupload": {"result": "0", "status": "17", "description": "Upload is in progress"},
+                                  "result": "Success", "new_key": "yes"}})),
+    resp(json.dumps({"response": {"doupload": {"result": "0", "status": "99", "quickkey": "qk1", "filename": "my shot.png"},
+                                  "result": "Success", "new_key": "no"}}))])
+builtin("mediafire-login-error", "file:MediaFire", MF, BIN_PNG,
+        [resp(json.dumps({"response": {"result": "Error", "error": 107, "message": "Invalid credentials"}}))])
+builtin("mediafire-poll-error", "file:MediaFire", MF, BIN_PNG, [
+    resp(json.dumps({"response": {"session_token": "st", "secret_key": 7, "time": "1.5", "result": "Success"}})),
+    resp(json.dumps({"response": {"doupload": {"result": 0, "key": "k"}, "result": "Success"}})),
+    resp(json.dumps({"response": {"doupload": {"result": 0, "status": 99, "fileerror": 4, "description": "File too big"}, "result": "Success"}}))])
+ISH = {"ImageShackSettings": {"Username": None, "Password": None, "IsPublic": True, "Auth_token": "made-up-token", "ThumbnailWidth": 200,
+                              "ThumbnailHeight": 150}}
+builtin("imageshack", "image:ImageShack", ISH, image_input(),
+        [resp(json.dumps({"success": True, "process_time": 1, "result": {"images": [{"server": 123, "bucket": 456, "filename": "abc.png"}]}}))])
+builtin("imageshack-error", "image:ImageShack", ISH, image_input(),
+        [resp(json.dumps({"success": False, "error": {"error_code": 3, "error_message": "Bad image"}}))])
+
+# PrivateBin encrypts with a random key: compare.py decrypts each side's
+# paste with the key from its result URL, then normalises the cipher text.
+PRIVATEBIN = {"Username": "user", "Password": "pass", "BurnAfterReading": True, "Expiration": "D1", "Format": "Markdown",
+              "CustomUrl": "https://bin.example.com/pb/", "PastePassword": "pw"}
+builtin("privatebin", "text:PrivateBin", {"PrivateBinSettings": PRIVATEBIN}, text_input(),
+        [resp(json.dumps({"status": 0, "id": "abc", "url": "/?abc", "deletetoken": "dt+1"}))])
+builtin("privatebin-defaults", "text:PrivateBin", {}, text_input(text="plain"),
+        [resp(json.dumps({"status": 0, "id": "d", "url": "?d", "deletetoken": "t"}))])
+builtin("privatebin-error", "text:PrivateBin", {"PrivateBinSettings": PRIVATEBIN}, text_input(),
+        [resp(json.dumps({"status": 1, "message": "Invalid data."}))])
+builtin("privatebin-401", "text:PrivateBin", {"PrivateBinSettings": PRIVATEBIN}, text_input(), [text_resp("auth", 401)])
+
+# Shared folder: no HTTP; both harnesses read back the file written
+# (relative to the working directory) and delete it.
+SHARED_ROOT = "target/uploaders-harness/shared"
+cases.append({"id": "shared-folder", "kind": "builtin", "service": "file:SharedFolder",
+              "config": {"LocalhostAccountList": [{"Name": "x", "LocalhostRoot": SHARED_ROOT, "Port": 8080, "SubFolderPath": "shots",
+                                                   "HttpHomePath": "@https://files.example.com/share/", "RemoteProtocol": "https"}]},
+              "input": dict(image_input("my shot.png"), check_file=SHARED_ROOT + "/shots/my shot.png"), "responses": []})
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)
