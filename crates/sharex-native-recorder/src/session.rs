@@ -295,10 +295,18 @@ mod tests {
     /// Presses the frame's buttons from the recorder's own loop.
     type Step = (i64, fn(&RecordingControl));
 
+    /// Each step fires once the recorder's elapsed time reaches it, and only
+    /// while the frame shows a recording (Recording or Paused), as a user
+    /// sees it. Virtual time lets the recorder's worker run ahead of the
+    /// session thread, which sets Recording after `start` returns; a press
+    /// while still Working would be an abort (ShareX's Working branch).
     fn drive(control: &Arc<RecordingControl>, script: Vec<Step>) -> crate::recorder::TickHook {
         let (c, step) = (Arc::downgrade(control), Mutex::new(0usize));
         Arc::new(move |r| {
             let Some(c) = c.upgrade() else { return };
+            if !matches!(c.status(), ScreenRecordingStatus::Recording | ScreenRecordingStatus::Paused) {
+                return;
+            }
             let mut s = step.lock().unwrap();
             if let Some((at, action)) = script.get(*s)
                 && r.elapsed() >= *at
