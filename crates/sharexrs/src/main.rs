@@ -1443,7 +1443,7 @@ fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
     let (m, size) = (monitor.position(), monitor.size());
     let (mut ax, mut ay, mut aw, mut ah) = (m.x, m.y, size.width as i32, size.height as i32);
     if let Some(s) = sharex_capture::screenshot::screens().into_iter().find(|s| s.bounds.contains(m.x, m.y)) {
-        (ax, ay, aw, ah) = (s.work_area.x, s.work_area.y, s.work_area.w as i32, s.work_area.h as i32);
+        (ax, ay, aw, ah) = (s.work_area.x, s.work_area.y, s.work_area.w, s.work_area.h);
     }
     let outer = window.outer_size();
     window.set_outer_position(winit::dpi::PhysicalPosition::new(
