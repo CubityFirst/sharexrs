@@ -4418,6 +4418,7 @@ dependencies = [
  "hex",
  "hmac",
  "md-5",
+ "native-tls",
  "num-bigint",
  "pbkdf2",
  "roxmltree",
