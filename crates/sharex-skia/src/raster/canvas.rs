@@ -509,7 +509,8 @@ impl<'a> Canvas<'a> {
         }
         let dw = w as usize;
         let iw = image.width() as usize;
-        let plain = paint.color_filter.is_none() && paint.alpha == 255;
+        // SkSpriteBlitter_Memcpy and the legacy sprite blitters need an N32 device.
+        let plain = paint.color_filter.is_none() && paint.alpha == 255 && !crate::blitter::pipeline_blitters();
         for y in y0..y1 {
             for x in x0..x1 {
                 let si = (y - iy) as usize * iw + (x - ix) as usize;
@@ -643,7 +644,13 @@ impl<'a> Canvas<'a> {
             (Px::Low(c), Blend::SrcOver) => {
                 let d = self.dst.px(di);
                 let inv = 255 - c[3];
-                [0, 1, 2, 3].map(|i| (c[i] + div255(d[i] as u32 * inv)).min(255) as u8)
+                // srcover_rgba_8888 (div255), or on a device with a colour space
+                // load_dst + srcover (div255_accurate).
+                if crate::blitter::pipeline_blitters() {
+                    [0, 1, 2, 3].map(|i| (c[i] + div255_accurate(d[i] as u32 * inv)).min(255) as u8)
+                } else {
+                    [0, 1, 2, 3].map(|i| (c[i] + div255(d[i] as u32 * inv)).min(255) as u8)
+                }
             }
         }
     }
@@ -687,7 +694,7 @@ enum Legacy {
 }
 
 fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
-    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() {
+    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() || crate::blitter::pipeline_blitters() {
         return None;
     }
     match (&paint.shader, &sampler.kind) {
