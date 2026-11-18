@@ -833,6 +833,12 @@ cases.append({"id": "email-auth-failed", "kind": "builtin", "service": "file:Ema
               "input": BIN_PNG, "responses": [], "servers": SMTP})
 cases.append({"id": "email-invalid-from", "kind": "builtin", "service": "file:Email", "config": dict(EMAIL, EmailFrom="user"),
               "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-long-subject", "kind": "builtin", "service": "file:Email",
+              "config": dict(EMAIL, EmailDefaultSubject="Écran capturé — " * 9 + "fin 🙂🙂🙂 " + "x" * 30,
+                             EmailDefaultBody="Body"), "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-long-ascii-subject", "kind": "builtin", "service": "file:Email",
+              "config": dict(EMAIL, EmailDefaultSubject="A long plain subject " * 8 + "end", EmailDefaultBody="Body"),
+              "input": BIN_PNG, "responses": [], "servers": SMTP})
 cases.append({"id": "email-share-url", "kind": "builtin", "service": "sharing:Email", "config": EMAIL, "input": url_input(), "responses": [],
               "servers": SMTP})
 
