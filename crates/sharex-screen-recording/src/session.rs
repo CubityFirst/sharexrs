@@ -102,9 +102,11 @@ pub struct RecordingControl {
     reset: ResetEvent,
     restart_requested: AtomicBool,
     region: Mutex<Rectangle>,
-    /// The native recorder pauses in process; FFmpeg doesn't (false).
-    pub use_in_process_pause: bool,
+    /// `UseInProcessPause`: the native recorder pauses in process; FFmpeg doesn't (false).
+    in_process_pause: AtomicBool,
     stop_requested: Listener<()>,
+    pause_requested: Listener<()>,
+    resume_requested: Listener<()>,
     state_changed: Listener<(ScreenRecordState, ScreenRecordingStatus)>,
     countdown: Listener<u32>,
     progress: Listener<i32>,
@@ -117,14 +119,41 @@ impl RecordingControl {
             reset: ResetEvent::default(),
             restart_requested: AtomicBool::new(false),
             region: Mutex::new(region),
-            use_in_process_pause: false,
+            in_process_pause: AtomicBool::new(false),
             stop_requested: Mutex::default(),
+            pause_requested: Mutex::default(),
+            resume_requested: Mutex::default(),
             state_changed: Mutex::default(),
             countdown: Mutex::default(),
             progress: Mutex::default(),
         });
         control.change_state(ScreenRecordState::Waiting);
         control
+    }
+
+    /// `UseInProcessPause` (`useNative`).
+    pub fn set_in_process_pause(&self, on: bool) {
+        self.in_process_pause.store(on, Ordering::SeqCst);
+    }
+
+    pub fn use_in_process_pause(&self) -> bool {
+        self.in_process_pause.load(Ordering::SeqCst)
+    }
+
+    /// `PauseRequested` (in-process pause only).
+    pub fn on_pause_requested(&self, f: impl Fn() + Send + Sync + 'static) {
+        *self.pause_requested.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(move |()| f()));
+    }
+
+    /// `ResumeRequested` (in-process pause only).
+    pub fn on_resume_requested(&self, f: impl Fn() + Send + Sync + 'static) {
+        *self.resume_requested.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(move |()| f()));
+    }
+
+    fn emit(listener: &Listener<()>) {
+        if let Some(f) = listener.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            f(());
+        }
     }
 
     pub fn status(&self) -> ScreenRecordingStatus {
@@ -173,13 +202,20 @@ impl RecordingControl {
         }
     }
 
-    fn emit_countdown(&self, ms: u32) {
+    /// `RecordResetEvent.WaitOne(timeout)`: whether it was set.
+    pub fn wait_reset(&self, timeout: Option<Duration>) -> bool {
+        self.reset.wait(timeout)
+    }
+
+    /// `StartCountdown`.
+    pub fn emit_countdown(&self, ms: u32) {
         if let Some(f) = self.countdown.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             f(ms);
         }
     }
 
-    fn emit_progress(&self, p: i32) {
+    /// `ChangeStateProgress`.
+    pub fn emit_progress(&self, p: i32) {
         if let Some(f) = self.progress.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             f(p);
         }
@@ -202,7 +238,7 @@ impl RecordingControl {
             }
             ScreenRecordingStatus::Paused => {
                 self.set_status(ScreenRecordingStatus::Stopped);
-                if self.use_in_process_pause {
+                if self.use_in_process_pause() {
                     self.emit_stop_requested();
                 }
                 self.reset.set();
@@ -218,11 +254,14 @@ impl RecordingControl {
             ScreenRecordingStatus::Recording => {
                 self.set_status(ScreenRecordingStatus::Paused);
                 self.reset.reset();
-                if !self.use_in_process_pause {
+                if self.use_in_process_pause() {
+                    Self::emit(&self.pause_requested);
+                } else {
                     self.emit_stop_requested();
                 }
             }
-            ScreenRecordingStatus::Paused if self.use_in_process_pause => {
+            ScreenRecordingStatus::Paused if self.use_in_process_pause() => {
+                Self::emit(&self.resume_requested);
                 self.set_status(ScreenRecordingStatus::Recording);
             }
             _ => self.reset.set(),
@@ -245,7 +284,7 @@ impl RecordingControl {
             return;
         }
         let stop_active = status == ScreenRecordingStatus::Recording
-            || (self.use_in_process_pause && status == ScreenRecordingStatus::Paused);
+            || (self.use_in_process_pause() && status == ScreenRecordingStatus::Paused);
         self.restart_requested.store(true, Ordering::SeqCst);
         self.set_status(ScreenRecordingStatus::Waiting);
         if stop_active {
@@ -352,6 +391,8 @@ pub trait SessionHooks: Send {
     fn action_completed(&mut self) {}
     /// FFmpeg failed: its output (ShareX's output box).
     fn ffmpeg_error(&mut self, _output: &str) {}
+    /// The native recorder failed: ShareX's "ShareX" error message box.
+    fn native_error(&mut self, _message: &str) {}
 }
 
 /// The session's inputs besides the control.
