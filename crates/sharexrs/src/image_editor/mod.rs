@@ -864,7 +864,8 @@ impl EditorWindow {
     fn file_flyout(&self, button: Rect) -> Flyout<MenuCmd> {
         let entries = Self::plain_icons(self.file_menu());
         let mut f = Flyout::menu(Id::new("editor-file"), entries, button.translate(vec2(0.0, 4.0)), Placement::BottomEdgeAlignedLeft);
-        f.style = sharex_ui::menu::MenuStyle::Standard;
+        f.style = sharex_ui::menu::MenuStyle::Flyout;
+        f.select_first();
         f
     }
 

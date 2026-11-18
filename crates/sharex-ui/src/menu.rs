@@ -240,6 +240,15 @@ pub enum MenuStyle {
     /// as tall as its content, the accent fill and accent foreground on
     /// pointer over (the hotkey and task pickers).
     Standard,
+    /// A `MenuFlyout`'s items (the image editor's File menu): Fluent's
+    /// `MenuItem` theme, which ShareX's `ContextMenu MenuItem` style doesn't
+    /// reach: `MenuFlyoutItemThemePaddingNarrow` (11,4,11,7), Inter 13
+    /// headers, Segoe UI Regular gestures in `SystemControlForegroundBaseMediumBrush`,
+    /// `SystemControlHighlightListLowBrush` under the pointer or the
+    /// keyboard; measured on ShareX's File menu: 38px a row with the
+    /// highlight 2px in, 9px separators (the line 4px down), the items 6px
+    /// in and 4px down from the border.
+    Flyout,
 }
 
 impl MenuStyle {
@@ -247,6 +256,7 @@ impl MenuStyle {
         match self {
             MenuStyle::Compact => d.menu_item_padding,
             MenuStyle::Standard => crate::theme::Thickness::hv(12.0, 8.0),
+            MenuStyle::Flyout => crate::theme::Thickness::new(11.0, 2.0 + 4.0, 11.0, 2.0 + 7.0),
         }
     }
 
@@ -256,6 +266,27 @@ impl MenuStyle {
             // The padding around an 18px content row (measured on ShareX's
             // task picker: 34px items).
             MenuStyle::Standard => 8.0 + 18.0 + 8.0,
+            MenuStyle::Flyout => 38.0,
+        }
+    }
+
+    /// The item's highlight inside its row.
+    fn highlight(self, rect: Rect) -> Rect {
+        match self {
+            MenuStyle::Flyout => rect.shrink2(vec2(0.0, 2.0)),
+            _ => rect,
+        }
+    }
+
+    fn header_size(self) -> f32 {
+        FONT_SIZE
+    }
+
+    /// The root popup's padding inside its border (`frame_padding`).
+    fn root_padding(self, d: &crate::theme::Density) -> crate::theme::Thickness {
+        match self {
+            MenuStyle::Flyout => crate::theme::Thickness::new(6.0, -4.0 + 4.0, 6.0, 0.0),
+            _ => d.menu_padding,
         }
     }
 
@@ -265,6 +296,7 @@ impl MenuStyle {
         match self {
             MenuStyle::Compact => d.menu_separator_margin,
             MenuStyle::Standard => crate::theme::Thickness::all(0.0),
+            MenuStyle::Flyout => crate::theme::Thickness::new(0.0, 4.0, 0.0, 4.0),
         }
     }
 
@@ -368,6 +400,16 @@ impl<C: Clone> Flyout<C> {
     /// Where each open level (the root first) was drawn last frame.
     pub fn rects(&self) -> &[Rect] {
         &self.rects
+    }
+
+    /// `MenuFlyout` opened by a click: the first item takes the keyboard
+    /// focus, highlighted (`:selected`).
+    pub fn select_first(&mut self) {
+        if let Content::Menu(entries) = &self.content
+            && let Some(i) = entries.iter().position(|e| e.visible && !e.separator && e.enabled)
+        {
+            self.selected = vec![Some(i)];
+        }
     }
 
     /// Opens the submenus along `path` (entry indices from the root),
@@ -838,17 +880,19 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
 /// A header with accent text is a `TextBlock` in ShareX's family, Segoe
 /// UI 13px, at the item's weight (measured: ShareX's global SemiBold
 /// `TextBlock` style doesn't apply to it).
-fn header_font<C>(entry: &MenuEntry<C>) -> FontId {
+fn header_font<C>(entry: &MenuEntry<C>, style: MenuStyle) -> FontId {
     let bold = entry.bold_when_checked && entry.checked;
+    let size = style.header_size();
     if entry.accent.is_some() {
-        return font(FONT_SIZE, if bold { 700 } else { 400 });
+        return font(size, if bold { 700 } else { 400 });
     }
-    FontId::new(FONT_SIZE, crate::fonts::inter(if bold { 700 } else { 400 }))
+    FontId::new(size, crate::fonts::inter(if bold { 700 } else { 400 }))
 }
 
-/// The input gesture is a `TextBlock` too (Fluent template), so SemiBold.
-fn gesture_font() -> FontId {
-    font(FONT_SIZE, 600)
+/// The input gesture is a `TextBlock` too (Fluent template), so SemiBold;
+/// a `MenuFlyout`'s is Regular (measured).
+fn gesture_font(style: MenuStyle) -> FontId {
+    if style == MenuStyle::Flyout { font(FONT_SIZE, 400) } else { font(FONT_SIZE, 600) }
 }
 
 fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuStyle) -> MenuMetrics {
@@ -858,11 +902,11 @@ fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuSty
     // The toggle presenter is only visible on checked items.
     let toggle_col = if shown().any(|e| e.checked && e.toggle != Toggle::None) { 16.0 + icon_margin } else { 0.0 };
     let icon_col = if shown().any(|e| !matches!(e.icon, MenuIcon::None)) { 16.0 + icon_margin } else { 0.0 };
-    let header_col = shown().map(|e| widgets::text_width(ui, &e.header, header_font(e))).fold(0.0, f32::max);
+    let header_col = shown().map(|e| widgets::text_width(ui, &e.header, header_font(e, style))).fold(0.0, f32::max);
     let gesture_col = 24.0
         + shown()
             .filter_map(|e| e.gesture.as_deref())
-            .map(|g| widgets::text_width(ui, g, gesture_font()))
+            .map(|g| widgets::text_width(ui, g, gesture_font(style)))
             .fold(0.0, f32::max);
     let chevron_col = if shown().any(|e| e.has_children()) { 12.0 + 8.0 } else { 0.0 };
     let pad = style.item_padding(&d);
@@ -871,7 +915,7 @@ fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuSty
     for e in entries.iter().filter(|e| e.visible) {
         h += if e.separator { style.separator_height(&d) } else { style.item_height(&d) };
     }
-    let frame = frame_padding(&d, root);
+    let frame = frame_padding(&d, root, style);
     let size = vec2(
         1.0 + frame.left + item_w + frame.right + 1.0,
         (1.0 + frame.top + 4.0 + h + 4.0 + frame.bottom + 1.0).max(32.0),
@@ -881,12 +925,12 @@ fn menu_metrics<C>(ui: &Ui, entries: &[MenuEntry<C>], root: bool, style: MenuSty
 
 /// A root `ContextMenu` takes `ShareX.Density.Menu.Padding`; a submenu's
 /// popup `MenuFlyoutPresenterThemePadding`.
-fn frame_padding(d: &crate::theme::Density, root: bool) -> crate::theme::Thickness {
-    if root { d.menu_padding } else { d.menu_flyout_presenter_padding }
+fn frame_padding(d: &crate::theme::Density, root: bool, style: MenuStyle) -> crate::theme::Thickness {
+    if root { style.root_padding(d) } else { d.menu_flyout_presenter_padding }
 }
 
 fn item_rects<C>(entries: &[MenuEntry<C>], rect: Rect, root: bool, d: &crate::theme::Density, style: MenuStyle) -> Vec<Rect> {
-    let frame = frame_padding(d, root);
+    let frame = frame_padding(d, root, style);
     let left = rect.min.x + 1.0 + frame.left;
     let right = rect.max.x - 1.0 - frame.right;
     let mut y = rect.min.y + 1.0 + frame.top + 4.0;
@@ -953,8 +997,11 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     // ShareX's `:pointerover` fill wins over Fluent's `:selected` one; an
     // item highlighted without the pointer shows Fluent's.
     let accent_hover = style == MenuStyle::Standard && state.hovered && !disabled;
+    let fluent_item = style == MenuStyle::Flyout;
     if accent_hover {
         paint_accent_gradient(ui, rect, CornerRadius::same(4));
+    } else if fluent_item && (state.hovered || state.selected) && !disabled {
+        painter.rect_filled(style.highlight(rect), CornerRadius::same(4), f.list_low);
     } else if state.hovered && !disabled {
         painter.rect_filled(rect, CornerRadius::same(4), p.control_background_hover);
     } else if state.selected && !disabled {
@@ -964,6 +1011,8 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
         f.base_medium_low
     } else if accent_hover {
         p.accent_foreground
+    } else if fluent_item {
+        f.base_high
     } else if state.hovered {
         p.text
     } else if state.selected {
@@ -1022,7 +1071,7 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     }
 
     // Header, centred vertically.
-    let hf = header_font(entry);
+    let hf = header_font(entry, style);
     let y = widgets::center_y(content, widgets::line_height(ui, &hf));
     let mut job = egui::text::LayoutJob::default();
     let plain = egui::TextFormat::simple(hf.clone(), header_color);
@@ -1042,10 +1091,16 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
     x += m.header_col;
 
     if let Some(g) = &entry.gesture {
-        let gf = gesture_font();
+        let gf = gesture_font(style);
         let w = widgets::text_width(ui, g, gf.clone());
         let right = x + m.gesture_col;
-        let color = if disabled { f.base_medium_low } else { p.text_secondary };
+        let color = if disabled {
+            f.base_medium_low
+        } else if fluent_item {
+            f.base_medium
+        } else {
+            p.text_secondary
+        };
         let galley = widgets::galley(ui, g, gf.clone(), color, f32::INFINITY);
         painter.galley(pos2(right - w, widgets::center_y(content, widgets::line_height(ui, &gf))), galley, color);
     }
