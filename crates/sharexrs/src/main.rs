@@ -10,6 +10,7 @@ mod app_icon;
 mod app_settings;
 mod app_windows;
 mod appearance;
+mod auto_capture;
 mod capture;
 mod capture_job;
 mod cli;
