@@ -326,15 +326,42 @@ pub fn pixmap_of(image: &RgbaImage) -> Pixmap {
 }
 
 /// A premultiplied pixmap as straight RGBA (`SKBitmap.Copy` to a
-/// `Bitmap`).
+/// `Bitmap`, as ShareX's copied and saved images have it): in `f32`, each
+/// channel and the alpha divided by 255, the channel times the alpha's
+/// inverse, times 255, rounded half to even. Fitted to ShareX's copied PNG
+/// of a rounded-corners effect, whose translucent corners hold both kinds
+/// of tie: premultiplied 4 at alpha 120 is 8 (8.5 exactly), 232 at 240 is
+/// 247 (246.50002); Skia's `readPixels` (`* (1/255)`) and integer rounding
+/// each get one wrong.
 pub fn rgba_of(pm: &Pixmap) -> RgbaImage {
     let mut out = RgbaImage::new(pm.width(), pm.height());
     for (px, c) in out.pixels_mut().zip(pm.pixels()) {
-        let a = c >> 24;
-        let un = |v: u32| (v * 255 + a / 2).checked_div(a).map_or(0, |x| x.min(255) as u8);
-        *px = image::Rgba([un((c >> 16) & 0xFF), un((c >> 8) & 0xFF), un(c & 0xFF), a as u8]);
+        let a = (c >> 24) as u8;
+        let un = |v: u32| -> u8 {
+            match a {
+                0 => 0,
+                255 => v as u8,
+                _ => {
+                    let inv = 1.0f32 / (a as f32 / 255.0);
+                    ((v as f32 / 255.0) * inv * 255.0).min(255.0).round_ties_even() as u8
+                }
+            }
+        };
+        *px = image::Rgba([un((c >> 16) & 0xFF), un((c >> 8) & 0xFF), un(c & 0xFF), a]);
     }
     out
+}
+
+#[cfg(test)]
+mod rgba_tests {
+    #[test]
+    fn unpremultiplies_as_sharex_copies() {
+        // Premultiplied RGBA, the two corner pixels of ShareX's copy.
+        let pm = sharex_skia::Pixmap::from_premul_rgba(2, 1, &[120, 4, 75, 120, 232, 0, 150, 240]);
+        let img = super::rgba_of(&pm);
+        assert_eq!(img.get_pixel(0, 0).0, [255, 8, 159, 120]);
+        assert_eq!(img.get_pixel(1, 0).0, [247, 0, 159, 240]);
+    }
 }
 
 impl EditorWindow {

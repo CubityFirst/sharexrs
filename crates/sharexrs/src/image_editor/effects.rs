@@ -445,6 +445,9 @@ pub struct Effects {
     scroll: f32,
     /// `FocusSearchBox`: focused (and cleared) when the browser opens.
     focus_search: bool,
+    /// The browser opened this frame: the press that opened it isn't one
+    /// on its scrim (it wasn't there yet).
+    fresh: bool,
     /// `EffectsPanelContent`.
     pub dialog: Option<EffectDialog>,
     /// The floating panel as last drawn.
@@ -455,7 +458,7 @@ pub struct Effects {
 
 impl Default for Effects {
     fn default() -> Self {
-        Self { open: false, browser: Browser::new(browser_label), loaded: false, scroll: 0.0, focus_search: false, dialog: None, panel: None, menu: Vec::new() }
+        Self { open: false, browser: Browser::new(browser_label), loaded: false, scroll: 0.0, focus_search: false, fresh: false, dialog: None, panel: None, menu: Vec::new() }
     }
 }
 
@@ -495,6 +498,7 @@ impl Effects {
         self.open = true;
         self.browser.search.clear();
         self.focus_search = true;
+        self.fresh = true;
     }
 
     /// `CloseEffectsPanel` (a dialog's preview dropped).
@@ -648,7 +652,8 @@ impl Effects {
             out = Some(Action::Changed);
         }
         // The scrim pressed (outside the panel) closes the browser.
-        if !modal
+        if !std::mem::take(&mut self.fresh)
+            && !modal
             && ui.ctx().input(|i| i.pointer.any_pressed())
             && let Some(at) = ui.ctx().input(|i| i.pointer.interact_pos())
             && view.contains(at)
