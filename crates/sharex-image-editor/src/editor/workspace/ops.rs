@@ -599,7 +599,10 @@ impl Workspace {
             return;
         }
         let (x, y, w, h) = (round(x), round(y), round(w), round(h));
-        self.crop_image(x as f64, y as f64, w as f64, h as f64);
+        if self.crop_image(x as f64, y as f64, w as f64, h as f64) {
+            let (width, height) = self.size();
+            self.requests.push(Request::Cropped { width, height });
+        }
         self.changed();
     }
 
@@ -672,7 +675,10 @@ impl Workspace {
                     && let Some(vertical) = r.cut_vertical
                 {
                     let (a, b) = if vertical { (r.rect.0, r.rect.0 + w) } else { (r.rect.1, r.rect.1 + h) };
-                    self.cut_out_image(round(a), round(b), vertical);
+                    if self.cut_out_image(round(a), round(b), vertical) {
+                        let (width, height) = self.size();
+                        self.requests.push(Request::CutOut { width, height });
+                    }
                 }
             }
             EditorTool::Clone if w >= MIN_SHAPE_SIZE && h >= MIN_SHAPE_SIZE => self.clone_region(r.rect),

@@ -302,6 +302,23 @@ fn text(ui: &Ui, painter: &egui::Painter, x: f32, rect: Rect, s: &str, color: Co
     painter.galley(pos2(x, y), g, color);
 }
 
+/// A `ColorPickerDropdown`'s button of its own (`MinWidth` and height the
+/// caller's): the swatch 10px in, the chevron at the right, turned over
+/// while `open`.
+pub fn color_dropdown_button(ui: &Ui, painter: &egui::Painter, p: &Palette, rect: Rect, color: Color32, hovered: bool, open: bool) {
+    button_frame(painter, p, rect, hovered, false, 1.0);
+    color_dropdown_content(ui, painter, p, rect, color, open);
+}
+
+/// The swatch and chevron of [`color_dropdown_button`] alone (a disabled
+/// button draws them over its own background, faded).
+pub fn color_dropdown_content(ui: &Ui, painter: &egui::Painter, p: &Palette, rect: Rect, color: Color32, open: bool) {
+    let (cx, _) = content_origin(rect, 1.0);
+    let sw = Rect::from_min_size(pos2(cx, rect.center().y - 12.0), vec2(24.0, 24.0));
+    swatch(ui, painter, p, sw, color, false, false, 1.0);
+    chevron(painter, p, rect, 1.0, open);
+}
+
 #[allow(clippy::too_many_arguments)]
 /// The 24x24 swatch of a colour dropdown: the colour over the small
 /// checkerboard, with the border colour's hole or the text colour's "A".

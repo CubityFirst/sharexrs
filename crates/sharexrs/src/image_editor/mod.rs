@@ -35,6 +35,21 @@ use sharex_ui::{Palette, icons, palette, widgets};
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
+mod modal;
+mod new_image;
+mod notify;
+mod start_screen;
+
+use sharex_ui::keys::app_icons as icon;
+
+/// The dialog in `EditorView`'s modal host (`ModalContent`).
+enum Modal {
+    /// `ConfirmationDialogView` (unsaved changes on exit).
+    Confirm,
+    Start(start_screen::StartScreen),
+    NewImage(Box<new_image::NewImage>),
+}
+
 /// `Button.toolbar-button` and the other toolbar metrics (see
 /// `sharex_capture::region::toolbar`).
 const BUTTON: f32 = 40.0;
@@ -166,6 +181,8 @@ enum MenuCmd {
     ToggleToolbars,
     Zoom(u8),
     ZoomFit,
+    /// `OpenRecentImageCommand` with the recent file at this index.
+    OpenRecent(u8),
 }
 
 /// `EditorZoomController.ZoomLevels` (`ZoomPickerDropdown`'s too).
@@ -208,8 +225,12 @@ pub struct EditorWindow {
     capturing: bool,
     /// The middle button pans (`EditorZoomController`).
     pan: Option<Pos2>,
-    /// The exit confirmation (`ConfirmationDialogView`) is open.
-    confirm_exit: bool,
+    /// `ModalContent` (`IsModalOpen` when set).
+    modal: Option<Modal>,
+    /// The editor's notifications.
+    notify: notify::Notifications,
+    /// The start screen's URL download (`OnLoadFromUrlRequested`).
+    url_job: Option<mpsc::Receiver<Result<RgbaImage, String>>>,
     /// Where things were drawn last frame.
     layout: Layout,
     /// Open the File menu once the toolbar is laid out (`OpenFileMenu`).
@@ -292,12 +313,97 @@ impl EditorWindow {
             title: String::new(),
             capturing: false,
             pan: None,
-            confirm_exit: false,
+            modal: None,
+            notify: notify::Notifications::default(),
+            url_job: None,
             layout: Layout::default(),
             open_file_menu: false,
         };
         w.title = w.window_title();
+        // `OnLoaded`: no image (and not a task) shows the start screen.
+        if !has_image && !task_mode {
+            w.modal = Some(Modal::Start(start_screen::StartScreen::new(w.ws.tools.options.RecentImageFiles.clone())));
+        }
         w
+    }
+
+    fn notifications_enabled(&self) -> bool {
+        self.ws.tools.options.ShowNotifications
+    }
+
+    /// `ShowNotification`.
+    fn notify(&mut self, message: impl Into<String>, icon: &'static str) {
+        let enabled = self.notifications_enabled();
+        self.notify.show(enabled, message, Some(icon));
+    }
+
+    /// `ShowTaskActionNotification`: none when the editor closes after it.
+    fn notify_task(&mut self, message: impl Into<String>, icon: &'static str) {
+        if !self.ws.tools.options.AutoCloseEditorOnTask {
+            self.notify(message, icon);
+        }
+    }
+
+    /// `BuildFilePathNotification`.
+    fn file_message(headline: &str, path: &std::path::Path) -> String {
+        format!("{headline}\n{}", ie::MainViewModel_FilePathFormat().replace("{0}", &path.display().to_string()))
+    }
+
+    /// `BuildImageSizeNotification`.
+    fn size_message(headline: &str, w: u32, h: u32) -> String {
+        if w > 0 && h > 0 {
+            format!("{headline}\n{}", ie::MainViewModel_SizeFormat().replace("{0}", &w.to_string()).replace("{1}", &h.to_string()))
+        } else {
+            headline.to_string()
+        }
+    }
+
+    /// `CloseAfterTaskActionIfEnabled`.
+    fn close_after_task_action(&mut self) {
+        if self.ws.tools.options.AutoCloseEditorOnTask {
+            self.result = None;
+            self.effects.push(Effect::Close);
+        }
+    }
+
+    /// `MainViewModel.AddRecentImageFile` (`ImageEditorOptions.AddRecentImageFile`).
+    fn add_recent(&mut self, path: &std::path::Path) {
+        let path = path.display().to_string();
+        let o = &mut self.ws.tools.options;
+        o.RecentImageFiles.retain(|p| *p != path);
+        o.RecentImageFiles.insert(0, path);
+        let max = o.MaxRecentImageFiles.max(0) as usize;
+        o.RecentImageFiles.truncate(max);
+    }
+
+    fn remove_recent(&mut self, path: &str) {
+        self.ws.tools.options.RecentImageFiles.retain(|p| p != path);
+        if let Some(Modal::Start(s)) = &mut self.modal {
+            s.recent.retain(|p| p != path);
+        }
+    }
+
+    /// `ShowStartScreenStatus`: the start screen (opened again if need
+    /// be) with `message`.
+    fn start_status(&mut self, message: String) {
+        if !matches!(self.modal, Some(Modal::Start(_))) {
+            self.modal = Some(Modal::Start(start_screen::StartScreen::new(self.ws.tools.options.RecentImageFiles.clone())));
+        }
+        if let Some(Modal::Start(s)) = &mut self.modal {
+            s.url_loading = false;
+            s.status = Some(message);
+        }
+    }
+
+    /// `LoadBitmapIntoEditor`: a new image, its file (in the recent files).
+    fn load_bitmap(&mut self, img: RgbaImage, path: Option<PathBuf>) {
+        self.load(img);
+        self.file_path = path.clone();
+        self.ws.set_clean();
+        if let Some(p) = &path {
+            self.add_recent(p);
+        }
+        self.update_title();
     }
 
     /// `BuildWindowTitle`: "ShareXrs - Image Editor - 640x400 - name.png".
@@ -331,8 +437,13 @@ impl EditorWindow {
     fn run(&mut self, c: Command) {
         match c {
             Command::CopyImage => {
+                if !self.has_image {
+                    return;
+                }
                 let img = self.snapshot();
                 self.effects.push(Effect::CopyImage(img));
+                self.notify_task(ie::MainViewModel_ImageCopiedToClipboard(), icon::Clipboard);
+                self.close_after_task_action();
             }
             Command::Paste => {
                 // The system clipboard first (an image or image files),
@@ -346,15 +457,25 @@ impl EditorWindow {
             }
             Command::Save => self.save(false),
             Command::SaveAs => self.save(true),
-            Command::NewImage => self.effects.push(Effect::NotPorted("Image editor: New image dialog")),
+            Command::NewImage => self.modal = Some(Modal::NewImage(Box::default())),
             Command::OpenImage => self.open_image(),
             Command::PinToScreen => {
+                if !self.has_image {
+                    return;
+                }
                 let img = self.snapshot();
                 self.effects.push(Effect::PinImage(img, Box::new(self.task.clone())));
+                self.notify_task(ie::MainViewModel_ImagePinnedToScreen(), icon::Pin);
+                self.close_after_task_action();
             }
             Command::Upload => {
+                if !self.has_image {
+                    return;
+                }
                 let img = self.snapshot();
                 self.effects.push(Effect::Upload(Box::new(UploadRequest::ProcessImage { image: img, task: self.task.clone() })));
+                self.notify_task(ie::MainViewModel_ImageIsUploading(), icon::CloudUpload);
+                self.close_after_task_action();
             }
             Command::Print => self.effects.push(Effect::NotPorted("Image editor: Print")),
             Command::ToggleToolbars => self.toolbars_hidden = !self.toolbars_hidden,
@@ -363,16 +484,24 @@ impl EditorWindow {
                 if self.task_mode {
                     self.finish(false);
                 } else {
-                    self.request_close();
+                    self.request_close(false);
                 }
             }
         }
     }
 
-    /// `RequestClose`: the confirmation when there are unsaved changes.
-    fn request_close(&mut self) {
+    /// `RequestClose(ignoreModal)`: nothing while a dialog is open (unless
+    /// the window is closing: the dialog goes), the confirmation when there
+    /// are unsaved changes.
+    fn request_close(&mut self, ignore_modal: bool) {
+        if self.modal.is_some() {
+            if !ignore_modal {
+                return;
+            }
+            self.modal = None;
+        }
         if self.ws.tools.options.ShowExitConfirmation && self.ws.is_dirty() && self.has_image {
-            self.confirm_exit = true;
+            self.modal = Some(Modal::Confirm);
         } else {
             self.finish(false);
         }
@@ -424,9 +553,12 @@ impl EditorWindow {
         match img.save(&path) {
             Ok(()) => {
                 eprintln!("Image editor: saved {}", path.display());
+                let message = Self::file_message(ie::MainViewModel_ImageSavedToFile(), &path);
                 self.file_path = Some(path);
                 self.ws.set_clean();
                 self.update_title();
+                self.notify_task(message, if ask { icon::SaveAs } else { icon::Save });
+                self.close_after_task_action();
             }
             Err(e) => eprintln!("Image editor: couldn't save {}: {e}", path.display()),
         }
@@ -434,15 +566,18 @@ impl EditorWindow {
 
     /// `OpenImageCommand`: an image file replaces the image.
     fn open_image(&mut self) {
-        let Some(path) = rfd::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp", "gif", "webp", "ico", "tif", "tiff"]).pick_file()
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(ie::EditorView_OpenImage())
+            .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "gif", "webp", "ico", "tif", "tiff"])
+            .pick_file()
         else {
             return;
         };
         match crate::thumbnail::load(&path) {
             Some(img) => {
-                self.load(img);
-                self.file_path = Some(path);
-                self.update_title();
+                self.load_bitmap(img, Some(path.clone()));
+                // `ShowOpenImageNotification`.
+                self.notify(Self::file_message(ie::MainViewModel_ImageOpened(), &path), icon::FolderOpen);
             }
             None => eprintln!("Image editor: couldn't load {}", path.display()),
         }
@@ -490,6 +625,11 @@ impl EditorWindow {
             MenuCmd::ToggleToolbars => self.toolbars_hidden = !self.toolbars_hidden,
             MenuCmd::Zoom(i) => self.set_zoom(ZOOM_LEVELS[i as usize]),
             MenuCmd::ZoomFit => self.zoom_to_fit(),
+            MenuCmd::OpenRecent(i) => {
+                if let Some(path) = self.ws.tools.options.RecentImageFiles.get(i as usize).cloned() {
+                    self.load_recent(&path);
+                }
+            }
         }
     }
 
@@ -592,6 +732,12 @@ impl EditorWindow {
                 ed::Request::EmojiPicker | ed::Request::ReplaceEmoji { .. } => {
                     self.effects.push(Effect::NotPorted("Image editor: emoji picker"));
                 }
+                ed::Request::Cropped { width, height } => {
+                    self.notify(Self::size_message(ie::MainViewModel_ImageCropped(), width, height), tool_icons::Crop);
+                }
+                ed::Request::CutOut { width, height } => {
+                    self.notify(Self::size_message(ie::MainViewModel_ImageCutOut(), width, height), tool_icons::CutOut);
+                }
             }
         }
     }
@@ -651,9 +797,22 @@ impl EditorWindow {
     }
 
     fn file_menu(&self) -> Vec<MenuEntry<MenuCmd>> {
+        // `RecentImageMenuItems`: each path in a 300px `TextBlock` trimmed
+        // at its start.
+        let recent: Vec<MenuEntry<MenuCmd>> = self
+            .ws
+            .tools
+            .options
+            .RecentImageFiles
+            .iter()
+            .enumerate()
+            .map(|(i, p)| MenuEntry::item(p.clone(), "", MenuCmd::OpenRecent(i as u8)).id("recent-file"))
+            .collect();
+        let has_recent = !recent.is_empty();
         vec![
             MenuEntry::item(ie::AnnotationToolbar_NewEllipsis(), app_icons::FileAdd, MenuCmd::New).gesture("Ctrl+N"),
             MenuEntry::item(ie::AnnotationToolbar_OpenEllipsis(), app_icons::FolderOpen, MenuCmd::Open).gesture("Ctrl+O"),
+            MenuEntry::parent(ie::AnnotationToolbar_Openrecent(), app_icons::History, recent).visible(has_recent),
             MenuEntry::item(ie::EditorView_NewFromScreenshotRegionEllipsis(), app_icons::Region, MenuCmd::NewRegion),
             MenuEntry::item(ie::EditorView_NewFromScreenshotFullScreen(), app_icons::Fullscreen, MenuCmd::NewFullscreen),
             MenuEntry::separator(),
@@ -689,7 +848,8 @@ impl EditorWindow {
         let left = (full.center().x - width / 2.0).round();
         let rect = Rect::from_min_size(pos2(left, full.min.y), vec2(width, BUTTON + 2.0 * (PADDING + 1.0)));
         let max_scroll = (natural - width).max(0.0);
-        if ui.rect_contains_pointer(rect) {
+        let modal_open = self.modal.is_some();
+        if ui.rect_contains_pointer(rect) && !modal_open {
             let d = ui.ctx().input(|i| i.smooth_scroll_delta);
             self.top_scroll = (self.top_scroll - d.x - d.y).clamp(0.0, max_scroll);
         }
@@ -699,7 +859,10 @@ impl EditorWindow {
         let radius = CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 };
         painter.rect_filled(rect, radius, p.background_toolbar);
         painter.rect_stroke(rect, radius, Stroke::new(1.0, p.border), StrokeKind::Inside);
-        let clip = painter.with_clip_rect(rect.shrink(1.0));
+        // The `ScrollViewer` sits inside the border and `Padding="4"`, and
+        // clips there.
+        let viewport = Rect::from_min_max(pos2(rect.min.x + 1.0 + PADDING, rect.min.y + 1.0), pos2(rect.max.x - 1.0 - PADDING, rect.max.y - 1.0));
+        let clip = painter.with_clip_rect(viewport);
         let top = rect.min.y + 1.0 + PADDING;
         let mut x = rect.min.x + 1.0 + PADDING - self.top_scroll;
         self.layout.items.clear();
@@ -714,7 +877,7 @@ impl EditorWindow {
             }
             let r = Rect::from_min_size(pos2(x, top), vec2(it.width(), BUTTON));
             x += it.width();
-            let hovered = ui.rect_contains_pointer(r.intersect(rect));
+            let hovered = !modal_open && ui.rect_contains_pointer(r.intersect(rect));
             if it == Item::File {
                 captb::button(&clip, p, r, "", false, hovered, 1.0);
                 // The 24px icon left, the 10px chevron right (padding 6).
@@ -730,9 +893,11 @@ impl EditorWindow {
         }
         // The `ScrollViewer`'s collapsed scroll bar when the items overflow.
         if max_scroll > 0.0 {
-            let track = rect.shrink2(vec2(1.0, 0.0));
-            let frac = width / natural;
-            let tw = track.width() * frac;
+            // Fluent's horizontal `ScrollBar` across the viewport: the
+            // track between the two 16px line buttons, the thumb its share
+            // of the content.
+            let track = viewport.shrink2(vec2(16.0, 0.0));
+            let tw = track.width() * viewport.width() / content;
             let tx = track.min.x + (track.width() - tw) * (self.top_scroll / max_scroll);
             let bar = Rect::from_min_size(pos2(tx, rect.max.y - 9.0), vec2(tw, 2.0));
             painter.rect_filled(bar, CornerRadius::same(1), sharex_ui::theme::fluent(ui.ctx()).base_medium);
@@ -752,7 +917,9 @@ impl EditorWindow {
     fn paint_bottom(&mut self, ui: &Ui, p: &Palette, full: Rect) {
         let font = widgets::font(12.0, 600);
         let zoom_text = format!("{}%", (self.zoom * 100.0).round() as i64);
-        let zoom_w = (2.0 + 20.0 + 20.0 + 6.0 + widgets::text_width(ui, &zoom_text, font.clone()).ceil() + 10.0 + 10.0).max(80.0);
+        // `ZoomPickerDropdown`: the 20px icon (6 after it), the text, the
+        // chevron (`Margin="8,0,4,0"`), in the button's 10px padding.
+        let zoom_w = (2.0 + 20.0 + 20.0 + 6.0 + widgets::text_width(ui, &zoom_text, font.clone()).ceil() + 8.0 + 10.0 + 4.0).max(80.0);
         // Items: zoom, separator, task grid (90 + margins 4/10), six
         // buttons, separator, two capture buttons.
         let sep = 1.0 + 8.0;
@@ -767,17 +934,18 @@ impl EditorWindow {
         let top = rect.min.y + 1.0 + PADDING;
         let mut x = rect.min.x + 1.0 + PADDING;
         let mut items = Vec::new();
-        let hover = |r: Rect| ui.rect_contains_pointer(r);
+        let modal_open = self.modal.is_some();
+        let hover = |r: Rect| !modal_open && ui.rect_contains_pointer(r);
         // Zoom.
         let zr = Rect::from_min_size(pos2(x, top), vec2(zoom_w, BUTTON));
         captb::button(painter, p, zr, "", false, hover(zr), 1.0);
         icons::paint(painter, Rect::from_min_size(pos2(zr.min.x + 11.0, zr.center().y - 10.0), vec2(20.0, 20.0)), app_icons::ZoomIn, p.text_secondary);
         let g = widgets::galley(ui, &zoom_text, font.clone(), p.text, f32::INFINITY);
         let tw = widgets::text_width(ui, &zoom_text, font.clone());
-        let mid = (zr.min.x + 11.0 + 26.0 + zr.max.x - 21.0) / 2.0;
+        let mid = (zr.min.x + 11.0 + 26.0 + zr.max.x - 11.0 - 4.0 - 10.0 - 8.0) / 2.0;
         painter.galley(pos2((mid - tw / 2.0).round(), widgets::center_y(zr, widgets::line_height(ui, &font))), g, p.text);
         let angle = if self.zoom_open { std::f32::consts::PI } else { 0.0 };
-        icons::paint_transformed(painter, Rect::from_min_size(pos2(zr.max.x - 21.0, zr.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary, Vec2::ZERO, angle);
+        icons::paint_transformed(painter, Rect::from_min_size(pos2(zr.max.x - 25.0, zr.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary, Vec2::ZERO, angle);
         items.push((Bottom::Zoom, zr));
         x += zoom_w + SPACING + 4.0;
         painter.rect_filled(Rect::from_min_size(pos2(x, top + 1.0), vec2(1.0, 38.0)), 0.0, p.separator);
@@ -803,8 +971,13 @@ impl EditorWindow {
         x = grid.max.x + 10.0 + SPACING;
         for b in [Bottom::Copy, Bottom::Save, Bottom::SaveAs, Bottom::Pin, Bottom::Print, Bottom::Upload] {
             let r = Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON));
-            captb::button(painter, p, r, b.icon(), false, hover(r), 1.0);
-            items.push((b, r));
+            // `CanCopy`... `HasPreviewImage`: disabled without an image.
+            if self.has_image {
+                captb::button(painter, p, r, b.icon(), false, hover(r), 1.0);
+                items.push((b, r));
+            } else {
+                disabled_button(ui, painter, p, r, b.icon());
+            }
             x += BUTTON + SPACING;
         }
         x += 4.0;
@@ -879,7 +1052,7 @@ impl EditorWindow {
 
     /// The part of the window the toolbars, menus and popups cover.
     fn over_ui(&self, p: Pos2) -> bool {
-        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) {
+        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) {
             return true;
         }
         if self.toolbars_hidden {
@@ -932,7 +1105,7 @@ impl EditorWindow {
         let ppp = ctx.pixels_per_point();
         let m = self.mapper_ppp(ppp);
         let events = ctx.input(|i| i.events.clone());
-        let modal = self.confirm_exit;
+        let modal = self.modal.is_some();
         for ev in events {
             match ev {
                 egui::Event::PointerMoved(pos) => {
@@ -1020,8 +1193,9 @@ impl EditorWindow {
                 egui::Event::Key { key, pressed, modifiers, repeat, .. } => {
                     let mods = Self::mods(modifiers);
                     if modal {
-                        if pressed && key == egui::Key::Escape {
-                            self.confirm_exit = false;
+                        // `OnKeyUp`: Escape closes the dialog.
+                        if !pressed && key == egui::Key::Escape && !modifiers.any() {
+                            self.modal = None;
                         }
                         continue;
                     }
@@ -1059,9 +1233,9 @@ impl EditorWindow {
         self.handle_requests();
     }
 
-    /// The toolbars' buttons (their `Click`s).
+    /// The toolbars' buttons (their `Click`s); the modal scrim covers them.
     fn toolbar_clicks(&mut self, ui: &Ui) {
-        if self.toolbars_hidden {
+        if self.toolbars_hidden || self.modal.is_some() {
             return;
         }
         for (it, r) in self.layout.items.clone() {
@@ -1106,7 +1280,8 @@ impl EditorWindow {
                 match b {
                     Bottom::Zoom => self.zoom_open = !self.zoom_open,
                     Bottom::Continue => self.run(Command::Continue),
-                    Bottom::Cancel => self.finish(false),
+                    // `CancelCommand`: `RequestClose`.
+                    Bottom::Cancel => self.request_close(false),
                     Bottom::Copy => self.run(Command::CopyImage),
                     Bottom::Save => self.run(Command::Save),
                     Bottom::SaveAs => self.run(Command::SaveAs),
@@ -1199,7 +1374,6 @@ impl EditorWindow {
     /// a button bar.
     fn confirm_dialog(&mut self, ui: &Ui, p: &Palette, full: Rect) {
         let painter = ui.painter();
-        painter.rect_filled(full, 0.0, p.overlay_modal);
         let w = 400.0;
         let title_font = widgets::font(15.0, 600);
         let font = widgets::font(14.0, 400);
@@ -1209,7 +1383,10 @@ impl EditorWindow {
         let msg_h = (widgets::line_height(ui, &font) * lines.len() as f32).max(54.0);
         let body_h = 25.0 + msg_h + 25.0;
         let bar_h = 1.0 + 10.0 + 32.0 + 10.0;
-        let r = Rect::from_center_size(full.center(), vec2(w, title_h + body_h + bar_h + 2.0));
+        let r = modal::centered(full, vec2(w, title_h + body_h + bar_h + 2.0));
+        if modal::scrim(ui, p, full, r) {
+            self.modal = None;
+        }
         let shadow = egui::epaint::Shadow { offset: [0, 4], blur: 10, spread: 0, color: Color32::from_black_alpha(0x40) };
         painter.add(shadow.as_shape(r, CornerRadius::same(4)));
         sharex_ui::border::border(painter, r, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(p.background_panel)), Some(p.border));
@@ -1241,7 +1418,7 @@ impl EditorWindow {
             let br = Rect::from_min_size(pos2(x, bar.min.y + 11.0), vec2(bw, 32.0));
             x += bw + 5.0;
             if b.show(ui, br, Id::new(("confirm-exit", k)), label, true).clicked() {
-                self.confirm_exit = false;
+                self.modal = None;
                 match k {
                     2 => {
                         self.save(false);
@@ -1256,10 +1433,191 @@ impl EditorWindow {
         }
     }
 
+    /// The open dialog over the view (`ModalContentHost`).
+    fn modal_ui(&mut self, ui: &mut Ui, p: &Palette, full: Rect) {
+        match self.modal.take() {
+            None => {}
+            Some(Modal::Confirm) => {
+                self.modal = Some(Modal::Confirm);
+                self.confirm_dialog(ui, p, full);
+            }
+            Some(Modal::Start(mut s)) => {
+                let rect = modal::centered(full, s.size(ui, full.height()));
+                let outside = modal::scrim(ui, p, full, rect);
+                let action = s.show(ui, p, rect);
+                self.modal = Some(Modal::Start(s));
+                if outside {
+                    self.modal = None;
+                }
+                if let Some(a) = action {
+                    self.start_action(a);
+                }
+            }
+            Some(Modal::NewImage(mut d)) => {
+                let rect = modal::centered(full, d.size(ui));
+                let pos = ui.ctx().input(|i| i.pointer.interact_pos());
+                let outside = modal::scrim(ui, p, full, rect) && !pos.is_some_and(|q| d.popup_contains(q));
+                let out = d.show(ui, p, rect);
+                d.show_popup(ui, p, full);
+                match out {
+                    Some(new_image::Outcome::Ok) => self.create_new_image(&d),
+                    Some(new_image::Outcome::Cancel) => {}
+                    None if outside => {}
+                    None => self.modal = Some(Modal::NewImage(d)),
+                }
+            }
+        }
+    }
+
+    /// `NewImageDialogViewModel`'s OK (`OnNewImageRequested`): an image of
+    /// that size cleared to transparent or the colour, loaded with no file.
+    fn create_new_image(&mut self, d: &new_image::NewImage) {
+        let (w, h) = (d.width.clamp(1, 10000) as u32, d.height.clamp(1, 10000) as u32);
+        let px = if d.transparent { [0, 0, 0, 0] } else { d.color.to_srgba_unmultiplied() };
+        let img = RgbaImage::from_pixel(w, h, image::Rgba(px));
+        self.load_bitmap(img, None);
+        self.notify(Self::size_message(ie::MainViewModel_NewImageCreated(), w, h), app_icons::FileAdd);
+    }
+
+    /// The start screen's commands (`EnsureStartScreenDialog`'s callbacks).
+    fn start_action(&mut self, a: start_screen::Action) {
+        use start_screen::Action as A;
+        match a {
+            A::NewImage => {
+                self.modal = None;
+                self.run(Command::NewImage);
+            }
+            A::OpenFile => {
+                self.modal = None;
+                self.open_image();
+            }
+            A::LoadFromClipboard => self.load_from_clipboard(),
+            A::ShowUrlInput => {
+                // `PrepareStartScreenUrlInputAsync`: the clipboard's text when
+                // it's an http(s) URL.
+                let text = sharex_capture::clipboard::get_text().map(|t| t.trim().to_string());
+                let url = text.filter(|t| start_screen::is_http_url(t));
+                if let Some(Modal::Start(s)) = &mut self.modal {
+                    s.show_url_input(url);
+                }
+            }
+            A::SubmitUrl(url) => self.load_from_url(url),
+            A::Close => self.modal = None,
+            A::Exit => {
+                self.modal = None;
+                self.request_close(false);
+            }
+            A::OpenRecent(path) => self.load_recent(&path),
+            A::CaptureRegion | A::CaptureFullscreen => self.menu_command(if a == A::CaptureRegion { MenuCmd::NewRegion } else { MenuCmd::NewFullscreen }),
+        }
+    }
+
+    /// `OnLoadFromClipboardRequested`: an image, else the first image file,
+    /// else the start screen says there's none.
+    fn load_from_clipboard(&mut self) {
+        if let Some(img) = sharex_capture::clipboard::get_image() {
+            self.modal = None;
+            self.load_bitmap(img, None);
+            return;
+        }
+        for f in sharex_capture::clipboard::get_file_drop_list().unwrap_or_default() {
+            if let Some(img) = crate::thumbnail::load(&f) {
+                self.modal = None;
+                self.load_bitmap(img, Some(f));
+                return;
+            }
+        }
+        self.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string());
+    }
+
+    /// `OnLoadFromUrlRequested`: downloaded (30 s timeout) on a thread.
+    fn load_from_url(&mut self, url: String) {
+        if let Some(Modal::Start(s)) = &mut self.modal {
+            s.status = None;
+            s.url_loading = true;
+        }
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let request = sharex_uploaders::http::HttpRequest { method: sharex_uploaders::HttpMethod::GET, url, headers: Vec::new(), content: None };
+            let options = sharex_uploaders::http::RequestOptions {
+                timeout: Some(std::time::Duration::from_secs(30)),
+                factory_client: false,
+                ..Default::default()
+            };
+            let result = match sharex_uploaders::http::send(request, options) {
+                Err(e) => Err(e.to_string()),
+                // `EnsureSuccessStatusCode`.
+                Ok(r) if !r.is_success() => Err(format!("Response status code does not indicate success: {} ({}).", r.status_code, r.status_description)),
+                Ok(r) => match image::load_from_memory(r.response_data.as_deref().unwrap_or_default()) {
+                    Ok(img) => Ok(img.to_rgba8()),
+                    Err(_) => Err(String::new()),
+                },
+            };
+            let _ = tx.send(result);
+        });
+        self.url_job = Some(rx);
+    }
+
+    fn poll_url_job(&mut self) {
+        let Some(rx) = &self.url_job else { return };
+        match rx.try_recv() {
+            Ok(Ok(img)) => {
+                self.url_job = None;
+                if matches!(self.modal, Some(Modal::Start(_))) {
+                    self.modal = None;
+                }
+                self.load_bitmap(img, None);
+            }
+            Ok(Err(e)) => {
+                self.url_job = None;
+                let message = if e.is_empty() {
+                    ie::EditorView_UrlDoesNotPointToValidImage().to_string()
+                } else {
+                    ie::EditorView_FailedToDownloadImageFormat().replace("{0}", &e)
+                };
+                if let Some(Modal::Start(s)) = &mut self.modal {
+                    s.url_loading = false;
+                    s.status = Some(message);
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.url_job = None,
+        }
+    }
+
+    /// `OnLoadRecentFileRequested`: gone files leave the list.
+    fn load_recent(&mut self, path: &str) {
+        let p = std::path::Path::new(path);
+        if !p.exists() {
+            self.remove_recent(path);
+            self.start_status(ie::EditorView_FileNoLongerExistsFormat().replace("{0}", path));
+            return;
+        }
+        match crate::thumbnail::load(p) {
+            Some(img) => {
+                if matches!(self.modal, Some(Modal::Start(_))) {
+                    self.modal = None;
+                }
+                self.load_bitmap(img, Some(p.to_path_buf()));
+                self.notify(Self::file_message(ie::MainViewModel_ImageOpened(), p), icon::FolderOpen);
+            }
+            None => self.start_status(ie::EditorView_FailedToLoadImageFileFormat().replace("{0}", path)),
+        }
+    }
+
     /// The options the tools changed, for the task settings.
     pub fn options(&self) -> ImageEditorOptions {
         self.ws.tools.options.clone()
     }
+}
+
+/// A disabled `toolbar-button`: ShareX's `Button:disabled` (the control
+/// background, no border, the base medium low foreground), at 35%.
+fn disabled_button(ui: &Ui, painter: &egui::Painter, p: &Palette, r: Rect, icon: &str) {
+    let mut faded = painter.clone();
+    faded.set_opacity(0.35);
+    faded.rect_filled(r, CornerRadius::same(4), p.control_background);
+    icons::paint(&faded, Rect::from_center_size(r.center(), vec2(20.0, 20.0)), icon, sharex_ui::theme::fluent(ui.ctx()).base_medium_low);
 }
 
 /// The task's image format's extension (`ImageFormat.GetFileExtension`).
@@ -1326,9 +1684,10 @@ impl Dialog for EditorWindow {
                 self.menu_command(c);
             }
         }
-        if self.confirm_exit {
-            self.confirm_dialog(ui, &p, full);
-        }
+        self.poll_url_job();
+        // The notification (`ZIndex="28"`), under the modal host.
+        self.notify.paint(ui, &p, full);
+        self.modal_ui(ui, &p, full);
         // The cursor the workspace wants over the canvas.
         if let Some(pos) = ui.ctx().pointer_hover_pos()
             && self.layout.canvas.contains(pos)
@@ -1352,7 +1711,7 @@ impl Dialog for EditorWindow {
 
     fn close_requested(&mut self) -> Vec<Effect> {
         // `OnClosing`: `RequestClose(ignoreModal: true)`.
-        self.request_close();
+        self.request_close(true);
         std::mem::take(&mut self.effects)
     }
 
@@ -1383,21 +1742,47 @@ pub fn is_render_screen(name: &str) -> bool {
     name.starts_with("image-editor")
 }
 
-pub fn render_dialog(_name: &str, o: &crate::dialogs::render::Options) -> Result<Box<dyn Dialog>, String> {
-    let path = o.image.clone().ok_or("--image <png> is required")?;
-    let image = image::open(&path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8();
-    let mut w = EditorWindow::new(Some(image), Some(path), TaskSettings::default(), false, PathBuf::new());
+pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<Box<dyn Dialog>, String> {
+    let image = match &o.image {
+        Some(path) => Some(image::open(path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8()),
+        None => None,
+    };
+    let mut task = TaskSettings::default();
+    // `--files`: the recent files.
+    if !o.files.is_empty() {
+        let mut opts = crate::capture_job::image_editor_options(&task);
+        opts.RecentImageFiles = o.files.iter().map(|f| f.display().to_string()).collect();
+        task.ToolsSettings.get_or_insert_default().ImageEditorOptions = opts.to_value();
+    }
+    let mut w = EditorWindow::new(image, o.image.clone(), task, false, PathBuf::new());
     // `image-editor-context`: the context menu opened at 300,200.
-    if _name == "image-editor-file" {
+    if name == "image-editor-file" {
         w.open_file_menu = true;
     }
-    if _name == "image-editor-context" {
+    if name == "image-editor-context" {
         let at = pos2(300.0, 200.0);
         w.flyout = Some(EditorWindow::context_flyout(w.context_menu(), at));
     }
+    // `--state`: the editor's dialogs.
+    match o.state.as_deref() {
+        Some("new") => w.modal = Some(Modal::NewImage(Box::default())),
+        Some("new-solid") => w.modal = Some(Modal::NewImage(Box::new(new_image::NewImage { transparent: false, ..Default::default() }))),
+        Some("new-done") => {
+            w.modal = None;
+            w.create_new_image(&new_image::NewImage::default());
+            w.notify.settle();
+        }
+        Some("url") => {
+            if let Some(Modal::Start(s)) = &mut w.modal {
+                s.show_url_input(None);
+            }
+        }
+        Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
+        Some("none") => w.modal = None,
+        _ => {}
+    }
     Ok(Box::new(w))
 }
-
 
 impl crate::App {
     /// `ImageEditorIntegration.ShowEditorDialog(image, options, events,

@@ -254,6 +254,11 @@ pub enum Request {
     ReplaceImage { id: String },
     /// A double click on an emoji: pick another one for it.
     ReplaceEmoji { id: String },
+    /// The crop tool cropped the image (`ShowImageCroppedNotification`):
+    /// its new size.
+    Cropped { width: u32, height: u32 },
+    /// The cut out tool cut it (`ShowImageCutOutNotification`).
+    CutOut { width: u32, height: u32 },
 }
 
 /// What a right button press did (`OnCanvasPointerPressed`).

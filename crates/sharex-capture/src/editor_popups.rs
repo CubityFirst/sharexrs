@@ -743,6 +743,90 @@ impl Popups {
     }
 }
 
+/// A `ColorPickerDropdown` of its own (not an option of the tools): the
+/// New image dialog's background colour, the Background panel's colours.
+/// The same `ColorPickerPanel` popup as the options' colour dropdowns.
+#[derive(Default)]
+pub struct ColorDropdown {
+    popups: Popups,
+    pub open: bool,
+}
+
+impl ColorDropdown {
+    /// The dropdown button's click.
+    pub fn toggle(&mut self, color: Color32) {
+        if self.open {
+            self.open = false;
+            return;
+        }
+        self.open = true;
+        self.popups.just_opened = true;
+        self.popups.color_tab = 1;
+        self.popups.color_when_opened = Some(color);
+    }
+
+    pub fn close(&mut self) {
+        self.open = false;
+        self.popups.rect = None;
+    }
+
+    /// Whether `p` is on the open popup.
+    pub fn contains(&self, p: Pos2) -> bool {
+        self.open && self.popups.contains(p)
+    }
+
+    /// Draws the open popup under `anchor` within `bounds`, editing
+    /// `color`; closes it on Escape or a press outside it and `anchor`.
+    pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, key: &str, color: &mut Color32) -> PopupResult {
+        let mut result = PopupResult::default();
+        if !self.open {
+            return result;
+        }
+        let id = Id::new(("color-dropdown", key));
+        let mut size = vec2(360.0, 450.0);
+        size.y = size.y.min(bounds.height());
+        let mut pos = pos2((anchor.center().x - size.x / 2.0).round(), anchor.max.y + 4.0);
+        if pos.y + size.y > bounds.max.y {
+            pos.y = (bounds.max.y - size.y).max(bounds.min.y);
+        }
+        pos.x = pos.x.clamp(bounds.min.x, (bounds.max.x - size.x).max(bounds.min.x));
+        self.popups.rect = Some(Rect::from_min_size(pos, size));
+        let mut close = false;
+        let popups = &mut self.popups;
+        let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).fade_in(false).show(ui.ctx(), |ui| {
+            let (r, _) = ui.allocate_exact_size(size, Sense::hover());
+            ui.set_clip_rect(r.expand(40.0));
+            paint_frame(ui, r, p.background_panel, p.border, 8.0);
+            let (changed, pick) = popups.color_panel(ui, p, r.shrink(1.0).shrink(4.0), id, color);
+            result.changed = changed;
+            if pick {
+                result.pick_screen_color = true;
+                close = true;
+            }
+        });
+        let ctx = ui.ctx();
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            close = true;
+        }
+        if !self.popups.just_opened
+            && ctx.input(|i| i.pointer.any_pressed())
+            && let Some(at) = ctx.input(|i| i.pointer.interact_pos())
+            && !area.response.rect.contains(at)
+            && !anchor.contains(at)
+        {
+            close = true;
+        }
+        self.popups.just_opened = false;
+        if close {
+            if self.popups.color_when_opened.is_some_and(|b| b != *color) {
+                add_recent_color(*color);
+            }
+            self.close();
+        }
+        result
+    }
+}
+
 /// `AccentColorConverter`: the HSV value moved by 0.1 a step.
 fn accent(c: Color32, step: i32) -> Color32 {
     let [r, g, b, a] = c.to_srgba_unmultiplied();
