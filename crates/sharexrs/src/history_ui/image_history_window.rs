@@ -124,7 +124,7 @@ impl ImageHistoryWindow {
 
     fn title_text(&self) -> String {
         let base = crate::rs_title(s::HistoryWindows_ShareX_Image_History());
-        if self.loaded { format!("{base} ({})", s::ImageHistoryWindow_ItemsFormat().replace("{0}", &self.filtered.len().to_string())) } else { base }
+        if self.loaded { format!("{base} ({})", common::format_count(s::ImageHistoryWindow_ItemsFormat(), self.filtered.len())) } else { base }
     }
 
     fn refresh(&mut self, ctx: &egui::Context) {
@@ -288,6 +288,7 @@ impl ImageHistoryWindow {
                     confirm: s::HistoryWindows_Open().into(),
                     input: None,
                     action: common::PromptAction::OpenFile(path),
+                    focused: false,
                 })
             }
             None => {}
@@ -315,7 +316,7 @@ impl ImageHistoryWindow {
             self.refresh(ui.ctx());
             return;
         }
-        if self.modal.is_some() || self.menu.is_some() || ui.ctx().memory(|m| m.focused().is_some()) {
+        if self.modal.is_some() || self.menu.is_some() || common::text_box_focused(ui.ctx()) {
             return;
         }
         let count = self.loaded_count;
@@ -348,7 +349,11 @@ impl ImageHistoryWindow {
                 return;
             }
         }
-        if pressed(Key::Enter, ctrl) {
+        // egui-winit turns Ctrl+C into `Event::Copy`.
+        let copy = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy)) && !i.modifiers.shift);
+        if copy {
+            self.run(Cmd::Copy(CopyFormat::Url));
+        } else if pressed(Key::Enter, ctrl) {
             self.run(Cmd::OpenFile);
         } else if pressed(Key::Enter, shift) {
             self.run(Cmd::OpenFolder);
@@ -360,7 +365,7 @@ impl ImageHistoryWindow {
             self.run(Cmd::CopyFile);
         } else if pressed(Key::C, Modifiers::ALT) {
             self.run(Cmd::CopyImage);
-        } else if any(Key::Delete).is_some_and(|m| m.shift) {
+        } else if any(Key::Delete).is_some_and(|m| m.shift) || ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Cut)) && i.modifiers.shift) {
             self.run(Cmd::DeleteFile);
         } else if any(Key::Delete).is_some() {
             self.run(Cmd::Delete);
@@ -907,7 +912,7 @@ impl Dialog for ImageHistoryWindow {
                                     self.loaded = false;
                                     self.refresh(ui.ctx());
                                 }
-                                s::ImageHistoryWindow_SuccessfullyImportedFilesFormat().replace("{0}", &n.to_string())
+                                common::format_count(s::ImageHistoryWindow_SuccessfullyImportedFilesFormat(), n)
                             }
                             Err(e) => e,
                         }

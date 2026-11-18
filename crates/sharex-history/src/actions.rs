@@ -276,6 +276,12 @@ pub fn rename_target(file_path: &str, new_name: &str) -> Option<String> {
     Some(if paths::has_extension(file_path) { format!("{new_name}{}", paths::extension(file_path)) } else { new_name.to_string() })
 }
 
+/// `string.Format(format, count)` with `{0:N0}` (the culture's group separator).
+fn format_n0(format: &str, count: usize) -> String {
+    let n0 = crate::stats::format_number(count as i64, &sharex_helpers::date_format::CultureFormat::current().number_group_separator);
+    format.replace("{0:N0}", &n0).replace("{0}", &count.to_string())
+}
+
 /// `ConfirmDelete`'s message (`HistoryWindow_ConfirmDeleteFormat` around
 /// this file/item or these N files/items) and title.
 pub fn delete_confirmation(count: usize, delete_files: bool) -> (String, String) {
@@ -283,8 +289,8 @@ pub fn delete_confirmation(count: usize, delete_files: bool) -> (String, String)
     let noun = match (count == 1, delete_files) {
         (true, true) => s::HistoryWindow_ThisFile().to_string(),
         (true, false) => s::HistoryWindow_ThisItem().to_string(),
-        (false, true) => s::HistoryWindow_TheseFilesFormat().replace("{0}", &count.to_string()),
-        (false, false) => s::HistoryWindow_TheseItemsFormat().replace("{0}", &count.to_string()),
+        (false, true) => format_n0(s::HistoryWindow_TheseFilesFormat(), count),
+        (false, false) => format_n0(s::HistoryWindow_TheseItemsFormat(), count),
     };
     let title = if delete_files { s::HistoryWindow_DeleteFiles() } else { s::HistoryWindow_DeleteHistoryItems() };
     (title.to_string(), s::HistoryWindow_ConfirmDeleteFormat().replace("{0}", &noun))

@@ -161,7 +161,7 @@ impl HistoryWindow {
 
     fn title_text(&self) -> String {
         let base = crate::rs_title(s::HistoryWindows_ShareX_History());
-        if self.loaded { format!("{base} ({})", s::HistoryWindow_ItemsFormat().replace("{0}", &self.filtered.len().to_string())) } else { base }
+        if self.loaded { format!("{base} ({})", common::format_count(s::HistoryWindow_ItemsFormat(), self.filtered.len())) } else { base }
     }
 
     /// `RefreshHistoryAsync`: every item, newest first, off the UI thread.
@@ -381,10 +381,14 @@ impl HistoryWindow {
             return;
         }
         // The list has the keyboard unless a text box does.
-        if self.modal.is_some() || self.menu.is_some() || ui.ctx().memory(|m| m.focused().is_some()) {
+        if self.modal.is_some() || self.menu.is_some() || common::text_box_focused(ui.ctx()) {
             return;
         }
-        if pressed(Key::Enter, ctrl) {
+        // egui-winit turns Ctrl+C (with or without Shift) into `Event::Copy`.
+        let copy = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy)).then_some(i.modifiers.shift));
+        if let Some(shift) = copy {
+            self.run(Cmd::Copy(if shift { CopyFormat::FilePath } else { CopyFormat::Url }));
+        } else if pressed(Key::Enter, ctrl) {
             self.run(Cmd::OpenFile);
         } else if pressed(Key::Enter, shift) {
             self.run(Cmd::OpenFolder);
@@ -398,7 +402,7 @@ impl HistoryWindow {
             self.run(Cmd::CopyImage);
         } else if pressed(Key::C, ctrl | shift) {
             self.run(Cmd::Copy(CopyFormat::FilePath));
-        } else if pressed(Key::Delete, shift) {
+        } else if pressed(Key::Delete, shift) || ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Cut)) && i.modifiers.shift) {
             self.run(Cmd::DeleteFile);
         } else if pressed(Key::Delete, none) {
             self.run(Cmd::Delete);
@@ -1131,7 +1135,7 @@ impl Dialog for HistoryWindow {
                                     self.loaded = false;
                                     self.refresh(ui.ctx());
                                 }
-                                s::HistoryWindow_SuccessfullyImportedFilesFormat().replace("{0}", &n.to_string())
+                                common::format_count(s::HistoryWindow_SuccessfullyImportedFilesFormat(), n)
                             }
                             Err(e) => e,
                         }

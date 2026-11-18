@@ -49,6 +49,13 @@ pub fn services() -> Services {
     }
 }
 
+/// `string.Format(format, count)` for the windows' "{0:N0} items" titles
+/// (`N0` with the culture's group separator).
+pub fn format_count(format: &str, count: usize) -> String {
+    let n0 = sharex_history::stats::format_number(count as i64, &CultureFormat::current().number_group_separator);
+    format.replace("{0:N0}", &n0).replace("{0}", &count.to_string())
+}
+
 /// `DateTime.ToString("g")` in the current culture.
 pub fn format_g(item: &HistoryItem) -> String {
     CultureFormat::current().format_g(item.date_time.naive())
@@ -350,7 +357,7 @@ pub enum Modal {
     /// `EditDialog`: the item's id and its fields as typed.
     Edit { id: i64, fields: [String; 8], date: String, tags: String },
     /// `PromptDialog`.
-    Prompt { title: String, message: String, confirm: String, input: Option<String>, action: PromptAction },
+    Prompt { title: String, message: String, confirm: String, input: Option<String>, action: PromptAction, focused: bool },
 }
 
 impl Modal {
@@ -516,7 +523,7 @@ pub fn modal_ui(ui: &mut Ui, full: Rect, modal: &mut Modal) -> ModalOut {
                 out = ModalOut::Close;
             }
         }
-        Modal::Prompt { title, message, confirm, input, action } => {
+        Modal::Prompt { title, message, confirm, input, action, focused } => {
             let normal = normal_font();
             let inner_w = 480.0 - 38.0;
             let msg_h = controls::wrapped(&ui, pos2(0.0, 0.0), inner_w, message, normal.clone(), p.text, false);
@@ -532,7 +539,21 @@ pub fn modal_ui(ui: &mut Ui, full: Rect, modal: &mut Modal) -> ModalOut {
             y += msg_h + 12.0;
             if let Some(text) = input {
                 let id = Id::new("history-prompt-input");
+                // `ShowPrompt`: the text box focused, its text selected.
+                // Asked again until a frame without a click: the click that
+                // opened the prompt would take the focus away.
+                if !*focused {
+                    *focused = !ui.input(|i| i.pointer.any_pressed() || i.pointer.any_released());
+                    ui.ctx().memory_mut(|m| m.request_focus(id));
+                    let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
+                    let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(text.chars().count()));
+                    state.cursor.set_char_range(Some(all));
+                    state.store(ui.ctx(), id);
+                }
                 TextBox::default().show(&mut ui, Rect::from_min_size(pos2(c.min.x, y), vec2(c.width(), 40.0)), id, text);
+                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    out = ModalOut::Confirm(action.clone(), text.clone());
+                }
             }
             let cancel = s::HistoryWindows_Cancel();
             let (ow, cw) = (b.width(&ui, confirm), b.width(&ui, cancel));
@@ -545,6 +566,9 @@ pub fn modal_ui(ui: &mut Ui, full: Rect, modal: &mut Modal) -> ModalOut {
                 out = ModalOut::Close;
             }
         }
+    }
+    if !matches!(out, ModalOut::None) {
+        ui.ctx().memory_mut(|m| m.surrender_focus(Id::new("history-prompt-input")));
     }
     out
 }
@@ -656,6 +680,7 @@ pub fn run_cmd(cmd: Cmd, items: &mut [HistoryItem], selected: &[usize], strings:
                 confirm: s::HistoryWindows_Save().into(),
                 input: Some(primary.tag_text().unwrap_or("").to_string()),
                 action: PromptAction::EditTag(primary.id),
+                focused: false,
             })
         }
         Cmd::EditItem => out.modal = Some(Modal::edit(primary)),
@@ -667,6 +692,7 @@ pub fn run_cmd(cmd: Cmd, items: &mut [HistoryItem], selected: &[usize], strings:
                     confirm: (strings.rename)().into(),
                     input: Some(sharex_history::paths::file_name_without_extension(&path).to_string()),
                     action: PromptAction::Rename(primary.id),
+                    focused: false,
                 });
             }
         }
@@ -676,8 +702,8 @@ pub fn run_cmd(cmd: Cmd, items: &mut [HistoryItem], selected: &[usize], strings:
             let noun = match (n == 1, files) {
                 (true, true) => (strings.this_file)().to_string(),
                 (true, false) => (strings.this_item)().to_string(),
-                (false, true) => (strings.these_files)().replace("{0}", &n.to_string()),
-                (false, false) => (strings.these_items)().replace("{0}", &n.to_string()),
+                (false, true) => format_count((strings.these_files)(), n),
+                (false, false) => format_count((strings.these_items)(), n),
             };
             out.modal = Some(Modal::Prompt {
                 title: if files { (strings.delete_files)() } else { (strings.delete_items)() }.into(),
@@ -685,6 +711,7 @@ pub fn run_cmd(cmd: Cmd, items: &mut [HistoryItem], selected: &[usize], strings:
                 confirm: (strings.delete)().into(),
                 input: None,
                 action: PromptAction::Delete { ids: sel.iter().map(|i| i.id).collect(), files },
+                focused: false,
             });
         }
         Cmd::Preview | Cmd::OpenImage if exists && is_image_file(&path) => out.effects.push(Effect::FileService(FileService::ShowImage, path.into())),
@@ -791,4 +818,10 @@ pub fn import(folder: &str, images_only: bool, skip_duplicates: bool, items: &[H
         crate::history::append(&mut new);
     }
     Ok(new.len())
+}
+
+/// Whether a text box has the keyboard (a clicked row or card takes egui's
+/// focus too, but keeps the window's shortcuts).
+pub fn text_box_focused(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some())
 }
