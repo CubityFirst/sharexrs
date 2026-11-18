@@ -4,7 +4,7 @@
 //!
 //! - Images: [`combiner`], [`splitter`], [`thumbnailer`], [`resizer`],
 //!   [`converter`], [`watermark`], [`icon`] (`.ico` writing), [`comparer`].
-//! - Data: [`hash`], [`qr`], [`indexer`], [`metadata`].
+//! - Data: [`hash`], [`qr`], [`indexer`], [`metadata`], [`analyze_image`].
 //! - Video: [`video`] (the FFmpeg command lines and output parsing of the
 //!   video converter, thumbnailer, trimmer and GIF tools; [`gif`] for the GIF
 //!   maker's encoder).
@@ -27,6 +27,7 @@
     clippy::manual_is_multiple_of
 )]
 
+pub mod analyze_image;
 pub mod combiner;
 pub mod comparer;
 pub mod converter;
