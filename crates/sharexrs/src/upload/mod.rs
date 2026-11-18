@@ -45,6 +45,18 @@ pub trait TaskUi: Send + Sync {
     fn open_url(&self, url: &str);
     /// `TaskHelpers.OpenQRCode(text)`: the QR code window.
     fn show_qr_code(&self, text: &str);
+    /// `ClipboardHelpers.CopyFile`: the file as a file drop list.
+    fn copy_file(&self, path: &std::path::Path);
+    /// `FileHelpers.OpenFolderWithFile`: its folder, with it selected.
+    fn open_folder_with_file(&self, path: &std::path::Path);
+    /// `TaskHelpers.OpenQRCodeScanFromImageFile`: the QR code window,
+    /// scanning the image.
+    fn scan_qr_code_file(&self, _path: &std::path::Path) {}
+    /// `TaskHelpers.AnalyzeImage(filePath, taskSettings)`: the Analyze
+    /// image window, which isn't ported yet.
+    fn analyze_image(&self, path: &std::path::Path) {
+        eprintln!("Analyze image window not ported yet: {}", path.display());
+    }
     /// `LargeFileUploadWarningWindowIntegration.Show()`: (continue, don't
     /// show again). The task's thread waits for the answer.
     fn large_file_warning(&self) -> (bool, bool) {
@@ -80,6 +92,8 @@ pub enum UiRequest {
     QrCode(String),
     /// The OCR window on a task's image; answered when it closes.
     Ocr(Arc<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<()>),
+    /// `OpenQRCodeScanFromImageFile`.
+    QrCodeScanFile(std::path::PathBuf),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -89,6 +103,7 @@ impl std::fmt::Debug for UiRequest {
             Self::BeforeUpload(r, _) => write!(f, "BeforeUpload({})", r.file_name),
             Self::QrCode(t) => write!(f, "QrCode({t})"),
             Self::Ocr(..) => f.write_str("Ocr"),
+            Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
         }
     }
 }
@@ -128,6 +143,22 @@ impl TaskUi for SystemUi {
     fn show_qr_code(&self, text: &str) {
         if let Some(r) = &self.requests {
             r(UiRequest::QrCode(text.to_owned()));
+        }
+    }
+
+    fn copy_file(&self, path: &std::path::Path) {
+        if let Err(e) = sharex_capture::clipboard::copy_files(&[path.to_path_buf()], self.owner) {
+            eprintln!("Clipboard copy file failed: {e}");
+        }
+    }
+
+    fn open_folder_with_file(&self, path: &std::path::Path) {
+        crate::shell::open_folder_with_file(path);
+    }
+
+    fn scan_qr_code_file(&self, path: &std::path::Path) {
+        if let Some(r) = &self.requests {
+            r(UiRequest::QrCodeScanFile(path.to_path_buf()));
         }
     }
 

@@ -59,8 +59,8 @@ pub struct ViewSettings {
     pub uploads_disabled: bool,
     /// `ClipboardContentFormats`' descriptions.
     pub clipboard_formats: Vec<String>,
-    /// Whether any external program is set up (`ExternalPrograms`).
-    pub external_programs: bool,
+    /// The default task settings' actions (`ExternalPrograms`), for Run action.
+    pub external_programs: Vec<sharex_settings::ExternalProgram>,
 }
 
 impl Default for ViewSettings {
@@ -79,7 +79,7 @@ impl Default for ViewSettings {
             click_action: ThumbnailViewClickAction::Default,
             uploads_disabled: false,
             clipboard_formats: Vec::new(),
-            external_programs: false,
+            external_programs: Vec::new(),
         }
     }
 }
@@ -164,6 +164,9 @@ pub enum TaskCommand {
     SwitchView,
     /// An entry whose tool isn't ported yet (named for the log).
     NotPorted(&'static str),
+    /// `ExternalProgram.RunAsync(filePath)`: the default task settings'
+    /// action at this index.
+    RunAction(usize),
 }
 
 /// Which of an upload's URLs.
@@ -1416,7 +1419,7 @@ impl TaskView {
             item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, np("Image beautifier"), ok && sel.is_image_file),
             item(s::MainWindow_AddImageEffects(), icon::MagicWand, np("Image effects"), ok && sel.is_image_file),
             item(s::MainWindow_PinToScreen(), icon::Pin, np("Pin to screen"), ok && sel.is_image_file).gesture("Ctrl+P"),
-            sub(s::MainWindow_RunAction(), icon::Play, Vec::new(), ok && sel.is_file_exist && self.settings.external_programs),
+            sub(s::MainWindow_RunAction(), icon::Play, self.actions_menu(&path), ok && sel.is_file_exist && self.has_external_actions(&path)),
             item(s::MainWindow_DeleteSelectedItem(), icon::Trash, TaskCommand::RemoveSelected, ok).gesture("Delete"),
             item(s::MainWindow_DeleteSelectedFile(), icon::FileDelete, TaskCommand::DeleteSelectedFiles, ok && sel.is_file_exist)
                 .gesture("Shift+Delete"),
@@ -1457,6 +1460,25 @@ impl TaskView {
     }
 
     /// `BuildOpenTaskMenu`.
+    /// `HasExternalActions`: an action with a name whose filter takes the file.
+    fn has_external_actions(&self, path: &str) -> bool {
+        !path.is_empty()
+            && std::path::Path::new(path).is_file()
+            && self.settings.external_programs.iter().any(|x| x.Name.as_deref().is_some_and(|n| !n.is_empty()) && x.check_extension(path))
+    }
+
+    /// `BuildExternalActionsMenu`: those actions, their names cut to 50
+    /// characters (`Truncate(50, "...")`).
+    fn actions_menu(&self, path: &str) -> Vec<MenuEntry<TaskCommand>> {
+        self.settings
+            .external_programs
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.Name.as_deref().is_some_and(|n| !n.is_empty()) && x.check_extension(path))
+            .map(|(i, x)| MenuEntry::item(truncate(x.Name.as_deref().unwrap_or_default(), 50, "..."), icon::Play, TaskCommand::RunAction(i)))
+            .collect()
+    }
+
     fn open_menu(&self, sel: &UploadInfoStatus) -> Vec<MenuEntry<TaskCommand>> {
         // Separators show even with nothing visible around them, as in ShareX.
         use TaskCommand::OpenUrl;
@@ -1646,6 +1668,19 @@ fn paint_checkered(painter: &egui::Painter, rect: Rect, [base, alt]: [Color32; 2
         y += 15.0;
         row += 1;
     }
+}
+
+/// `StringExtensions.Truncate(maxLength, endings)` (UTF-16 lengths as
+/// chars).
+fn truncate(text: &str, max_length: usize, endings: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() > max_length {
+        let length = max_length.saturating_sub(endings.chars().count());
+        if length > 0 {
+            return chars[..length].iter().collect::<String>() + endings;
+        }
+    }
+    text.to_owned()
 }
 
 #[cfg(test)]

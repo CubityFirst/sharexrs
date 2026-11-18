@@ -116,6 +116,20 @@ pub fn get_file_name_extension(path: &str) -> String {
     ext.to_string()
 }
 
+/// `FileHelpers.ChangeFileNameExtension`: the name up to its last dot,
+/// then `.` and what follows the extension's last dot.
+pub fn change_file_name_extension(file_name: &str, extension: &str) -> String {
+    if file_name.is_empty() {
+        return file_name.to_owned();
+    }
+    let stem = file_name.rfind('.').map_or(file_name, |i| &file_name[..i]);
+    if extension.is_empty() {
+        return stem.to_owned();
+    }
+    let ext = extension.rfind('.').map_or(extension, |i| &extension[i + 1..]);
+    format!("{stem}.{ext}")
+}
+
 /// `FileHelpers.CheckExtension`.
 pub fn check_extension(path: &str, extensions: &[&str]) -> bool {
     let ext = get_file_name_extension(path);

@@ -39,6 +39,8 @@ qrcode = { version = "0.14.1", default-features = false }
 rqrr = { version = "0.11.0", default-features = false }
 # FFmpeg's download (`FFmpegGitHubDownloader.ExtractFFmpeg`).
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Watch folders (`FileSystemWatcher`).
+notify = "8"
 
 [target."cfg(windows)".dependencies]
 # The Startup folder shortcut (`ShortcutHelpers`): IShellLinkW.

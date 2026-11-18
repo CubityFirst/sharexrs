@@ -361,6 +361,7 @@ impl App {
         h.state.close(&mut svc);
         self.refresh_hotkey_tips();
         self.refresh_menus();
+        self.update_watch_folders();
         if let Err(e) = self.settings.save_hotkeys_config(false) {
             eprintln!("couldn't save the hotkeys: {e}");
         }
@@ -483,6 +484,12 @@ impl App {
             TaskTarget::Default => state.title(&self.settings.settings.DefaultTaskSettings),
             TaskTarget::Hotkey(i) => state.title(&self.settings.hotkeys.Hotkeys[i].TaskSettings),
         };
+        // `BuildActionsPage`: `TaskHelpers.AddDefaultExternalPrograms`.
+        let task = match target {
+            TaskTarget::Default => &mut self.settings.settings.DefaultTaskSettings,
+            TaskTarget::Hotkey(i) => &mut self.settings.hotkeys.Hotkeys[i].TaskSettings,
+        };
+        sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
         let width = sharex_ui::theme::density(&egui::Context::default()).settings_window_width;
         let attrs = framed(&title, self.current_theme)
             .with_inner_size(LogicalSize::new(width, task_settings_window::HEIGHT))
@@ -504,6 +511,9 @@ impl App {
     fn close_task_settings(&mut self) {
         let Some(t) = self.task_window.take() else { return };
         self.refresh_menus();
+        self.update_watch_folders();
+        // Run action lists the default task settings' actions.
+        self.init_task_view_settings();
         self.refresh_hotkey_tips();
         let saved = match t.target {
             TaskTarget::Default => self.settings.save_application_config(false),
@@ -531,18 +541,23 @@ impl App {
                 let effects = t.window.paint(|ui| state.ui(ui, &mut ctx));
                 let target = t.target;
                 let mut ffmpeg = false;
+                let mut watch = false;
                 for e in effects {
                     match e {
                         task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
+                        task_settings_window::Effect::WatchFoldersChanged => watch = true,
                     }
+                }
+                if watch {
+                    self.update_watch_folders();
                 }
                 if ffmpeg {
                     self.show_ffmpeg_options(event_loop, target);
                     return;
                 }
                 // The hotkey list shows the task and its "custom settings" mark.
-                if matches!(t.target, TaskTarget::Hotkey(_))
+                if matches!(target, TaskTarget::Hotkey(_))
                     && let Some(h) = &self.hotkey_window
                 {
                     h.window.window.request_redraw();

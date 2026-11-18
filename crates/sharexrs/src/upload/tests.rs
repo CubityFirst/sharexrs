@@ -151,6 +151,9 @@ enum Ui {
     Clear,
     Open(String),
     QrCode(String),
+    CopyFile(PathBuf),
+    ShowInFolder(PathBuf),
+    ScanQrCode(PathBuf),
 }
 
 #[derive(Default)]
@@ -180,6 +183,18 @@ impl TaskUi for RecordingUi {
 
     fn show_qr_code(&self, text: &str) {
         self.actions.lock().unwrap().push(Ui::QrCode(text.to_owned()));
+    }
+
+    fn copy_file(&self, path: &Path) {
+        self.actions.lock().unwrap().push(Ui::CopyFile(path.to_path_buf()));
+    }
+
+    fn open_folder_with_file(&self, path: &Path) {
+        self.actions.lock().unwrap().push(Ui::ShowInFolder(path.to_path_buf()));
+    }
+
+    fn scan_qr_code_file(&self, path: &Path) {
+        self.actions.lock().unwrap().push(Ui::ScanQrCode(path.to_path_buf()));
     }
 }
 
@@ -905,4 +920,155 @@ fn the_uploaders_config_loads_and_saves_with_the_other_settings() {
     assert_eq!(saved["ApplicationVersion"], sharex_settings::settings_base::application_version());
     let reloaded = UploadersConfigStore::load_in_background(Some(path), paths.backup_folder());
     reloaded.with(|c| assert_eq!(c.CustomUploadersList.0[0].name.as_deref(), Some("Made-up")));
+}
+
+// ---------------------------------------------------------------------------
+// File jobs (`DoFileJobs`): actions, copying the file or its path, showing
+// it in its folder.
+
+/// An action's program, written into the test's folder: `copy` copies its
+/// first argument to its second, `append` adds a line to its first,
+/// `delete` deletes its first.
+fn action_script(dir: &Path, kind: &str) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let p = dir.join(format!("{kind}.cmd"));
+        let body = match kind {
+            "copy" => "@copy /y %1 %2 >nul\r\n",
+            "append" => "@echo appended>>%1\r\n",
+            _ => "@del %1\r\n",
+        };
+        std::fs::write(&p, body).unwrap();
+        p
+    }
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join(format!("{kind}.sh"));
+        let body = match kind {
+            "copy" => "#!/bin/sh\ncp \"$1\" \"$2\"\n",
+            "append" => "#!/bin/sh\necho appended >> \"$1\"\n",
+            _ => "#!/bin/sh\nrm \"$1\"\n",
+        };
+        std::fs::write(&p, body).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+}
+
+fn action(name: &str, program: &Path, args: &str, output_extension: &str) -> sharex_settings::ExternalProgram {
+    sharex_settings::ExternalProgram {
+        IsActive: true,
+        Name: Some(name.into()),
+        Path: Some(program.to_string_lossy().into_owned()),
+        Args: Some(args.into()),
+        OutputExtension: Some(output_extension.into()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn actions_replace_the_saved_file_then_its_path_is_copied_and_shown() {
+    let dir = TempDir::new("actions");
+    let copy = action_script(&dir.0, "copy");
+    let mut task = task_settings();
+    task.AfterCaptureJob =
+        AfterCaptureTasks::SaveImageToFile | AfterCaptureTasks::PerformActions | AfterCaptureTasks::CopyFilePathToClipboard | AfterCaptureTasks::ShowInExplorer;
+    let mut inactive = action("Inactive", &copy, "%input %output", "bmp");
+    inactive.IsActive = false;
+    let mut to_jpg = action("To JPG", &copy, "%input %output", "jpg");
+    to_jpg.DeleteInputFile = true;
+    task.ExternalPrograms = Some(vec![inactive, to_jpg]);
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+
+    let jpg = out.report.file_path.clone().expect("the action's output");
+    assert_eq!(jpg.extension().unwrap(), "jpg");
+    assert!(jpg.is_file());
+    // The PNG the task saved is gone (`DeleteInputFile`); no BMP was made.
+    assert!(!jpg.with_extension("png").exists());
+    assert!(!jpg.with_extension("bmp").exists());
+    assert!(out.report.file_name.ends_with(".jpg"), "{}", out.report.file_name);
+    assert_eq!(out.ui, [Ui::Copy(jpg.to_string_lossy().into_owned()), Ui::ShowInFolder(jpg.clone())]);
+    assert_eq!(out.status(), TaskStatus::Completed);
+}
+
+#[test]
+fn copying_the_file_wins_over_its_path_and_folder() {
+    let dir = TempDir::new("copy-file");
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::SaveImageToFile
+        | AfterCaptureTasks::CopyFileToClipboard
+        | AfterCaptureTasks::CopyFilePathToClipboard
+        | AfterCaptureTasks::CopyFolderPathToClipboard
+        | AfterCaptureTasks::ScanQRCode;
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+    let png = out.report.file_path.clone().unwrap();
+    assert_eq!(out.ui, [Ui::CopyFile(png.clone()), Ui::ScanQrCode(png)]);
+
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::SaveImageToFile | AfterCaptureTasks::CopyFolderPathToClipboard;
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+    let png = out.report.file_path.clone().unwrap();
+    assert_eq!(out.ui, [Ui::Copy(png.parent().unwrap().to_string_lossy().into_owned())]);
+
+    // Without a saved file there are no file jobs.
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::CopyFilePathToClipboard | AfterCaptureTasks::ShowInExplorer;
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+    assert!(out.ui.is_empty(), "{:?}", out.ui);
+}
+
+#[test]
+fn an_action_that_loses_the_file_stops_the_task() {
+    let dir = TempDir::new("actions-lost");
+    let delete = action_script(&dir.0, "delete");
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::SaveImageToFile | AfterCaptureTasks::PerformActions | AfterCaptureTasks::CopyFilePathToClipboard;
+    task.ExternalPrograms = Some(vec![action("Delete", &delete, "%input", "")]);
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+    // "Action result file does not exist": `DoThreadJob` returns false.
+    assert!(out.report.stop_requested);
+    assert!(out.ui.is_empty(), "{:?}", out.ui);
+}
+
+#[test]
+fn a_file_upload_runs_its_actions_and_uploads_their_output() {
+    let mock = Mock::start();
+    mock.reset(json!({ "responses": [ok(IMAGE_RESPONSE)] }));
+    let dir = TempDir::new("file-actions");
+    let (copy, append) = (action_script(&dir.0, "copy"), action_script(&dir.0, "append"));
+    let file = dir.0.join("made-up.bin");
+    std::fs::write(&file, "data\n").unwrap();
+    let mut task = task_settings();
+    task.FileDestination = FileDestination::CustomFileUploader;
+    task.AfterCaptureJob = AfterCaptureTasks::PerformActions;
+    // Edited in place, then converted to `.dat`.
+    task.ExternalPrograms = Some(vec![action("Append", &append, "%input", ""), action("Convert", &copy, "%input %output", "dat")]);
+    let mut app = app_settings();
+    let t = manager::create_file_uploader_task(&file, task, &mut new_task_context(&mut app, &dir.0)).unwrap();
+    let out = run(t, config_with(vec![image_host(&mock)]), &dir.0, Options::default());
+
+    let log = mock.log();
+    assert_eq!(log.len(), 1, "{log:?}");
+    let (name, body) = multipart_file(&log[0].body, "file");
+    assert_eq!(name, "made-up.dat");
+    let body = String::from_utf8_lossy(body).replace("\r\n", "\n");
+    assert!(body.starts_with("data\nappended"), "{body:?}");
+    assert_eq!(out.report.file_path.as_deref(), Some(dir.0.join("made-up.dat").as_path()));
+    assert_eq!(out.status(), TaskStatus::Completed);
+
+    // `UseAfterCaptureTasksDuringFileUpload` off: the file goes as it is.
+    mock.reset(json!({ "responses": [ok(IMAGE_RESPONSE)] }));
+    let other = dir.0.join("other.bin");
+    std::fs::write(&other, "plain").unwrap();
+    let mut task = task_settings();
+    task.FileDestination = FileDestination::CustomFileUploader;
+    task.AfterCaptureJob = AfterCaptureTasks::PerformActions;
+    task.AdvancedSettings.get_or_insert_default().UseAfterCaptureTasksDuringFileUpload = false;
+    task.ExternalPrograms = Some(vec![action("Append", &append, "%input", "")]);
+    let t = manager::create_file_uploader_task(&other, task, &mut new_task_context(&mut app, &dir.0)).unwrap();
+    run(t, config_with(vec![image_host(&mock)]), &dir.0, Options::default());
+    let log = mock.log();
+    let (name, body) = multipart_file(&log[0].body, "file");
+    assert_eq!((name.as_str(), body), ("other.bin", &b"plain"[..]));
 }

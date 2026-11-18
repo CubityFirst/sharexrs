@@ -56,8 +56,8 @@ impl App {
                 .collect(),
             external_programs: defaults
                 .ExternalPrograms
-                .as_ref()
-                .is_some_and(|p| p.iter().any(|x| x.get("Name").and_then(|n| n.as_str()).is_some_and(|n| !n.is_empty()))),
+                .clone()
+                .unwrap_or_default(),
         }
     }
 
@@ -397,6 +397,13 @@ impl App {
             TaskCommand::DeleteSelectedFiles => self.delete_selected_files(event_loop, ids),
             TaskCommand::StopUpload => self.stop_tasks(&ids),
             TaskCommand::NotPorted(name) => eprintln!("{name}: not ported yet"),
+            // `action.RunAsync(filePath)`, not awaited by anything.
+            TaskCommand::RunAction(i) => {
+                if let Some(action) = self.state.tasks.settings.external_programs.get(i).cloned() {
+                    let path = path.to_string_lossy().into_owned();
+                    std::thread::spawn(move || action.run(&path));
+                }
+            }
             // Carried out by the task area itself, or not applicable.
             _ => {}
         }

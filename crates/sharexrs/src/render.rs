@@ -49,7 +49,14 @@
 //! confirmation, `--empty` without hotkeys; `--click`/`--hover` as above).
 //! `task-settings-<page>` is Task settings on a page by its id (`task`,
 //! `general`, `general-notifications`, `image`, `capture-region`, ...): the
-//! default task settings, or `--hotkey` the first default hotkey's.
+//! default task settings, or `--hotkey` the first default hotkey's. As the
+//! window does when it opens, the actions get the image editors ShareX
+//! finds installed (`AddDefaultExternalPrograms`, the registry on Windows).
+//! `--content sample` adds two made-up actions and a watch folder;
+//! `action-editor` (Add action), `action-editor-edit` (the first sample
+//! action), `action-editor-error` (Save with no name),
+//! `watch-folder-editor` and `watch-folder-editor-edit` open the editors
+//! (with the samples).
 //!
 //! `ffmpeg-options` is the FFmpeg options window on a page (`--content
 //! sources|video|audio|advanced`; `--text` is a custom FFmpeg path, whose
@@ -564,6 +571,35 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut settings.DefaultTaskSettings, None)
             };
             state.page = page;
+            {
+                let task = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
+                sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
+                let content = dialog.content.clone().unwrap_or_default();
+                if !content.is_empty() {
+                    task_settings_samples(task);
+                }
+                use crate::task_editors::{ActionEditor, WatchFolderEditor};
+                let first = |t: &TaskSettings| t.ExternalPrograms.as_ref().and_then(|l| l.iter().position(|a| a.Name.as_deref() == Some("Optimize PNG")));
+                match content.as_str() {
+                    "action-editor" => state.action_editor = Some(ActionEditor::new(None, None)),
+                    "action-editor-edit" => {
+                        let i = first(task).unwrap_or(0);
+                        state.action_selected = Some(i);
+                        state.action_editor = Some(ActionEditor::new(Some(i), task.ExternalPrograms.as_ref().map(|l| &l[i])));
+                    }
+                    "action-editor-error" => {
+                        let mut ed = ActionEditor::new(None, None);
+                        let _ = ed.save(&mut Vec::new());
+                        state.action_editor = Some(ed);
+                    }
+                    "watch-folder-editor" => state.watch_editor = Some(WatchFolderEditor::new(None, None)),
+                    "watch-folder-editor-edit" => {
+                        state.watch_selected = Some(0);
+                        state.watch_editor = Some(WatchFolderEditor::new(Some(0), task.WatchFolderList.first()));
+                    }
+                    _ => {}
+                }
+            }
             let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
             let h = height.unwrap_or((crate::task_settings_window::HEIGHT * scale) as u32);
             let mut screen = Offscreen::new([w, h], scale, dark)?;
@@ -594,4 +630,35 @@ pub fn run(args: &[String]) -> Result<(), String> {
     image.save(&out).map_err(|e| e.to_string())?;
     println!("{screen}: {}x{} -> {out}", image.width(), image.height());
     Ok(())
+}
+
+/// Made-up actions and a watch folder for `task-settings-*` `--content`
+/// screens (the same values go into ShareX's for the live comparison).
+fn task_settings_samples(task: &mut TaskSettings) {
+    use sharex_settings::{ExternalProgram, WatchFolderSettings};
+    let list = task.ExternalPrograms.get_or_insert_default();
+    list.push(ExternalProgram {
+        IsActive: true,
+        Name: Some("Optimize PNG".into()),
+        Path: Some(r"C:\Tools\optipng.exe".into()),
+        Args: Some("-o7 %input".into()),
+        Extensions: Some("png".into()),
+        ..Default::default()
+    });
+    list.push(ExternalProgram {
+        IsActive: false,
+        Name: Some("Convert to WebP".into()),
+        Path: Some(r"C:\Tools\cwebp.exe".into()),
+        Args: Some("%input -o %output".into()),
+        OutputExtension: Some("webp".into()),
+        DeleteInputFile: true,
+        ..Default::default()
+    });
+    task.WatchFolderList.push(WatchFolderSettings {
+        FolderPath: Some(r"C:\Users\Public\Pictures".into()),
+        Filter: Some("*.png".into()),
+        IncludeSubdirectories: true,
+        MoveFilesToScreenshotsFolder: false,
+        ..Default::default()
+    });
 }

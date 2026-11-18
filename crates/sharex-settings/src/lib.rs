@@ -19,6 +19,7 @@ pub mod macros;
 pub mod application_config;
 pub mod defaults;
 pub mod enums;
+pub mod external_program;
 pub mod ffmpeg_options;
 pub mod hotkeys;
 pub mod manager;
@@ -27,14 +28,17 @@ pub mod region_capture;
 pub mod settings_base;
 pub mod task_settings;
 pub mod types;
+pub mod watch_folder;
 
 pub use application_config::{ApplicationConfig, ApplicationThemeOptions, QuickTaskInfo};
 pub use enums::*;
+pub use external_program::{CodeMenuEntryActions, ExternalProgram};
 pub use ffmpeg_options::{FFmpegCaptureDevice, FFmpegOptions};
 pub use hotkeys::{HotkeyInfo, HotkeySettings, HotkeyStatus, HotkeysConfig, InputKey, default_hotkey_list};
 pub use manager::SettingManager;
 pub use paths::{AppPaths, SystemOptions};
 pub use region_capture::RegionCaptureOptions;
+pub use watch_folder::WatchFolderSettings;
 pub use settings_base::{Loaded, SaveOptions, SettingsFile};
 pub use task_settings::{
     TaskSettings, TaskSettingsAdvanced, TaskSettingsCapture, TaskSettingsGeneral, TaskSettingsImage, TaskSettingsTools,

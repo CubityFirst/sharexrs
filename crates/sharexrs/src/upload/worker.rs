@@ -291,7 +291,15 @@ impl<'a> Worker<'a> {
                     }
                 }
                 self.start_history_ocr();
-                // `DoFileJobs` (actions, copy file/path, show in Explorer) isn't ported yet.
+                if !self.do_file_jobs() {
+                    return Next::Stop;
+                }
+            }
+            // `CreateFileJobTask` without an upload: no image, so straight to the file jobs.
+            Some(Source::None) if self.job == TaskJob::Job => {
+                if !self.do_file_jobs() {
+                    return Next::Stop;
+                }
             }
             Some(Source::Text(text)) => {
                 if self.job == TaskJob::TextUpload && !text.is_empty() {
@@ -301,6 +309,12 @@ impl<'a> Worker<'a> {
             Some(Source::File(file)) => {
                 self.data_length = file.metadata().map(|m| m.len()).unwrap_or(0);
                 self.data = Some(http::shared_stream(file));
+                // A file job that uploads (`TaskJob.Job`), or a file upload
+                // with `UseAfterCaptureTasksDuringFileUpload`.
+                let advanced = self.task.AdvancedSettings.clone().unwrap_or_default();
+                if (self.job == TaskJob::Job || (self.job == TaskJob::FileUpload && advanced.UseAfterCaptureTasksDuringFileUpload)) && !self.do_file_jobs() {
+                    return Next::Stop;
+                }
             }
             other => self.source = other,
         }
@@ -308,6 +322,86 @@ impl<'a> Worker<'a> {
             self.do_ocr();
         }
         Next::Continue
+    }
+
+    /// `DoFileJobs`: the active actions in turn on the file (each output
+    /// becomes the file, the input deleted when the action asks; a missing
+    /// result stops the task), then copy the file, its path or its folder's
+    /// path, show it in its folder, analyze it and scan it for QR codes.
+    fn do_file_jobs(&mut self) -> bool {
+        if !self.file_path.as_ref().is_some_and(|p| p.is_file()) {
+            return true;
+        }
+        let jobs = self.task.AfterCaptureJob;
+        if jobs.contains(AfterCaptureTasks::PerformActions)
+            && let Some(programs) = self.task.ExternalPrograms.clone()
+        {
+            let actions: Vec<_> = programs.into_iter().filter(|x| x.IsActive).collect();
+            if !actions.is_empty() {
+                let mut modified = false;
+                let file_name = self.file_name.clone();
+                for action in &actions {
+                    let current = self.file_path.clone().unwrap_or_default();
+                    let run = action.run(&current.to_string_lossy());
+                    let result_path = run.path.as_ref().map_or_else(|| current.clone(), PathBuf::from);
+                    if !result_path.is_file() {
+                        eprintln!("Action result file does not exist: \"{}\"", result_path.display());
+                        return false;
+                    }
+                    if let Some(modified_path) = run.path.filter(|p| !p.is_empty()) {
+                        modified = true;
+                        self.file_path = Some(PathBuf::from(modified_path));
+                        // `Data.Dispose()`.
+                        self.data = None;
+                        sharex_settings::external_program::delete_pending_input_file(run.pending_input_file.as_deref());
+                    }
+                }
+                if modified {
+                    let path = self.file_path.clone().unwrap_or_default();
+                    let extension = sharex_helpers::file_helpers::get_file_name_extension(&path.to_string_lossy());
+                    self.file_name = sharex_helpers::file_helpers::change_file_name_extension(&file_name, &extension);
+                    if !self.load_file_stream() {
+                        return false;
+                    }
+                }
+            }
+        }
+        let path = self.file_path.clone().unwrap_or_default();
+        let ui = self.ctx.ui.clone();
+        if jobs.contains(AfterCaptureTasks::CopyFileToClipboard) {
+            ui.copy_file(&path);
+        } else if jobs.contains(AfterCaptureTasks::CopyFilePathToClipboard) {
+            ui.copy_text(&path.to_string_lossy());
+        } else if jobs.contains(AfterCaptureTasks::CopyFolderPathToClipboard) {
+            ui.copy_text(&sharex_settings::external_program::get_directory_name(&path.to_string_lossy()));
+        }
+        if jobs.contains(AfterCaptureTasks::ShowInExplorer) {
+            ui.open_folder_with_file(&path);
+        }
+        if jobs.contains(AfterCaptureTasks::AnalyzeImage) && self.data_type == EDataType::Image {
+            ui.analyze_image(&path);
+        }
+        if jobs.contains(AfterCaptureTasks::ScanQRCode) && self.data_type == EDataType::Image {
+            ui.scan_qr_code_file(&path);
+        }
+        true
+    }
+
+    /// `LoadFileStream`: the file as the upload's data (ShareX shows the
+    /// error).
+    fn load_file_stream(&mut self) -> bool {
+        let Some(path) = self.file_path.clone() else { return false };
+        match std::fs::File::open(&path) {
+            Ok(file) => {
+                self.data_length = file.metadata().map(|m| m.len()).unwrap_or(0);
+                self.data = Some(http::shared_stream(file));
+                true
+            }
+            Err(e) => {
+                eprintln!("{}: {e}", path.display());
+                false
+            }
+        }
     }
 
     /// `DoOCR`.

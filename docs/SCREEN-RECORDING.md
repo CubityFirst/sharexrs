@@ -373,7 +373,9 @@ encoding, a 32-bit Windows.
   highlighter has the options).
 - The after capture window (a recording goes on as accepted, logged), the
   file exists dialog (a unique name), the output box for FFmpeg errors (a
-  message box with FFmpeg's output), `DownloaderWindow`, `DoFileJobs`.
+  message box with FFmpeg's output), `DownloaderWindow`. (`DoFileJobs` now
+  runs on a recording's file job task: actions, copy file/path, show in
+  Explorer.)
 - The FFmpeg options window isn't modal over Task settings, and its pages
   don't scroll (ShareX's do when the window is short).
 - The bar's window covers its screen's work area (cut to the bar and its

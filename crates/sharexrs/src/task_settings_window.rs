@@ -7,7 +7,7 @@
 //! `TaskSettingsPageBuilder` builds them, and bound straight to the
 //! `TaskSettings` they edit, so a change applies to the next task at once.
 
-use egui::{Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{CornerRadius, Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 use serde_json::Value;
 use sharex_settings::{AfterCaptureTasks, AfterUploadTasks, Described, HotkeyType, TaskSettings};
 use sharex_strings::sharex as s;
@@ -16,7 +16,7 @@ use sharex_ui::icons;
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::menu::{Flyout, MenuEntry, MenuStyle, Placement, Toggle};
 use sharex_ui::theme::{density, palette};
-use sharex_ui::widgets::{center_y, font, line_height, text_width};
+use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
 
 use crate::main_menu::{AFTER_CAPTURE_TASKS, AFTER_UPLOAD_TASKS, find_menu_icon, task_menu};
 use crate::settings_form::{self, ComboSize, FormStyle, Mode, any_combo_open, matches, scroll_indicator};
@@ -45,6 +45,9 @@ pub enum Effect {
     NotPorted(&'static str),
     /// Screen recording options... (`ShowScreenRecordingOptions`).
     FFmpegOptions,
+    /// The watch folders changed (`WatchFolderManager.AddWatchFolder`,
+    /// `UpdateWatchFolderState`, `RemoveWatchFolder`).
+    WatchFoldersChanged,
 }
 
 /// A page: `SettingsNavigationItem` (id, title, icon) and its parent.
@@ -148,8 +151,12 @@ pub struct TaskSettingsWindow {
     last_after_upload: Option<&'static str>,
     filter_selected: Option<usize>,
     filter_extensions: String,
-    action_selected: Option<usize>,
-    watch_selected: Option<usize>,
+    pub action_selected: Option<usize>,
+    pub watch_selected: Option<usize>,
+    /// `ActionEditorOverlay`.
+    pub action_editor: Option<crate::task_editors::ActionEditor>,
+    /// `WatchFolderEditorOverlay`.
+    pub watch_editor: Option<crate::task_editors::WatchFolderEditor>,
     color_open: bool,
     effects: Vec<Effect>,
 }
@@ -182,6 +189,8 @@ impl TaskSettingsWindow {
             filter_extensions: String::new(),
             action_selected: None,
             watch_selected: None,
+            action_editor: None,
+            watch_editor: None,
             color_open: false,
             effects: Vec::new(),
         }
@@ -271,7 +280,8 @@ impl TaskSettingsWindow {
             child.set_clip_rect(column.intersect(ui.clip_rect()));
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
-            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !any_combo_open(ui.ctx()) {
+            let editing = self.action_editor.is_some() || self.watch_editor.is_some();
+            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
             self.scroll[page] = self.scroll[page].clamp(0.0, max);
@@ -280,7 +290,39 @@ impl TaskSettingsWindow {
             }
         }
         self.show_menu(ui, full, ctx, had_menu);
+        self.show_editors(ui, full, ctx);
         std::mem::take(&mut self.effects)
+    }
+
+    /// The action and watch folder editors over the window, and what their
+    /// Save does (`ShowActionEditor`'s and `ShowWatchFolderEditor`'s callbacks
+    /// in `TaskSettingsPageBuilder`).
+    fn show_editors(&mut self, ui: &mut Ui, full: Rect, ctx: &mut TaskCtx) {
+        use crate::task_editors::Outcome;
+        if let Some(ed) = self.action_editor.as_mut() {
+            match ed.show(ui, full) {
+                Outcome::Open => {}
+                Outcome::Cancelled => self.action_editor = None,
+                Outcome::Saved(()) => {
+                    if let Some(i) = ed.save(ctx.task.ExternalPrograms.get_or_insert_default()) {
+                        self.action_selected = Some(i);
+                        self.action_editor = None;
+                    }
+                }
+            }
+        }
+        if let Some(ed) = self.watch_editor.as_mut() {
+            match ed.show(ui, full) {
+                Outcome::Open => {}
+                Outcome::Cancelled => self.watch_editor = None,
+                Outcome::Saved(()) => {
+                    let i = ed.save(&mut ctx.task.WatchFolderList);
+                    self.watch_selected = Some(i);
+                    self.watch_editor = None;
+                    self.effects.push(Effect::WatchFoldersChanged);
+                }
+            }
+        }
     }
 
     /// The open popup menu, and what it chose.
@@ -1657,12 +1699,8 @@ fn page_actions(f: &mut Form) {
     f.override_section(Section::Actions, s::TaskSettingsWindow_OverrideActions());
     f.enabled_card(Section::Actions, &mut |f| {
         f.title(s::TaskSettingsWindow_Actions());
-        let rows: Vec<String> = f.s.task.ExternalPrograms.get_or_insert_default().iter().map(|v| format!("{} — {}", jstr(v, "Name"), jstr(v, "Path"))).collect();
-        let sel = f.w.action_selected;
-        if let Some(i) = f.list_box("actions", &rows, sel, 230.0) {
-            f.w.action_selected = Some(i);
-        }
-        let has = f.w.action_selected.is_some_and(|i| i < rows.len());
+        action_list(f);
+        let has = f.w.action_selected.is_some_and(|i| i < f.s.task.ExternalPrograms.as_ref().map_or(0, Vec::len));
         match f.buttons(
             &[
                 (s::TaskSettingsWindow_AddWithEllipsis(), true),
@@ -1672,6 +1710,13 @@ fn page_actions(f: &mut Form) {
             ],
             6.0,
         ) {
+            Some(0) => f.w.action_editor = Some(crate::task_editors::ActionEditor::new(None, None)),
+            Some(1) if has => {
+                let i = f.w.action_selected.unwrap_or(0);
+                let action = f.s.task.ExternalPrograms.get_or_insert_default()[i].clone();
+                f.w.action_editor = Some(crate::task_editors::ActionEditor::new(Some(i), Some(&action)));
+            }
+            // `action.Copy()`, added at the end and selected.
             Some(2) if has => {
                 let list = f.s.task.ExternalPrograms.get_or_insert_default();
                 let copy = list[f.w.action_selected.unwrap_or(0)].clone();
@@ -1682,11 +1727,74 @@ fn page_actions(f: &mut Form) {
                 f.s.task.ExternalPrograms.get_or_insert_default().remove(f.w.action_selected.unwrap_or(0));
                 f.w.action_selected = None;
             }
-            Some(0) | Some(1) => f.effect(Effect::NotPorted("action editor")),
             _ => {}
         }
         f.hint(s::TaskSettingsWindow_YouCanEnableOrDisableActionsFromAfterCaptureTasksPerformActions());
     });
+}
+
+/// `ListBox.settings-list.action-list`: per action a `Grid.action-list-item`
+/// (`MinHeight="26"`, `Margin="6,1"`, `ColumnDefinitions="Auto,Auto,*"`,
+/// `ColumnSpacing="6"`) holding the `IsActive` check box without content
+/// (Fluent's 32px `MinHeight`), the name and "— path" (both `TextBlock`s:
+/// SemiBold 13, the path trimmed with an ellipsis); items have
+/// `Padding="2,0"`. Clicking a row or its check box selects it.
+fn action_list(f: &mut Form) {
+    let rows: Vec<(String, String, bool)> = f
+        .s
+        .task
+        .ExternalPrograms
+        .get_or_insert_default()
+        .iter()
+        .map(|a| (a.Name.clone().unwrap_or_default(), format!("— {}", a.Path.as_deref().unwrap_or_default()), a.IsActive))
+        .collect();
+    for (name, path, _) in &rows {
+        f.text(name);
+        f.text(path);
+    }
+    if f.collecting() {
+        return;
+    }
+    let p = palette(f.ui.ctx());
+    let fl = sharex_ui::theme::fluent(f.ui.ctx());
+    let text_font = font(13.0, 600);
+    let lh = line_height(f.ui, &text_font);
+    let row_h = 32f32.max(lh) + 2.0;
+    let r = f.slot((row_h * rows.len() as f32 + 2.0).max(230.0));
+    f.ui.painter().rect_filled(r, CornerRadius::same(3), p.background_main);
+    f.ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, p.border), StrokeKind::Inside);
+    let enabled = f.enabled;
+    for (i, (name, path, active)) in rows.iter().enumerate() {
+        let row = Rect::from_min_size(pos2(r.min.x + 1.0, r.min.y + 1.0 + row_h * i as f32), vec2(r.width() - 2.0, row_h));
+        let resp = f.ui.interact(row, f.id(&format!("action-row-{i}")), egui::Sense::click());
+        let sel = f.w.action_selected == Some(i);
+        if sel {
+            sharex_ui::menu::paint_accent_gradient(f.ui, row, CornerRadius::same(3));
+        } else if resp.hovered() && enabled {
+            f.ui.painter().rect_filled(row, CornerRadius::same(3), fl.list_low);
+        }
+        let grid = Rect::from_min_max(pos2(row.min.x + 2.0 + 6.0, row.min.y + 1.0), pos2(row.max.x - 2.0 - 6.0, row.max.y - 1.0));
+        let mut on = *active;
+        let cb = controls::CheckBox { min_height: 32.0, enabled, ..controls::CheckBox::new("") };
+        let cb_rect = Rect::from_min_size(pos2(grid.min.x, center_y(grid, 32.0)), vec2(20.0, 32.0));
+        let id = f.id(&format!("action-active-{i}"));
+        let toggled = cb.show(f.ui, cb_rect, id, &mut on).on_hover_text(s::TaskSettingsWindow_EnableAction()).clicked();
+        let fg = if sel { p.accent_foreground } else { p.text_secondary };
+        let ty = center_y(grid, lh);
+        let x = cb_rect.max.x + 6.0;
+        let ng = galley(f.ui, name, text_font.clone(), fg, f32::INFINITY);
+        let name_w = ng.size().x.ceil();
+        f.ui.painter().galley(pos2(x, ty), ng, fg);
+        let px = x + name_w + 6.0;
+        let pg = galley(f.ui, path, text_font.clone(), fg, (grid.max.x - px).max(0.0));
+        f.ui.painter().galley(pos2(px, ty), pg, fg);
+        if toggled {
+            f.s.task.ExternalPrograms.get_or_insert_default()[i].IsActive = on;
+        }
+        if (resp.clicked() || toggled) && enabled {
+            f.w.action_selected = Some(i);
+        }
+    }
 }
 
 fn page_watch_folders(f: &mut Form) {
@@ -1695,31 +1803,39 @@ fn page_watch_folders(f: &mut Form) {
         let mut on = f.s.task.WatchFolderEnabled;
         if f.check(s::TaskSettingsWindow_WatchFoldersAndUploadNewlyCreatedFiles(), &mut on, true) {
             f.s.task.WatchFolderEnabled = on;
+            f.effect(Effect::WatchFoldersChanged);
         }
-        let rows: Vec<String> = f
-            .s
-            .task
-            .WatchFolderList
-            .iter()
-            .map(|v| {
-                let sub = if jbool(v, "IncludeSubdirectories", false) { s::TaskSettingsWindow_Yes() } else { s::TaskSettingsWindow_No() };
-                s::TaskSettingsWindow_WatchFolderSummary().replace("{0}", &jstr(v, "FolderPath")).replace("{1}", &jstr(v, "Filter")).replace("{2}", sub)
-            })
-            .collect();
+        let rows: Vec<String> = f.s.task.WatchFolderList.iter().map(watch_folder_title).collect();
         let sel = f.w.watch_selected;
         if let Some(i) = f.list_box("watch", &rows, sel, 230.0) {
             f.w.watch_selected = Some(i);
         }
         let has = f.w.watch_selected.is_some_and(|i| i < rows.len());
         match f.buttons(&[(s::TaskSettingsWindow_AddWithEllipsis(), true), (s::TaskSettingsWindow_EditWithEllipsis(), true), (s::TaskSettingsWindow_Remove(), true)], 6.0) {
+            Some(0) => f.w.watch_editor = Some(crate::task_editors::WatchFolderEditor::new(None, None)),
+            Some(1) if has => {
+                let i = f.w.watch_selected.unwrap_or(0);
+                let folder = f.s.task.WatchFolderList[i].clone();
+                f.w.watch_editor = Some(crate::task_editors::WatchFolderEditor::new(Some(i), Some(&folder)));
+            }
             Some(2) if has => {
                 f.s.task.WatchFolderList.remove(f.w.watch_selected.unwrap_or(0));
                 f.w.watch_selected = None;
+                f.effect(Effect::WatchFoldersChanged);
             }
-            Some(0) | Some(1) => f.effect(Effect::NotPorted("watch folder editor")),
             _ => {}
         }
     });
+}
+
+/// `WatchFolderTitle`: `TaskSettingsWindow_WatchFolderSummary` with the
+/// folder, the filter and Yes/No for subfolders.
+fn watch_folder_title(w: &sharex_settings::WatchFolderSettings) -> String {
+    let sub = if w.IncludeSubdirectories { s::TaskSettingsWindow_Yes() } else { s::TaskSettingsWindow_No() };
+    s::TaskSettingsWindow_WatchFolderSummary()
+        .replace("{0}", w.FolderPath.as_deref().unwrap_or_default())
+        .replace("{1}", w.Filter.as_deref().unwrap_or_default())
+        .replace("{2}", sub)
 }
 
 fn page_advanced(f: &mut Form) {

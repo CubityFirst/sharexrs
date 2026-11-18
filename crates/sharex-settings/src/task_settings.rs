@@ -4,6 +4,8 @@
 use serde_json::Value;
 
 use crate::enums::*;
+use crate::external_program::ExternalProgram;
+use crate::watch_folder::WatchFolderSettings;
 use crate::ffmpeg_options::FFmpegOptions;
 use crate::region_capture::RegionCaptureOptions;
 use crate::settings;
@@ -46,15 +48,13 @@ settings! {
         UseDefaultUploadSettings: bool = true,
         UploadSettings: Option<TaskSettingsUpload> = Some(Default::default()),
         UseDefaultActions: bool = true,
-        /// `List<ExternalProgram>` (not ported yet).
-        ExternalPrograms: Option<Vec<Value>> = Some(Vec::new()),
+        ExternalPrograms: Option<Vec<ExternalProgram>> = Some(Vec::new()),
         UseDefaultToolsSettings: bool = true,
         ToolsSettings: Option<TaskSettingsTools> = Some(Default::default()),
         UseDefaultAdvancedSettings: bool = true,
         AdvancedSettings: Option<TaskSettingsAdvanced> = Some(Default::default()),
         WatchFolderEnabled: bool = false,
-        /// `List<WatchFolderSettings>` (not ported yet).
-        WatchFolderList: Vec<Value> = Vec::new(),
+        WatchFolderList: Vec<WatchFolderSettings> = Vec::new(),
     }
 }
 
