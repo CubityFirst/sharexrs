@@ -4383,6 +4383,7 @@ dependencies = [
  "sharex-ui",
  "sharex-update",
  "sharex-uploaders",
+ "sharexrs-native-messaging",
  "windows",
  "windows-sys 0.61.2",
  "winit",

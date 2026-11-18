@@ -20,6 +20,9 @@ sharex-screen-recording.workspace = true
 # .NET regex substitutions for the after upload URL replace, as sharex-uploaders uses it.
 fancy-regex = "0.11"
 sharex-image-editor.workspace = true
+sharexrs-native-messaging.workspace = true
+# `WebHelpers.DataURLToImage` (the browser extension's images).
+base64 = "0.22"
 egui.workspace = true
 egui-wgpu.workspace = true
 egui-winit.workspace = true
@@ -45,7 +48,7 @@ notify = "8"
 [target."cfg(windows)".dependencies]
 # The Startup folder shortcut (`ShortcutHelpers`): IShellLinkW.
 windows = { version = "0.62.2", features = ["Win32_Globalization", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
 
 # Global hotkeys outside Windows, as snapr has them (docs/MACOS-LEARNINGS.md 3.2).
 [target."cfg(not(windows))".dependencies]
@@ -60,10 +63,6 @@ objc2-foundation = "0.3.2"
 # The tray icon: a StatusNotifierItem over D-Bus, as snapr.
 [target."cfg(target_os = \"linux\")".dependencies]
 ksni = { version = "0.3.6", default-features = false, features = ["async-io", "blocking"] }
-
-[dev-dependencies]
-# The mock server's log has bodies in base 64.
-base64 = "0.22"
 
 [build-dependencies]
 embed-resource = "3"

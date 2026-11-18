@@ -33,67 +33,14 @@ fn target() -> Result<std::path::PathBuf, String> {
 #[cfg(windows)]
 mod platform {
     use super::StartupState;
-    use std::path::{Path, PathBuf};
-    use windows::Win32::System::Com::{
-        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, IPersistFile, STGM_READ,
-    };
-    use windows::Win32::UI::Shell::{FOLDERID_Startup, IShellLinkW, KF_FLAG_DEFAULT, SHGetKnownFolderPath, ShellLink};
-    use windows::core::{HSTRING, Interface, PCWSTR};
+    use std::path::PathBuf;
+    use windows::Win32::UI::Shell::FOLDERID_Startup;
+    use windows::core::HSTRING;
 
     const NAME: &str = "ShareXrs.lnk";
 
     fn shortcut() -> Result<PathBuf, String> {
-        // SAFETY: the returned string is freed by `PWSTR::to_string`'s copy
-        // going out of scope only after use; CoTaskMemFree isn't required
-        // for correctness here beyond a small leak, so it's freed below.
-        unsafe {
-            let p = SHGetKnownFolderPath(&FOLDERID_Startup, KF_FLAG_DEFAULT, None).map_err(|e| e.to_string())?;
-            let s = p.to_string().map_err(|e| e.to_string());
-            windows::Win32::System::Com::CoTaskMemFree(Some(p.0 as *const _));
-            Ok(PathBuf::from(s?).join(NAME))
-        }
-    }
-
-    fn com() {
-        // SAFETY: initialising COM on this thread; a repeat call is harmless.
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-        }
-    }
-
-    /// `ShortcutHelpers.GetShortcutTargetPath`.
-    fn shortcut_target(path: &Path) -> Option<PathBuf> {
-        com();
-        // SAFETY: COM calls on interfaces we created; the buffer outlives
-        // the call that fills it.
-        unsafe {
-            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
-            let file: IPersistFile = link.cast().ok()?;
-            file.Load(&HSTRING::from(path.as_os_str()), STGM_READ).ok()?;
-            let mut buf = [0u16; 1024];
-            link.GetPath(&mut buf, std::ptr::null_mut(), 0).ok()?;
-            let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-            Some(PathBuf::from(String::from_utf16_lossy(&buf[..len])))
-        }
-    }
-
-    /// `ShortcutHelpers.CreateShortcut`: target, arguments and its folder
-    /// as the working directory.
-    fn create_shortcut(path: &Path, target: &Path, arguments: &str) -> Result<(), String> {
-        com();
-        let _ = std::fs::remove_file(path);
-        // SAFETY: as above.
-        unsafe {
-            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).map_err(|e| e.to_string())?;
-            link.SetPath(&HSTRING::from(target.as_os_str())).map_err(|e| e.to_string())?;
-            link.SetArguments(&HSTRING::from(arguments)).map_err(|e| e.to_string())?;
-            if let Some(dir) = target.parent() {
-                link.SetWorkingDirectory(&HSTRING::from(dir.as_os_str())).map_err(|e| e.to_string())?;
-            }
-            let file: IPersistFile = link.cast().map_err(|e| e.to_string())?;
-            file.Save(PCWSTR(HSTRING::from(path.as_os_str()).as_ptr()), true).map_err(|e| e.to_string())?;
-        }
-        Ok(())
+        Ok(crate::shortcut::known_folder(&FOLDERID_Startup)?.join(NAME))
     }
 
     /// Task Manager's "Disabled": the first byte of `ShareXrs.lnk`'s value
@@ -114,8 +61,7 @@ mod platform {
     pub fn state() -> Result<StartupState, String> {
         let path = shortcut()?;
         let target = super::target()?;
-        let ours = path.exists()
-            && shortcut_target(&path).is_some_and(|t| t.to_string_lossy().eq_ignore_ascii_case(&target.to_string_lossy()));
+        let ours = crate::shortcut::check(&path, &target);
         Ok(match (ours, ours && disabled_by_user()) {
             (true, true) => StartupState::DisabledByUser,
             (true, false) => StartupState::Enabled,
@@ -125,15 +71,7 @@ mod platform {
 
     pub fn set(enabled: bool) -> Result<(), String> {
         let path = shortcut()?;
-        if enabled {
-            create_shortcut(&path, &super::target()?, "-silent")
-        } else {
-            match std::fs::remove_file(&path) {
-                Ok(()) => Ok(()),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(e) => Err(e.to_string()),
-            }
-        }
+        if enabled { crate::shortcut::create(&path, &super::target()?, "-silent") } else { crate::shortcut::delete(&path) }
     }
 }
 
