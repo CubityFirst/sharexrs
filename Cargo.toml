@@ -23,6 +23,7 @@ sharex-uploaders = { path = "crates/sharex-uploaders" }
 sharex-screen-recording = { path = "crates/sharex-screen-recording" }
 sharex-history = { path = "crates/sharex-history" }
 sharex-ocr = { path = "crates/sharex-ocr" }
+sharex-update = { path = "crates/sharex-update" }
 
 egui = "0.36"
 egui-wgpu = { version = "0.36", features = ["winit"] }

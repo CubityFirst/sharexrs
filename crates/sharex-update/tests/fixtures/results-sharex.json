@@ -1,0 +1,638 @@
+[
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.4.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_same"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_newer_installed"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://github.com/CubityFirst/sharexrs/releases/download/v22.5.0/ShareXrs-22.5.0-portable-x64.zip",
+"file_name": "ShareXrs-22.5.0-portable-x64.zip",
+"is_pre_release": false,
+"id": "latest_newer_portable"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.3.9",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.3.9-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_older"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.10.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.10.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_minor_10"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "23.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-23.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_two_parts"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.4.0.3",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.0.3-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_four_parts_revision_ignored"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.4.0.3",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.0.3-setup-x64.exe",
+"is_pre_release": false,
+"id": "latest_four_parts_revision_counted"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4",
+"latest_version": "22.4.1",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.1-setup-x64.exe",
+"is_pre_release": false,
+"id": "current_two_parts"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.6.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.6.0-setup-x64.exe",
+"is_pre_release": true,
+"id": "prerelease_channel_newest_published"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.6.0",
+"download_url": "https://github.com/CubityFirst/sharexrs/releases/download/v22.6.0/ShareXrs-22.6.0-portable-x64.zip",
+"file_name": "ShareXrs-22.6.0-portable-x64.zip",
+"is_pre_release": true,
+"id": "prerelease_channel_portable"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "release_channel_latest"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_channel_semver_tag"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "latest_semver_build_metadata"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.29.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.29.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "prerelease_channel_ties_40"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.0.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.0.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "prerelease_channel_ties_5"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.6.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.6.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "prerelease_channel_offsets"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_channel_empty_list"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_channel_null_element"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_channel_single_null"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_channel_object"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.4.0.1",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.0.1-setup-x64.exe",
+"is_pre_release": false,
+"id": "dev_newer_revision"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.4.0.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.4.0.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "dev_same"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "missing_asset"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "missing_asset_portable"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1001",
+"file_name": "ShareXrs-setup.exe",
+"is_pre_release": false,
+"id": "fallback_setup_exe"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://github.com/CubityFirst/sharexrs/releases/download/v22.5.0/ShareXrs-portable.zip",
+"file_name": "ShareXrs-portable.zip",
+"is_pre_release": false,
+"id": "fallback_portable_zip"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://github.com/CubityFirst/sharexrs/releases/download/v22.5.0/ShareXrs-22.5.0-portable-x64.zip",
+"file_name": "ShareXrs-22.5.0-portable-x64.zip",
+"is_pre_release": false,
+"id": "asset_order_reversed"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "SHAREXRS-22.5.0-SETUP-X64.EXE",
+"is_pre_release": false,
+"id": "asset_name_upper_case"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1001",
+"file_name": "setup-x64.exe",
+"is_pre_release": false,
+"id": "asset_x64_suffix_only"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "assets_null"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "asset_null_element"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": null,
+"file_name": "ShareXrs-22.5.0-portable-x64.zip",
+"is_pre_release": false,
+"id": "portable_no_browser_url"
+},
+{
+"status": "UpToDate",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "installed_empty_api_url"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_0_22_5_0"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_1_v"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_2_vNext"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_3_v22"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs- 22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "tag_4_v_22_5_0"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-+22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "tag_5_v_22_5_0"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_6_v22_5_0_0_1"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_7_v22__1_0"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_8_v22_5_99999999999"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_9_V22_5_0"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-022.05.000-setup-x64.exe",
+"is_pre_release": false,
+"id": "tag_10_v022_05_000"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_null"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "tag_number"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "property_names_any_case"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": true,
+"id": "prerelease_flag_latest"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": true,
+"id": "prerelease_as_string"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "prerelease_null"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "published_at_null"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "id_as_string"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "asset_size_null"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "draft_as_number"
+},
+{
+"status": "UpdateAvailable",
+"current_version": "22.4.0.0",
+"latest_version": "22.5.0",
+"download_url": "https://api.github.com/repos/CubityFirst/sharexrs/releases/assets/1000",
+"file_name": "ShareXrs-22.5.0-setup-x64.exe",
+"is_pre_release": false,
+"id": "utf8_bom"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "malformed_json"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "html_error_page"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "trailing_garbage"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "latest_is_array"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "latest_null"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "latest_empty_body"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "latest_number"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "http_404"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "http_403_rate_limit"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "http_500"
+},
+{
+"status": "UpdateCheckFailed",
+"current_version": "22.4.0.0",
+"latest_version": null,
+"download_url": null,
+"file_name": "<NullReferenceException>",
+"is_pre_release": false,
+"id": "http_404_prerelease"
+},
+{
+"parse": [
+"22.4.0",
+"22.4.0.0",
+"1.2",
+"<ArgumentException>",
+"<ArgumentException>",
+"<ArgumentException>",
+"1.2",
+"1.2",
+"0.1",
+"<ArgumentOutOfRangeException>",
+"<FormatException>",
+"<FormatException>",
+"1.2.3.4",
+"2147483647.0",
+"<OverflowException>",
+"1.2.3",
+"<FormatException>",
+"<FormatException>",
+"1.2"
+],
+"compare": [
+0,
+0,
+-1,
+0,
+0,
+1,
+-1
+],
+"id": "versions"
+}
+]

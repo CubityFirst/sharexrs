@@ -17,3 +17,6 @@
 
 # Staging for the release packages (scripts/package-linux.sh).
 /build
+
+# The update harness regenerates its cases (make_cases.py; ~1 MB).
+/tools/update-harness/cases.json
