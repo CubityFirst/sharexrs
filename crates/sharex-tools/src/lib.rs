@@ -8,6 +8,9 @@
 //! - Video: [`video`] (the FFmpeg command lines and output parsing of the
 //!   video converter, thumbnailer, trimmer and GIF tools; [`gif`] for the GIF
 //!   maker's encoder).
+//! - Screen: [`color`] (the colour pickers' maths and texts), [`ruler`]
+//!   (the Ruler's pixel runs and content bounds), [`mouse_highlighter`],
+//!   [`pin`] (Pin to screen's options and sizes).
 //! - System: [`monitor_test`] (the test patterns as images).
 //!
 //! Shared: [`imaging`] (`SkiaImageHelpers`: loading, drawing, ShareX's
@@ -28,6 +31,7 @@
 )]
 
 pub mod analyze_image;
+pub mod color;
 pub mod combiner;
 pub mod comparer;
 pub mod converter;
@@ -41,9 +45,12 @@ pub mod jpeg;
 pub mod jpeg_decode;
 pub mod metadata;
 pub mod monitor_test;
+pub mod mouse_highlighter;
 pub mod options;
+pub mod pin;
 pub mod qr;
 pub mod resizer;
+pub mod ruler;
 pub mod splitter;
 pub mod text;
 pub mod thumbnailer;

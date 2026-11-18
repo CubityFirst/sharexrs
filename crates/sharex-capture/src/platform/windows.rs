@@ -162,6 +162,30 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
     image
 }
 
+/// `ScreenColorPickerWindow.TryUpdateMagnifier`: the screen DC's pixels in
+/// `r` (`GetDC(NULL)`, `BitBlt` with `SRCCOPY` only, so layered windows
+/// aren't in it), opaque; black where no monitor is.
+pub fn sample_screen(r: Rect) -> Option<RgbaImage> {
+    use windows_sys::Win32::Graphics::Gdi::GetDC;
+    // SAFETY: the screen DC, released below.
+    let source = unsafe { GetDC(std::ptr::null_mut()) };
+    if source.is_null() {
+        return None;
+    }
+    let mut image = draw_native(r.w, r.h, Some([0, 0, 0]), |dc| {
+        // SAFETY: both DCs are live for the call.
+        unsafe { BitBlt(dc, 0, 0, r.w, r.h, source, r.x, r.y, SRCCOPY) };
+    });
+    // SAFETY: as above.
+    unsafe { ReleaseDC(std::ptr::null_mut(), source) };
+    if let Some(img) = &mut image {
+        for p in img.pixels_mut() {
+            p[3] = 255;
+        }
+    }
+    image
+}
+
 fn bitmap_size(handle: *mut c_void) -> Option<(i32, i32)> {
     let mut bm: BITMAP = unsafe { std::mem::zeroed() };
     // SAFETY: a live bitmap handle and a BITMAP-sized buffer.

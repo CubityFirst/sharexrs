@@ -71,6 +71,11 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
     crop_placed(&shots, r)
 }
 
+/// The screen's pixels in `r` (the screen colour picker's magnifier).
+pub fn sample_screen(r: Rect) -> Option<RgbaImage> {
+    capture_rectangle(r)
+}
+
 /// Names of the windows listed last, by handle.
 static NAMES: Mutex<Vec<WindowInfo>> = Mutex::new(Vec::new());
 
