@@ -206,7 +206,7 @@ check("asset_size_null", ok(r))
 r = release("v22.5.0")
 r["draft"] = 1
 check("draft_as_number", ok(r))
-check("utf8_bom", ok("﻿" + json.dumps(release("v22.5.0"))))
+check("utf8_bom", ok("\ufeff" + json.dumps(release("v22.5.0"))))
 check("malformed_json", ok('{"tag_name": "v22.5.0", '))
 check("html_error_page", ok("<html>busy</html>", "text/html"))
 check("trailing_garbage", ok(json.dumps(release("v22.5.0")) + " x"))
