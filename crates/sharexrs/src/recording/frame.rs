@@ -316,6 +316,22 @@ impl Frame {
         self.timer.stop();
     }
 
+    /// `PauseResumeRecording` pausing in process (the native recorder):
+    /// `StopRecordingTimer`, `UpdateUI`.
+    pub fn paused_in_process(&mut self) {
+        self.status = ScreenRecordingStatus::Paused;
+        self.stop_recording_timer();
+        self.update_ui();
+    }
+
+    /// `PauseResumeRecording` resuming in process: `Timer.Start`,
+    /// `UpdateUI` (which leaves the accent goldenrod, as ShareX's does).
+    pub fn resumed_in_process(&mut self) {
+        self.status = ScreenRecordingStatus::Recording;
+        self.timer.start();
+        self.update_ui();
+    }
+
     /// The UI side of `RestartRecording` (the status is the control's).
     pub fn restarted(&mut self, status: ScreenRecordingStatus) {
         self.status = status;
@@ -757,5 +773,17 @@ mod tests {
         f.change_state(ScreenRecordState::RecordingEnd, ScreenRecordingStatus::Paused);
         assert_eq!((f.accent, f.start_text, f.pause_text), (GOLDENROD, s::ScreenRecordForm_Stop(), s::Resume()));
         assert!(!f.ticking());
+    }
+
+    #[test]
+    fn in_process_pause_stops_and_restarts_the_timer() {
+        let mut f = Frame::new((100, 100), true, false, false, 0.0);
+        f.change_state(ScreenRecordState::AfterRecordingStart, ScreenRecordingStatus::Recording);
+        f.paused_in_process();
+        assert_eq!((f.status, f.pause_text, f.restart_enabled, f.accent), (ScreenRecordingStatus::Paused, s::Resume(), true, GOLDENROD));
+        assert!(!f.ticking());
+        f.resumed_in_process();
+        assert_eq!((f.status, f.pause_text), (ScreenRecordingStatus::Recording, s::Pause()));
+        assert!(f.ticking());
     }
 }

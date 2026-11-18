@@ -1,0 +1,40 @@
+{
+  "_comment": "Cases for tools/native-recorder-harness (ShareX's ScreenRecordingLib) and the sharex_native_recorder_harness example (ShareXrs). Both generate the same synthetic frames, camera frames and sound from these numbers (see README.md, 'Synthetic input').",
+  "gif": [
+    { "name": "gif-box-15fps", "width": 160, "height": 120, "fps": 15, "frames": 30, "pattern": "box" },
+    { "name": "gif-noise-10fps", "width": 96, "height": 64, "fps": 10, "frames": 12, "pattern": "noise" },
+    { "name": "gif-still-and-drops", "width": 128, "height": 96, "fps": 20, "frames": 40, "pattern": "box", "still": [[10, 20]], "drop": [25, 26, 27, 33] },
+    { "name": "gif-odd-size", "width": 161, "height": 93, "fps": 30, "frames": 20, "pattern": "box", "x": 7, "y": 3 },
+    { "name": "gif-scroll-50fps", "width": 120, "height": 80, "fps": 50, "frames": 25, "pattern": "scroll" },
+    { "name": "gif-long-frame", "width": 64, "height": 48, "fps": 15, "frames": 3, "pattern": "box", "extra_ticks": 7000000000 },
+    { "name": "gif-camera-rect-yuy2", "width": 200, "height": 150, "fps": 15, "frames": 16, "pattern": "box",
+      "camera": { "format": "YUY2", "width": 320, "height": 240, "shape": "Rectangle", "position": "BottomRight", "percent": 25, "margin": 8, "fps": 15, "every": 1 } },
+    { "name": "gif-camera-circle-nv12", "width": 240, "height": 160, "fps": 15, "frames": 16, "pattern": "box",
+      "camera": { "format": "NV12", "width": 640, "height": 480, "shape": "Circle", "position": "TopLeft", "percent": 30, "margin": 16, "fps": 15, "every": 2 } },
+    { "name": "gif-camera-rgb32-bottom-up", "width": 180, "height": 120, "fps": 10, "frames": 10, "pattern": "scroll",
+      "camera": { "format": "RGB32", "width": 160, "height": 120, "shape": "Rectangle", "position": "TopRight", "percent": 40, "margin": 4, "fps": 10, "every": 1, "bottom_up": true } }
+  ],
+  "mp4": [
+    { "name": "mp4-video-30fps", "width": 320, "height": 240, "fps": 30, "frames": 60, "pattern": "box", "bitrate": 2000000 },
+    { "name": "mp4-audio-system", "width": 320, "height": 240, "fps": 30, "frames": 45, "pattern": "box", "bitrate": 4000000,
+      "audio": { "system": true, "microphone": false, "system_gain": 1.0, "microphone_gain": 1.0, "bitrate": 192000 } },
+    { "name": "mp4-audio-both-128k", "width": 480, "height": 272, "fps": 24, "frames": 36, "pattern": "scroll", "bitrate": 3000000,
+      "audio": { "system": true, "microphone": true, "system_gain": 0.8, "microphone_gain": 2.5, "bitrate": 128000 } },
+    { "name": "mp4-drops-60fps", "width": 322, "height": 242, "fps": 60, "frames": 50, "pattern": "box", "bitrate": 5000000, "drop": [10, 11, 30], "still": [[40, 45]] },
+    { "name": "mp4-camera-circle", "width": 640, "height": 360, "fps": 30, "frames": 30, "pattern": "box", "bitrate": 4000000,
+      "camera": { "format": "NV12", "width": 640, "height": 480, "shape": "Circle", "position": "BottomRight", "percent": 20, "margin": 16, "fps": 30, "every": 1 } },
+    { "name": "mp4-camera-rect-yuy2", "width": 400, "height": 300, "fps": 15, "frames": 15, "pattern": "noise", "bitrate": 3000000,
+      "camera": { "format": "YUY2", "width": 640, "height": 360, "shape": "Rectangle", "position": "TopLeft", "percent": 30, "margin": 0, "fps": 15, "every": 1 } },
+    { "name": "mp4-hevc-wide", "width": 4352, "height": 256, "fps": 30, "frames": 10, "pattern": "box", "bitrate": 8000000 }
+  ],
+  "mixer": [
+    { "name": "mixer-exact", "packets": 100, "packet_frames": 480, "sources": ["system"] },
+    { "name": "mixer-variable-packets", "packets": 120, "packet_frames": 441, "vary": true, "sources": ["system"] },
+    { "name": "mixer-jitter", "packets": 200, "packet_frames": 480, "jitter": [0, 1, -1, 3, -4, 0, 2, -2], "sources": ["system"] },
+    { "name": "mixer-drift-fast", "packets": 1000, "packet_frames": 480, "drift_ppm": 500, "sources": ["system"] },
+    { "name": "mixer-drift-slow-mic", "packets": 1000, "packet_frames": 480, "drift_ppm": -800, "sources": ["microphone"] },
+    { "name": "mixer-two-sources-clip", "packets": 100, "packet_frames": 480, "sources": ["system", "microphone"], "gains": [2.5, 3.0] },
+    { "name": "mixer-gaps-and-flags", "packets": 150, "packet_frames": 480, "sources": ["system"], "gap_after": [30, 90], "gap_frames": 7200, "discontinuity": [50], "silent": [60, 61, 62], "nan": [70] },
+    { "name": "mixer-big-packets", "packets": 40, "packet_frames": 2048, "sources": ["system", "microphone"], "gains": [1.0, 0.5] }
+  ]
+}

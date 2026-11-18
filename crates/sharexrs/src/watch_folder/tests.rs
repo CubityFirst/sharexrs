@@ -74,11 +74,24 @@ fn equal_sizes_count_even_between_changes() {
     // checks fall between two writes even on a slow CI runner, whose sleeps
     // can stretch well past the 25 ms interval.
     let writer = std::thread::spawn(move || {
+        // Windows refuses a write while the watcher's lock check holds the
+        // file open (a sharing violation), so retry as a real writer would.
+        let retry = |f: &dyn Fn() -> std::io::Result<()>| {
+            for _ in 0..200 {
+                if f().is_ok() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            panic!("the file stayed locked");
+        };
         for i in 0..10 {
             std::thread::sleep(Duration::from_millis(150));
-            let mut v = std::fs::read(&path).unwrap();
-            v.push(i);
-            std::fs::write(&path, v).unwrap();
+            retry(&|| {
+                let mut v = std::fs::read(&path)?;
+                v.push(i);
+                std::fs::write(&path, v)
+            });
         }
     });
     assert!(wait_until_ready(&f, Timing { timeout: Duration::from_secs(5), ..fast() }));

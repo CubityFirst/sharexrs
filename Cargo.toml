@@ -21,11 +21,12 @@ sharex-image-editor = { path = "crates/sharex-image-editor" }
 sharex-image-effects = { path = "crates/sharex-image-effects" }
 sharex-uploaders = { path = "crates/sharex-uploaders" }
 sharex-screen-recording = { path = "crates/sharex-screen-recording" }
+sharex-native-recorder = { path = "crates/sharex-native-recorder" }
+sharex-tools = { path = "crates/sharex-tools" }
 sharex-history = { path = "crates/sharex-history" }
 sharex-ocr = { path = "crates/sharex-ocr" }
 sharex-update = { path = "crates/sharex-update" }
 sharexrs-native-messaging = { path = "crates/sharexrs-native-messaging" }
-sharex-tools = { path = "crates/sharex-tools" }
 
 egui = "0.36"
 egui-wgpu = { version = "0.36", features = ["winit"] }

@@ -15,6 +15,10 @@
 /tools/ocr-harness/bin
 /tools/ocr-harness/obj
 
+# The native recorder harness's .NET build output.
+/tools/native-recorder-harness/bin
+/tools/native-recorder-harness/obj
+
 # Staging for the release packages (scripts/package-linux.sh).
 /build
 

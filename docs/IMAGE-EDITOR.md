@@ -108,8 +108,8 @@ missing properties taking the constructor's defaults.
 | `Magnify` | `Amount` = 2, `IsEllipse`, `BorderStyle` | ✅ |
 | `Spotlight` | `DarkenOpacity` = 180, `BlurAmount` = 0, `IsEllipse` | ✅ |
 | `Text` | `Text`, `TextColor` = `#FF000000`, `FontSize` = 48, `FontFamily` = Segoe UI, `IsBold`, `IsItalic`, `HorizontalAlignment` = Center | ✅ |
-| `Number` (Step) | `Number` = 1, `StepType` = Numeric, `FontSize` = 24, `TextColor` = white, `IsBold` = true, `TailPoint`, `TailEnabled` = true | ⚠️ circle exact, glyphs and tail differ |
-| `SpeechBalloon` | `TailPoint`, `TailEnabled` = true, `AutoSize`, `Text`, `FontSize` = 20, `FontFamily`, `TextColor`, `IsBold`, `IsItalic`, `HorizontalAlignment`, `CornerRadius` = 10 | ⚠️ body exact, glyphs and tail differ |
+| `Number` (Step) | `Number` = 1, `StepType` = Numeric, `FontSize` = 24, `TextColor` = white, `IsBold` = true, `TailPoint`, `TailEnabled` = true | ⚠️ circle and tail exact, glyphs differ |
+| `SpeechBalloon` | `TailPoint`, `TailEnabled` = true, `AutoSize`, `Text`, `FontSize` = 20, `FontFamily`, `TextColor`, `IsBold`, `IsItalic`, `HorizontalAlignment`, `CornerRadius` = 10 | ⚠️ body and tail exact, glyphs differ |
 | `Image` | `ImagePath` | ❌ model only |
 | `Emoji` | `UnicodeSequence`, `DisplayName` | ❌ model only |
 | `Cursor` | `CursorType` = Default | ❌ model only |
@@ -136,7 +136,8 @@ round-trips untouched.
   (`scalePixels`, Mitchell), `raster` (the image effects' pipeline stages,
   sprite blitter, legacy image shaders incl. `SkBitmapProcState` bilinear,
   matrices, shaders, gradients, `Bitmap`, `Canvas` with an anti-aliased
-  clip). The image effects crate uses it too.
+  clip), `pathops` (`SkPathOps`: `Op` and `Simplify`). The image effects
+  crate uses it too.
 - `sharex-image-editor`: `model` (annotations, JSON), `options`
   (`ImageEditorOptions`), `render` (`render(base, annotations)`: shapes,
   effects, text, shadows).
@@ -145,7 +146,7 @@ round-trips untouched.
 
 `tools/editor-harness` (see its README) runs ShareX's own editor headless
 (Avalonia headless platform with Skia drawing; no window, no input) on
-`crates/sharex-image-editor/tests/data/cases.json` (60 cases on a 400×300
+`crates/sharex-image-editor/tests/data/cases.json` (73 cases on a 400×300
 image) and saves `EditorView.GetSnapshot()`. Those PNGs are the references
 in `tests/data/sharex/`; `cargo test -p sharex-image-editor` requires every
 case without a `"pending"` note to be identical, and
@@ -153,22 +154,25 @@ case without a `"pending"` note to be identical, and
 prints per case the largest channel difference and the share of differing
 pixels.
 
-**Result: 55 of 60 cases identical, pixel for pixel**: every rectangle
+**Result: 68 of 73 cases identical, pixel for pixel**: every rectangle
 (plain, odd width, radius, dashes, rotated, off-canvas, shadows), ellipse
 (solid, filled, dotted, dash-dot, rotated, off-canvas), line (curved, wide,
 1 px, 2 px dashed), arrow (all five styles, straight and curved, zero
 length, thick, shadow), freehand (plain, arrow head, dashed, two points),
 highlight (4 cases incl. fractional and off-canvas), blur (3), pixelate
 (2), magnify (rectangle; ellipse with a border), spotlight (rectangle;
-ellipse with blur), text (3, Segoe UI), a stack of overlapping annotations
-and small shapes. (51 before hairlines, `SkDashPath` and `SkAAClip`.)
+ellipse with blur), text (3, Segoe UI), a stack of overlapping annotations,
+small shapes, and 13 steps and speech balloons with tails and no visible text
+(tails in every direction, strokes 0 to 6 px, square, rounded and round
+bodies, a default tail, a rotated balloon). (51 before hairlines,
+`SkDashPath` and `SkAAClip`; 55 of 60 before PathOps.)
 
 Not identical, and why:
 
 | Case | Max Δ, pixels differing | Why |
 |---|---|---|
 | step, step-letter | 215–223, 0.03–0.07% | Glyphs: `DrawText` rasterises DirectWrite (hinted) masks; ShareXrs fills the same font's outlines at the same positions. The circle is exact. |
-| step-tail, balloon | 222–255, 1.7–2.4% | The tail is a union with the body (`CombinedGeometry` → `SKPath.Op(Union)`, Skia's PathOps), not ported; plus the glyphs. |
+| step-tail, balloon | 191–195, 0.11–0.14% | Glyphs only: every differing pixel is inside the text's box, and the same annotations without visible text (step-tail-notext, balloon-tail-notext) are identical. |
 | balloon-notail | 165, 0.60% | Glyphs only. |
 
 Fonts: text cases use the same font files as ShareX (Segoe UI from
@@ -177,15 +181,28 @@ by `EditorHarness --fonts`). Shaping is HarfBuzz in both (harfrust here), so
 advances and positions agree; only `DrawText`'s DirectWrite masks can't be
 reproduced by filling outlines.
 
-PathOps (`src/pathops`, 58 files, ~830 KB in m119) is the one Skia
-subsystem left: the union's outline (where the oval's conics are chopped,
-in double precision, and which segment the walk starts from, which the
-stroker's joins depend on) only matches if the whole of `SkOpEdgeBuilder`,
-the intersection code (`SkIntersections`, `SkDConic`, `SkPathOpsTSect`),
-`SkOpSegment`/`SkOpSpan`/`SkOpCoincidence` and `SkPathWriter` are ported.
+Tails: a step's or a balloon's tail is united with its body
+(`CombinedGeometry(Union)` → `SKPath.Op`, Skia's PathOps), and the union's
+outline (where the oval's conics are chopped, in double precision, which
+segment the walk starts from) decides where the stroker's joins fall. So
+`sharex_skia::pathops` is Skia m119's `src/pathops` ported file by file:
+`SkOpEdgeBuilder`, the curve maths (`SkDLine`/`SkDQuad`/`SkDConic`/`SkDCubic`,
+`SkReduceOrder`, `SkLineParameters`), `SkIntersections` with the line/curve
+solvers and `SkTSect` for curve/curve, `SkOpSegment`/`SkOpSpan`/`SkOpAngle`/
+`SkOpCoincidence`, the winding (`SkPathOpsWinding`), `SkPathWriter`, `Op`
+and `Simplify`, with the object graph kept as Skia links it (raw pointers in
+an arena) and its sorts (`SkTQSort`) ported for Skia's tie order.
+`crates/sharex-skia/tests/pathops.rs` compares `op` with SkiaSharp's
+`SKPath.Op` run by `tools/pathops-harness` on ShareX's own libSkiaSharp:
+264 cases (steps and balloons as ShareX builds them, ovals, rectangles,
+coincident edges, quads, cubics, a cubic loop, stars, every op, and 200
+seeded random pairs), every result path identical verb for verb and bit for
+bit. Off Windows the cubic cases are skipped: their roots go through
+`acos`/`cos`/`cbrt`, exact only with the C runtime libSkiaSharp uses.
 
 Not ported yet: Image, Emoji, Cursor and Smart eraser rendering; rotated
-effect annotations; PathOps; crop, cut-out and flatten.
+effect annotations; drop shadows on steps and balloons; crop, cut-out and
+flatten.
 
 ## The editor UI
 

@@ -280,6 +280,93 @@ impl Path {
         self.dirty();
     }
 
+    /// `SkPath::addPath(src, kExtend_AddPathMode)` (identity matrix): the
+    /// first moveTo of `src` becomes a lineTo onto this path's last point.
+    pub fn add_path_extend(&mut self, src: &Path) {
+        if src.verbs.is_empty() {
+            return;
+        }
+        let mut first_verb = true;
+        for (verb, pts, w) in src.iter_verbs() {
+            match verb {
+                Verb::Move => {
+                    if first_verb && !self.is_empty() {
+                        self.inject_move_to_if_needed(); // In case last contour is closed
+                        // don't add lineTo if it is degenerate
+                        if self.last_pt() != Some(pts[0]) {
+                            self.line_to(pts[0].x, pts[0].y);
+                        }
+                    } else {
+                        self.move_to(pts[0].x, pts[0].y);
+                    }
+                }
+                Verb::Line => {
+                    self.line_to(pts[1].x, pts[1].y);
+                }
+                Verb::Quad => {
+                    self.quad_to(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+                }
+                Verb::Conic => {
+                    self.conic_to(pts[1].x, pts[1].y, pts[2].x, pts[2].y, w);
+                }
+                Verb::Cubic => {
+                    self.cubic_to(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y);
+                }
+                Verb::Close => {
+                    self.close();
+                }
+            }
+            first_verb = false;
+        }
+    }
+
+    /// `SkPath::reverseAddPath`.
+    pub fn reverse_add_path(&mut self, src: &Path) {
+        let mut pi = src.points.len();
+        let mut wi = src.weights.len();
+        let mut need_move = true;
+        let mut need_close = false;
+        for &v in src.verbs.iter().rev() {
+            let n = v.pts();
+            if need_move {
+                pi -= 1;
+                let p = src.points[pi];
+                self.move_to(p.x, p.y);
+                need_move = false;
+            }
+            pi -= n;
+            let pts = |k: usize| src.points[pi + k];
+            match v {
+                Verb::Move => {
+                    if need_close {
+                        self.close();
+                        need_close = false;
+                    }
+                    need_move = true;
+                    pi += 1; // so we see the point in "if (needMove)" above
+                }
+                Verb::Line => {
+                    let p = pts(0);
+                    self.line_to(p.x, p.y);
+                }
+                Verb::Quad => {
+                    let (a, b) = (pts(1), pts(0));
+                    self.quad_to(a.x, a.y, b.x, b.y);
+                }
+                Verb::Conic => {
+                    wi -= 1;
+                    let (a, b) = (pts(1), pts(0));
+                    self.conic_to(a.x, a.y, b.x, b.y, src.weights[wi]);
+                }
+                Verb::Cubic => {
+                    let (a, b, c) = (pts(2), pts(1), pts(0));
+                    self.cubic_to(a.x, a.y, b.x, b.y, c.x, c.y);
+                }
+                Verb::Close => need_close = true,
+            }
+        }
+    }
+
     /// `SkPath::addCircle`.
     pub fn add_circle(&mut self, x: f32, y: f32, r: f32) -> &mut Self {
         if r > 0.0 {

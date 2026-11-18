@@ -97,3 +97,18 @@ pub fn visual_transform(a: &Arranged, rotation_degrees: f32) -> AMatrix {
     let rot = AMatrix::rotation(rotation_degrees as f64 * std::f64::consts::PI / 180.0);
     neg_origin.mul(&rot).mul(&origin).mul(&pos)
 }
+
+/// [`visual_transform`] with a `RenderTransformOrigin` relative to the
+/// arranged size (`RelativePoint(x, y, Relative)`), as the speech balloon
+/// rotates about its body's centre when it has a tail.
+pub fn visual_transform_origin(a: &Arranged, rotation_degrees: f32, origin: (f64, f64)) -> AMatrix {
+    let pos = AMatrix::translation(a.x, a.y);
+    if rotation_degrees == 0.0 {
+        return pos;
+    }
+    let (ox, oy) = (origin.0 * a.width, origin.1 * a.height);
+    let origin = AMatrix::translation(ox, oy);
+    let neg_origin = AMatrix::translation(-ox, -oy);
+    let rot = AMatrix::rotation(rotation_degrees as f64 * std::f64::consts::PI / 180.0);
+    neg_origin.mul(&rot).mul(&origin).mul(&pos)
+}
