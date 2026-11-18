@@ -126,17 +126,26 @@ fn ftp_and_sftp_cases_match_sharex() {
         };
         assert_eq!(exception.as_deref(), expected["exception"].as_str(), "{id}: exception");
         assert_eq!(url.as_deref(), expected["url"].as_str(), "{id}: URL");
-        let mut log: Vec<String> = [&plain, &explicit, &implicit].iter().flat_map(|s| s.log_lines()).collect();
+        let log: Vec<String> = [&plain, &explicit, &implicit].iter().flat_map(|s| s.log_lines()).collect();
         let mut expected_log: Vec<String> = expected["servers"]["ftp"].as_array().unwrap().iter().map(|l| l.as_str().unwrap().to_owned()).collect();
         // When the client rejects the mock's self-signed certificate (an
         // FTPS account with a client certificate stops accepting untrusted
         // servers, as ShareX does), Windows' SChannel and OpenSSL complete
-        // the handshake before rejecting it, so the mock logs "tls"; macOS's
-        // Security framework aborts inside the handshake. The commands and
+        // the handshake before rejecting it, so the mock logs "tls" and
+        // whatever it sends next (implicit TLS's greeting); macOS's Security
+        // framework aborts inside the handshake, so the mock logs nothing
+        // between the handshake and the close. The commands before it and
         // the exception are compared as they are.
-        if cfg!(target_os = "macos") && id.starts_with("ftps-") && expected["exception"].is_string() {
-            log.retain(|l| l != "tls");
-            expected_log.retain(|l| l != "tls");
+        if cfg!(target_os = "macos")
+            && id.starts_with("ftps-")
+            && expected["exception"].is_string()
+            && let Some(i) = expected_log.iter().position(|l| l == "tls")
+        {
+            let closed = expected_log.last().is_some_and(|l| l == "close");
+            expected_log.truncate(i);
+            if closed {
+                expected_log.push("close".into());
+            }
         }
         assert_eq!(log, expected_log, "{id}: commands and replies");
         let files: Vec<(String, Vec<u8>)> = [&plain, &explicit, &implicit].iter().flat_map(|s| s.files()).collect();
