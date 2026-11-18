@@ -547,39 +547,54 @@ fn draw_box_shadow(
     let shape = rrect_path(x as f32, y as f32, w as f32, h as f32, radius);
     let clip = sharex_skia::aaclip::AAClip::from_path(&shape, device).difference_from(device);
     let s = sigma(blur.max(0.0));
-    let offset = 10.0f32;
-    // The layer: the device grown by the blur's reach (`kernelBounds`:
-    // ceil(3 sigma) each side), as Skia sizes it; drawn into at that offset.
-    let pad = (s * 3.0).ceil() as i32;
-    let (lw, lh) = (device.width() + 2 * pad, device.height() + 2 * pad);
-    let mut layer = Bitmap::new(lw as u32, lh as u32);
-    {
-        let mut c = Canvas::new(&mut layer);
-        let moved = rrect_path(
-            (x + pad) as f32,
-            (y + pad) as f32 + offset,
-            w as f32,
-            h as f32,
-            radius,
-        );
-        c.fill_sk_path(&moved, &Paint::fill(color));
-    }
-    let layer = Pixmap::from_premul_rgba(lw as u32, lh as u32, layer.data());
-    let blurred = if s > 0.0 {
-        sharex_skia::blur::blur(&layer, s, s)
-    } else {
-        layer
-    };
-    let mut cropped = Bitmap::new(device.width() as u32, device.height() as u32);
-    for yy in 0..device.height() {
-        for xx in 0..device.width() {
-            let c = blurred.pixel(xx + pad, yy + pad);
-            cropped.set_pixel(
-                xx as u32,
-                yy as u32,
-                [(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8],
-            );
+    // BoxShadow's OffsetY, a whole number of pixels.
+    let offset = 10;
+    let (dw, dh) = (device.width(), device.height());
+    let mut cropped = Bitmap::new(dw as u32, dh as u32);
+    if s > 0.0 {
+        // AutoLayerForImageFilter: the layer is the shape's bounds (rounded
+        // out) cut to what the blur needs for the visible output (the clip
+        // grown by ceil(3 sigma)), and the shape is drawn in that layer's
+        // coordinates. Skia's analytic AA depends on where a path sits, so
+        // the layer's origin matters to the pixels.
+        let pad = (s * 3.0).ceil() as i32;
+        let (sl, st, sr, sb) = (x, y + offset, x + w, y + offset + h);
+        let (ll, lt) = (sl.max(-pad), st.max(-pad));
+        let (lr, lb) = (sr.min(dw + pad), sb.min(dh + pad));
+        if ll >= lr || lt >= lb {
+            return;
         }
+        let (lw, lh) = (lr - ll, lb - lt);
+        let mut layer = Bitmap::new(lw as u32, lh as u32);
+        {
+            let moved = rrect_path((sl - ll) as f32, (st - lt) as f32, w as f32, h as f32, radius);
+            Canvas::new(&mut layer).fill_sk_path(&moved, &Paint::fill(color));
+        }
+        // The blur reads transparent pixels beyond the layer and writes the
+        // layer grown by its reach.
+        let (pw, ph) = (lw + 2 * pad, lh + 2 * pad);
+        let mut padded = vec![0u8; (pw * ph * 4) as usize];
+        for yy in 0..lh {
+            let src = &layer.data()[(yy * lw * 4) as usize..((yy + 1) * lw * 4) as usize];
+            let at = (((yy + pad) * pw + pad) * 4) as usize;
+            padded[at..at + src.len()].copy_from_slice(src);
+        }
+        let blurred = sharex_skia::blur::blur(&Pixmap::from_premul_rgba(pw as u32, ph as u32, &padded), s, s);
+        let (ox, oy) = (ll - pad, lt - pad);
+        for yy in oy.max(0)..(oy + ph).min(dh) {
+            for xx in ox.max(0)..(ox + pw).min(dw) {
+                let c = blurred.pixel(xx - ox, yy - oy);
+                cropped.set_pixel(
+                    xx as u32,
+                    yy as u32,
+                    [(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8],
+                );
+            }
+        }
+    } else {
+        // No image filter (a zero blur): the shape straight onto the device.
+        let moved = rrect_path(x as f32, (y + offset) as f32, w as f32, h as f32, radius);
+        Canvas::new(&mut cropped).fill_sk_path(&moved, &Paint::fill(color));
     }
     // drawSpecial with the restore paint (no anti-aliasing): a sprite
     // unless the clip cuts it, then an image shader over the rect.
