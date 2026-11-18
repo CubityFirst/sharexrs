@@ -283,7 +283,7 @@ def compare_case(a, b, case=None):
                      min(len(na['body']), len(nb['body'])))
             diffs.append(f"request {i} body differs at byte {j} (lengths {len(na['body'])}/{len(nb['body'])}): "
                          f"sharex {na['body'][max(0, j - 40):j + 40]!r} vs sharexrs {nb['body'][max(0, j - 40):j + 40]!r}")
-    for k in ["check_config", "request_url", "written_file_base64", "steps", "auth"]:
+    for k in ["check_config", "request_url", "written_file_base64", "steps", "auth", "servers"]:
         if a.get(k) != b.get(k):
             diffs.append(f"{k}: sharex {a.get(k)!r} vs sharexrs {b.get(k)!r}")
     if (a.get("sxcu_export") or "").replace("\r\n", "\n") != (b.get("sxcu_export") or "").replace("\r\n", "\n"):

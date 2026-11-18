@@ -17,6 +17,7 @@ use crate::destinations::shorteners::{Bitly, FirebaseDynamicLinks, Isgd, Kutt, P
 use crate::destinations::text::{Hastebin, OneTimeSecret, Paste2, PasteEe, Pastebin, Pastie, Slexy, SlexySettings, Upaste};
 use crate::destinations::amazon_s3::AmazonS3;
 use crate::destinations::cloud_storage::{AzureStorage, BackblazeB2};
+use crate::destinations::ftp::{FTPAccount, Ftp};
 use crate::destinations::oauth_services::{
     BoxUploader, Dropbox, Flickr, FlickrSettings, GitHubGist, GoogleCloudStorage, GoogleDrive, OneDrive, Photobucket, PhotobucketAccountInfo, YouTube,
     dropbox_upload_path,
@@ -227,6 +228,9 @@ pub fn check_file(dest: &FileDestination, config: &UploadersConfig) -> Ported {
         FileDestination::Streamable => ne(&config.StreamableUsername) && !config.StreamablePassword.is_empty(),
         FileDestination::Lithiio => !config.LithiioSettings.UserAPIKey.is_empty(),
         FileDestination::ImgFish => (IMGFISH_MIN_FILE_ID_LENGTH..=IMGFISH_MAX_FILE_ID_LENGTH).contains(&config.ImgFishSettings.FileIDLength),
+        FileDestination::FTP => {
+            FTPAccount::list_from_value(&config.FTPAccountList).is_some_and(|l| usize::try_from(config.FTPSelectedFile).is_ok_and(|i| i < l.len()))
+        }
         FileDestination::Dropbox => OAuth2Info::check(config.DropboxOAuth2Info.as_ref()),
         FileDestination::OneDrive => OAuth2Info::check(config.OneDriveV2OAuth2Info.as_ref()),
         FileDestination::Box => OAuth2Info::check(config.BoxOAuth2Info.as_ref()),
@@ -297,6 +301,25 @@ pub fn create_file(dest: &FileDestination, config: &mut UploadersConfig, task: &
         }
         FileDestination::Lithiio => GenericUploader::File(Box::new(LobFile::new(config.LithiioSettings.UserAPIKey.as_str()))),
         FileDestination::ImgFish => GenericUploader::File(Box::new(ImgFish::new(config.ImgFishSettings.clone()))),
+        FileDestination::FTP => {
+            let accounts = FTPAccount::list_from_value(&config.FTPAccountList)?;
+            let index = if task.override_ftp {
+                // BetweenOrDefault(0, Count - 1)
+                let max = accounts.len() as i32 - 1;
+                if task.ftp_index >= 0 && task.ftp_index <= max { task.ftp_index } else { 0 }
+            } else {
+                match task.data_type {
+                    TaskDataType::Image => config.FTPSelectedImage,
+                    TaskDataType::Text => config.FTPSelectedText,
+                    _ => config.FTPSelectedFile,
+                }
+            };
+            let account = accounts.into_iter().nth(usize::try_from(index).ok()?)?;
+            match account.Protocol {
+                crate::enums::FTPProtocol::FTP | crate::enums::FTPProtocol::FTPS => GenericUploader::File(Box::new(Ftp::new(account))),
+                _ => return None,
+            }
+        }
         FileDestination::Dropbox => {
             let mut u = Dropbox::new(config.DropboxOAuth2Info.clone()?);
             u.upload_path = dropbox_upload_path(&s(&config.DropboxUploadPath));

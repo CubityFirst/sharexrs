@@ -140,9 +140,23 @@ static class Harness
         return JsonNode.Parse(text);
     }
 
+    // The FTP/SFTP/SMTP mocks (sharex_uploaders_mock_servers): their control port.
+    static readonly int MockServers = int.Parse(Environment.GetEnvironmentVariable("MOCK_SERVERS_PORT") ?? "18820");
+
+    static void ResetServers(JsonNode spec)
+    {
+        Control.PostAsync($"http://127.0.0.1:{MockServers}/reset", new StringContent(spec.ToJsonString())).GetAwaiter().GetResult().EnsureSuccessStatusCode();
+    }
+
+    static JsonNode ServersLog()
+    {
+        return JsonNode.Parse(Control.GetStringAsync($"http://127.0.0.1:{MockServers}/log").GetAwaiter().GetResult());
+    }
+
     public static JsonObject RunCase(JsonObject c)
     {
         Reset(c["responses"]);
+        if (c["servers"] != null) ResetServers(c["servers"]);
         JsonObject output = new JsonObject();
         Uploader uploader = null;
         try
@@ -171,6 +185,7 @@ static class Harness
             if (File.Exists(checkFile)) File.Delete(checkFile);
         }
         output["requests"] = Log();
+        if (c["servers"] != null) output["servers"] = ServersLog();
         return output;
     }
 

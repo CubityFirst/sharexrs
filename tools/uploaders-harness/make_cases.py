@@ -748,6 +748,48 @@ oauth_case("signin-photobucket", "photobucket", [URL, {"op": "access_token", "co
          headers=FORM)], oauth1_info=OAUTH1_CLIENT)
 oauth_case("signin-flickr-no-token", "flickr", [URL], [text_resp("oauth_problem=signature_invalid", 401)], oauth1_info=OAUTH1_CLIENT)
 
+# ---------------------------------------------------------------------------
+# FTP / FTPS / SFTP against the mock servers (sharex_uploaders_mock_servers,
+# fixed ports): every command and reply is compared.
+
+MOCK = 18820
+FTP_ACCOUNT = {"Name": "mock", "Protocol": "FTP", "Host": "127.0.0.1", "Port": MOCK + 1, "Username": "user", "Password": "pass",
+               "IsActive": False, "SubFolderPath": "shots/sub", "BrowserProtocol": "https", "HttpHomePath": "files.example.com/~me",
+               "HttpHomePathAutoAddSubFolderPath": True, "HttpHomePathNoExtension": False}
+
+
+def ftp_case(id, accounts, inp, servers=None, extra=None, selected=0):
+    config = {"FTPAccountList": accounts, "FTPSelectedImage": selected, "FTPSelectedText": selected, "FTPSelectedFile": selected}
+    config.update(extra or {})
+    cases.append({"id": id, "kind": "builtin", "service": "file:FTP", "config": config, "input": inp, "responses": [],
+                  "servers": servers or {"user": "user", "password": "pass", "dirs": []}})
+
+
+ftp_case("ftp-passive-mkdir", [FTP_ACCOUNT], BIN_PNG)
+ftp_case("ftp-existing-dir", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+ftp_case("ftp-parent-exists", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots"]})
+ftp_case("ftp-active", [dict(FTP_ACCOUNT, IsActive=True)], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+ftp_case("ftp-no-epsv", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots/sub"],
+                                                 "fail_once": [["EPSV", "502 Command not implemented."]]})
+ftp_case("ftp-active-no-eprt", [dict(FTP_ACCOUNT, IsActive=True)], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots/sub"],
+                                                                         "fail_once": [["EPRT", "502 Command not implemented."]]})
+ftp_case("ftp-login-failed", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "other", "dirs": []})
+ftp_case("ftp-absolute-root", [dict(FTP_ACCOUNT, SubFolderPath="/up/sub", HttpHomePath="", HttpHomePathNoExtension=True, BrowserProtocol="http")],
+         image_input("a+b c.png"), {"user": "user", "password": "pass", "dirs": []})
+ftp_case("ftp-stor-error", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "pass", "dirs": ["/shots/sub"],
+                                                    "fail_once": [["STOR", "451 Requested action aborted. Local error in processing."]]})
+ftp_case("ftp-mkd-denied", [FTP_ACCOUNT], BIN_PNG, {"user": "user", "password": "pass", "dirs": [],
+                                                    "fail_once": [["MKD shots", "550 Permission denied."]]})
+ftp_case("ftps-explicit", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, FTPSEncryption="Explicit")], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": []})
+ftp_case("ftps-implicit", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 3, FTPSEncryption="Implicit")], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+ftp_case("ftps-explicit-active", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, IsActive=True)], BIN_PNG,
+         {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+ftp_case("ftp-second-account", [FTP_ACCOUNT, dict(FTP_ACCOUNT, Name="two", SubFolderPath="", HttpHomePath="cdn.example.com:8080/x?f=")],
+         BIN_PNG, {"user": "user", "password": "pass", "dirs": []}, selected=1)
+ftp_case("ftp-connection-refused", [dict(FTP_ACCOUNT, Port=MOCK + 9)], BIN_PNG)
+
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({"cases": cases}, f, ensure_ascii=False, indent=1)

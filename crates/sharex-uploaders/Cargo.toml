@@ -30,6 +30,8 @@ getrandom = "0.3"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+# FTPS (and the mock servers' TLS): the OS's TLS, as ureq uses here.
+native-tls = "0.2"
 # RustCrypto (pure Rust, MIT/Apache-2.0): B2's SHA1, SendSpace/MediaFire's MD5,
 # PrivateBin's AES-CBC + PBKDF2, MEGA's AES.
 sha1 = "0.10"

@@ -63,6 +63,20 @@ fn control(port: u16) -> ureq::Agent {
     ureq::Agent::config_builder().http_status_as_error(false).build().into()
 }
 
+/// The FTP/SFTP/SMTP mocks' control port (`sharex_uploaders_mock_servers`).
+fn servers_port() -> u16 {
+    std::env::var("MOCK_SERVERS_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(18820)
+}
+
+fn reset_servers(spec: &Value) {
+    control(0).post(&format!("http://127.0.0.1:{}/reset", servers_port())).send(spec.to_string()).expect("mock servers reset");
+}
+
+fn servers_log() -> Value {
+    let mut resp = control(0).get(&format!("http://127.0.0.1:{}/log", servers_port())).call().expect("mock servers log");
+    serde_json::from_str(&resp.body_mut().read_to_string().expect("log body")).expect("log JSON")
+}
+
 fn reset(port: u16, responses: &Value) {
     let body = json!({ "responses": responses.clone() }).to_string();
     control(port).post(&format!("http://127.0.0.1:{port}/__mock/reset")).send(body).expect("mock reset");
@@ -229,6 +243,9 @@ fn run_oauth(case: &Value, out: &mut Value) {
 
 fn run_case(case: &Value, port: u16) -> Value {
     reset(port, &case["responses"]);
+    if !case["servers"].is_null() {
+        reset_servers(&case["servers"]);
+    }
     let mut out = json!({});
     if case["kind"] == "oauth" {
         run_oauth(case, &mut out);
@@ -339,5 +356,8 @@ fn run_case(case: &Value, port: u16) -> Value {
         let _ = std::fs::remove_file(path);
     }
     out["requests"] = log(port);
+    if !case["servers"].is_null() {
+        out["servers"] = servers_log();
+    }
     out
 }

@@ -27,6 +27,8 @@ pub mod oauth1;
 pub mod oauth2;
 pub mod result;
 pub mod signin;
+#[doc(hidden)]
+pub mod testing;
 pub mod uploader;
 pub mod url_helpers;
 pub mod validator;
