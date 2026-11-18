@@ -660,3 +660,30 @@ static DESCRIPTIONS: &[(&str, &str, &str)] = &[
     ("URLSharingServices", "VK", "VK"),
     ("URLSharingServices", "Pushbullet", "Pushbullet"),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every destination ShareX has is ported (the `FileUploader` entries
+    /// of the image and text enums mean "use the file destination").
+    #[test]
+    fn every_destination_is_ported() {
+        let config = UploadersConfig::default();
+        for d in ImageDestination::ALL.iter().filter(|d| d.name() != "FileUploader") {
+            assert_ne!(check_image(d, &config), Ported::No, "{}", d.name());
+        }
+        for d in TextDestination::ALL.iter().filter(|d| d.name() != "FileUploader") {
+            assert_ne!(check_text(d, &config), Ported::No, "{}", d.name());
+        }
+        for d in FileDestination::ALL {
+            assert_ne!(check_file(d, &config), Ported::No, "{}", d.name());
+        }
+        for d in UrlShortenerType::ALL {
+            assert_ne!(check_url_shortener(d, &config), Ported::No, "{}", d.name());
+        }
+        for d in URLSharingServices::ALL {
+            assert_ne!(check_url_sharing(d, &config), Ported::No, "{}", d.name());
+        }
+    }
+}
