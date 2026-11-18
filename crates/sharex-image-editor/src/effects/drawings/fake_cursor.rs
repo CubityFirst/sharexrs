@@ -56,7 +56,47 @@ impl EffectImpl for FakeCursorImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        const OUTLINE: [(f32, f32); 7] = [(0.0, 0.0), (0.0, 20.4), (5.7, 15.6), (9.6, 23.4), (12.6, 22.2), (8.7, 14.4), (15.3, 14.4)];
+        let count = self.count.clamp(1, 200);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let (sw, sh) = (source.width() as i32, source.height() as i32);
+        for _ in 0..count {
+            let mut scale = if self.random_size {
+                let n = random::shared(|r| r.next_single());
+                self.random_size_min + n * (self.random_size_min.max(self.random_size_max) - self.random_size_min)
+            } else {
+                self.scale
+            };
+            scale = clampf(scale, 0.5, 5.0);
+            let cw = 15.3 * scale;
+            let ch = 23.4 * scale;
+            let x = random::shared(|r| r.next_range(0, 1.max(sw - cw as i32))) as f32;
+            let y = random::shared(|r| r.next_range(0, 1.max(sh - ch as i32))) as f32;
+            let saved = canvas.matrix;
+            canvas.translate(x, y);
+            if self.random_angle {
+                let min_a = self.random_angle_min.min(self.random_angle_max);
+                let max_a = self.random_angle_min.max(self.random_angle_max);
+                let angle = if min_a == max_a { min_a } else { random::shared(|r| r.next_range(min_a, max_a)) };
+                let (px, py) = (cw / 2.0, ch / 2.0);
+                canvas.translate(px, py);
+                canvas.rotate(angle as f32);
+                canvas.translate(-px, -py);
+            }
+            canvas.scale(scale, scale);
+            let mut path = SkPath::new();
+            path.move_to(OUTLINE[0].0, OUTLINE[0].1);
+            for p in &OUTLINE[1..] {
+                path.line_to(p.0, p.1);
+            }
+            path.close();
+            let pen = Pen::new(1.5).join(Join::Round);
+            sk::stroke_path(&mut canvas, &path, &pen, &solid(self.border_color, true));
+            canvas.fill_sk_path(&path, &solid(self.fill_color, true));
+            canvas.matrix = saved;
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

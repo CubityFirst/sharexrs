@@ -223,3 +223,22 @@ pub(crate) fn with_clip_path_aa(canvas: &mut Canvas, path: &Path, draw: impl FnO
     draw(canvas);
     canvas.aa_clip = None;
 }
+
+/// `SKShader.CreateLinearGradient(start, end, colors, positions, Clamp)` as a paint.
+pub(crate) fn linear_gradient(
+    start: (f32, f32),
+    end: (f32, f32),
+    colors: &[SkColor],
+    positions: Option<&[f32]>,
+    aa: bool,
+) -> Paint<'static> {
+    let mut p = Paint::shader(Shader::Gradient(sharex_skia::raster::gradient::LinearGradient {
+        start,
+        end,
+        colors: colors.iter().map(|c| c.rgba_array()).collect(),
+        positions: positions.map(|p| p.to_vec()),
+        local: Matrix::IDENTITY,
+    }));
+    p.anti_alias = aa;
+    p
+}
