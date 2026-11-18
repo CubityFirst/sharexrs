@@ -353,6 +353,38 @@ mod tests {
         assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
     }
 
+    /// `ShowImageEffectsWindowAfterCapture`: the window's presets and
+    /// selected index decide what's applied (here it switches to Inverse).
+    #[test]
+    fn the_image_effects_window_picks_the_preset() {
+        struct Ui(Vec<serde_json::Value>);
+        impl crate::upload::TaskUi for Ui {
+            fn copy_text(&self, _: &str) {}
+            fn clipboard_contains_text(&self) -> bool {
+                false
+            }
+            fn clear_clipboard(&self) {}
+            fn open_url(&self, _: &str) {}
+            fn show_qr_code(&self, _: &str) {}
+            fn image_effects_window(&self, _: &RgbaImage, _: &TaskSettings) -> Option<(Vec<serde_json::Value>, i32)> {
+                Some((self.0.clone(), 1))
+            }
+        }
+        let mut task = TaskSettings::default();
+        let s = task.ImageSettings.get_or_insert_with(Default::default);
+        s.ShowImageEffectsWindowAfterCapture = true;
+        s.ImageEffectPresets = vec![serde_json::json!({ "Name": "", "Effects": [] })];
+        s.SelectedImageEffectPreset = 0;
+        let inverse = serde_json::json!({ "Name": "", "Effects": [{ "$type": "ShareX.ImageEffectsLib.Inverse, ShareX.ImageEffectsLib", "Enabled": true }] });
+        let edited = vec![serde_json::json!({ "Name": "", "Effects": [] }), inverse];
+        let job = ImageTask { metadata: metadata(None, None), task, file_name: String::new(), folder: PathBuf::new(), image_effects_folder: PathBuf::new() };
+        let out = job.apply_image_effects(Some(&Ui(edited))).unwrap();
+        assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
+        // Without a window (no UI), the task's own selection.
+        let out = job.apply_image_effects(None).unwrap();
+        assert_eq!(out.get_pixel(0, 0).0, [1, 2, 3, 255]);
+    }
+
     #[test]
     fn names_follow_the_default_patterns() {
         let task = TaskSettings::default();

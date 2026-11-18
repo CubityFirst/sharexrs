@@ -34,7 +34,8 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             let mut w = combiner::ImageCombinerWindow::new(task, &defaults, Vec::new());
             w.set_sync();
             if state == "horizontal" {
-                w.options.orientation = sharex_tools::combiner::Orientation::Horizontal;
+                // As clicking Horizontal leaves it (the alignment combo blank).
+                w.set_horizontal();
             }
             w.add_files(files(o));
             if let Some(&i) = o.select.first() {

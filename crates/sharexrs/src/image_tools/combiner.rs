@@ -39,6 +39,10 @@ pub struct ImageCombinerWindow {
     status: String,
     busy: bool,
     options_changed: bool,
+    /// The alignment combo lost its selection: switching the orientation
+    /// replaces its `ItemsSource`, Avalonia drops `SelectedIndex` to -1 and
+    /// the binding writes it back (`Math.Clamp(-1, 0, 2)`: left or top).
+    alignment_blank: bool,
 }
 
 impl ImageCombinerWindow {
@@ -58,6 +62,7 @@ impl ImageCombinerWindow {
             status: s::ImageCombinerViewModel_Add_two_images().into(),
             busy: false,
             options_changed: false,
+            alignment_blank: false,
         };
         w.add_files(files);
         w
@@ -66,6 +71,13 @@ impl ImageCombinerWindow {
     /// `--render`: previews made at once.
     pub fn set_sync(&mut self) {
         self.job.sync = true;
+    }
+
+    /// Horizontal, as clicking its radio button leaves the window.
+    pub fn set_horizontal(&mut self) {
+        self.options.orientation = Orientation::Horizontal;
+        self.options.alignment = Alignment::LeftOrTop;
+        self.alignment_blank = true;
     }
 
     /// `AddFiles`: the files that exist, appended.
@@ -201,6 +213,8 @@ impl ImageCombinerWindow {
             let w = 20.0 + 8.0 + text_width(ui, text, nf.clone());
             if rb.show(ui, Rect::from_min_size(pos2(rx, row.min.y), vec2(w, 32.0)), Id::new(("combiner-orientation", k)), checked).clicked() && !checked {
                 self.options.orientation = if k == 0 { Orientation::Horizontal } else { Orientation::Vertical };
+                self.options.alignment = Alignment::LeftOrTop;
+                self.alignment_blank = true;
                 self.options_changed();
             }
             rx += w + 16.0;
@@ -213,11 +227,12 @@ impl ImageCombinerWindow {
         super::row_label(ui, Rect::from_min_max(pos2(cols[0], row.min.y), pos2(cols[0] + 120.0, row.max.y)), s::ImageCombinerWindow_Alignment());
         let items: Vec<ComboItem> = alignment_options(self.options.orientation).iter().map(|t| ComboItem::text(*t)).collect();
         let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: live };
-        let selected = self.options.alignment as usize;
+        let selected = (!self.alignment_blank).then_some(self.options.alignment as usize);
         // `HorizontalAlignment="Left"`: as wide as the selected item.
-        let cw = combo.auto_width(ui, &items, Some(selected)).min(star);
-        if let Some(i) = combo.show(ui, Rect::from_min_size(pos2(cols[1], row.min.y), vec2(cw, 40.0)), Id::new("combiner-alignment"), &items, Some(selected)) {
+        let cw = combo.auto_width(ui, &items, selected).min(star);
+        if let Some(i) = combo.show(ui, Rect::from_min_size(pos2(cols[1], row.min.y), vec2(cw, 40.0)), Id::new("combiner-alignment"), &items, selected) {
             self.options.alignment = [Alignment::LeftOrTop, Alignment::Center, Alignment::RightOrBottom][i.min(2)];
+            self.alignment_blank = false;
             self.options_changed();
         }
         super::row_label(ui, Rect::from_min_max(pos2(cols[2], row.min.y), pos2(cols[2] + 120.0, row.max.y)), s::ImageCombinerWindow_Spacing());
