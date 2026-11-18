@@ -160,6 +160,11 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCode(text) => Box::new(dialogs::qr_code::QrCodeWindow::new(Some(text))),
+            super::UiRequest::Ocr(image, task, reply) => {
+                let mut w = crate::ocr_window::OcrWindow::for_task((*image).clone(), None, &task);
+                w.reply = Some(reply);
+                Box::new(w)
+            }
         };
         self.open_dialog_window(event_loop, dialog);
     }

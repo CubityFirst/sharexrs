@@ -56,6 +56,11 @@ pub trait TaskUi: Send + Sync {
     fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {
         Some(request.task)
     }
+    /// `ToolsIntegration.ShowOCRWindowAsync` from a task (`WorkerTask.DoOCR`
+    /// waits for the window to close).
+    fn show_ocr_window(&self, image: Arc<image::RgbaImage>, task: TaskSettings) {
+        let _ = (image, task);
+    }
 }
 
 /// What the before upload window shows of a task (`TaskInfo`).
@@ -73,6 +78,8 @@ pub enum UiRequest {
     LargeFileWarning(mpsc::Sender<(bool, bool)>),
     BeforeUpload(Box<BeforeUpload>, mpsc::Sender<Option<TaskSettings>>),
     QrCode(String),
+    /// The OCR window on a task's image; answered when it closes.
+    Ocr(Arc<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<()>),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -81,6 +88,7 @@ impl std::fmt::Debug for UiRequest {
             Self::LargeFileWarning(_) => f.write_str("LargeFileWarning"),
             Self::BeforeUpload(r, _) => write!(f, "BeforeUpload({})", r.file_name),
             Self::QrCode(t) => write!(f, "QrCode({t})"),
+            Self::Ocr(..) => f.write_str("Ocr"),
         }
     }
 }
@@ -129,6 +137,13 @@ impl TaskUi for SystemUi {
         r(UiRequest::LargeFileWarning(tx));
         // A window closed without answering is Cancel.
         rx.recv().unwrap_or((false, false))
+    }
+
+    fn show_ocr_window(&self, image: Arc<image::RgbaImage>, task: TaskSettings) {
+        let Some(r) = &self.requests else { return };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::Ocr(image, Box::new(task), tx));
+        let _ = rx.recv();
     }
 
     fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {

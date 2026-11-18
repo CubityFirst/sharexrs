@@ -124,6 +124,9 @@ pub enum Effect {
     CopyFiles(Vec<PathBuf>),
     /// `ClipboardHelpers.CopyImageFromFile`.
     CopyImageFile(PathBuf),
+    /// The OCR window's Select region...: minimized, a region captured
+    /// (`RegionCaptureTasks.GetRegionImageAsync`), restored.
+    OcrSelectRegion,
     /// `TaskHelpers` entry points of the history windows' services
     /// (`HistoryWindowServices`), on a file.
     FileService(FileService, PathBuf),
@@ -248,6 +251,9 @@ pub trait Dialog {
 
     /// `NavigateToService` on the open window.
     fn navigate(&mut self, _service: &str) {}
+
+    /// The OCR window's Select region... captured this image.
+    fn replace_image(&mut self, _image: RgbaImage, _ctx: &egui::Context) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -451,6 +457,7 @@ impl App {
                     None => eprintln!("Clipboard copy image from file failed: {}", path.display()),
                 },
                 Effect::FileService(service, path) => self.file_service(event_loop, service, path),
+                Effect::OcrSelectRegion => self.ocr_select_region(id),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
             }
         }

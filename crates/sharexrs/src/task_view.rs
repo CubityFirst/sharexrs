@@ -112,6 +112,8 @@ impl ViewSettings {
 /// A context menu command (`BuildTaskContextMenu` and its submenus).
 #[derive(Clone, Debug, PartialEq)]
 pub enum TaskCommand {
+    /// `UploadInfoManager.OCRImage`.
+    OcrImage,
     OpenFile,
     OpenFolder,
     CopyFile,
@@ -1436,7 +1438,7 @@ impl TaskView {
                 ok && sel.is_url_exist,
             ),
             item(s::MainWindow_ShowQRCode(), icon::QrCode, TaskCommand::ShowQrCode, ok && sel.is_url_exist),
-            item(s::MainWindow_OCRImage(), icon::TextRecognition, np("OCR"), ok && sel.is_image_file),
+            item(s::MainWindow_OCRImage(), icon::TextRecognition, TaskCommand::OcrImage, ok && sel.is_image_file),
             sub(
                 s::MainWindow_CombineImagesDialog(),
                 icon::Combine,
