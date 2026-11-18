@@ -17,12 +17,14 @@ pub use sharex_skia::raster as skia;
 
 pub mod dotnet;
 pub mod effects;
+pub mod localization;
 pub mod ops;
 pub mod package;
 pub mod paths;
 pub mod pixels;
 pub mod preset;
 pub mod random;
+pub mod sample;
 pub mod text;
 
 pub use bitmap::Bitmap;

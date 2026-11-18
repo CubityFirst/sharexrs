@@ -165,6 +165,9 @@ pub struct Fluent {
     /// `SystemChromeDisabledLowColor`: a collapsed `ScrollBar`'s thumb
     /// (`ScrollBarPanningThumbBackground`).
     pub chrome_disabled_low: Color32,
+    /// `SystemChromeMediumLowColor`: `SystemControlBackgroundChromeMediumLowBrush`,
+    /// a `ListBox`'s and `FlyoutPresenter`'s background.
+    pub chrome_medium_low: Color32,
     /// `FocusStrokeColorOuter`: the focus adorner's outer 2px border.
     pub focus_outer: Color32,
     /// `FocusStrokeColorInner`: the focus adorner's inner 1px border.
@@ -185,6 +188,7 @@ pub const FLUENT_DARK: Fluent = Fluent {
     transient_border: hexa(0x5C000000),
     chrome_disabled_high: hexa(0xFF333333),
     chrome_disabled_low: hexa(0xFF858585),
+    chrome_medium_low: hexa(0xFF2B2B2B),
     focus_outer: hexa(0xFFFFFFFF),
     focus_inner: hexa(0x99000000),
     list_accent_low_opacity: 0.6,
@@ -201,6 +205,7 @@ pub const FLUENT_LIGHT: Fluent = Fluent {
     transient_border: hexa(0x24000000),
     chrome_disabled_high: hexa(0xFFCCCCCC),
     chrome_disabled_low: hexa(0xFF7A7A7A),
+    chrome_medium_low: hexa(0xFFF2F2F2),
     focus_outer: hexa(0xFF000000),
     focus_inner: hexa(0x99FFFFFF),
     list_accent_low_opacity: 0.4,

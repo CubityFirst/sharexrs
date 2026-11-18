@@ -73,6 +73,13 @@ pub trait TaskUi: Send + Sync {
     fn show_ocr_window(&self, image: Arc<image::RgbaImage>, task: TaskSettings) {
         let _ = (image, task);
     }
+    /// `ImageEffectsIntegration.ShowDialog(bmp, presets, selected, Editor)`
+    /// (`ShowImageEffectsWindowAfterCapture`): the presets as the window
+    /// left them and the selected index. The task's thread waits.
+    fn image_effects_window(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<(Vec<serde_json::Value>, i32)> {
+        let _ = (image, task);
+        None
+    }
 }
 
 /// What the before upload window shows of a task (`TaskInfo`).
@@ -94,6 +101,9 @@ pub enum UiRequest {
     Ocr(Arc<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<()>),
     /// `OpenQRCodeScanFromImageFile`.
     QrCodeScanFile(std::path::PathBuf),
+    /// The Image effects window (Editor mode) on a capture; answered with
+    /// the presets and the selected index when it closes.
+    ImageEffects(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<(Vec<serde_json::Value>, i32)>),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -104,6 +114,7 @@ impl std::fmt::Debug for UiRequest {
             Self::QrCode(t) => write!(f, "QrCode({t})"),
             Self::Ocr(..) => f.write_str("Ocr"),
             Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
+            Self::ImageEffects(..) => f.write_str("ImageEffects"),
         }
     }
 }
@@ -175,6 +186,13 @@ impl TaskUi for SystemUi {
         let (tx, rx) = mpsc::channel();
         r(UiRequest::Ocr(image, Box::new(task), tx));
         let _ = rx.recv();
+    }
+
+    fn image_effects_window(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<(Vec<serde_json::Value>, i32)> {
+        let r = self.requests.as_ref()?;
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::ImageEffects(Box::new(image.clone()), Box::new(task.clone()), tx));
+        rx.recv().ok()
     }
 
     fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {

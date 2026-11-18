@@ -131,6 +131,15 @@ pub enum Effect {
     /// `TaskHelpers` entry points of the history windows' services
     /// (`HistoryWindowServices`), on a file.
     FileService(FileService, PathBuf),
+    /// Another window of this one (`ShowDialog(this)`: a confirmation, the
+    /// packager).
+    OpenDialog(Box<dyn Dialog>),
+    /// `ClipboardHelpers.GetImage()` handed back through [`Dialog::replace_image`]
+    /// (the Image effects window's Load from clipboard).
+    PasteImage,
+    /// `UploadManager.RunImageTask(image, taskSettings)`: the image through
+    /// the task's after capture tasks.
+    RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
     /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
@@ -268,8 +277,12 @@ pub trait Dialog {
     /// `NavigateToService` on the open window.
     fn navigate(&mut self, _service: &str) {}
 
-    /// The OCR window's Select region... captured this image.
+    /// The OCR window's Select region... captured this image (the Image
+    /// effects window: pasted).
     fn replace_image(&mut self, _image: RgbaImage, _ctx: &egui::Context) {}
+
+    /// `ImageEffectsWindow.ImportPreset(json)` on the open presets window.
+    fn import(&mut self, _json: &str) {}
 
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
@@ -322,6 +335,7 @@ impl App {
             let height = w.paint(|ui| dialog.content_height(ui));
             let _ = w.window.request_inner_size(LogicalSize::new(spec.width, height));
         }
+        clamp_to_max_track_size(&w.window, &spec);
         let size = w.window.outer_size();
         let screens = sharex_capture::screenshot::screens();
         let placed = screens
@@ -475,6 +489,17 @@ impl App {
                 Effect::FileService(service, path) => self.file_service(event_loop, service, path),
                 Effect::OcrSelectRegion => self.ocr_select_region(id),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
+                Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
+                Effect::PasteImage => {
+                    if let Some(image) = sharex_capture::clipboard::get_image()
+                        && let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id)
+                    {
+                        let ctx = d.window.ctx().clone();
+                        d.dialog.replace_image(image, &ctx);
+                        d.window.window.request_redraw();
+                    }
+                }
                 Effect::UpdateDownload(checker, origin) => self.download_update(event_loop, *checker, origin),
                 Effect::UpdateFinished { result, origin, shutdown } => self.update_finished(event_loop, result, origin, shutdown),
                 Effect::AskInvalidSignature => {
@@ -599,3 +624,29 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
     let _ = spec.skip_taskbar;
     attrs
 }
+
+/// Windows keeps a window within its maximum tracking size (the screen plus
+/// the frame, `SM_CXMAXTRACK`/`SM_CYMAXTRACK`): Avalonia's windows that ask
+/// for more than the screen open at that size (ShareX's 1180-wide tool
+/// windows open 1028 wide on a 1024-pixel screen). winit's aren't held to
+/// it, so the window is shrunk the same way (never below its `MinWidth` /
+/// `MinHeight`, which win).
+#[cfg(windows)]
+fn clamp_to_max_track_size(window: &winit::window::Window, spec: &Spec) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXMAXTRACK, SM_CYMAXTRACK};
+    let (max_w, max_h) = unsafe { (GetSystemMetrics(SM_CXMAXTRACK), GetSystemMetrics(SM_CYMAXTRACK)) };
+    let outer = window.outer_size();
+    let inner = window.inner_size();
+    let over_w = (outer.width as i32 - max_w).max(0) as u32;
+    let over_h = (outer.height as i32 - max_h).max(0) as u32;
+    if over_w > 0 || over_h > 0 {
+        let scale = window.scale_factor();
+        let min_w = (spec.min_width as f64 * scale).round() as u32;
+        let min_h = (spec.min_height as f64 * scale).round() as u32;
+        let size = winit::dpi::PhysicalSize::new(inner.width.saturating_sub(over_w).max(min_w), inner.height.saturating_sub(over_h).max(min_h));
+        let _ = window.request_inner_size(size);
+    }
+}
+
+#[cfg(not(windows))]
+fn clamp_to_max_track_size(_window: &winit::window::Window, _spec: &Spec) {}

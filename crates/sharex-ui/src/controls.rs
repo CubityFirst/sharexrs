@@ -327,11 +327,23 @@ pub struct ComboItem {
     pub icon: Option<&'static str>,
     /// A flag before the text (`LanguageFlags`), 16x12.
     pub flag: Option<egui::TextureId>,
+    /// The item `TextBlock`'s weight: ShareX's global SemiBold, or 400 for
+    /// an `ItemTemplate` with `FontWeight="Normal"`.
+    pub weight: u16,
 }
 
 impl ComboItem {
     pub fn text(text: impl Into<String>) -> Self {
-        Self { text: text.into(), icon: None, flag: None }
+        Self { text: text.into(), icon: None, flag: None, weight: 600 }
+    }
+
+    /// An item whose template's `TextBlock` has `FontWeight="Normal"`.
+    pub fn normal(text: impl Into<String>) -> Self {
+        Self { weight: 400, ..Self::text(text) }
+    }
+
+    fn font(&self) -> FontId {
+        font(13.0, self.weight)
     }
 
     fn has_image(&self) -> bool {
@@ -357,6 +369,14 @@ impl ComboBox {
     pub fn content_width(&self, ui: &Ui, items: &[ComboItem]) -> f32 {
         let widest = items.iter().map(|i| item_width(ui, i)).fold(0.0, f32::max);
         widest + self.padding.left + self.padding.right + 32.0
+    }
+
+    /// A `HorizontalAlignment="Left"` combo box's width: its selected item
+    /// (Avalonia measures only that one), at least Fluent's
+    /// `ComboBoxThemeMinWidth` (64).
+    pub fn auto_width(&self, ui: &Ui, items: &[ComboItem], selected: Option<usize>) -> f32 {
+        let shown = selected.and_then(|i| items.get(i)).map(std::slice::from_ref).unwrap_or(&[]);
+        self.content_width(ui, shown).max(64.0)
     }
 
     /// Draws the combo box in `rect`; returns a newly selected index.
@@ -423,7 +443,7 @@ impl ComboBox {
 }
 
 fn item_width(ui: &Ui, i: &ComboItem) -> f32 {
-    text_width(ui, &i.text, ComboBox::item_font()) + if i.has_image() { 24.0 } else { 0.0 }
+    text_width(ui, &i.text, i.font()) + if i.has_image() { 24.0 } else { 0.0 }
 }
 
 /// One item: an optional 16px image cell and 8px spacing, then the text.
@@ -445,7 +465,7 @@ fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
         }
         x += 24.0;
     }
-    text_at(ui, rect, x, &item.text, ComboBox::item_font(), color);
+    text_at(ui, rect, x, &item.text, item.font(), color);
 }
 
 /// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`: its
@@ -806,6 +826,13 @@ impl DecimalUpDown {
     }
 
     pub fn show(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut f64) -> bool {
+        self.show_with(ui, rect, id, value, &|v| self.format(v), true)
+    }
+
+    /// [`Self::show`] with the value shown by `format` (`FormatString`) and,
+    /// without `spinner` (`ShowButtonSpinner="False"`), no repeat buttons:
+    /// the text centred in the whole box.
+    pub fn show_with(&self, ui: &mut Ui, rect: Rect, id: Id, value: &mut f64, format: &dyn Fn(f64) -> String, spinner: bool) -> bool {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let mut changed = false;
@@ -822,7 +849,8 @@ impl DecimalUpDown {
         let down = Rect::from_min_max(pos2(rect.max.x - 35.0, rect.min.y + 1.0), pos2(rect.max.x - 1.0, rect.max.y - 1.0));
         let now = ui.input(|i| i.time);
         let scale = 10f64.powi(self.decimals as i32);
-        for (i, (b, step)) in [(up, 1.0f64), (down, -1.0)].into_iter().enumerate() {
+        let buttons = if spinner { vec![(up, 1.0f64), (down, -1.0)] } else { Vec::new() };
+        for (i, (b, step)) in buttons.into_iter().enumerate() {
             // `ValidSpinDirections`: no increase at the maximum, no
             // decrease at the minimum.
             let valid = if step > 0.0 { *value < self.maximum } else { *value > self.minimum };
@@ -871,7 +899,13 @@ impl DecimalUpDown {
                 }
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
             } else {
+                // A press and release within one frame (a quick click on an
+                // idle window) never shows the button held: it steps once.
+                let held: Option<f64> = ui.ctx().data(|d| d.get_temp(key));
                 ui.ctx().data_mut(|d| d.remove::<f64>(key));
+                if r.clicked() && held.is_none() {
+                    fire = true;
+                }
             }
             if fire {
                 // Decimal arithmetic: round to the shown places.
@@ -884,13 +918,14 @@ impl DecimalUpDown {
             }
         }
         // The text box, centred (`TextAlignment="Center"`, `Padding="8,0"`).
-        let text_rect = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 1.0), pos2(up.min.x, rect.max.y - 1.0));
+        let text_right = if spinner { up.min.x } else { rect.max.x - 1.0 };
+        let text_rect = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 1.0), pos2(text_right, rect.max.y - 1.0));
         let buf_id = id.with("text");
         let focused = ui.ctx().memory(|m| m.has_focus(buf_id));
         let mut text = if focused {
-            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| self.format(*value))
+            ui.ctx().data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| format(*value))
         } else {
-            self.format(*value)
+            format(*value)
         };
         let font = TextBox::font();
         let lh = line_height(ui, &font);
@@ -1157,4 +1192,99 @@ pub fn text_centered_at(ui: &Ui, x: f32, y: f32, text: &str, font: FontId, color
     let w = text_width(ui, text, font.clone());
     let g = galley(ui, text, font, color, f32::INFINITY);
     ui.painter().galley(pos2(x - (w / 2.0).round_ties_even(), y), g, color);
+}
+
+/// A `ListBoxItem`'s background (Fluent's template, ShareX's selection):
+/// selected, `ShareX.Brush.Accent` with `ShareX.BoxShadow.Accent.Outline`
+/// (ShareX's `ListBox:not(.neutral-selection) > ListBoxItem:selected`
+/// styles beat the theme's selected pointer-over and pressed fills);
+/// otherwise `SystemControlHighlightListLowBrush` under the pointer and
+/// `ListMediumBrush` pressed. `radius` is the item's `CornerRadius`.
+pub fn list_item_background(painter: &egui::Painter, rect: Rect, radius: f32, hovered: bool, pressed: bool, selected: bool) {
+    let ctx = painter.ctx();
+    let (p, f) = (palette(ctx), fluent(ctx));
+    if selected {
+        let parts = [
+            Part::Border { rect, radius, thickness: 0.0, background: Some(Brush::accent(ctx)), border: None },
+            Part::InsetShadow { rect, radius, spread: 1.0, color: p.accent_border },
+        ];
+        border::paint(painter, &parts, 1.0);
+    } else if pressed || hovered {
+        let fill = if pressed { f.list_medium } else { f.list_low };
+        border::border(painter, rect, radius, 0.0, Some(Brush::Solid(fill)), None);
+    }
+}
+
+/// `ProgressBar` with `IsIndeterminate="True"` (Fluent's template): the
+/// `SystemControlHighlightAccentBrush` indicators sliding across a
+/// transparent track (`ProgressBarIndeterminateBackground`), clipped to
+/// `rect`. `t` is seconds since the bar appeared; Fluent's animation runs
+/// two indicators over a 2 s cycle.
+pub fn indeterminate_progress(painter: &egui::Painter, rect: Rect, t: f64) {
+    let p = palette(painter.ctx());
+    let w = rect.width();
+    let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+    let phase = (t % 2.0) as f32 / 2.0;
+    // `IndeterminateProgressBarIndicator`: 40% of the width from -40% to
+    // 100%; the second (60%) follows from -60% to 160%, offset half a cycle.
+    let first = (-0.4 + 1.4 * (phase / 0.75).min(1.0)) * w;
+    let second = (-1.5 + 2.6 * ((phase - 0.25).max(0.0) / 0.75).min(1.0)) * w;
+    for (x, len) in [(first, 0.4 * w), (second, 0.6 * w)] {
+        let r = Rect::from_min_size(pos2(rect.min.x + x, rect.min.y), vec2(len, rect.height()));
+        border::border(&clip, r, 3.0, 0.0, Some(Brush::Solid(p.accent_start)), None);
+    }
+}
+
+/// Avalonia's `ColorPicker` closed (its Fluent `ControlTheme`): a 64x32
+/// `DropDownButton` (Fluent's button colours, 3px corners, `Padding="0,0,10,0"`)
+/// with the colour over `ColorControlCheckeredBackgroundBrush` in its first
+/// column (`Margin="1,1,0,1"`, left corners only) and the 12px drop-down
+/// glyph 10px from the right. Returns the response (a click opens the flyout).
+pub struct ColorPickerButton {
+    pub enabled: bool,
+}
+
+impl ColorPickerButton {
+    pub const SIZE: Vec2 = vec2(64.0, 32.0);
+
+    pub fn show(&self, ui: &Ui, rect: Rect, id: Id, color: Color32) -> Response {
+        let f = fluent(ui.ctx());
+        let r = interact(ui, rect, id, self.enabled);
+        let (over, pressed) = states(&r, self.enabled);
+        // `ButtonBackground*`: base low, base high at 10% under the
+        // pointer, base medium low pressed; a transparent border.
+        let fill = if pressed {
+            f.base_medium_low
+        } else if over {
+            f.base_high.gamma_multiply(0.1)
+        } else {
+            f.base_low
+        };
+        let painter = ui.painter();
+        border::border(painter, rect, 3.0, 1.0, Some(Brush::Solid(fill)), None);
+        // The glyph column: 12 wide + 10 margin; the presenter's 10px padding.
+        let content = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 1.0), pos2(rect.max.x - 1.0 - 22.0 - 10.0, rect.max.y - 1.0));
+        let swatch = Rect::from_min_max(pos2(content.min.x + 1.0, content.min.y + 1.0), pos2(content.max.x, content.max.y - 1.0));
+        let left_radius = CornerRadius { nw: 3, sw: 3, ..Default::default() };
+        // The checkerboard (4px squares of `ColorControlCheckered…`) shows
+        // only through a translucent colour.
+        if color.a() < 255 {
+            let board = Brush::Checkered { colors: [Color32::WHITE, Color32::from_rgb(0xD3, 0xD3, 0xD3)], cell: 4.0 };
+            border::border(painter, swatch, 0.0, 0.0, Some(board), None);
+        }
+        painter.rect_filled(swatch, left_radius, color);
+        let glyph = Rect::from_min_size(pos2(rect.max.x - 1.0 - 10.0 - 12.0, rect.center().y - 6.0), Vec2::splat(12.0));
+        let glyph_color = if !self.enabled {
+            f.base_medium_low
+        } else if over {
+            f.base_high
+        } else {
+            f.base_medium_high
+        };
+        paint_chevron_down(ui, glyph, glyph_color);
+        if focus::visible(ui.ctx(), id) {
+            focus::paint_adorner(painter, rect);
+        }
+        r
+    }
 }

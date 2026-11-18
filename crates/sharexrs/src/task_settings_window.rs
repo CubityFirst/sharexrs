@@ -48,6 +48,8 @@ pub enum Effect {
     /// The watch folders changed (`WatchFolderManager.AddWatchFolder`,
     /// `UpdateWatchFolderState`, `RemoveWatchFolder`).
     WatchFoldersChanged,
+    /// Image effects configuration... (`TaskHelpers.OpenImageEffectsSingleton`).
+    ImageEffects,
 }
 
 /// A page: `SettingsNavigationItem` (id, title, icon) and its parent.
@@ -1091,7 +1093,7 @@ fn page_effects(f: &mut Form) {
         chk!(f, s::TaskSettingsWindow_OnlyApplyEffectsToRegionCapture(), ImageSettings.ImageEffectOnlyRegionCapture);
         chk!(f, s::TaskSettingsWindow_UseRandomImageEffect(), ImageSettings.UseRandomImageEffect);
         if f.button(s::TaskSettingsWindow_ImageEffectsConfigurationWithEllipsis(), true) {
-            f.effect(Effect::NotPorted("image effects"));
+            f.effect(Effect::ImageEffects);
         }
         f.hint(s::TaskSettingsWindow_YouCanEnableOrDisableImageEffectsFromAfterCaptureTasksAddImageEffects());
     });

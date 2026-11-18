@@ -114,6 +114,12 @@ impl ViewSettings {
 pub enum TaskCommand {
     /// `UploadInfoManager.OCRImage`.
     OcrImage,
+    /// `UploadInfoManager.ResizeImages`: the image resizer on the selected images.
+    ResizeImages,
+    /// `UploadInfoManager.AddImageEffects`: the Image effects window on the file.
+    AddImageEffects,
+    /// `UploadInfoManager.CombineImages(orientation)`: true for horizontally.
+    CombineImages(bool),
     OpenFile,
     OpenFolder,
     CopyFile,
@@ -1413,11 +1419,11 @@ impl TaskView {
             item(s::MainWindow_EditImage(), icon::ImageEditor, np("Edit image"), ok && sel.is_image_file).gesture("Ctrl+E"),
             item(s::MainWindow_EditImageInPhotoEditor(), icon::Layers, np("Photo editor"), ok && images > 0),
             item(s::MainWindow_EditImageInPixelEditor(), icon::PixelEditor, np("Pixel editor"), ok && images > 0),
-            item(s::MainWindow_ResizeImage(), icon::Resize, np("Image resizer"), ok && images > 0),
+            item(s::MainWindow_ResizeImage(), icon::Resize, TaskCommand::ResizeImages, ok && images > 0),
             item(s::MainWindow_TrimVideo(), icon::Scissors, np("Video trimmer"), ok && sel.is_video_file),
             item(s::MainWindow_TrimAnimatedGif(), icon::Scissors, np("GIF trimmer"), ok && is_gif),
             item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, np("Image beautifier"), ok && sel.is_image_file),
-            item(s::MainWindow_AddImageEffects(), icon::MagicWand, np("Image effects"), ok && sel.is_image_file),
+            item(s::MainWindow_AddImageEffects(), icon::MagicWand, TaskCommand::AddImageEffects, ok && sel.is_image_file),
             item(s::MainWindow_PinToScreen(), icon::Pin, np("Pin to screen"), ok && sel.is_image_file).gesture("Ctrl+P"),
             sub(s::MainWindow_RunAction(), icon::Play, self.actions_menu(&path), ok && sel.is_file_exist && self.has_external_actions(&path)),
             item(s::MainWindow_DeleteSelectedItem(), icon::Trash, TaskCommand::RemoveSelected, ok).gesture("Delete"),
@@ -1446,8 +1452,8 @@ impl TaskView {
                 s::MainWindow_CombineImagesDialog(),
                 icon::Combine,
                 vec![
-                    MenuEntry::item(s::MainWindow_Horizontally(), icon::Columns, np("Combine images")),
-                    MenuEntry::item(s::MainWindow_Vertically(), icon::Rows, np("Combine images")),
+                    MenuEntry::item(s::MainWindow_Horizontally(), icon::Columns, TaskCommand::CombineImages(true)),
+                    MenuEntry::item(s::MainWindow_Vertically(), icon::Rows, TaskCommand::CombineImages(false)),
                 ],
                 ok && images > 1,
             ),

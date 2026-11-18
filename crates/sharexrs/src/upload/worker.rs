@@ -271,7 +271,7 @@ impl<'a> Worker<'a> {
         match self.source.take() {
             Some(Source::Image(image)) if self.job == TaskJob::Job => {
                 // `DoAfterCaptureJobs` (ported in `capture_job`).
-                match image.run(self.ctx.owner) {
+                match image.run(self.ctx.owner, Some(&*self.ctx.ui)) {
                     Ok(outcome) => {
                         if let Some(name) = outcome.file_name {
                             self.file_name = name;
