@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs ShareX's real update check code (GitHubUpdateChecker, FileDownloader,
+    System.Version / Helpers.CompareVersion from ShareX.HelpersLib.dll in the
+    reference build) against the local mock server. Build it outside the repo:
+      dotnet build tools/update-harness/dotnet -o G:/scripts/sharexrs-ref/update-harness/bin
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>22.4.0</Version>
+    <AssemblyVersion>22.4.0.0</AssemblyVersion>
+    <FileVersion>22.4.0.0</FileVersion>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

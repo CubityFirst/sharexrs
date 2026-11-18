@@ -792,11 +792,23 @@ pub struct RequestOptions {
     pub progress: Option<ProgressCallback>,
     /// Read the response body (`readResponseText`).
     pub read_body: bool,
+    /// Sent through `HttpClientFactory`'s shared client, whose default
+    /// headers add `Cache-Control: no-cache`. `false` for code that makes a
+    /// plain `new HttpClient()` (no default headers; ShareXrs still sends
+    /// its user agent).
+    pub factory_client: bool,
 }
 
 impl Default for RequestOptions {
     fn default() -> Self {
-        Self { allow_auto_redirect: true, timeout: None, cancel: CancellationToken::new(), progress: None, read_body: true }
+        Self {
+            allow_auto_redirect: true,
+            timeout: None,
+            cancel: CancellationToken::new(),
+            progress: None,
+            read_body: true,
+            factory_client: true,
+        }
     }
 }
 
@@ -804,12 +816,18 @@ impl Default for RequestOptions {
 /// headers, then `HttpClient`'s defaults it doesn't override (user agent,
 /// `Cache-Control: no-cache`), then the content headers.
 pub fn wire_headers(request: &HttpRequest) -> Vec<(String, String)> {
+    wire_headers_for(request, true)
+}
+
+/// [`wire_headers`], for a request sent through `HttpClientFactory`'s
+/// client (`factory_client`) or a plain `HttpClient` (no `Cache-Control`).
+pub fn wire_headers_for(request: &HttpRequest, factory_client: bool) -> Vec<(String, String)> {
     let user_agent = SETTINGS.read().expect("http settings").user_agent.clone();
     let mut out: Vec<(String, String)> = request.headers.clone();
     if !out.iter().any(|(k, _)| k.eq_ignore_ascii_case("User-Agent")) {
         out.push(("User-Agent".into(), user_agent));
     }
-    if !out.iter().any(|(k, _)| k.eq_ignore_ascii_case("Cache-Control")) {
+    if factory_client && !out.iter().any(|(k, _)| k.eq_ignore_ascii_case("Cache-Control")) {
         out.push(("Cache-Control".into(), "no-cache".into()));
     }
     match &request.content {
@@ -862,6 +880,71 @@ pub fn send(request: HttpRequest, options: RequestOptions) -> Result<ResponseInf
 }
 
 fn send_blocking(request: HttpRequest, options: RequestOptions) -> Result<ResponseInfo, HttpError> {
+    let (mut info, mut response) = start(&request, &options)?;
+    if options.read_body {
+        let mut data = Vec::new();
+        let mut reader = response.body_mut().as_reader();
+        let mut buf = [0u8; 16384];
+        let started = Instant::now();
+        loop {
+            if options.cancel.is_cancelled() {
+                return Err(HttpError::Cancelled);
+            }
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => data.extend_from_slice(&buf[..n]),
+                Err(e) => return Err(map_io_error(e, &options, started)),
+            }
+        }
+        let text = decode_text(&data, info.header("Content-Type"));
+        info.response_data = Some(data);
+        info.response_text = Some(text);
+    }
+    Ok(info)
+}
+
+/// Sends a request on the calling thread and hands its response's status,
+/// headers and body stream to `read` (`HttpClient.SendAsync` with
+/// `ResponseHeadersRead`, then `ReadAsStreamAsync`), for downloads that
+/// write the body as it arrives. The body stops with an error once
+/// `options.cancel` is cancelled.
+pub fn send_streaming<T>(
+    request: HttpRequest,
+    options: RequestOptions,
+    read: impl FnOnce(&ResponseInfo, &mut dyn Read) -> Result<T, HttpError>,
+) -> Result<T, HttpError> {
+    if options.cancel.is_cancelled() {
+        return Err(HttpError::Cancelled);
+    }
+    let (info, mut response) = start(&request, &options)?;
+    let mut body = response.body_mut().as_reader();
+    let mut reader = CancelReader { inner: &mut body, options: &options, started: Instant::now() };
+    read(&info, &mut reader)
+}
+
+/// A response body that stops once its request is cancelled, with errors
+/// worded as [`HttpError`]'s.
+struct CancelReader<'a, R: Read> {
+    inner: &'a mut R,
+    options: &'a RequestOptions,
+    started: Instant,
+}
+
+impl<R: Read> Read for CancelReader<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.options.cancel.is_cancelled() {
+            return Err(io::Error::other(HttpError::Cancelled.to_string()));
+        }
+        self.inner.read(buf).map_err(|e| io::Error::other(map_io_error(e, self.options, self.started).to_string()))
+    }
+}
+
+/// Sends `request` and reads the response's status and headers, leaving
+/// its body unread.
+fn start(
+    request: &HttpRequest,
+    options: &RequestOptions,
+) -> Result<(ResponseInfo, ureq::http::Response<ureq::Body>), HttpError> {
     let absolute = dotnet_absolute_uri(&request.url).map_err(HttpError::Failed)?;
     let rewriter = SETTINGS.read().expect("http settings").rewriter.clone();
     let target = match &rewriter {
@@ -870,7 +953,7 @@ fn send_blocking(request: HttpRequest, options: RequestOptions) -> Result<Respon
     };
     let method = ureq::http::Method::from_bytes(request.method.name().as_bytes()).map_err(|e| HttpError::Failed(e.to_string()))?;
     let mut builder = ureq::http::Request::builder().method(method).uri(target.as_str());
-    for (name, value) in wire_headers(&request) {
+    for (name, value) in wire_headers_for(request, options.factory_client) {
         let value = ureq::http::HeaderValue::from_maybe_shared(value.into_bytes())
             .map_err(|_| HttpError::Failed(format!("The format of value for header '{name}' is invalid.")))?;
         builder = builder.header(name.as_str(), value);
@@ -896,7 +979,7 @@ fn send_blocking(request: HttpRequest, options: RequestOptions) -> Result<Respon
             agent.run(req.build())
         }
     };
-    let mut response = send_result.map_err(|e| map_error(e, &options, started))?;
+    let response = send_result.map_err(|e| map_error(e, options, started))?;
     let status = response.status();
     let final_uri = {
         use ureq::ResponseExt;
@@ -926,34 +1009,15 @@ fn send_blocking(request: HttpRequest, options: RequestOptions) -> Result<Respon
         }
     }
     headers.extend(content_headers);
-    let (data, text) = if options.read_body {
-        let mut data = Vec::new();
-        let mut reader = response.body_mut().as_reader();
-        let mut buf = [0u8; 16384];
-        loop {
-            if options.cancel.is_cancelled() {
-                return Err(HttpError::Cancelled);
-            }
-            match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => data.extend_from_slice(&buf[..n]),
-                Err(e) => return Err(map_io_error(e, &options, started)),
-            }
-        }
-        let content_type = headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("Content-Type")).map(|(_, v)| v.as_str());
-        let text = decode_text(&data, content_type);
-        (Some(data), Some(text))
-    } else {
-        (None, None)
-    };
-    Ok(ResponseInfo {
+    let info = ResponseInfo {
         status_code: status.as_u16(),
         status_description: status.canonical_reason().unwrap_or("").to_owned(),
         response_url: Some(final_uri.unwrap_or_else(|| request.url.clone())),
         headers,
-        response_text: text,
-        response_data: data,
-    })
+        response_text: None,
+        response_data: None,
+    };
+    Ok((info, response))
 }
 
 fn timeout_message(options: &RequestOptions) -> String {

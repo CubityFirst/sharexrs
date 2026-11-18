@@ -22,6 +22,7 @@ pub mod qr_code;
 pub mod render;
 pub mod response;
 pub mod text_upload;
+pub mod update;
 pub mod url_input;
 
 use std::path::PathBuf;
@@ -120,6 +121,18 @@ pub enum Effect {
     AskText(String, std::sync::mpsc::Sender<Option<String>>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// `UpdateChecker.DownloadUpdateAsync` after Yes: the browser
+    /// (portable) or the downloader window.
+    UpdateDownload(Box<sharex_update::GitHubUpdateChecker>, update::UpdateOrigin),
+    /// The update message, and the download it started, are done
+    /// (`StartAsync` returns): the manager hears the answer, and ShareXrs
+    /// exits when the installer (or the replaced program) takes over.
+    UpdateFinished { result: sharex_update::DialogResult, origin: update::UpdateOrigin, shutdown: bool },
+    /// `DownloaderWindow.Install`'s question about an unsigned installer.
+    AskInvalidSignature,
+    /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
+    /// flashing in the taskbar (`FlashWindowEx`).
+    MinimizeAndFlash,
 }
 
 /// `UploadManager`'s entry points a dialog starts.
@@ -182,6 +195,9 @@ pub trait Dialog {
 
     /// A confirmation the window asked for was answered Yes.
     fn confirmed(&mut self) {}
+
+    /// A Yes/No question the window asked (`AskInvalidSignature`) was answered.
+    fn answered(&mut self, _yes: bool) {}
 
     /// `ResponseWindow.ShowInstance` on the open response window.
     fn show_response(&mut self, _data: response::ResponseData) {}
@@ -403,6 +419,23 @@ impl App {
                     self.open_dialog_window(event_loop, Box::new(w));
                 }
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::UpdateDownload(checker, origin) => self.download_update(event_loop, *checker, origin),
+                Effect::UpdateFinished { result, origin, shutdown } => self.update_finished(event_loop, result, origin, shutdown),
+                Effect::AskInvalidSignature => {
+                    let (text, caption) = sharex_update::DownloaderWindow::signature_question();
+                    let mut message = crate::message_box::MessageBox::yes_no(caption, text, crate::message_box::MessageBoxIcon::Warning);
+                    // `MessageBoxDefaultButton.Button2`.
+                    message.default_button = 1;
+                    if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::UpdateSignature) {
+                        eprintln!("couldn't open the message box: {e}");
+                    }
+                }
+                Effect::MinimizeAndFlash => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_minimized(true);
+                        d.window.window.request_user_attention(Some(winit::window::UserAttentionType::Informational));
+                    }
+                }
             }
         }
     }

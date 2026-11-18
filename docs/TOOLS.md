@@ -33,6 +33,7 @@ ported, and what each window will need.
 | `video::gif_maker` | `AnimatedGifMakerService` | `create`, `create_bytes`, `create_preview_frames` |
 | `video::gif_trimmer` | `GifLosslessTrimmer`, `AnimatedGifTrimmerDocument` timing | `GifLosslessTrimmer`, `frame_at`, `nearest_boundary` |
 | `monitor_test` | `MonitorTestPatternControl`, `MonitorTestViewModel` | `MonitorTest::render`, `advance_motion` |
+| `analyze_image` | `AIOptions`, `AIProviderFactory`, `OpenAIProvider` (Responses API), `OpenAILegacyProvider` (chat completions), `GeminiProvider`, `OpenRouterProvider`, `AnalyzeImageService`, `AnalyzeImageViewModel`'s prompts and result text, `AnalyzeImageOptionsViewModel`'s lists | `AIOptions::from_json/to_json`, `build_analyze_request`, `parse_analyze_response`, `analyze`, `test_connection`, `load_models`, `result_text` |
 | `dotnet`, `text`, `options` | `Array.Sort` introsort, `PriorityQueue`, `System.IO.Path`; `string.Format`/number and date formats; Newtonsoft's lenient settings reading | |
 
 Shared with other crates: `sharex-skia` (the canvas, Catmull-Rom/Mitchell
@@ -80,6 +81,7 @@ tolerance.
 | Video trimmer arguments | 16 | 16 | 0 | 0 | 0 | 0 |
 | Video thumbnailer | 4 | 1 | 1 | 2 | 0 | 0 |
 | Monitor test | 33 | 0 | 33 | 0 | 0 | 0 |
+| Analyze image (requests and answers) | 141 | 107 | 34 | 0 | 0 | 0 |
 
 What the cases cover, per tool:
 
@@ -125,6 +127,31 @@ What the cases cover, per tool:
 - **Monitor test**: gray levels incl. out of range, RGB, eight gradients, the
   three patterns at four sizes, moving bars at four offsets both ways,
   rendered by ShareX's own control through Avalonia.Headless.
+- **Analyze image** (`run_analyze.sh`: the harness's `--analyze` mode runs
+  ShareX's `AnalyzeImageService`, `tools_analyze_harness` ShareXrs's, both
+  against `tools/uploaders-harness/mock_server.py`; the request, every
+  header but the user agent and the body byte for byte, and the answer
+  read): all four providers with a PNG file, a JPEG file and image bytes
+  (opaque and with alpha), empty and undecodable bytes; prompts with
+  quotes, HTML characters, backslashes, non-ASCII, an emoji, line and
+  paragraph separators, empty and null; OpenAI's reasoning effort rules
+  (`gpt-5.` models, `minimal` → `none`, defaults), verbosity, null models,
+  custom URLs (with and without `/v1/responses`, trailing slash, blank),
+  keys with URL characters and null keys; answers that are well formed,
+  empty, null, of the wrong type, malformed, BOM-prefixed, with dates
+  Newtonsoft rewrites, and HTTP errors; test connection (each provider,
+  long bodies cut at 200 characters, missing keys, an unknown provider, a
+  status without a reason phrase) and the model list (sorting, blank ids,
+  missing members, wrong types, errors). "Pixel-exact" there means the
+  Gemini/OpenRouter PNG of image bytes: Skia's zlib stream isn't ported,
+  the pixels are the same. JSON readers' exception texts
+  (`System.Text.Json`, Newtonsoft) aren't copied: ShareXrs fails on the same
+  answers in its own words. The .NET side rewrites every `HttpClient`'s
+  requests to the mock through `HttpHandlerDiagnosticListener` (Gemini and
+  OpenRouter make a plain `new HttpClient()` that a factory swap can't
+  reach), after checking that both kinds of client reach it. CI replays
+  the recorded requests and answers (`tests/analyze_image.rs`, fixtures in
+  `tests/fixtures/analyze`).
 
 CI runs `crates/sharex-tools/tests/sharex.rs`: twelve checks against a small
 set of ShareX's outputs (`tests/fixtures`, made by the harness's
@@ -166,13 +193,15 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
   opens the image editor with its background panel (`AnnotateImageModern(...,
   openBackgroundPanel: true)`), so it belongs to the image editor port
   (docs/IMAGE-EDITOR.md).
-- **Analyze image**: four AI providers (`OpenAIProvider` (Responses API),
-  `OpenAILegacyProvider` (chat completions), `GeminiProvider`,
-  `OpenRouterProvider`) build JSON requests with the image as a data URI, plus
-  `TestConnectionAsync`/`LoadModelsAsync` (`v1/models`) and `AIOptions` (in
-  `TaskSettingsTools.AIOptions`). Portable on `sharex-uploaders`' HTTP layer
-  and checkable by capturing ShareX's requests (Harmony on `HttpClient`)
-  without network; not done yet.
+- **Analyze image** differs from ShareX on purpose in two ways. ShareX's
+  OpenAI providers set `Authorization` on `HttpClientFactory`'s shared
+  client, so every later request through it (other tools, uploads, Gemini's
+  model list) carries the OpenAI key to whatever host it goes to; ShareXrs
+  sets it on the request only (the harness's `leak_2_gemini_after_openai`
+  shows ShareX sending it to Google). And Gemini's and OpenRouter's
+  requests carry ShareXrs's user agent, where ShareX's plain `HttpClient`
+  sends none. ureq doesn't give the server's reason phrase, so a test
+  connection message shows the standard one for a non-standard phrase.
 - **Animated GIF trimmer re-encode** (crop/resize, or a cut whose first frame
   depends on earlier ones): decodes frames with Skia's animated GIF codec and
   writes them with `AnimatedGifCreator` (ported). Needs a Skia-equivalent frame
@@ -213,4 +242,5 @@ version counter so stale previews are dropped (ShareX's `_previewVersion`).
 | Video converter | `VideoConverterWindow` 850×550, 700 | input/output pickers (output name `<input>-output`), codec list (`display_name`), CRF/bitrate controls per codec (`can_choose_rate_control`, `quality_range`), progress from `FFmpegCliManager`'s encode progress, Stop, the output info line (`output_info` over `probe_arguments`), auto open folder; settings `TaskSettingsTools.VideoConverterOptions`, FFmpeg path from the capture settings (`CheckFFmpeg`) |
 | Video thumbnailer | `VideoThumbnailerWindow` 900×650, 760 | video picker, the `VideoThumbnailOptions` form, progress (`take_thumbnails`' callback), result list; uploads each output when `UploadThumbnails` (TaskHelpers) |
 | Video trimmer | `VideoTrimmerWindow` 900×720, 760 | Media Foundation preview and timeline (`VideoTrimmerTimeline`); on other platforms an FFmpeg-decoded preview; start/end and Set start/end, Copy vs Re-encode (`build_trim_arguments`), save dialog with the forced extension (`validate`), progress (`trim`) |
+| Analyze image | `AnalyzeImageWindow` 1000×650, 820×560; `AnalyzeImageOptionsWindow` 650×590 | image from a file, the region capture (`AutoStartRegion`, PNG bytes) or a task's file; prompt box with `preset_prompts`, Analyze (`CanAnalyze`: an image, `has_api_key`, not busy; "Configure API key" otherwise) running `analyze` off the UI thread with the elapsed time (`AnalyzeImageViewModel_Time_ms`), the result (`result_text`), Copy (and `AutoCopyResult`), the notification sound; options window: provider, keys (`[JsonEncrypt]`), models with Load models (`load_models`), custom URL, reasoning effort and verbosity lists, Test connection (`test_connection`), the API key page link (`api_key_page`); settings `TaskSettingsTools.AIOptions` (`AIOptions::from_json/to_json`) |
 | Monitor test | `MonitorTestWindow`: borderless, topmost, not in the taskbar, sized to the screen under the cursor; a 720-wide controls panel | mode buttons, per-mode controls (gray, RGB with hex text and a 320×320 colour view, gradient colours and direction, pattern and size, motion direction and speed 100–2000 px/s, wheel ±50), the pattern drawn by `MonitorTest::render` each frame with `advance_motion`; left click or Space toggles the controls, right click or Esc closes, Left/Right change mode |

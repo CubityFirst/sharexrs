@@ -65,17 +65,19 @@ pub struct MessageBox {
     /// `OptionCheckBox`'s text, if shown, and whether it's ticked.
     pub check_box: Option<String>,
     pub checked: bool,
+    /// `MessageBoxDefaultButton`: the index of the default button (`active`, Enter).
+    pub default_button: usize,
 }
 
 impl MessageBox {
     /// `MessageBox.Show(text, caption, MessageBoxButtons.OK, icon)`.
     pub fn ok(caption: impl Into<String>, text: impl Into<String>, icon: MessageBoxIcon) -> Self {
-        Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::Ok, check_box: None, checked: false }
+        Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::Ok, check_box: None, checked: false, default_button: 0 }
     }
 
     /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNo, icon)`.
     pub fn yes_no(caption: impl Into<String>, text: impl Into<String>, icon: MessageBoxIcon) -> Self {
-        Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::YesNo, check_box: None, checked: false }
+        Self { caption: caption.into(), text: text.into(), icon, buttons: MessageBoxButtons::YesNo, check_box: None, checked: false, default_button: 0 }
     }
 
     /// `MessageBox.Show(text, caption, MessageBoxButtons.YesNo, checkBoxText, out checked)`
@@ -88,6 +90,7 @@ impl MessageBox {
             buttons: MessageBoxButtons::YesNo,
             check_box: Some(check_box.into()),
             checked: false,
+            default_button: 0,
         }
     }
 
@@ -178,11 +181,13 @@ impl MessageBox {
         ui.painter().rect_filled(footer, 0.0, p.background_toolbar);
         ui.painter().rect_filled(Rect::from_min_size(footer.min, vec2(footer.width(), 1.0)), 0.0, p.border);
 
-        // The buttons, right aligned 8px apart; the first is the default
-        // (`Classes="active"`, Enter). Escape answers `GetCancelResult`.
+        // The buttons, right aligned 8px apart; the default one
+        // (`defaultButtonIndex`, the first unless asked) is `Classes="active"`
+        // and answers Enter. Escape answers `GetCancelResult`.
         let label_font = egui::FontId::new(13.0, sharex_ui::fonts::inter(400));
         let line = ui.fonts_mut(|f| f.row_height(&label_font));
         let defs = self.button_definitions();
+        let default = self.default_button.min(defs.len() - 1);
         let widths: Vec<f32> = defs
             .iter()
             .map(|(_, label)| BUTTON_MIN_WIDTH.max(widgets::text_width(ui, label, label_font.clone()) + 2.0 * (10.0 + 1.0)))
@@ -193,7 +198,7 @@ impl MessageBox {
         for (i, ((r, label), width)) in defs.iter().zip(&widths).enumerate() {
             let button = Rect::from_min_size(pos2(x, footer_top + 1.0 + FOOTER_PADDING.1), vec2(*width, BUTTON_HEIGHT));
             let response = ui.interact(button, ui.id().with(("message-box-button", i)), Sense::click());
-            let text_color = if i == 0 {
+            let text_color = if i == default {
                 paint_accent_gradient(ui, button, CornerRadius::same(4));
                 p.accent_foreground
             } else {
@@ -247,7 +252,7 @@ impl MessageBox {
         let (enter, escape, space) =
             ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Space)));
         if enter || (space && self.buttons == MessageBoxButtons::Ok) {
-            result = result.or(Some(defs[0].0));
+            result = result.or(Some(defs[default].0));
         }
         if escape && self.cancel_result() != DialogResult::None {
             result = result.or(Some(self.cancel_result()));

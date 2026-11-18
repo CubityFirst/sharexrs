@@ -89,3 +89,29 @@ ShareX (`System.Globalization.UseNls`, as ShareX.runtimeconfig.json sets).
 ...parameters }`, with input file names relative to `inputs/`. Each tool's
 parameter sets cover its options; docs/TOOLS.md lists what they cover per
 tool.
+
+## Analyze image (`--analyze`)
+
+`AnalyzeCases.cs` runs ShareX's `AnalyzeImageService` (the four AI
+providers, test connection, the model list) over `analyze_cases.json`
+(`make_analyze_cases.py`: made-up keys and canned answers) against the
+uploaders harness's mock server, and `tools_analyze_harness` does the same
+with ShareXrs and compares:
+
+```
+tools/tools-harness/run_analyze.sh            # port 18767
+```
+
+Nothing reaches a real provider: every `HttpClient` request in the .NET
+process (the providers' `HttpClientFactory` client and the plain `new
+HttpClient()` Gemini and OpenRouter make) is rewritten to
+`http://127.0.0.1:<port>/__/<scheme>/<host><path>` from .NET's
+`HttpHandlerDiagnosticListener`, with trace headers off, and the run stops
+before the first case unless a request from each kind of client to
+127.0.0.2 reached the mock. ShareXrs rewrites with `http::set_url_rewriter`.
+The images sent are written by the .NET side into
+`<work>/analyze-inputs` with ShareX's encoders. Results and `report.md`
+land in `target/tools-harness-analyze/`; the crate's
+`tests/analyze_image.rs` replays them (copy `analyze_cases.json`,
+`results-sharex.json` (gzipped) and the inputs into
+`crates/sharex-tools/tests/fixtures/analyze` after a run).

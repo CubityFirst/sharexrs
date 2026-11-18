@@ -1332,6 +1332,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97b65636e5b9ef369943878ac74335ba1c55c1cb6adbf1e2c293c624248d693"
 
 [[package]]
+name = "filetime"
+version = "0.2.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1255e7a9f1902190d4c10a75f2f7f495d3d3ce13e9ba26e6c48683a0f4dbed7"
+dependencies = [
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4175,6 +4185,7 @@ dependencies = [
 name = "sharex-tools"
 version = "22.4.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "flate2",
  "image",
@@ -4193,6 +4204,7 @@ dependencies = [
  "sharex-settings",
  "sharex-skia",
  "sharex-strings",
+ "sharex-uploaders",
  "tiny-skia",
  "windows-sys 0.61.2",
 ]
@@ -4208,6 +4220,24 @@ dependencies = [
  "include_dir",
  "pollster 1.0.1",
  "resvg",
+]
+
+[[package]]
+name = "sharex-update"
+version = "22.4.0"
+dependencies = [
+ "chrono",
+ "flate2",
+ "hex",
+ "serde_json",
+ "sha2",
+ "sharex-helpers",
+ "sharex-settings",
+ "sharex-strings",
+ "sharex-uploaders",
+ "tar",
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4269,6 +4299,7 @@ dependencies = [
  "sharex-settings",
  "sharex-strings",
  "sharex-ui",
+ "sharex-update",
  "sharex-uploaders",
  "windows",
  "windows-sys 0.61.2",
@@ -4576,6 +4607,16 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "tar"
+version = "0.4.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
+dependencies = [
+ "filetime",
+ "libc",
+]
 
 [[package]]
 name = "target-lexicon"

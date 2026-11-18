@@ -4,6 +4,7 @@
 // with it (examples/tools_validate.rs).
 //
 //   ToolsHarness <cases.json> <work dir> [case prefix]
+//   ToolsHarness --analyze <analyze_cases.json> <results.json> <port> <work dir>  (AnalyzeCases.cs)
 //
 // Writes, under <work dir>:
 //   inputs/   the generated test inputs (Inputs.cs; folders, videos too)
@@ -28,6 +29,8 @@ static partial class Program
 
     static int Main(string[] args)
     {
+        // Analyze image's providers against the mock server (AnalyzeCases.cs).
+        if (args.Length == 5 && args[0] == "--analyze") return AnalyzeCases.Run(args[1..]);
         if (args.Length < 2)
         {
             Console.Error.WriteLine("usage: ToolsHarness <cases.json> <work dir> [case prefix]");

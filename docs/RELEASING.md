@@ -184,7 +184,7 @@ designated requirement.
   licence, from `cargo metadata`.
 
 The asset names keep ShareX's suffixes (`setup-x64.exe`, `portable-arm64.zip`, …), so
-ShareX's update checker logic will find them unchanged once it's ported.
+ShareX's update check logic finds them unchanged ("The update check" below).
 
 ### Where the app finds the pieces
 
@@ -202,6 +202,58 @@ on any host.
 
 On Linux, `current_exe()` resolves `/proc/self/exe`. The `/usr/bin/sharexrs` launcher
 runs `exec /usr/lib/sharexrs/sharexrs`, so "beside the exe" is `/usr/lib/sharexrs`.
+
+### The update check (`crates/sharex-update`)
+
+ShareXrs runs ShareX's update check (`ShareXUpdateManager`, `GitHubUpdateChecker`)
+against its own releases: the owner and repository come from Cargo.toml's
+`repository` (`CubityFirst/sharexrs`), never ShareX's. Requests carry ShareXrs's
+user agent and go through the proxy setting.
+
+- **When**: as ShareX does it. The check runs at startup and then every hour, while "Automatically check for
+  updates" is on and the `DisableUpdateCheck` policy is off (`SOFTWARE\ShareXrs`).
+  The Application settings window applies changes to these settings. A check is
+  skipped while an update message is open. No turns the check off for the rest of the
+  run, and a later message opens minimised and flashing.
+- **Which release**: `/releases/latest`; on the pre-release channel, the newest
+  `published_at` of `/releases`. The tag must start with `v`, and its version is read
+  as `System.Version`, with the revision ignored. Addition: a SemVer suffix
+  (`v22.5.0-beta.1`, which the release workflow tags as a pre-release) is split off
+  first. It only decides between versions whose numbers are equal: a release comes
+  after its pre-releases.
+- **Which file**, by the end of its name:
+
+  | This copy | Looks for | Then |
+  |---|---|---|
+  | Windows, portable | `portable-arm64.zip` (ARM64), `portable-x64.zip`, `portable.zip` | opens its browser download URL |
+  | Windows, installed | `setup-arm64.exe` (ARM64), `setup-x64.exe`, `setup.exe` | the downloader window downloads its API URL (`Accept: application/octet-stream`) to `%TEMP%\ShareXrs`. ShareX's Authenticode check follows: ShareXrs's installer isn't signed, so the user is asked, with No as the default. Then `/UPDATE /SILENT` runs, elevated when installed under Program Files by a non-administrator, and ShareXrs exits |
+  | macOS, `ShareXrs.app` (not translocated, not portable); addition | `macos-aarch64.app.zip` | downloaded and swapped as a whole app with `ditto`. The old app moves to the temporary folder, then the new one starts and this one exits (MACOS-LEARNINGS.md 1.6) |
+  | macOS, anything else (a translocated, portable or bare program); addition | `macos-aarch64.dmg` | opens its browser download URL |
+  | Linux, the .deb (`/usr/lib/sharexrs`); addition | `linux-x64.deb` | downloaded and opened with the desktop's package installer; ShareXrs keeps running |
+  | Linux, the tarball; addition | `linux-x64.tar.gz` | the tarball's own files replace those beside the program (a portable profile beside them stays). Then the new one starts and this one exits |
+
+- **Checks**: when the release has a `SHA256SUMS`, the download must match it. The
+  in-place updates (macOS app, Linux tarball) refuse to run without one. Leftovers of
+  an update (`*.old`, `*.unpacked`) are removed at the next start.
+- **Not ported**: ShareX's dev-build download (`DownloadDevBuild`, from the
+  `ShareX/DevBuilds` repository; ShareXrs has none), the About window (its update
+  panel's states are `sharex_update::message::AboutUpdate`), and the AppVeyor and
+  XML checkers. ShareX's tray has no update entry.
+- **Validation**: `tools/update-harness` runs ShareX's own `GitHubUpdateChecker`,
+  `FileDownloader` and `System.Version`, and ShareXrs, against the same mock GitHub
+  API. 72 cases are identical: up to date, newer, older, revisions, both channels, 40
+  releases with ties (`List.Sort`'s order), dev builds, every asset fallback, bad
+  tags, Newtonsoft's leniency, malformed JSON, HTTP errors, and downloads (bytes,
+  sizes, errors). The 2 differences are the SemVer additions. CI replays ShareX's
+  answers (`crates/sharex-update/tests/sharex.rs`) and runs the flows against an
+  in-process mock (`tests/update_check.rs`): progress, cancel (the partial file is
+  deleted), a checksum mismatch, the signature question, and the tarball and .deb
+  flows. It runs the app swap on macOS only.
+- **Windows**: `--render update-message` and `--render update-downloader` draw them;
+  they haven't been compared with ShareX's live windows yet.
+- **On purpose**: after a cancelled download, ShareX's `FileDownloader` still reports
+  success, and its window goes on to `Install()` (asking about the deleted file's
+  signature). ShareXrs stops.
 
 ### The Windows installer, compared with ShareX's
 
@@ -239,8 +291,6 @@ expects.
   1.3).
 - **`ShareX_File_Icon.ico`**: ShareXrs doesn't register `.sxcu` or `.sxie` yet.
 - **Languages folder**: the translations are compiled into the program.
-- **The update check**: not ported yet (see the PORTING.md tracker). The assets are
-  already named for it.
 
 ## 3. The bundled pieces, pinned
 

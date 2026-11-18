@@ -10,7 +10,12 @@
 //! - `drop-window` (on black, as `PrintWindow` gets it at its opacity),
 //! - `multi-upload` (`--count N`), `large-file`,
 //! - `before-upload`, `after-upload`, `qr-code` (see their modules),
-//! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...).
+//! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...),
+//! - `update-message` (`--content installed|portable|prerelease|dev`: the
+//!   setup flow, the portable one, a pre-release, a dev build without the
+//!   changelog link), `update-downloader` (`--content
+//!   waiting|getting-size|downloading|completed|error`), from
+//!   [`update_checker`]: ShareXrs 22.4.0.0 and a 22.5.0 release.
 
 use std::path::PathBuf;
 
@@ -182,6 +187,52 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.size = o.count as f64;
             Box::new(w)
         }
+        "update-message" => {
+            let checker = update_checker(o.content.as_deref().unwrap_or("installed"));
+            Box::new(super::update::UpdateMessageWindow::new(Box::new(checker), true, super::update::UpdateOrigin::User))
+        }
+        "update-downloader" => {
+            use sharex_update::downloader::DownloadProgress;
+            use sharex_update::downloader_window::{DownloaderWindowStatus, progress_text};
+            use sharex_strings::helpers_lib as hs;
+            let checker = update_checker("installed");
+            let mut d = super::update::DownloaderDialog::new(&checker, std::sync::Arc::new(crate::update::AppHost), super::update::UpdateOrigin::User);
+            let w = &mut d.window;
+            // Drawn as it is, never started.
+            w.auto_start_download = false;
+            let status = |t: &str| hs::DownloaderForm_ChangeStatus_Status___0_().replace("{0}", t);
+            let progress = DownloadProgress { file_size: 52_428_800, downloaded_size: 13_107_200, download_speed: 3_276_800.0 };
+            match o.content.as_deref().unwrap_or("downloading") {
+                "waiting" => {}
+                "getting-size" => {
+                    w.status = DownloaderWindowStatus::DownloadStarted;
+                    w.action_text = hs::DownloaderForm_StartDownload_Cancel().to_owned();
+                    w.status_text = status(hs::DownloaderForm_StartDownload_Getting_file_size_());
+                }
+                "downloading" => {
+                    w.status = DownloaderWindowStatus::DownloadStarted;
+                    w.action_text = hs::DownloaderForm_StartDownload_Cancel().to_owned();
+                    w.status_text = status(hs::DownloaderForm_StartDownload_Downloading_());
+                    w.progress_text = progress_text(&progress);
+                    w.progress_value = progress.percentage();
+                }
+                "completed" => {
+                    let done = DownloadProgress { downloaded_size: progress.file_size, ..progress };
+                    w.status = DownloaderWindowStatus::DownloadCompleted;
+                    w.action_text = hs::DownloaderForm_fileDownloader_DownloadCompleted_Install().to_owned();
+                    w.status_text = status(hs::DownloaderForm_fileDownloader_DownloadCompleted_Download_completed_());
+                    w.progress_text = progress_text(&done);
+                    w.progress_value = 100.0;
+                }
+                "error" => {
+                    w.status = DownloaderWindowStatus::DownloadStarted;
+                    w.action_text = hs::DownloaderForm_StartDownload_Cancel().to_owned();
+                    w.status_text = status("Response status code does not indicate success: 404 (Not Found).");
+                }
+                other => return Err(format!("no downloader state {other}")),
+            }
+            Box::new(d)
+        }
         page if page.starts_with("destination-") => {
             // `destination-<page id>`: Destination settings on that page.
             let id = page.trim_start_matches("destination-").trim_start_matches("settings-");
@@ -211,6 +262,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "qr-code"
             | "response"
             | "custom-uploader"
+            | "update-message"
+            | "update-downloader"
     ) || screen.starts_with("destination-")
 }
 
@@ -246,4 +299,23 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         }
     }
     Ok(image)
+}
+
+/// A finished check as the update windows' screens show it: ShareXrs
+/// 22.4.0.0, ShareXrs's 22.5.0 release with its setup asset.
+pub fn update_checker(kind: &str) -> sharex_update::GitHubUpdateChecker {
+    use sharex_update::checker::{InstallFlow, UpdateStatus};
+    use sharex_update::version::AppVersion;
+    let flow = if kind == "portable" { InstallFlow::WindowsPortable } else { InstallFlow::WindowsSetup };
+    let (owner, repo) = sharex_update::checker::repository();
+    let mut c = sharex_update::GitHubUpdateChecker::new(owner, repo, flow);
+    c.status = UpdateStatus::UpdateAvailable;
+    c.current_version = AppVersion::parse("22.4.0.0").ok();
+    c.latest_version = AppVersion::parse(if kind == "dev" { "22.4.0.1" } else { "22.5.0" }).ok();
+    c.is_dev = kind == "dev";
+    c.is_pre_release = kind == "prerelease";
+    let name = if kind == "portable" { "ShareXrs-22.5.0-portable-x64.zip" } else { "ShareXrs-22.5.0-setup-x64.exe" };
+    c.download_url = Some(format!("https://github.com/{owner}/{repo}/releases/download/v22.5.0/{name}"));
+    c.set_file_name(Some(name.to_owned()));
+    c
 }
