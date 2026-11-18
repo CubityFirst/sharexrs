@@ -291,6 +291,9 @@ pub struct RegionCapture {
     suppress_right_release: bool,
     last_left_press: Option<(Instant, PointF)>,
     toolbar: ToolbarState,
+    /// The toolbar's visible items (`SetHostToolbarItems` with
+    /// `RegionCaptureToolbar.CreateItems(options.ToolbarItems)`).
+    pub(crate) bar: Vec<toolbar::Item>,
     /// The toolbar part under the pointer.
     pub(crate) toolbar_hover: Option<toolbar::Part>,
     pub(crate) pointer_known: bool,
@@ -348,6 +351,7 @@ impl RegionCapture {
             screen_bounds,
             screens,
             windows: if options.DetectWindows { windows } else { Vec::new() },
+            bar: toolbar::items(&options.ToolbarItems),
             options,
             last_regions,
             enable_annotations,
@@ -954,7 +958,8 @@ impl RegionCapture {
         // `EditorView.OnKeyDown`: the editor's keys and the tools' hotkeys.
         let Some(k) = editor_key(key) else { return Outcome::Continue };
         let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
-        let r = e.key_down(k, editor_mods(m), &tool_hotkey);
+        let bar = self.bar.clone();
+        let r = e.key_down(k, editor_mods(m), &|k, m| tool_hotkey(&bar, k, m));
         if r.tool.is_some() {
             self.activate_annotation_tool();
         }
@@ -1327,9 +1332,17 @@ impl RegionCapture {
             toolbar::Part::RegionButton => self.activate_region_tool(),
             toolbar::Part::Tool(i) => {
                 // `SelectToolCommand`, then `ActivateAnnotationTool`.
-                if let (Some(e), Some(t)) = (self.editor.as_mut(), toolbar::TOOLS.get(i)) {
-                    e.select_tool(t.tool.clone());
-                    self.activate_annotation_tool();
+                match self.bar.get(i).map(|t| (t.def.tool.clone(), t.def.id)) {
+                    Some((Some(tool), _)) => {
+                        if let Some(e) = self.editor.as_mut() {
+                            e.select_tool(tool);
+                            self.activate_annotation_tool();
+                        }
+                    }
+                    // `HostToolbarItemRequested`: the ellipse and freehand
+                    // regions (`ActivateRegionShape`) aren't ported.
+                    Some((None, id)) => eprintln!("Region capture: the {id} region isn't ported yet"),
+                    None => {}
                 }
             }
             toolbar::Part::Option(item) => self.option_pressed(item),
@@ -1458,14 +1471,21 @@ fn editor_key(k: Key) -> Option<ed::Key> {
 
 /// `TrySelectToolForToolbarHotkey` over the capture toolbar's items
 /// (Avalonia's key names: `R`, `D1`, `NumPad1`).
-fn tool_hotkey(k: ed::Key, m: ed::Mods) -> Option<EditorTool> {
+fn tool_hotkey(bar: &[toolbar::Item], k: ed::Key, m: ed::Mods) -> Option<EditorTool> {
     let name = match k {
         ed::Key::Letter(c) => c.to_string(),
         ed::Key::Digit(d) => format!("D{d}"),
         ed::Key::NumPad(n) => format!("NumPad{n}"),
         _ => return None,
     };
-    toolbar::tool_for_hotkey(&name, m.ctrl, m.shift, m.alt)
+    toolbar::tool_for_hotkey(bar, &name, m.ctrl, m.shift, m.alt)
+}
+
+impl RegionCapture {
+    /// The toolbar's item with this id (`--render`, tests).
+    pub fn toolbar_index(&self, id: &str) -> Option<usize> {
+        self.bar.iter().position(|t| t.def.id == id)
+    }
 }
 
 /// `CreateSelectionRectangle`: Shift makes it a square, kept on the image.

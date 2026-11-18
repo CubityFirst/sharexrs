@@ -162,7 +162,7 @@ fn wheel_resizes_and_hides_the_magnifier() {
 }
 
 fn click_tool(s: &mut RegionCapture, id: &str) {
-    let i = toolbar::TOOLS.iter().position(|t| t.id == id).unwrap();
+    let i = s.toolbar_index(id).unwrap();
     s.set_toolbar_hover(Some(toolbar::Part::Tool(i)));
     s.pointer_pressed(PointF::new(0.0, 0.0), Button::Left, none(), 1.0);
     s.pointer_released(PointF::new(0.0, 0.0), Button::Left, none());

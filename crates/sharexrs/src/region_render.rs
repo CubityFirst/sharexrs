@@ -149,7 +149,7 @@ fn run_steps(
                     if arg == "region" {
                         toolbar::Part::RegionButton
                     } else {
-                        let i = toolbar::TOOLS.iter().position(|t| t.id == arg).ok_or(format!("no tool {arg}"))?;
+                        let i = toolbar::default_items().iter().position(|t| t.def.id == arg).ok_or(format!("no tool {arg}"))?;
                         toolbar::Part::Tool(i)
                     }
                 } else {

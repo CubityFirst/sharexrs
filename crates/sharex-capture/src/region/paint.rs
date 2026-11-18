@@ -556,7 +556,7 @@ impl RegionCapture {
         let Some((ax, ay)) = self.toolbar_anchor() else { return };
         let hidden = self.toolbar_hidden_amount(now);
         let scale = self.toolbar_scale();
-        let size = toolbar::size(scale);
+        let size = toolbar::size(scale, &self.bar);
         // The toolbar's monitor's scaling, in desktop pixels; kept on the
         // whole overlay (`PositionCaptureToolbar`).
         let sb = self.screen_bounds;
@@ -568,14 +568,14 @@ impl RegionCapture {
             (((left - view.monitor.x as f64) / ts) as f32 * ppp).round_ties_even() / ppp,
             (((top - view.monitor.y as f64) / ts) as f32 * ppp).round_ties_even() / ppp - 28.0 * hidden,
         );
-        let layout = toolbar::layout(min, scale);
+        let layout = toolbar::layout(min, scale, &self.bar);
         let window = Rect::from_min_size(Pos2::ZERO, vec2(view.monitor.w as f32, view.monitor.h as f32) / ppp);
         view.options = None;
         if !layout.rect.intersects(window) || hidden >= 1.0 {
             return;
         }
         let active_tool = self.active_annotation_tool();
-        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, self.region_tool_active, active_tool.as_ref(), scale, 1.0 - hidden);
+        toolbar::paint(ui.painter(), p, &layout, self.toolbar_hover, self.region_tool_active, active_tool.as_ref(), scale, 1.0 - hidden, &self.bar);
         // `ShowToolOptions` while an annotation tool is active.
         if let (Some(tool), Some(e)) = (&active_tool, &self.editor) {
             let visible = ed::Visible::of(tool.clone(), e.selected());
