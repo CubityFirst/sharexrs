@@ -61,7 +61,96 @@ impl EffectImpl for PixelSortingImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        if source.is_empty() {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let mut low = clampf(self.threshold_low, 0.0, 100.0) / 100.0;
+        let mut high = clampf(self.threshold_high, 0.0, 100.0) / 100.0;
+        if high < low {
+            std::mem::swap(&mut low, &mut high);
+        }
+        let min_span = self.min_span_length.clamp(2, 256);
+        let max_span = self.max_span_length.clamp(min_span, 512);
+        let probability = clampf(self.sort_probability, 0.0, 100.0) / 100.0;
+        let mut px = pixels(source);
+        let hue_metric = self.metric == PixelSortMetric::Hue;
+        let metric = move |c: &SkColor| -> f32 {
+            if hue_metric {
+                sort_hue(*c)
+            } else {
+                ((0.2126 * c.r as f32) + (0.7152 * c.g as f32) + (0.0722 * c.b as f32)) / 255.0
+            }
+        };
+        let horizontal = self.direction == PixelSortDirection::Horizontal;
+        let (outer, inner) = if horizontal { (height, width) } else { (width, height) };
+        let index = |o: i32, i: i32| if horizontal { (o * width + i) as usize } else { (i * width + o) as usize };
+        for o in 0..outer {
+            let mut i = 0;
+            while i < inner {
+                let m = metric(&px[index(o, i)]);
+                if m < low || m > high {
+                    i += 1;
+                    continue;
+                }
+                let start = i;
+                i += 1;
+                while i < inner {
+                    let m = metric(&px[index(o, i)]);
+                    if m < low || m > high {
+                        break;
+                    }
+                    i += 1;
+                }
+                if i - start < min_span {
+                    continue;
+                }
+                let mut cursor = start;
+                while cursor < i {
+                    let length = (i - cursor).min(max_span);
+                    if length < min_span {
+                        break;
+                    }
+                    let selector = if horizontal {
+                        hash01(cursor, o, self.seed ^ 1187)
+                    } else {
+                        hash01(o, cursor, self.seed ^ 7723)
+                    };
+                    if selector <= probability {
+                        let mut seg: Vec<SkColor> = (0..length).map(|k| px[index(o, cursor + k)]).collect();
+                        dotnet_sort(&mut seg, &|a, b| float_compare(metric(a), metric(b)));
+                        for (k, c) in seg.into_iter().enumerate() {
+                            px[index(o, cursor + k as i32)] = c;
+                        }
+                    }
+                    cursor += length;
+                }
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &px))
     }
+}
+
+// ---- port ----
+
+fn sort_hue(c: SkColor) -> f32 {
+    let (r, g, b) = (c.r as f32 / 255.0, c.g as f32 / 255.0, c.b as f32 / 255.0);
+    let max = r.max(g.max(b));
+    let min = r.min(g.min(b));
+    let delta = max - min;
+    if delta <= 0.0001 {
+        return 0.0;
+    }
+    let mut hue = if max == r {
+        ((g - b) / delta) % 6.0
+    } else if max == g {
+        ((b - r) / delta) + 2.0
+    } else {
+        ((r - g) / delta) + 4.0
+    };
+    hue /= 6.0;
+    if hue < 0.0 {
+        hue += 1.0;
+    }
+    hue
 }

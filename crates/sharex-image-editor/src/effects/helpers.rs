@@ -469,3 +469,136 @@ pub fn scale_about(canvas: &mut Canvas, sx: f32, sy: f32, px: f32, py: f32) {
     canvas.scale(sx, sy);
     canvas.translate(-px, -py);
 }
+
+/// .NET's `Array.Sort(T[], Comparison<T>)` (`ArraySortHelper<T>`'s
+/// introsort: insertion sort up to 16 elements, median-of-three
+/// partitions, heap sort past the depth limit). Unstable, so elements that
+/// compare equal end up in .NET's order, not Rust's.
+pub fn dotnet_sort<T: Copy>(keys: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+    if keys.len() > 1 {
+        let depth = 2 * ((keys.len() as u32).ilog2() as i32 + 1);
+        intro_sort(keys, depth, cmp);
+    }
+}
+
+fn swap_if_greater<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering, i: usize, j: usize) {
+    if cmp(&k[i], &k[j]).is_gt() {
+        k.swap(i, j);
+    }
+}
+
+fn intro_sort<T: Copy>(keys: &mut [T], mut depth: i32, cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+    let mut size = keys.len();
+    while size > 1 {
+        if size <= 16 {
+            if size == 2 {
+                swap_if_greater(keys, cmp, 0, 1);
+                return;
+            }
+            if size == 3 {
+                swap_if_greater(keys, cmp, 0, 1);
+                swap_if_greater(keys, cmp, 0, 2);
+                swap_if_greater(keys, cmp, 1, 2);
+                return;
+            }
+            insertion_sort(&mut keys[..size], cmp);
+            return;
+        }
+        if depth == 0 {
+            heap_sort(&mut keys[..size], cmp);
+            return;
+        }
+        depth -= 1;
+        let p = pick_pivot_and_partition(&mut keys[..size], cmp);
+        intro_sort(&mut keys[p + 1..size], depth, cmp);
+        size = p;
+    }
+}
+
+fn pick_pivot_and_partition<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) -> usize {
+    let hi = k.len() - 1;
+    let middle = hi >> 1;
+    swap_if_greater(k, cmp, 0, middle);
+    swap_if_greater(k, cmp, 0, hi);
+    swap_if_greater(k, cmp, middle, hi);
+    let pivot = k[middle];
+    k.swap(middle, hi - 1);
+    let (mut left, mut right) = (0usize, hi - 1);
+    while left < right {
+        left += 1;
+        while cmp(&k[left], &pivot).is_lt() {
+            left += 1;
+        }
+        right -= 1;
+        while cmp(&pivot, &k[right]).is_lt() {
+            right -= 1;
+        }
+        if left >= right {
+            break;
+        }
+        k.swap(left, right);
+    }
+    if left != hi - 1 {
+        k.swap(left, hi - 1);
+    }
+    left
+}
+
+fn heap_sort<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+    let n = k.len();
+    let mut i = n >> 1;
+    while i >= 1 {
+        down_heap(k, i, n, cmp);
+        i -= 1;
+    }
+    let mut i = n;
+    while i > 1 {
+        k.swap(0, i - 1);
+        down_heap(k, 1, i - 1, cmp);
+        i -= 1;
+    }
+}
+
+fn down_heap<T: Copy>(k: &mut [T], mut i: usize, n: usize, cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+    let d = k[i - 1];
+    while i <= n >> 1 {
+        let mut child = 2 * i;
+        if child < n && cmp(&k[child - 1], &k[child]).is_lt() {
+            child += 1;
+        }
+        if !cmp(&d, &k[child - 1]).is_lt() {
+            break;
+        }
+        k[i - 1] = k[child - 1];
+        i = child;
+    }
+    k[i - 1] = d;
+}
+
+fn insertion_sort<T: Copy>(k: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering) {
+    for i in 0..k.len() - 1 {
+        let t = k[i + 1];
+        let mut j = i as isize;
+        while j >= 0 && cmp(&t, &k[j as usize]).is_lt() {
+            k[(j + 1) as usize] = k[j as usize];
+            j -= 1;
+        }
+        k[(j + 1) as usize] = t;
+    }
+}
+
+/// `float.CompareTo`.
+pub fn float_compare(a: f32, b: f32) -> std::cmp::Ordering {
+    use std::cmp::Ordering::*;
+    if a < b {
+        Less
+    } else if a > b {
+        Greater
+    } else if a == b {
+        Equal
+    } else if a.is_nan() {
+        if b.is_nan() { Equal } else { Less }
+    } else {
+        Greater
+    }
+}

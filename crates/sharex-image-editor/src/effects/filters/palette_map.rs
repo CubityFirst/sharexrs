@@ -29,7 +29,13 @@ impl EffectImpl for PaletteMapImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let levels = self.levels.clamp(2, 32);
+        let step = 255.0 / (levels - 1) as f32;
+        let q = |v: u8| {
+            let i = ((v as f32 / step).round_ties_even() as i32).clamp(0, levels - 1);
+            ((i as f32 * step) as i32).clamp(0, 255) as u8
+        };
+        let dst: Vec<SkColor> = pixels(source).iter().map(|c| SkColor::rgba(q(c.r), q(c.g), q(c.b), c.a)).collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
 }
