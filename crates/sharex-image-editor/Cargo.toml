@@ -10,13 +10,15 @@ sharex-settings.workspace = true
 sharex-skia.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# Image files the effects load (SKBitmap.Decode).
+image.workspace = true
 ttf-parser = "0.25.1"
 harfrust = "0.12"
 # Installed families by name on every platform (Windows, macOS, Linux).
 fontdb = "0.23"
 
 [target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation"] }
 
 [dev-dependencies]
 image.workspace = true

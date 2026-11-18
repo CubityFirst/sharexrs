@@ -405,6 +405,15 @@ pub fn with_device_clip<R>(clip: IRect, f: impl FnOnce() -> R) -> R {
     r
 }
 
+/// Runs `f` without the device clip of [`with_device_clip`] (drawing into
+/// a mask of its own).
+pub fn with_no_device_clip<R>(f: impl FnOnce() -> R) -> R {
+    let previous = DEVICE_CLIP.with(|c| c.replace(None));
+    let r = f();
+    DEVICE_CLIP.with(|c| c.set(previous));
+    r
+}
+
 /// `clip` narrowed to the device clip of [`with_device_clip`] (empty when
 /// they don't meet).
 pub fn device_clip(clip: IRect) -> IRect {

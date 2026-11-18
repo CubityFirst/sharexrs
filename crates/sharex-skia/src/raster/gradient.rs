@@ -37,6 +37,8 @@ pub(crate) struct GradientSampler {
     fill: Fill,
     clamp_t: bool,
     premul: bool,
+    /// `xy_to_radius` after the matrix (a radial gradient).
+    radial: bool,
 }
 
 fn color4f(c: [u8; 4]) -> [f32; 4] {
@@ -60,6 +62,7 @@ impl LinearGradient {
                 fill: Fill::Solid(last),
                 clamp_t: true,
                 premul: !opaque,
+                radial: false,
             });
         }
         // pts_to_unit_matrix.
@@ -87,139 +90,202 @@ impl LinearGradient {
         let total_inv = Matrix::concat(ctm, &self.local).invert()?;
         let m = Matrix::concat(&p2u, &total_inv);
 
-        // ColorStopOptimizer (3 stops at 0,0,1 or 0,1,1) and the constructor's implicit stops.
-        let mut cols = colors.clone();
-        let mut pos = self.positions.clone();
-        if let Some(p) = pos.as_ref().filter(|_| cols.len() == 3) {
-            {
-                let near = |a: f32, b: f32| (a - b).abs() <= 1.0 / 4096.0;
-                if near(p[0], 0.0) && near(p[1], 0.0) && near(p[2], 1.0) && cols[0] == cols[1] {
-                    cols.remove(0);
-                    pos = Some(p[1..].to_vec());
-                } else if near(p[0], 0.0)
-                    && near(p[1], 1.0)
-                    && near(p[2], 1.0)
-                    && cols[1] == cols[2]
-                {
-                    cols.pop();
-                    pos = Some(p[..2].to_vec());
-                }
-            }
-        }
-        let mut positions = None;
-        if let Some(p) = &pos {
-            let first_implicit = p[0] != 0.0;
-            let last_implicit = *p.last().unwrap() != 1.0;
-            let count = cols.len();
-            let mut c2 = Vec::new();
-            if first_implicit {
-                c2.push(cols[0]);
-            }
-            c2.extend_from_slice(&cols);
-            if last_implicit {
-                c2.push(cols[count - 1]);
-            }
-            let mut out = vec![0.0f32];
-            let mut prev = 0.0f32;
-            let start = if first_implicit { 0 } else { 1 };
-            let end = count + last_implicit as usize;
-            let mut uniform = true;
-            let step = p[start.min(count - 1)] - prev;
-            for i in start..end {
-                let curr = p
-                    .get(i)
-                    .filter(|_| i != count)
-                    .map_or(1.0, |v| v.clamp(prev, 1.0));
-                uniform &= ((step) - (curr - prev)).abs() <= 1.0 / 4096.0;
-                out.push(curr);
-                prev = curr;
-            }
-            cols = c2;
-            if !uniform {
-                positions = Some(out);
-            }
-        }
+        Some(build_sampler(
+            colors,
+            self.positions.clone(),
+            m,
+            false,
+            opaque,
+        ))
+    }
+}
 
-        let fill = if cols.len() == 2 && positions.is_none() {
-            let (l, r) = (cols[0], cols[1]);
-            Fill::TwoStop {
-                f: [0, 1, 2, 3].map(|i| r[i] - l[i]),
-                b: l,
+/// A radial gradient (`SKShader.CreateRadialGradient`, clamp): `SkRadialGradient`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RadialGradient {
+    pub center: (f32, f32),
+    pub radius: f32,
+    /// Straight RGBA colours.
+    pub colors: Vec<[u8; 4]>,
+    /// Stop positions in `[0, 1]` (`None`: evenly spaced).
+    pub positions: Option<Vec<f32>>,
+    /// The shader's local matrix.
+    pub local: Matrix,
+}
+
+impl RadialGradient {
+    pub(crate) fn sampler(&self, ctm: &Matrix) -> Option<GradientSampler> {
+        let n = self.colors.len();
+        if n == 0 || self.radius < 0.0 {
+            return None;
+        }
+        let colors: Vec<[f32; 4]> = self.colors.iter().map(|&c| color4f(c)).collect();
+        let opaque = colors.iter().all(|c| c[3] == 1.0);
+        if n == 1 || self.radius.abs() <= 1.0 / 32768.0 {
+            // A colour shader; MakeDegenerateGradient (clamp): the last colour.
+            let last = *colors.last().unwrap();
+            return Some(GradientSampler {
+                m: Matrix::IDENTITY,
+                fill: Fill::Solid(last),
+                clamp_t: true,
+                premul: !opaque,
+                radial: false,
+            });
+        }
+        // rad_to_unit_matrix: setTranslate(-center), postScale(1/radius).
+        let inv = 1.0 / self.radius;
+        let (cx, cy) = self.center;
+        let r2u = Matrix([inv, 0.0, inv * -cx, 0.0, inv, inv * -cy, 0.0, 0.0, 1.0]);
+        let total_inv = Matrix::concat(ctm, &self.local).invert()?;
+        let m = Matrix::concat(&r2u, &total_inv);
+        Some(build_sampler(
+            colors,
+            self.positions.clone(),
+            m,
+            true,
+            opaque,
+        ))
+    }
+}
+
+/// `SkGradientBaseShader`: the colour stops (`ColorStopOptimizer`, implicit
+/// end stops, uniform positions dropped) and the stages that interpolate them.
+fn build_sampler(
+    colors: Vec<[f32; 4]>,
+    positions: Option<Vec<f32>>,
+    m: Matrix,
+    radial: bool,
+    opaque: bool,
+) -> GradientSampler {
+    // ColorStopOptimizer (3 stops at 0,0,1 or 0,1,1) and the constructor's implicit stops.
+    let mut cols = colors.clone();
+    let mut pos = positions;
+    if let Some(p) = pos.as_ref().filter(|_| cols.len() == 3) {
+        {
+            let near = |a: f32, b: f32| (a - b).abs() <= 1.0 / 4096.0;
+            if near(p[0], 0.0) && near(p[1], 0.0) && near(p[2], 1.0) && cols[0] == cols[1] {
+                cols.remove(0);
+                pos = Some(p[1..].to_vec());
+            } else if near(p[0], 0.0) && near(p[1], 1.0) && near(p[2], 1.0) && cols[1] == cols[2] {
+                cols.pop();
+                pos = Some(p[..2].to_vec());
             }
-        } else if let Some(pos) = positions {
-            let count = cols.len();
-            let first = if count > 2 && cols[0] == cols[1] {
-                1
+        }
+    }
+    let mut positions = None;
+    if let Some(p) = &pos {
+        let first_implicit = p[0] != 0.0;
+        let last_implicit = *p.last().unwrap() != 1.0;
+        let count = cols.len();
+        let mut c2 = Vec::new();
+        if first_implicit {
+            c2.push(cols[0]);
+        }
+        c2.extend_from_slice(&cols);
+        if last_implicit {
+            c2.push(cols[count - 1]);
+        }
+        let mut out = vec![0.0f32];
+        let mut prev = 0.0f32;
+        let start = if first_implicit { 0 } else { 1 };
+        let end = count + last_implicit as usize;
+        let mut uniform = true;
+        let step = p[start.min(count - 1)] - prev;
+        for i in start..end {
+            let curr = p
+                .get(i)
+                .filter(|_| i != count)
+                .map_or(1.0, |v| v.clamp(prev, 1.0));
+            uniform &= ((step) - (curr - prev)).abs() <= 1.0 / 4096.0;
+            out.push(curr);
+            prev = curr;
+        }
+        cols = c2;
+        if !uniform {
+            positions = Some(out);
+        }
+    }
+
+    let fill = if cols.len() == 2 && positions.is_none() {
+        let (l, r) = (cols[0], cols[1]);
+        Fill::TwoStop {
+            f: [0, 1, 2, 3].map(|i| r[i] - l[i]),
+            b: l,
+        }
+    } else if let Some(pos) = positions {
+        let count = cols.len();
+        let first = if count > 2 && cols[0] == cols[1] {
+            1
+        } else {
+            0
+        };
+        let last = if count > 2 {
+            if cols[count - 2] != cols[count - 1] {
+                count - 1
             } else {
-                0
-            };
-            let last = if count > 2 {
-                if cols[count - 2] != cols[count - 1] {
-                    count - 1
-                } else {
-                    count - 2
-                }
-            } else {
-                1
-            };
-            let mut ts = Vec::new();
-            let mut fs = Vec::new();
-            let mut bs = Vec::new();
-            let mut t_l = pos[first];
-            let mut c_l = cols[first];
-            ts.push(0.0);
-            fs.push([0.0; 4]);
-            bs.push(c_l);
-            for i in first..last {
-                let t_r = pos[i + 1];
-                let c_r = cols[i + 1];
-                if t_l < t_r {
-                    let f = [0, 1, 2, 3].map(|k| (c_r[k] - c_l[k]) / (t_r - t_l));
-                    let b = [0, 1, 2, 3].map(|k| c_l[k] - f[k] * t_l);
-                    ts.push(t_l);
-                    fs.push(f);
-                    bs.push(b);
-                }
-                t_l = t_r;
-                c_l = c_r;
-            }
-            ts.push(t_l);
-            fs.push([0.0; 4]);
-            bs.push(c_l);
-            Fill::Stops {
-                ts,
-                fs,
-                bs,
-                evenly: false,
+                count - 2
             }
         } else {
-            let stop_count = cols.len();
-            let gap = (stop_count - 1) as f32;
-            let mut fs = Vec::new();
-            let mut bs = Vec::new();
-            for i in 0..stop_count - 1 {
-                let (l, r) = (cols[i], cols[i + 1]);
-                let f = [0, 1, 2, 3].map(|k| (r[k] - l[k]) * gap);
-                let b = [0, 1, 2, 3].map(|k| l[k] - f[k] * (i as f32 / gap));
+            1
+        };
+        let mut ts = Vec::new();
+        let mut fs = Vec::new();
+        let mut bs = Vec::new();
+        let mut t_l = pos[first];
+        let mut c_l = cols[first];
+        ts.push(0.0);
+        fs.push([0.0; 4]);
+        bs.push(c_l);
+        for i in first..last {
+            let t_r = pos[i + 1];
+            let c_r = cols[i + 1];
+            if t_l < t_r {
+                let f = [0, 1, 2, 3].map(|k| (c_r[k] - c_l[k]) / (t_r - t_l));
+                let b = [0, 1, 2, 3].map(|k| c_l[k] - f[k] * t_l);
+                ts.push(t_l);
                 fs.push(f);
                 bs.push(b);
             }
-            fs.push([0.0; 4]);
-            bs.push(cols[stop_count - 1]);
-            Fill::Stops {
-                ts: Vec::new(),
-                fs,
-                bs,
-                evenly: true,
-            }
-        };
-        let clamp_t = !matches!(fill, Fill::Stops { evenly: false, .. });
-        Some(GradientSampler {
-            m,
-            fill,
-            clamp_t,
-            premul: !opaque,
-        })
+            t_l = t_r;
+            c_l = c_r;
+        }
+        ts.push(t_l);
+        fs.push([0.0; 4]);
+        bs.push(c_l);
+        Fill::Stops {
+            ts,
+            fs,
+            bs,
+            evenly: false,
+        }
+    } else {
+        let stop_count = cols.len();
+        let gap = (stop_count - 1) as f32;
+        let mut fs = Vec::new();
+        let mut bs = Vec::new();
+        for i in 0..stop_count - 1 {
+            let (l, r) = (cols[i], cols[i + 1]);
+            let f = [0, 1, 2, 3].map(|k| (r[k] - l[k]) * gap);
+            let b = [0, 1, 2, 3].map(|k| l[k] - f[k] * (i as f32 / gap));
+            fs.push(f);
+            bs.push(b);
+        }
+        fs.push([0.0; 4]);
+        bs.push(cols[stop_count - 1]);
+        Fill::Stops {
+            ts: Vec::new(),
+            fs,
+            bs,
+            evenly: true,
+        }
+    };
+    let clamp_t = !matches!(fill, Fill::Stops { evenly: false, .. });
+    GradientSampler {
+        m,
+        fill,
+        clamp_t,
+        premul: !opaque,
+        radial,
     }
 }
 
@@ -232,7 +298,23 @@ impl GradientSampler {
         let mad_ = super::mad;
         let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
         let m = &self.m;
-        let t = if m.is_identity() {
+        let t = if self.radial {
+            // append_matrix's stage for the matrix's type, then xy_to_radius.
+            let (x, y) = if m.is_identity() {
+                (fx, fy)
+            } else if m.is_translate() {
+                (fx + m.tx(), fy + m.ty())
+            } else if m.is_scale_translate() {
+                (mad_(fx, m.sx(), m.tx()), mad_(fy, m.sy(), m.ty()))
+            } else {
+                (
+                    mad_(fx, m.sx(), mad_(fy, m.kx(), m.tx())),
+                    mad_(fx, m.ky(), mad_(fy, m.sy(), m.ty())),
+                )
+            };
+            let (x2, y2) = (x * x, y * y);
+            (x2 + y2).sqrt()
+        } else if m.is_identity() {
             fx
         } else if m.is_translate() {
             fx + m.tx()

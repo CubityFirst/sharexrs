@@ -555,6 +555,111 @@ impl Path {
         self
     }
 
+    /// `SkPath::addArc(oval, startAngle, sweepAngle)`.
+    pub fn add_arc(&mut self, oval: Rect, start_angle: f32, sweep_angle: f32) -> &mut Self {
+        if oval.is_empty() || sweep_angle == 0.0 {
+            return self;
+        }
+        if sweep_angle >= 360.0 || sweep_angle <= -360.0 {
+            // An oval when it begins at one of the legal start positions.
+            let start_over_90 = start_angle / 90.0;
+            let start_over_90_i = (start_over_90 + 0.5).floor();
+            let error = start_over_90 - start_over_90_i;
+            if nearly_zero(error) {
+                let mut start_index = (start_over_90_i + 1.0) % 4.0;
+                if start_index < 0.0 {
+                    start_index += 4.0;
+                }
+                let dir = if sweep_angle > 0.0 { Direction::Cw } else { Direction::Ccw };
+                return self.add_oval_start(oval, dir, start_index as usize);
+            }
+        }
+        self.arc_to_oval(oval, start_angle, sweep_angle, true)
+    }
+
+    /// `SkPath::arcTo(oval, startAngle, sweepAngle, forceMoveTo)`.
+    pub fn arc_to_oval(&mut self, oval: Rect, start_angle: f32, sweep_angle: f32, force_move_to: bool) -> &mut Self {
+        if oval.width() < 0.0 || oval.height() < 0.0 {
+            return self;
+        }
+        let start_angle = start_angle % 360.0;
+        let mut force = force_move_to || self.last_move_to_index < 0;
+        // arc_is_lone_point
+        let lone = if sweep_angle == 0.0 && (start_angle == 0.0 || start_angle == 360.0) {
+            Some(Point::new(oval.right, midpoint(oval.top, oval.bottom)))
+        } else if oval.width() == 0.0 && oval.height() == 0.0 {
+            Some(Point::new(oval.right, oval.top))
+        } else {
+            None
+        };
+        if let Some(p) = lone {
+            return if force { self.move_to(p.x, p.y) } else { self.line_to(p.x, p.y) };
+        }
+        // angles_to_unit_vectors
+        let start_rad = start_angle * (std::f32::consts::PI / 180.0);
+        let mut stop_rad = (start_angle + sweep_angle) * (std::f32::consts::PI / 180.0);
+        let start_v = Point::new(cos_snap_to_zero(start_rad), sin_snap_to_zero(start_rad));
+        let mut stop_v = Point::new(cos_snap_to_zero(stop_rad), sin_snap_to_zero(stop_rad));
+        if start_v == stop_v {
+            let sw = sweep_angle.abs();
+            if sw < 360.0 && sw > 359.0 {
+                let delta = (1.0f32 / 512.0).copysign(sweep_angle);
+                loop {
+                    stop_rad -= delta;
+                    stop_v = Point::new(cos_snap_to_zero(stop_rad), sin_snap_to_zero(stop_rad));
+                    if start_v != stop_v {
+                        break;
+                    }
+                }
+            }
+        }
+        let ccw = sweep_angle <= 0.0;
+        let mut add_pt = |path: &mut Path, p: Point| {
+            if force {
+                path.move_to(p.x, p.y);
+                force = false;
+            } else {
+                let near = |a: f32, b: f32| (a - b).abs() <= 1.0 / 4096.0;
+                match path.last_pt() {
+                    Some(l) if near(l.x, p.x) && near(l.y, p.y) => {}
+                    _ => {
+                        path.line_to(p.x, p.y);
+                    }
+                }
+            }
+        };
+        if start_v == stop_v {
+            let end = (start_angle + sweep_angle) * (std::f32::consts::PI / 180.0);
+            let (rx, ry) = (oval.width() / 2.0, oval.height() / 2.0);
+            let p = Point::new(
+                midpoint(oval.left, oval.right) + rx * end.cos(),
+                midpoint(oval.top, oval.bottom) + ry * end.sin(),
+            );
+            add_pt(self, p);
+            return self;
+        }
+        // build_arc_conics
+        let user = Matrix {
+            sx: oval.width() * 0.5,
+            kx: 0.0,
+            tx: midpoint(oval.left, oval.right),
+            ky: 0.0,
+            sy: oval.height() * 0.5,
+            ty: midpoint(oval.top, oval.bottom),
+        };
+        let conics = crate::stroke::build_unit_arc_with(start_v, stop_v, ccw, &user);
+        if conics.is_empty() {
+            let p = user.map(stop_v);
+            add_pt(self, p);
+        } else {
+            add_pt(self, conics[0].pts[0]);
+            for c in &conics {
+                self.conic_to(c.pts[1].x, c.pts[1].y, c.pts[2].x, c.pts[2].y, c.w);
+            }
+        }
+        self
+    }
+
     /// `SkPath::arcTo(rx, ry, angle, arcLarge, arcSweep, x, y)`: the SVG arc.
     #[allow(clippy::too_many_arguments)]
     pub fn arc_to(
@@ -1109,6 +1214,156 @@ impl Path {
             auto_close,
             dir,
         ))
+    }
+
+    /// `SkPathPriv::IsRectContour` from verb `*curr_verb` and point `*pts`,
+    /// advancing both (`allow_partial` stops at the first contour's end).
+    fn rect_contour(&self, allow_partial: bool, curr_verb: &mut usize, pts: &mut usize) -> Option<(Rect, bool, Direction)> {
+        let mut corners = 0usize;
+        let mut line_start = Point::new(0.0, 0.0);
+        let mut first_pt: Option<usize> = None;
+        let mut last_pt: Option<usize> = None;
+        let mut first_corner = Point::default();
+        let mut third_corner = Point::default();
+        let mut p = *pts;
+        let mut save_pts: Option<usize> = None;
+        let mut directions = [-1i32; 5];
+        let mut closed_or_moved = false;
+        let mut auto_close = false;
+        let mut insert_close = false;
+        let verb_count = self.verbs.len();
+        while *curr_verb < verb_count && (!allow_partial || !auto_close) {
+            let verb = if insert_close { Verb::Close } else { self.verbs[*curr_verb] };
+            match verb {
+                Verb::Close | Verb::Line => {
+                    if verb == Verb::Close {
+                        save_pts = Some(p);
+                        auto_close = true;
+                        insert_close = false;
+                    } else {
+                        last_pt = Some(p);
+                    }
+                    let line_end = if verb == Verb::Close {
+                        self.points[first_pt?]
+                    } else {
+                        let e = self.points[p];
+                        p += 1;
+                        e
+                    };
+                    let d = line_end - line_start;
+                    if d.x != 0.0 && d.y != 0.0 {
+                        return None;
+                    }
+                    if !d.is_finite() {
+                        return None;
+                    }
+                    if line_start == line_end {
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    let next_direction = ((d.x != 0.0) as i32) | (((d.x > 0.0 || d.y > 0.0) as i32) << 1);
+                    if corners == 0 {
+                        directions[0] = next_direction;
+                        corners = 1;
+                        closed_or_moved = false;
+                        line_start = line_end;
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    if closed_or_moved {
+                        return None;
+                    }
+                    if auto_close && next_direction == directions[0] {
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    closed_or_moved = auto_close;
+                    if directions[corners - 1] == next_direction {
+                        if corners == 3 && verb == Verb::Line {
+                            third_corner = line_end;
+                        }
+                        line_start = line_end;
+                        *curr_verb += 1;
+                        continue;
+                    }
+                    directions[corners] = next_direction;
+                    corners += 1;
+                    match corners {
+                        2 => first_corner = line_start,
+                        3 => {
+                            if (directions[0] ^ directions[2]) != 2 {
+                                return None;
+                            }
+                            third_corner = line_end;
+                        }
+                        4 => {
+                            if (directions[1] ^ directions[3]) != 2 {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    }
+                    line_start = line_end;
+                }
+                Verb::Quad | Verb::Conic | Verb::Cubic => return None,
+                Verb::Move => {
+                    if allow_partial && !auto_close && directions[0] >= 0 {
+                        // Insert the missing close and try the move again afterwards.
+                        insert_close = true;
+                        *curr_verb -= 1;
+                        continue;
+                    }
+                    if corners == 0 {
+                        first_pt = Some(p);
+                    } else {
+                        let c = self.points[first_pt?] - self.points[last_pt?];
+                        if c.x != 0.0 && c.y != 0.0 {
+                            return None;
+                        }
+                    }
+                    line_start = self.points[p];
+                    p += 1;
+                    closed_or_moved = true;
+                }
+            }
+            *curr_verb += 1;
+        }
+        if !(3..=4).contains(&corners) {
+            return None;
+        }
+        if let Some(sp) = save_pts {
+            *pts = sp;
+        }
+        let c = self.points[first_pt?] - self.points[last_pt?];
+        if c.x != 0.0 && c.y != 0.0 {
+            return None;
+        }
+        let dir = if directions[0] == ((directions[1] + 1) & 3) { Direction::Cw } else { Direction::Ccw };
+        Some((
+            Rect::from_ltrb(
+                first_corner.x.min(third_corner.x),
+                first_corner.y.min(third_corner.y),
+                first_corner.x.max(third_corner.x),
+                first_corner.y.max(third_corner.y),
+            ),
+            auto_close,
+            dir,
+        ))
+    }
+
+    /// `SkPathPriv::IsNestedFillRects`: two rect contours, one inside the
+    /// other (outer first).
+    pub fn nested_fill_rects(&self) -> Option<[Rect; 2]> {
+        let (mut verb, mut pts) = (0usize, 0usize);
+        let (r0, _, _) = self.rect_contour(true, &mut verb, &mut pts)?;
+        let (r1, _, _) = self.rect_contour(false, &mut verb, &mut pts)?;
+        if r0.contains(&r1) {
+            Some([r0, r1])
+        } else if r1.contains(&r0) {
+            Some([r1, r0])
+        } else {
+            None
+        }
     }
 
     /// The path for tiny-skia (conics as quads, as Skia's edge builder

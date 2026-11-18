@@ -8,6 +8,7 @@
 //! renders the same annotations with ShareX's own code.
 
 pub mod editor;
+pub mod effects;
 pub mod emoji_catalog;
 pub mod model;
 pub mod options;

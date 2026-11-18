@@ -48,6 +48,27 @@ and through an `SKPicture` shader; `--text` and `--fonts` as before.
 `cargo run -p sharex-image-editor --example image_editor_emoji_dump` dumps
 ShareXrs's emoji the same way.
 
+`--effects <dir> [id prefix]` (`Effects.cs`) runs the image effect catalogue
+(`Core/ImageEffects`) without a window: it writes `catalog.json` (every
+effect's id, name, browser label, icon, description, category and
+parameters, as `EffectRegistry` and the parameter definitions report them),
+generates `cases.json` (each effect on `inputs/a.png`, 48×36 opaque, and
+`inputs/b.png`, 32×24 translucent, with its defaults, then each parameter at
+its minimum, maximum and a third value, and every enum option; numeric
+ranges capped at ±100; `{inputs}` in a file parameter is the inputs folder),
+and for each case sets `Random.Shared`'s state from the case's seed
+(splitmix64), applies the configured effect as the effect dialog does and
+saves the result's premultiplied bytes as `sharex/<case>.png` (a throw is
+recorded in `results.json`). `probe/` holds what the port checks its own
+plumbing against (`SKBitmap.Pixels` tables, `Random.Shared`'s draws). The
+outputs live in `crates/sharex-image-editor/tests/data/effects`:
+
+```
+dotnet build tools/editor-harness -c Release -o G:/scripts/sharexrs-ref/editor-harness-fx
+dotnet G:/scripts/sharexrs-ref/editor-harness-fx/EditorHarness.dll --effects <dir> [id prefix]
+cargo run -p sharex-image-editor --example image_editor_effects_report -- [id prefix] [out dir]
+```
+
 ## Run
 
 ```

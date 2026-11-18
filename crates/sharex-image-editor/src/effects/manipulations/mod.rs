@@ -1,0 +1,71 @@
+//! `Core/ImageEffects/Manipulations`.
+
+use super::{EffectDefinition, def};
+
+pub(crate) mod auto_crop_image;
+pub(crate) mod crop_image;
+pub(crate) mod cylinder_wrap;
+pub(crate) mod displacement_map;
+pub(crate) mod fisheye_lens;
+pub(crate) mod flip;
+pub(crate) mod flip_horizontal;
+pub(crate) mod flip_vertical;
+pub(crate) mod fold_crease_warp;
+pub(crate) mod glass_sphere;
+pub(crate) mod kaleidoscope;
+pub(crate) mod liquify_push_smudge;
+pub(crate) mod mirror_tiles;
+pub(crate) mod page_curl;
+pub(crate) mod perspective_warp;
+pub(crate) mod pinch_bulge;
+pub(crate) mod polar_warp;
+pub(crate) mod resize_canvas;
+pub(crate) mod resize_image;
+pub(crate) mod ripple_refraction;
+pub(crate) mod rotate_180;
+pub(crate) mod rotate_90_clockwise;
+pub(crate) mod rotate_90_counter_clockwise;
+pub(crate) mod rotate_custom_angle;
+pub(crate) mod rounded_corners;
+pub(crate) mod scale;
+pub(crate) mod skew;
+pub(crate) mod symmetry;
+pub(crate) mod tile_repeat;
+pub(crate) mod tile_shuffle;
+pub(crate) mod twirl;
+pub(crate) mod wave_distortion;
+
+pub(crate) fn register(list: &mut Vec<EffectDefinition>) {
+    list.push(def::<auto_crop_image::AutoCropImageEffect>());
+    list.push(def::<crop_image::CropImageEffect>());
+    list.push(def::<cylinder_wrap::CylinderWrapImageEffect>());
+    list.push(def::<displacement_map::DisplacementMapImageEffect>());
+    list.push(def::<fisheye_lens::FisheyeLensImageEffect>());
+    list.push(def::<flip::FlipImageEffect>());
+    list.push(def::<flip_horizontal::FlipHorizontalImageEffect>());
+    list.push(def::<flip_vertical::FlipVerticalImageEffect>());
+    list.push(def::<fold_crease_warp::FoldCreaseWarpImageEffect>());
+    list.push(def::<glass_sphere::GlassSphereImageEffect>());
+    list.push(def::<kaleidoscope::KaleidoscopeImageEffect>());
+    list.push(def::<liquify_push_smudge::LiquifyPushSmudgeImageEffect>());
+    list.push(def::<mirror_tiles::MirrorTilesImageEffect>());
+    list.push(def::<page_curl::PageCurlImageEffect>());
+    list.push(def::<perspective_warp::PerspectiveWarpImageEffect>());
+    list.push(def::<pinch_bulge::PinchBulgeImageEffect>());
+    list.push(def::<polar_warp::PolarWarpImageEffect>());
+    list.push(def::<resize_canvas::ResizeCanvasImageEffect>());
+    list.push(def::<resize_image::ResizeImageEffect>());
+    list.push(def::<ripple_refraction::RippleRefractionImageEffect>());
+    list.push(def::<rotate_180::Rotate180ImageEffect>());
+    list.push(def::<rotate_90_clockwise::Rotate90CWImageEffect>());
+    list.push(def::<rotate_90_counter_clockwise::Rotate90CCWImageEffect>());
+    list.push(def::<rotate_custom_angle::RotateImageEffect>());
+    list.push(def::<rounded_corners::RoundedCornersImageEffect>());
+    list.push(def::<scale::ScaleImageEffect>());
+    list.push(def::<skew::SkewImageEffect>());
+    list.push(def::<symmetry::SymmetryImageEffect>());
+    list.push(def::<tile_repeat::TileRepeatImageEffect>());
+    list.push(def::<tile_shuffle::TileShuffleImageEffect>());
+    list.push(def::<twirl::TwirlImageEffect>());
+    list.push(def::<wave_distortion::WaveDistortionImageEffect>());
+}

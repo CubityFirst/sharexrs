@@ -96,6 +96,11 @@ internal static class Program
             return 2;
         }
 
+        if (args[0] == "--effects")
+        {
+            return EffectsHarness.Run(args);
+        }
+
         if (args[0] == "--text")
         {
             AppBuilder.Configure<HarnessApp>()

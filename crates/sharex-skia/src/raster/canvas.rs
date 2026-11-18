@@ -46,6 +46,19 @@ pub enum TileMode {
 pub enum Blend {
     SrcOver,
     Src,
+    /// `SKBlendMode.Multiply`: `s*(1-da) + d*(1-sa) + s*d`, coverage lerped
+    /// (it doesn't support coverage as alpha).
+    Multiply,
+    /// `SKBlendMode.Clear`: 0, coverage lerped.
+    Clear,
+    /// `SKBlendMode.Overlay`, coverage lerped.
+    Overlay,
+    /// `SKBlendMode.Screen`: `s + d - s*d`, coverage lerped.
+    Screen,
+    /// `SKBlendMode.Modulate`: `s*d`, coverage lerped.
+    Modulate,
+    /// `SKBlendMode.DstIn`: `d*sa`, coverage lerped.
+    DstIn,
 }
 
 /// `SKPaint.Shader` (or its colour when there's none).
@@ -63,6 +76,7 @@ pub enum Shader<'a> {
         tile_y: TileMode,
     },
     Gradient(LinearGradient),
+    RadialGradient(super::gradient::RadialGradient),
 }
 
 /// `SKPaint`, as far as ShareX's effects set it.
@@ -75,6 +89,9 @@ pub struct Paint<'a> {
     pub color_filter: Option<[f32; 20]>,
     /// The paint colour's alpha when a shader draws (`paint.Color = White.WithAlpha(a)`).
     pub alpha: u8,
+    /// `SKColorFilter.CreateBlendMode(color, Modulate)` (straight RGBA), after
+    /// `color_filter`.
+    pub modulate: Option<[u8; 4]>,
 }
 
 impl<'a> Paint<'a> {
@@ -86,6 +103,7 @@ impl<'a> Paint<'a> {
             anti_alias: true,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -96,6 +114,7 @@ impl<'a> Paint<'a> {
             anti_alias: false,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -113,6 +132,7 @@ impl<'a> Paint<'a> {
             anti_alias: true,
             color_filter: None,
             alpha: 255,
+            modulate: None,
         }
     }
 
@@ -123,6 +143,7 @@ impl<'a> Paint<'a> {
                 *matrix = Matrix::concat(&Matrix::translate(x, y), matrix)
             }
             Shader::Gradient(g) => g.local = Matrix::concat(&Matrix::translate(x, y), &g.local),
+            Shader::RadialGradient(g) => g.local = Matrix::concat(&Matrix::translate(x, y), &g.local),
             Shader::Color(_) => {}
         }
     }
@@ -330,7 +351,7 @@ impl<'a> Canvas<'a> {
         if treat_as_sprite(&total, image.width(), image.height(), sampling, paint.anti_alias) {
             let ix = (total.tx() + 0.5).floor() as i32;
             let iy = (total.ty() + 0.5).floor() as i32;
-            // clipHandlesSprite: a BW clip, or an AA clip that holds the bitmap.
+            // clipHandlesSprite: a BW clip, or an AA clip that contains the sprite.
             let handles = self.aa_clip.as_ref().is_none_or(|c| {
                 c.quick_contains(ix, iy, ix + image.width() as i32, iy + image.height() as i32)
             });
@@ -354,7 +375,13 @@ impl<'a> Canvas<'a> {
             ..paint.clone()
         };
         if total.rect_stays_rect() {
-            let cov = self.rect_coverage(device, p.anti_alias);
+            let cov = if let Some(clip) = &self.aa_clip {
+                coverage::rect_aa_clip(device, p.anti_alias, clip, self.width(), self.height())
+            } else if p.anti_alias {
+                coverage::anti_fill_rect(device, self.width(), self.height())
+            } else {
+                coverage::fill_rect(device, self.width(), self.height())
+            };
             self.blit(&cov, &p);
         } else {
             let path = rect_path(bounds, &total);
@@ -386,6 +413,34 @@ impl<'a> Canvas<'a> {
         self.draw_rect(dst, &p);
     }
 
+    /// `SkCanvas::drawRect` with `Style = Stroke` and a miter join
+    /// (`SkDraw::drawRect`'s `kStroke_RectType`: `SkScan::AntiFrameRect`
+    /// when anti-aliased, `SkScan::FrameRect` otherwise). A rotated canvas
+    /// or a zero width isn't ported (it'd go through the path stroker or the
+    /// hairline).
+    pub fn stroke_rect(&mut self, rect: Rect, stroke_width: f32, paint: &Paint) {
+        if self.dst.is_empty() || !self.matrix.rect_stays_rect() || stroke_width <= 0.0 {
+            return;
+        }
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            // easy_rect_join: an empty rect goes through the path stroker.
+            return;
+        }
+        let (x0, y0) = self.matrix.map(rect.left, rect.top);
+        let (x1, y1) = self.matrix.map(rect.right, rect.bottom);
+        let device = Rect::ltrb(x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1));
+        // compute_stroke_size: the width mapped as a vector.
+        let m = &self.matrix;
+        let sx = (m.sx() * stroke_width + m.kx() * stroke_width).abs();
+        let sy = (m.ky() * stroke_width + m.sy() * stroke_width).abs();
+        let cov = if paint.anti_alias {
+            coverage::anti_frame_rect(device, sx, sy, self.aa_clip.as_ref(), self.width(), self.height())
+        } else {
+            coverage::frame_rect(device, sx, sy, self.width(), self.height())
+        };
+        self.blit(&cov, paint);
+    }
+
     /// `SkCanvas::drawRect` (fill).
     pub fn draw_rect(&mut self, rect: Rect, paint: &Paint) {
         if self.dst.is_empty() {
@@ -399,7 +454,13 @@ impl<'a> Canvas<'a> {
         );
         if self.matrix.rect_stays_rect() {
             let device = self.matrix.map_rect(r);
-            let cov = self.rect_coverage(device, paint.anti_alias);
+            let cov = if let Some(clip) = &self.aa_clip {
+                coverage::rect_aa_clip(device, paint.anti_alias, clip, self.width(), self.height())
+            } else if paint.anti_alias {
+                coverage::anti_fill_rect(device, self.width(), self.height())
+            } else {
+                coverage::fill_rect(device, self.width(), self.height())
+            };
             self.blit(&cov, paint);
         } else {
             let path = rect_path(r, &self.matrix);
@@ -439,31 +500,85 @@ impl<'a> Canvas<'a> {
         self.blit(&cov, paint);
     }
 
-    /// A device rect's coverage (`SkScan::FillRect`/`AntiFillRect`), through
-    /// the anti-aliased clip when there is one.
-    fn rect_coverage(&self, device: Rect, anti_alias: bool) -> Coverage {
-        let Some(clip) = &self.aa_clip else {
-            return if anti_alias {
-                coverage::anti_fill_rect(device, self.width(), self.height())
-            } else {
-                coverage::fill_rect(device, self.width(), self.height())
-            };
-        };
-        let whole = |v: f32| v == v.floor();
-        if !anti_alias
-            || (whole(device.left) && whole(device.top) && whole(device.right) && whole(device.bottom))
-        {
-            let round = |v: f32| (v + 0.5).floor() as i32;
-            let r = crate::geom::IRect::from_ltrb(
-                round(device.left),
-                round(device.top),
-                round(device.right),
-                round(device.bottom),
-            );
-            return coverage::fill_irect_aa_clip(r, clip, self.width(), self.height());
+    /// `SkCanvas::drawPath` with `SKMaskFilter.CreateBlur(Normal, sigma)`:
+    /// `path` (local space, already stroked when the paint strokes) filled,
+    /// or drawn as a hairline with `cap`, through `SkMaskFilterBase::filterPath`
+    /// with the sigma mapped by the matrix (`computeXformedSigma`).
+    pub fn draw_path_mask_blur(&mut self, path: &crate::Path, hairline: Option<crate::Cap>, sigma: f32, paint: &Paint) {
+        if self.dst.is_empty() {
+            return;
         }
-        let path = rect_path(device, &Matrix::IDENTITY);
-        coverage::fill_path_aa_clip(&path, clip, self.width(), self.height())
+        let device = path.transformed(&self.ctm());
+        let s = self.map_radius(sigma).min(128.0);
+        let (w, h) = (self.width(), self.height());
+        match coverage::mask_blur_path(&device, s, hairline, w, h) {
+            Some(cov) => self.blit(&cov, paint),
+            None => {
+                let cov = match hairline {
+                    Some(cap) => coverage::anti_hair_path(&device, cap, w, h),
+                    None => coverage::fill_path(&device, paint.anti_alias, w, h),
+                };
+                self.blit(&cov, paint);
+            }
+        }
+    }
+
+    /// `SKCanvas.DrawRoundRect(rrect)` with `SKMaskFilter.CreateBlur(Normal, sigma)`
+    /// (`SkRRect::setRectXY`, then `SkDraw::drawRRect`: the nine-patch of
+    /// `filterRRect`, or the round rect's path through the mask filter).
+    pub fn draw_round_rect_mask_blur(&mut self, rect: Rect, rx: f32, ry: f32, sigma: f32, paint: &Paint) {
+        let r = Rect::ltrb(
+            rect.left.min(rect.right),
+            rect.top.min(rect.bottom),
+            rect.left.max(rect.right),
+            rect.top.max(rect.bottom),
+        );
+        let (w, h) = (r.width(), r.height());
+        let (mut rx, mut ry) = (rx, ry);
+        if w < rx + rx || h < ry + ry {
+            let scale = (w / (rx + rx)).min(h / (ry + ry));
+            rx *= scale;
+            ry *= scale;
+        }
+        let gr = crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom);
+        let mut path = crate::Path::new();
+        if !(rx > 0.0 && ry > 0.0) || w <= 0.0 || h <= 0.0 {
+            path.add_rect(gr, crate::Direction::Cw, 0);
+            self.draw_path_mask_blur(&path, None, sigma, paint);
+            return;
+        }
+        if rx >= w * 0.5 && ry >= h * 0.5 {
+            path.add_oval(gr, crate::Direction::Cw);
+            self.draw_path_mask_blur(&path, None, sigma, paint);
+            return;
+        }
+        if !self.dst.is_empty() && self.matrix.is_scale_translate() {
+            let device = self.matrix.map_rect(r);
+            let (dx, dy) = ((self.matrix.sx() * rx).abs(), (self.matrix.sy() * ry).abs());
+            let s = self.map_radius(sigma).min(128.0);
+            if let Some(cov) = coverage::mask_blur_rrect(device, dx, dy, s, self.width(), self.height()) {
+                self.blit(&cov, paint);
+                return;
+            }
+        }
+        path.add_round_rect(gr, rx, ry, crate::Direction::Cw);
+        self.draw_path_mask_blur(&path, None, sigma, paint);
+    }
+
+    /// `SkMatrix::mapRadius`: the geometric mean of the mapped axis vectors' lengths.
+    fn map_radius(&self, r: f32) -> f32 {
+        let m = &self.matrix;
+        let len = |x: f32, y: f32| {
+            let mag2 = x * x + y * y;
+            if mag2.is_finite() {
+                mag2.sqrt()
+            } else {
+                ((x as f64) * (x as f64) + (y as f64) * (y as f64)).sqrt() as f32
+            }
+        };
+        let d0 = len(m.sx() * r, m.ky() * r);
+        let d1 = len(m.kx() * r, m.sy() * r);
+        (d0 * d1).sqrt()
     }
 
     /// The canvas matrix as a path matrix.
@@ -485,6 +600,11 @@ impl<'a> Canvas<'a> {
             self.ctm(),
             crate::geom::IRect::from_ltrb(0, 0, self.width() as i32, self.height() as i32),
         )
+    }
+
+    /// `SkDrawTreatAsHairline`'s coverage for an anti-aliased stroke of `width`.
+    pub fn hairline_coverage(&self, width: f32) -> Option<f32> {
+        crate::hair::hairline_coverage(width, &self.ctm())
     }
 
     /// Whether an anti-aliased stroke of `width` is a hairline here
@@ -517,7 +637,7 @@ impl<'a> Canvas<'a> {
             _ => paint.alpha = crate::hair::hairline_alpha(paint.alpha, coverage),
         }
         let device = path.transformed(&ctm);
-        let cov = coverage::anti_hair_path(&device, cap, self.width(), self.height());
+        let cov = coverage::anti_hair_path_clipped(&device, cap, self.aa_clip.as_ref(), self.width(), self.height());
         self.blit(&cov, &paint);
         true
     }
@@ -535,16 +655,38 @@ impl<'a> Canvas<'a> {
         let dw = w as usize;
         let iw = image.width() as usize;
         // SkSpriteBlitter_Memcpy and the legacy sprite blitters need an N32 device.
-        let plain = paint.color_filter.is_none() && paint.alpha == 255 && !crate::blitter::pipeline_blitters();
+        let plain = paint.color_filter.is_none()
+            && paint.modulate.is_none()
+            && paint.alpha == 255
+            && !crate::blitter::pipeline_blitters();
+        // SkSpriteBlitter::ChooseL32: src-over with a global alpha and no colour filter is
+        // Sprite_D32_S32 with kGlobalAlpha (an SKBitmap is never kOpaque, so kSrcPixelAlpha
+        // too): S32A_Blend_BlitRow32, SkBlendARGB32 per pixel.
+        let global_alpha = paint.color_filter.is_none()
+            && paint.modulate.is_none()
+            && paint.alpha != 255
+            && paint.blend == Blend::SrcOver
+            && !crate::blitter::pipeline_blitters();
         for y in y0..y1 {
             for x in x0..x1 {
                 let si = (y - iy) as usize * iw + (x - ix) as usize;
                 let di = y as usize * dw + x as usize;
                 let s = image.px(si);
-                let out = if plain {
+                let out = if global_alpha {
+                    blend_argb32(s, self.dst.px(di), paint.alpha)
+                } else if plain {
                     match paint.blend {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,
+                        // SkRasterPipelineSpriteBlitter: load_8888, multiply (lowp), store.
+                        Blend::Multiply
+                        | Blend::Clear
+                        | Blend::Overlay
+                        | Blend::Screen
+                        | Blend::Modulate
+                        | Blend::DstIn => {
+                            self.blend_full(di, Px::Low(s.map(u32::from)), paint.blend)
+                        }
                         // Sprite_D32_S32 → S32A_Opaque_BlitRow32: s + (d * (256 - sa) >> 8).
                         Blend::SrcOver => {
                             let d = self.dst.px(di);
@@ -557,15 +699,33 @@ impl<'a> Canvas<'a> {
                 } else {
                     // SkRasterPipelineSpriteBlitter: load_8888, the paint's alpha and colour
                     // filter (highp), then the pipeline blitter's blitRect.
-                    let mut c = load(s);
-                    if paint.alpha != 255 {
-                        let f = from_byte(paint.alpha);
-                        c = c.map(|v| v * f);
+                    if paint.color_filter.is_none() && !crate::blitter::pipeline_blitters() {
+                        // Lowp: load_8888, scale_1_float, the modulate filter.
+                        let mut c = s.map(u32::from);
+                        if paint.alpha != 255 {
+                            let f = lowp_from_float(from_byte(paint.alpha));
+                            c = c.map(|v| div255(v * f));
+                        }
+                        if let Some(m) = paint.modulate {
+                            let k = uniform_lowp(m);
+                            c = [0, 1, 2, 3].map(|i| div255_accurate(k[i] * c[i]));
+                        }
+                        self.blend_full(di, Px::Low(c), paint.blend)
+                    } else {
+                        let mut c = load(s);
+                        if paint.alpha != 255 {
+                            let f = from_byte(paint.alpha);
+                            c = c.map(|v| v * f);
+                        }
+                        if let Some(m) = &paint.color_filter {
+                            c = color_filter(m, c);
+                        }
+                        if let Some(m) = paint.modulate {
+                            let k = uniform_high(m);
+                            c = [0, 1, 2, 3].map(|i| k[i] * c[i]);
+                        }
+                        self.blend_full(di, Px::High(clamp_01(c)), paint.blend)
                     }
-                    if let Some(m) = &paint.color_filter {
-                        c = color_filter(m, c);
-                    }
-                    self.blend_full(di, Px::High(clamp_01(c)), paint.blend)
                 };
                 self.dst.set_px(di, out);
             }
@@ -581,7 +741,7 @@ impl<'a> Canvas<'a> {
         // An opaque solid colour turns srcover into src (and src of a constant is a memset).
         let blend = match (&paint.shader, paint.blend) {
             (Shader::Color(c), Blend::SrcOver)
-                if c[3] == 255 && paint.alpha == 255 && paint.color_filter.is_none() =>
+                if c[3] == 255 && paint.alpha == 255 && paint.color_filter.is_none() && paint.modulate.is_none() =>
             {
                 Blend::Src
             }
@@ -666,6 +826,11 @@ impl<'a> Canvas<'a> {
                 let inv = 1.0 - c[3];
                 [0, 1, 2, 3].map(|i| to_unorm(mad(d[i] as f32, inv, c[i] * 255.0), 1.0, 255.0))
             }
+            (_, Blend::Clear) => [0, 0, 0, 0],
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => store(separable_high(b, c, load(self.dst.px(di)))),
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
+                separable_low(b, c, self.dst.px(di)).map(|v| v.min(255) as u8)
+            }
             (Px::Low(c), Blend::SrcOver) => {
                 let d = self.dst.px(di);
                 let inv = 255 - c[3];
@@ -706,7 +871,68 @@ impl<'a> Canvas<'a> {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + c[i] * t).min(255) as u8)
             }
+            (Px::High(_), Blend::Clear) => {
+                let f = cov as f32 * (1.0 / 255.0);
+                let dd = load(d);
+                store([0, 1, 2, 3].map(|i| mad(0.0 - dd[i], f, dd[i])))
+            }
+            (Px::Low(_), Blend::Clear) => {
+                let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
+                [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t)).min(255) as u8)
+            }
+            (Px::High(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
+                let f = cov as f32 * (1.0 / 255.0);
+                let dd = load(d);
+                let m = separable_high(b, c, dd);
+                store([0, 1, 2, 3].map(|i| mad(m[i] - dd[i], f, dd[i])))
+            }
+            (Px::Low(c), b @ (Blend::Multiply | Blend::Overlay | Blend::Screen | Blend::Modulate | Blend::DstIn)) => {
+                let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
+                let m = separable_low(b, c, d);
+                [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + m[i] * t).min(255) as u8)
+            }
         }
+    }
+}
+
+/// The highp blend stages other than srcover/src/clear.
+fn separable_high(mode: Blend, s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
+    let (sa, da) = (s[3], d[3]);
+    match mode {
+        Blend::Multiply => [0, 1, 2, 3].map(|i| s[i] * (1.0 - da) + d[i] * (1.0 - sa) + s[i] * d[i]),
+        Blend::Overlay => {
+            let ch = |s: f32, d: f32| {
+                s * (1.0 - da)
+                    + d * (1.0 - sa)
+                    + if d + d <= da { s * d + s * d } else { sa * da - ((da - d) * (sa - s) + (da - d) * (sa - s)) }
+            };
+            [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), mad(da, 1.0 - sa, sa)]
+        }
+        Blend::Screen => [0, 1, 2, 3].map(|i| s[i] + d[i] - s[i] * d[i]),
+        Blend::Modulate => [0, 1, 2, 3].map(|i| s[i] * d[i]),
+        Blend::DstIn => [0, 1, 2, 3].map(|i| d[i] * sa),
+        _ => unreachable!(),
+    }
+}
+
+/// The lowp blend stages other than srcover/src/clear (multiply and overlay
+/// divide with `div255` even in the accurate build, the rest `div255_accurate`).
+fn separable_low(mode: Blend, s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
+    let (sa, da) = (s[3], d[3] as u32);
+    let d = d.map(u32::from);
+    match mode {
+        Blend::Multiply => [0, 1, 2, 3].map(|i| div255(s[i] * (255 - da) + d[i] * (255 - sa) + s[i] * d[i])),
+        Blend::Overlay => {
+            let ch = |s: u32, d: u32| {
+                let tail = if 2 * d <= da { 2 * s * d } else { sa * da - 2 * (sa - s) * (da - d) };
+                div255(s * (255 - da) + d * (255 - sa) + tail)
+            };
+            [ch(s[0], d[0]), ch(s[1], d[1]), ch(s[2], d[2]), sa + div255(da * (255 - sa))]
+        }
+        Blend::Screen => [0, 1, 2, 3].map(|i| s[i] + d[i] - div255_accurate(s[i] * d[i])),
+        Blend::Modulate => [0, 1, 2, 3].map(|i| div255_accurate(s[i] * d[i])),
+        Blend::DstIn => [0, 1, 2, 3].map(|i| div255_accurate(d[i] * sa)),
+        _ => unreachable!(),
     }
 }
 
@@ -719,7 +945,11 @@ enum Legacy {
 }
 
 fn use_legacy_blitter(paint: &Paint, sampler: &Sampler) -> Option<Legacy> {
-    if paint.blend != Blend::SrcOver || paint.color_filter.is_some() || crate::blitter::pipeline_blitters() {
+    if paint.blend != Blend::SrcOver
+        || paint.color_filter.is_some()
+        || paint.modulate.is_some()
+        || crate::blitter::pipeline_blitters()
+    {
         return None;
     }
     match (&paint.shader, &sampler.kind) {
@@ -876,6 +1106,7 @@ struct Sampler<'a> {
     kind: SamplerKind<'a>,
     alpha: Option<f32>,
     color_filter: Option<[f32; 20]>,
+    modulate: Option<[u8; 4]>,
     lowp: bool,
 }
 
@@ -1003,6 +1234,11 @@ impl<'a> Sampler<'a> {
                 let lowp = s.lowp_capable();
                 (SamplerKind::Gradient(s), lowp)
             }
+            Shader::RadialGradient(g) => {
+                let s = g.sampler(ctm)?;
+                let lowp = s.lowp_capable();
+                (SamplerKind::Gradient(s), lowp)
+            }
         };
         let lowp = lowp_shader && paint.color_filter.is_none();
         let alpha = if matches!(paint.shader, Shader::Color(_)) {
@@ -1014,6 +1250,7 @@ impl<'a> Sampler<'a> {
             kind,
             alpha,
             color_filter: paint.color_filter,
+            modulate: paint.modulate,
             lowp,
         })
     }
@@ -1029,6 +1266,11 @@ impl<'a> Sampler<'a> {
                 let f = lowp_from_float(a);
                 c = c.map(|v| div255(v * f));
             }
+            if let Some(m) = self.modulate {
+                // move_src_dst, uniform_color, modulate.
+                let k = uniform_lowp(m);
+                c = [0, 1, 2, 3].map(|i| div255_accurate(k[i] * c[i]));
+            }
             Px::Low(c.map(|v| v.min(255)))
         } else {
             let mut c = match &self.kind {
@@ -1041,6 +1283,10 @@ impl<'a> Sampler<'a> {
             }
             if let Some(m) = &self.color_filter {
                 c = color_filter(m, c);
+            }
+            if let Some(m) = self.modulate {
+                let k = uniform_high(m);
+                c = [0, 1, 2, 3].map(|i| k[i] * c[i]);
             }
             Px::High(clamp_01(c))
         }
@@ -1123,7 +1369,37 @@ impl ImageSampler<'_> {
         {
             return st.shade(&self.image, x, y, span_left);
         }
+        if self.sampling == Sampling::Nearest
+            && self.tile_x == TileMode::Clamp
+            && self.tile_y == TileMode::Clamp
+            && self.inv.is_scale_translate()
+        {
+            return self.legacy_nearest_scale(x, y, span_left);
+        }
         self.gather_nearest(x, y)
+    }
+
+    /// `SkBitmapProcState`'s `nofilter_scale<clamp, clamp>`: the span's first
+    /// pixel centre mapped in float (`ScaleTrans_xy`), converted to 32.32
+    /// fixed point less the nearest bias (`SkBitmapProcStateAutoMapper`:
+    /// 1/65536, so exact pixel edges round down), then stepped by the
+    /// inverse x scale in 32.32 for each pixel along the span.
+    fn legacy_nearest_scale(&self, x: i32, y: i32, span_left: i32) -> [u8; 4] {
+        // SkFloatToFixed3232: (int64)(x * 2^32), x times an exact power of two.
+        let to3232 = |v: f32| (v * (65536.0f32 * 65536.0f32)) as i64;
+        let m = &self.inv;
+        let px = (span_left as f32 + 0.5) * m.sx() + m.tx();
+        let py = (y as f32 + 0.5) * m.sy() + m.ty();
+        let bias = 1i64 << 16;
+        let fy = to3232(py).wrapping_sub(bias);
+        let fx0 = to3232(px).wrapping_sub(bias);
+        let dx = to3232(m.sx());
+        let fx = fx0.wrapping_add(dx.wrapping_mul((x - span_left) as i64));
+        let max_x = self.image.width() as i32 - 1;
+        let max_y = self.image.height() as i32 - 1;
+        let ix = ((fx >> 32) as i32).clamp(0, max_x);
+        let iy = ((fy >> 32) as i32).clamp(0, max_y);
+        self.image.pixel(ix as u32, iy as u32)
     }
 
     fn sample_lowp(&self, x: i32, y: i32) -> [u32; 4] {
