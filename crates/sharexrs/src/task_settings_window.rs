@@ -159,6 +159,8 @@ pub struct TaskSettingsWindow {
     pub action_editor: Option<crate::task_editors::ActionEditor>,
     /// `WatchFolderEditorOverlay`.
     pub watch_editor: Option<crate::task_editors::WatchFolderEditor>,
+    /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
+    pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
     effects: Vec<Effect>,
 }
@@ -193,6 +195,7 @@ impl TaskSettingsWindow {
             watch_selected: None,
             action_editor: None,
             watch_editor: None,
+            toolbar_editor: None,
             color_open: false,
             effects: Vec::new(),
         }
@@ -282,7 +285,7 @@ impl TaskSettingsWindow {
             child.set_clip_rect(column.intersect(ui.clip_rect()));
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
-            let editing = self.action_editor.is_some() || self.watch_editor.is_some();
+            let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some();
             if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
@@ -310,6 +313,30 @@ impl TaskSettingsWindow {
                         self.action_selected = Some(i);
                         self.action_editor = None;
                     }
+                }
+            }
+        }
+        if let Some(ed) = self.toolbar_editor.as_mut() {
+            use crate::toolbar_editor::Target;
+            match ed.show(ui, full) {
+                Outcome::Open => {}
+                Outcome::Cancelled => self.toolbar_editor = None,
+                Outcome::Saved(values) => {
+                    // `options.ToolbarItems = items` (the image editor's
+                    // options are kept as JSON).
+                    match ed.target {
+                        Target::ImageEditor => {
+                            let o = &mut ctx.task.ToolsSettings.get_or_insert_default().ImageEditorOptions;
+                            if !o.is_object() {
+                                *o = serde_json::Value::Object(Default::default());
+                            }
+                            o["ToolbarItems"] = serde_json::Value::Array(values);
+                        }
+                        Target::RegionCapture => {
+                            ctx.task.CaptureSettings.get_or_insert_default().RegionCaptureOptions.ToolbarItems = values;
+                        }
+                    }
+                    self.toolbar_editor = None;
                 }
             }
         }
@@ -1198,7 +1225,9 @@ fn page_region_capture(f: &mut Form) {
         let custom = chk!(f, s::TaskSettingsWindow_UseCustomToolbarButtonSize(), CaptureSettings.RegionCaptureOptions.UseCustomToolbarButtonSize);
         num!(f, s::TaskSettingsWindow_ToolbarButtonSizePixels(), l::TOOLBAR_BUTTON_SIZE_MINIMUM, l::TOOLBAR_BUTTON_SIZE_MAXIMUM, custom, CaptureSettings.RegionCaptureOptions.ToolbarButtonSize);
         if f.button(s::TaskSettingsWindow_CustomizeToolbarWithEllipsis(), true) {
-            f.effect(Effect::NotPorted("region capture toolbar editor"));
+            // `ShowRegionCaptureToolbarEditor`.
+            let saved = sec!(f, CaptureSettings).RegionCaptureOptions.ToolbarItems.clone();
+            f.w.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::RegionCapture, &saved));
         }
     });
     f.enabled_card(Section::Capture, &mut |f| {
@@ -1485,7 +1514,9 @@ fn page_image_editor(f: &mut Form) {
         jcheck(f, s::TaskSettingsWindow_ShowNotifications(), &mut o, "ShowNotifications", true, true);
         sec!(f, ToolsSettings).ImageEditorOptions = o;
         if f.button(s::TaskSettingsWindow_CustomizeToolbarWithEllipsis(), true) {
-            f.effect(Effect::NotPorted("image editor toolbar editor"));
+            // `ShowImageEditorToolbarEditor`.
+            let saved = sec!(f, ToolsSettings).ImageEditorOptions.get("ToolbarItems").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            f.w.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::ImageEditor, &saved));
         }
     });
 }

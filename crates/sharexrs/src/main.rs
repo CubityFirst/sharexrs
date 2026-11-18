@@ -50,6 +50,7 @@ mod task_view;
 mod tasks;
 mod test_pattern;
 mod thumbnail;
+mod toolbar_editor;
 mod transparent_region;
 mod tray;
 mod tray_menu;
