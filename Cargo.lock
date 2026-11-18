@@ -4219,6 +4219,7 @@ version = "22.4.0"
 dependencies = [
  "flate2",
  "serde_json",
+ "sharex-screen-recording",
  "sharex-settings",
  "sharex-tools",
  "windows",

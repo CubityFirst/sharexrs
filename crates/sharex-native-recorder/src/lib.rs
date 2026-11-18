@@ -6,6 +6,7 @@
 //! | `RecordingOptions.cs` | [`options`] |
 //! | `RecordingClock.cs` | [`clock`] |
 //! | `ScreenRecorder.cs` | [`recorder`] (the worker loop, frame pacing, pause/resume/stop/abort) |
+//! | `ScreenRecordManager.RecordNativeAsync` (ShareX project) | [`session`] |
 //! | `Native/FrameTimer.cs` | [`signals`] |
 //! | `Audio/AudioMixer.cs` | [`mixer`] |
 //! | `Audio/WasapiCapture.cs` (packets) | [`audio`]; opening WASAPI endpoints is a trait |
@@ -23,6 +24,7 @@ pub mod media;
 pub mod mixer;
 pub mod options;
 pub mod recorder;
+pub mod session;
 pub mod signals;
 pub mod source;
 #[cfg(windows)]

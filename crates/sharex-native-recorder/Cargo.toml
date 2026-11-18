@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 sharex-settings.workspace = true
+sharex-screen-recording.workspace = true
 sharex-tools.workspace = true
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 
