@@ -218,7 +218,7 @@ fn fill_gradient(painter: &Painter, rect: Rect, radius: CornerRadius, start: Col
 
 /// One `Button.toolbar-button`: control background (hover background
 /// under the pointer), 1px border, 4px corners; `.active` the accent.
-fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: bool, hovered: bool, scale: f32) {
+pub fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: bool, hovered: bool, scale: f32) {
     let radius = CornerRadius::same((4.0 * scale).round() as u8);
     if active {
         fill_gradient(painter, rect, radius, p.accent_start, p.accent_end);
