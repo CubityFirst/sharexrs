@@ -8,13 +8,15 @@
 use std::cmp::Ordering;
 
 /// `StringComparer.OrdinalIgnoreCase`'s key: each character upper-cased by
-/// its simple mapping (one character to one).
+/// its simple mapping (one character to one). .NET's ordinal casing never
+/// turns a non-ASCII character into an ASCII one, so `ı` and `ſ` stay
+/// themselves (checked with ShareX's `CLIManager`, tools/cli-harness).
 pub fn ordinal_upper(s: &str) -> String {
     s.chars()
         .map(|c| {
             let mut up = c.to_uppercase();
             match (up.next(), up.next()) {
-                (Some(u), None) => u,
+                (Some(u), None) if c.is_ascii() || !u.is_ascii() => u,
                 _ => c,
             }
         })
