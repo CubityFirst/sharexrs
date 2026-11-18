@@ -487,6 +487,15 @@ impl App {
             counter: self.settings.settings.NameParserAutoIncrementNumber,
             send: Box::new(send),
         };
+        // `ScreenRecordMouseHighlighter`: highlighting for the recording
+        // (`MouseHighlighterManager.BeginRecordingAsync`), before the first frame.
+        if prepared.capture.ScreenRecordMouseHighlighter {
+            let o = crate::screen_tools::highlighter::options_of(&crate::screen_tools::tools_task(&r.task, &self.settings.settings.DefaultTaskSettings));
+            if let Err(e) = self.screen_tools.highlighter.begin_recording(o) {
+                eprintln!("Could not start mouse highlighting. {e}");
+            }
+        }
+        let Some(r) = self.recording.as_mut() else { return };
         let spawned = if uses_native(&prepared.capture) {
             let session = native::session(prepared, r.output == ScreenRecordOutput::GIF);
             std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
@@ -569,6 +578,8 @@ impl App {
     /// that's there becomes a file task (after the after capture window,
     /// `WorkerTask.CreateFileJobTask`).
     fn finish_recording(&mut self, path: Option<String>) {
+        // The highlighter's recording lease ends with the recording.
+        self.screen_tools.highlighter.end_recording();
         let Some(r) = self.recording.take() else { return };
         drop(r.phase);
         let Some(path) = path.filter(|p| std::path::Path::new(p).is_file()) else { return };

@@ -1008,6 +1008,7 @@ impl App {
         self.init_task_view();
         // `ReloadCoreAsync`: `WatchFolderManager.UpdateWatchFolders()`.
         self.update_watch_folders();
+        self.highlighter_activate_on_startup(event_loop);
         eprintln!("WatchFolderManager started.");
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
@@ -1461,6 +1462,8 @@ impl ApplicationHandler<UserEvent> for App {
         self.watch_folders.clear();
         self.recording = None;
         self.ffmpeg_options = None;
+        // `MouseHighlighterManager.Shutdown`.
+        self.screen_tools.highlighter.shutdown();
         if let Some(mut s) = self.settings_window.take() {
             s.state.flush_personal_path();
         }

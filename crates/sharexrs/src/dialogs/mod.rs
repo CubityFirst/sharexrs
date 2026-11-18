@@ -146,6 +146,10 @@ pub enum Effect {
     /// colour picker, restored, its colour handed back through
     /// [`Dialog::screen_color`].
     PickScreenColor,
+    /// The mouse highlighter window's Start/Stop (`SetManualActive`).
+    HighlighterToggle(Box<sharex_tools::mouse_highlighter::MouseHighlighterOptions>),
+    /// The mouse highlighter's settings changed (`settingsChanged`).
+    HighlighterOptions(Box<sharex_tools::mouse_highlighter::MouseHighlighterOptions>),
     /// A source of the Pin to screen startup window.
     PinFrom(crate::screen_tools::pin::Source),
     /// The pin options window saved (`ApplyOptions` on that pin).
@@ -509,6 +513,8 @@ impl App {
                     }
                     self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id));
                 }
+                Effect::HighlighterToggle(o) => self.highlighter_toggle(event_loop, *o),
+                Effect::HighlighterOptions(o) => self.highlighter_options_changed(*o),
                 Effect::PinFrom(source) => self.pin_from(event_loop, id, source),
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),

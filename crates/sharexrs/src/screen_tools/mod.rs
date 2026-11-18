@@ -9,6 +9,7 @@
 
 pub mod classic_ruler;
 pub mod color_picker;
+pub mod highlighter;
 pub mod overlay;
 pub mod pin;
 pub mod render;
@@ -46,6 +47,8 @@ pub struct ScreenTools {
     /// The screen colour picker that just closed, kept until its colour
     /// is copied (its window owns the clipboard).
     closing_picker: Option<ScreenPicker>,
+    /// `MouseHighlighterManager`.
+    pub highlighter: highlighter::Manager,
     /// Tools › Ruler, while it's open.
     classic: Option<classic_ruler::ClassicRuler>,
     /// Tools › Measure, while it's open.
@@ -63,6 +66,13 @@ pub struct ScreenTools {
 pub fn tools(task: &TaskSettings, defaults: &TaskSettings) -> sharex_settings::task_settings::TaskSettingsTools {
     let t = if task.UseDefaultToolsSettings { defaults.ToolsSettings.as_ref() } else { task.ToolsSettings.as_ref() };
     t.or(defaults.ToolsSettings.as_ref()).cloned().unwrap_or_default()
+}
+
+/// `task` with its effective tools settings (`ToolsSettingsReference`).
+pub fn tools_task(task: &TaskSettings, defaults: &TaskSettings) -> TaskSettings {
+    let mut t = task.clone();
+    t.ToolsSettings = Some(tools(task, defaults));
+    t
 }
 
 /// The Screen tools by their Tools menu key.
@@ -88,7 +98,11 @@ impl App {
         let task = TaskSettings::default_task_settings(defaults);
         let task = task.safe_task_settings(defaults);
         match job {
-            HotkeyType::MouseHighlighter => eprintln!("Mouse highlighter window: not ported yet"),
+            HotkeyType::MouseHighlighter => {
+                // `OpenMouseHighlighter`: the window.
+                let o = highlighter::options_of(&self.settings.settings.DefaultTaskSettings);
+                self.open_dialog_window(event_loop, Box::new(highlighter::HighlighterWindow::new(o)));
+            }
             job => {
                 self.run_screen_job(event_loop, &job, &task, None);
             }
@@ -160,7 +174,12 @@ impl App {
                     }
                 }
             }
-            HotkeyType::MouseHighlighter => eprintln!("{}: not ported yet", job.name()),
+            // `MouseHighlighterManager.Toggle` with the task's options.
+            HotkeyType::MouseHighlighter => {
+                let defaults = &self.settings.settings.DefaultTaskSettings;
+                let o = sharex_tools::mouse_highlighter::MouseHighlighterOptions::from_json(&tools(task, defaults).MouseHighlighterOptions);
+                self.highlighter_toggle(event_loop, o);
+            }
             _ => return false,
         }
         true
@@ -431,6 +450,42 @@ impl App {
         false
     }
 
+    /// `MouseHighlighterManager.Toggle` / the window's Start/Stop: on or
+    /// off, ShareX's message when it can't start.
+    pub(crate) fn highlighter_toggle(&mut self, event_loop: &ActiveEventLoop, options: sharex_tools::mouse_highlighter::MouseHighlighterOptions) {
+        let active = !self.screen_tools.highlighter.is_manual();
+        if let Err(e) = self.screen_tools.highlighter.set_manual(active, options) {
+            eprintln!("Could not start mouse highlighting. {e}");
+            let text = format!("{} {e}", sharex_strings::tools::MouseHighlighter_StartFailed());
+            let message = crate::message_box::MessageBox::ok("ShareXrs", &text, crate::message_box::MessageBoxIcon::Error);
+            if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::Information) {
+                eprintln!("couldn't open the message box: {e}");
+            }
+        }
+        for d in &self.dialogs {
+            d.window.window.request_redraw();
+        }
+    }
+
+    /// The highlighter window changed its options: the default task
+    /// settings take them, the running highlighter too, and they're saved.
+    pub(crate) fn highlighter_options_changed(&mut self, options: sharex_tools::mouse_highlighter::MouseHighlighterOptions) {
+        let t = self.settings.settings.DefaultTaskSettings.ToolsSettings.get_or_insert_default();
+        options.write_json(&mut t.MouseHighlighterOptions);
+        self.screen_tools.highlighter.refresh(options);
+        if let Err(e) = self.settings.save_application_config(false) {
+            eprintln!("couldn't save the settings: {e}");
+        }
+    }
+
+    /// `MouseHighlighterManager.ActivateOnStartup`.
+    pub(crate) fn highlighter_activate_on_startup(&mut self, event_loop: &ActiveEventLoop) {
+        let o = highlighter::options_of(&self.settings.settings.DefaultTaskSettings);
+        if o.auto_activate {
+            self.highlighter_toggle(event_loop, o);
+        }
+    }
+
     /// One of the screen tools' windows, to own the clipboard when no
     /// other window is open.
     pub(crate) fn screen_tool_window(&self) -> Option<&winit::window::Window> {
@@ -454,6 +509,7 @@ impl App {
         if let Some((p, _)) = self.screen_tools.picker.as_mut() {
             at(p.wake_at(now));
         }
+        at(self.screen_tools.highlighter.tick(now));
         if let Some(r) = self.screen_tools.ruler.as_mut() {
             at(r.wake_at(now));
         }
