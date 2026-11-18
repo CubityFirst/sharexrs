@@ -32,7 +32,21 @@ impl EffectImpl for ScanlineImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
+        if alpha <= 0.0 {
+            return Ok(source.clone());
+        }
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let paint = solid(SkColor::rgba(0, 0, 0, (255.0 * alpha) as u8), false);
+        let pen = Pen::new(1.0);
+        let step = 2.max(self.spacing);
+        let mut y = 0;
+        while y < source.height() as i32 {
+            sk::draw_line(&mut canvas, 0.0, y as f32, source.width() as f32, y as f32, &pen, &paint);
+            y += step;
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

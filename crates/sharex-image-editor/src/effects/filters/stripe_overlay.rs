@@ -41,7 +41,26 @@ impl EffectImpl for StripeOverlayImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let alpha = clampf(self.opacity / 100.0, 0.0, 1.0);
+        if alpha <= 0.0 {
+            return Ok(source.clone());
+        }
+        let period = 4.max(self.stripe_width.wrapping_add(self.gap_width));
+        let (w, h) = (source.width() as i32, source.height() as i32);
+        let mut out = source.clone();
+        let mut canvas = Canvas::new(&mut out);
+        let a = (self.color.a as f32 * alpha) as u8;
+        let paint = solid(self.color.with_alpha(a), true);
+        let diagonal = ((w * w + h * h) as f32).sqrt();
+        let count = (diagonal / period as f32) as i32 + 2;
+        sk::rotate_about(&mut canvas, self.angle as f32, w as f32 / 2.0, h as f32 / 2.0);
+        let start_x = -diagonal / 2.0 + w as f32 / 2.0;
+        let start_y = -diagonal / 2.0 + h as f32 / 2.0;
+        for i in 0..count {
+            let x = start_x + (i * period) as f32;
+            sk::draw_rect_xywh(&mut canvas, x, start_y, self.stripe_width as f32, diagonal * 2.0, &paint, None);
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

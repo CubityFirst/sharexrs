@@ -41,7 +41,46 @@ impl EffectImpl for DotMatrixImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let size = self.cell_size.clamp(2, 100);
+        let dot_scale = clampf(self.dot_scale, 0.05, 1.0);
+        let max_r = size as f32 * 0.5 * dot_scale;
+        let src = pixels(source);
+        let cols = (width + size - 1) / size;
+        let rows = (height + size - 1) / size;
+        let mut out = Bitmap::new(source.width(), source.height());
+        let mut canvas = Canvas::new(&mut out);
+        canvas.clear(self.paper_color.rgba_array());
+        for gy in 0..rows {
+            for gx in 0..cols {
+                let (x0, y0) = (gx * size, gy * size);
+                let (x1, y1) = ((x0 + size).min(width), (y0 + size).min(height));
+                let (mut sr, mut sg, mut sb, mut n) = (0i64, 0i64, 0i64, 0i64);
+                for py in y0..y1 {
+                    for px in x0..x1 {
+                        let c = src[(py * width + px) as usize];
+                        sr += c.r as i64;
+                        sg += c.g as i64;
+                        sb += c.b as i64;
+                        n += 1;
+                    }
+                }
+                if n == 0 {
+                    continue;
+                }
+                let (ar, ag, ab) = ((sr / n) as u8, (sg / n) as u8, (sb / n) as u8);
+                let lum = (0.299 * ar as f32 + 0.587 * ag as f32 + 0.114 * ab as f32) / 255.0;
+                let radius = (1.0 - lum) * max_r;
+                if radius < 0.3 {
+                    continue;
+                }
+                let color = if self.color_mode { SkColor::rgba(ar, ag, ab, 255) } else { self.dot_color };
+                let cx = x0 as f32 + size as f32 * 0.5;
+                let cy = y0 as f32 + size as f32 * 0.5;
+                sk::draw_circle(&mut canvas, cx, cy, radius, &solid(color, true), None);
+            }
+        }
+        drop(canvas);
+        Ok(out)
     }
 }

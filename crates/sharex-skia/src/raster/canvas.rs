@@ -46,6 +46,9 @@ pub enum TileMode {
 pub enum Blend {
     SrcOver,
     Src,
+    /// `SKBlendMode.Multiply`: `s*(1-da) + d*(1-sa) + s*d`, coverage lerped
+    /// (it doesn't support coverage as alpha).
+    Multiply,
 }
 
 /// `SKPaint.Shader` (or its colour when there's none).
@@ -557,6 +560,8 @@ impl<'a> Canvas<'a> {
                     match paint.blend {
                         // SkSpriteBlitter_Memcpy.
                         Blend::Src => s,
+                        // SkRasterPipelineSpriteBlitter: load_8888, multiply (lowp), store.
+                        Blend::Multiply => self.blend_full(di, Px::Low(s.map(u32::from)), Blend::Multiply),
                         // Sprite_D32_S32 → S32A_Opaque_BlitRow32: s + (d * (256 - sa) >> 8).
                         Blend::SrcOver => {
                             let d = self.dst.px(di);
@@ -678,6 +683,8 @@ impl<'a> Canvas<'a> {
                 let inv = 1.0 - c[3];
                 [0, 1, 2, 3].map(|i| to_unorm(mad(d[i] as f32, inv, c[i] * 255.0), 1.0, 255.0))
             }
+            (Px::High(c), Blend::Multiply) => store(multiply_high(c, load(self.dst.px(di)))),
+            (Px::Low(c), Blend::Multiply) => multiply_low(c, self.dst.px(di)).map(|v| v.min(255) as u8),
             (Px::Low(c), Blend::SrcOver) => {
                 let d = self.dst.px(di);
                 let inv = 255 - c[3];
@@ -718,8 +725,31 @@ impl<'a> Canvas<'a> {
                 let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
                 [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + c[i] * t).min(255) as u8)
             }
+            (Px::High(c), Blend::Multiply) => {
+                let f = cov as f32 * (1.0 / 255.0);
+                let dd = load(d);
+                let m = multiply_high(c, dd);
+                store([0, 1, 2, 3].map(|i| mad(m[i] - dd[i], f, dd[i])))
+            }
+            (Px::Low(c), Blend::Multiply) => {
+                let t = lowp_from_float(cov as f32 * (1.0 / 255.0));
+                let m = multiply_low(c, d);
+                [0, 1, 2, 3].map(|i| div255(d[i] as u32 * (255 - t) + m[i] * t).min(255) as u8)
+            }
         }
     }
+}
+
+/// The highp `multiply` blend stage.
+fn multiply_high(s: [f32; 4], d: [f32; 4]) -> [f32; 4] {
+    let (sa, da) = (s[3], d[3]);
+    [0, 1, 2, 3].map(|i| s[i] * (1.0 - da) + d[i] * (1.0 - sa) + s[i] * d[i])
+}
+
+/// The lowp `multiply` blend stage (`div255`, even with accurate blends).
+fn multiply_low(s: [u32; 4], d: [u8; 4]) -> [u32; 4] {
+    let (sa, da) = (s[3], d[3] as u32);
+    [0, 1, 2, 3].map(|i| div255(s[i] * (255 - da) + d[i] as u32 * (255 - sa) + s[i] * d[i] as u32))
 }
 
 /// Which legacy (pre-raster-pipeline) blitter `SkBlitter::Choose` picks: src-over onto
