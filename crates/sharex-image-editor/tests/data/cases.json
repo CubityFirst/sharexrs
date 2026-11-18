@@ -5420,6 +5420,98 @@
    ]
   },
   {
+   "name": "effect-rotated-blur",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 60,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 160
+     },
+     "Amount": 8,
+     "RotationAngle": 25
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-pixelate",
+   "annotations": [
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 150.5,
+      "Y": 60.25
+     },
+     "EndPoint": {
+      "X": 330.7,
+      "Y": 200.4
+     },
+     "Amount": 12,
+     "RotationAngle": -40
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-highlight",
+   "annotations": [
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 40,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 180
+     },
+     "RotationAngle": 15
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-magnify",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "StartPoint": {
+      "X": 180,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 320,
+      "Y": 200
+     },
+     "Amount": 2,
+     "RotationAngle": 30
+    }
+   ]
+  },
+  {
+   "name": "effect-rotated-magnify-ellipse",
+   "annotations": [
+    {
+     "$type": "Magnify",
+     "StartPoint": {
+      "X": 60,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 230
+     },
+     "Amount": 3,
+     "IsEllipse": true,
+     "StrokeColor": "#FFFF8000",
+     "StrokeWidth": 4,
+     "RotationAngle": -20
+    }
+   ]
+  },
+  {
    "name": "region-shapes",
    "annotations": [
     {

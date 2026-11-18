@@ -180,6 +180,17 @@ CASES += [
 ]
 
 
+# Rotated effects (UpdateEffectFromProcessedSource, MagnifyAnnotation.UpdateRotatedEffect).
+CASES += [
+    {"name": "effect-rotated-blur", "annotations": [ann("Blur", (60, 40), (220, 160), Amount=8, RotationAngle=25)]},
+    {"name": "effect-rotated-pixelate", "annotations": [ann("Pixelate", (150.5, 60.25), (330.7, 200.4), Amount=12, RotationAngle=-40)]},
+    {"name": "effect-rotated-highlight", "annotations": [ann("Highlight", (40, 120), (300, 180), RotationAngle=15)]},
+    {"name": "effect-rotated-magnify", "annotations": [ann("Magnify", (180, 60), (320, 200), Amount=2, RotationAngle=30)]},
+    {"name": "effect-rotated-magnify-ellipse", "annotations": [
+        ann("Magnify", (60, 120), (200, 230), Amount=3, IsEllipse=True, StrokeColor="#FFFF8000", StrokeWidth=4, RotationAngle=-20)]},
+]
+
+
 def load_case(name):
     with open(os.path.join(HERE, "cases.json"), encoding="utf-8") as f:
         for c in json.load(f)["cases"]:
