@@ -117,6 +117,22 @@ impl EditorCore {
         crate::render::render(&self.source, &self.annotations)
     }
 
+    /// `SampleCanvasColor`: the image's colour at `(x, y)` (rounded; the
+    /// top-left pixel when outside), as `#RRGGBB`, what the smart eraser
+    /// starts filled with.
+    pub fn sample_canvas_color(&self, x: f32, y: f32) -> Option<String> {
+        let (w, h) = (self.source.width() as i32, self.source.height() as i32);
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let (mut px, mut py) = ((x as f64).round_ties_even() as i32, (y as f64).round_ties_even() as i32);
+        if px < 0 || py < 0 || px >= w || py >= h {
+            (px, py) = (0, 0);
+        }
+        let c = image_ops::get_pixel(&self.source, px, py);
+        Some(format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]))
+    }
+
     /// `EditorView.GetSnapshot(Rect)`: region capture's export of `rect`
     /// (`x, y, width, height`), see [`crate::render::render_region`].
     pub fn snapshot_region(&self, rect: (f64, f64, f64, f64)) -> Option<Pixmap> {
@@ -852,5 +868,74 @@ pub fn configure_smart_eraser_fill(a: &mut Annotation, source: &Pixmap) {
     if (left..=right).all(|x| px(x, top) == px(x, bottom)) {
         p.fill_mode = SmartEraserFillMode::StretchVertically;
         p.edge_pixels = Some((left..=right).map(|x| pack(px(x, top))).collect());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(l: f32, t: f32, r: f32, b: f32) -> Annotation {
+        let mut a = Annotation::new("Rectangle").unwrap();
+        a.common.start_point = Point::new(l, t);
+        a.common.end_point = Point::new(r, b);
+        a
+    }
+
+    #[test]
+    fn samples_the_image_colour() {
+        let mut pm = Pixmap::new(4, 3);
+        *pm.pixel_mut(2, 1) = 0xFF12_3456;
+        let core = EditorCore::new(pm);
+        assert_eq!(core.sample_canvas_color(2.4, 0.6).as_deref(), Some("#123456"));
+        // Outside: the top-left pixel.
+        assert_eq!(core.sample_canvas_color(9.0, 1.0).as_deref(), Some("#000000"));
+    }
+
+    #[test]
+    fn history_keeps_five_image_copies() {
+        let mut core = EditorCore::new(Pixmap::new(40, 30));
+        core.add_annotation(rect(1.0, 1.0, 10.0, 10.0));
+        for _ in 0..7 {
+            assert!(core.rotate_90_clockwise());
+        }
+        let mut undos = 0;
+        while core.can_undo() {
+            core.undo();
+            undos += 1;
+        }
+        // Five rotations undone (two remain: 180 degrees), nothing older
+        // than the sixth image copy.
+        assert_eq!(undos, 5);
+        assert_eq!(core.canvas_size(), (40, 30));
+        assert_eq!(core.annotations().len(), 1);
+    }
+
+    #[test]
+    fn crop_drops_annotations_outside_and_moves_the_rest() {
+        let mut core = EditorCore::new(Pixmap::new(100, 80));
+        core.add_annotation(rect(10.0, 10.0, 30.0, 30.0));
+        core.add_annotation(rect(70.0, 60.0, 90.0, 75.0));
+        assert!(core.crop(Rect::new(5.5, 5.0, 55.0, 50.0)));
+        assert_eq!(core.canvas_size(), (49, 45));
+        assert_eq!(core.annotations().len(), 1);
+        assert_eq!(core.annotations()[0].common.start_point, Point::new(5.0, 5.0));
+        core.undo();
+        assert_eq!(core.canvas_size(), (100, 80));
+        assert_eq!(core.annotations().len(), 2);
+    }
+
+    #[test]
+    fn cut_out_collapses_annotations_inside_the_strip() {
+        let mut core = EditorCore::new(Pixmap::new(100, 50));
+        core.add_annotation(rect(40.0, 5.0, 45.0, 10.0));
+        core.add_annotation(rect(20.0, 5.0, 80.0, 10.0));
+        assert!(core.cut_out(30, 60, true));
+        assert_eq!(core.canvas_size(), (70, 50));
+        // The one inside the strip goes; both ends of the one across it move
+        // back by the cut, as ShareX shifts them.
+        assert_eq!(core.annotations().len(), 1);
+        let a = &core.annotations()[0].common;
+        assert_eq!((a.start_point.x, a.end_point.x), (-10.0, 50.0));
     }
 }
