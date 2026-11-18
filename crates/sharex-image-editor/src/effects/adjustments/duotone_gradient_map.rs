@@ -44,7 +44,45 @@ impl EffectImpl for DuotoneGradientMapImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let contrast = clampf(self.contrast, 50.0, 200.0) / 100.0;
+        let gamma = clampf(self.gamma, 0.3, 3.0);
+        let blend = clampf(self.blend, 0.0, 100.0) / 100.0;
+        if source.is_empty() {
+            return Ok(source.clone());
+        }
+        let src = pixels(source);
+        let dst: Vec<SkColor> = src
+            .iter()
+            .map(|s| {
+                let mut lum = ((0.2126 * s.r as f32) + (0.7152 * s.g as f32) + (0.0722 * s.b as f32)) / 255.0;
+                lum = clampf(((lum - 0.5) * contrast) + 0.5, 0.0, 1.0);
+                lum = lum.powf(1.0 / gamma);
+                let mapped = sample_three(lum, self.shadow_color, self.midtone_color, self.highlight_color);
+                let r = lerp(s.r as f32, mapped.r as f32, blend);
+                let g = lerp(s.g as f32, mapped.g as f32, blend);
+                let b = lerp(s.b as f32, mapped.b as f32, blend);
+                SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), s.a)
+            })
+            .collect();
+        Ok(from_pixels(source.width(), source.height(), &dst))
     }
+}
+
+// ---- port ----
+
+fn sample_three(t: f32, shadows: SkColor, mids: SkColor, highs: SkColor) -> SkColor {
+    let t = clampf(t, 0.0, 1.0);
+    if t <= 0.5 {
+        return lerp_opaque(shadows, mids, t * 2.0);
+    }
+    lerp_opaque(mids, highs, (t - 0.5) * 2.0)
+}
+
+fn lerp_opaque(a: SkColor, b: SkColor, t: f32) -> SkColor {
+    SkColor::rgba(
+        clamp_to_byte(lerp(a.r as f32, b.r as f32, t)),
+        clamp_to_byte(lerp(a.g as f32, b.g as f32, t)),
+        clamp_to_byte(lerp(a.b as f32, b.b as f32, t)),
+        255,
+    )
 }

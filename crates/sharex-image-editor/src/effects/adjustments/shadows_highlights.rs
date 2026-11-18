@@ -32,7 +32,23 @@ impl EffectImpl for ShadowsHighlightsImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let shadows = clampf(self.shadows, -100.0, 100.0);
+        let highlights = clampf(self.highlights, -100.0, 100.0);
+        if shadows.abs() < 0.0001 && highlights.abs() < 0.0001 {
+            return Ok(source.clone());
+        }
+        let (ss, hs) = (shadows / 100.0, highlights / 100.0);
+        Ok(apply_pixel_operation(source, |c| {
+            let luma = (0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32) / 255.0;
+            let sw = (1.0 - luma) * (1.0 - luma);
+            let hw = luma * luma;
+            let delta = (ss * sw - hs * hw) * 255.0;
+            SkColor::rgba(
+                clamp_to_byte(c.r as f32 + delta),
+                clamp_to_byte(c.g as f32 + delta),
+                clamp_to_byte(c.b as f32 + delta),
+                c.a,
+            )
+        }))
     }
 }

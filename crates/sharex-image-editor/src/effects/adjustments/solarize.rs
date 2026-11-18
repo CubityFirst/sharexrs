@@ -29,7 +29,8 @@ impl EffectImpl for SolarizeImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let t = self.threshold.clamp(0, 255);
+        let f = |v: u8| if v as i32 > t { 255 - v } else { v };
+        Ok(apply_pixel_operation(source, |c| SkColor::rgba(f(c.r), f(c.g), f(c.b), c.a)))
     }
 }

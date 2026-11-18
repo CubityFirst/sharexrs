@@ -22,7 +22,13 @@ impl EffectImpl for InvertImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        #[rustfmt::skip]
+        let m = [
+            -1.0, 0.0, 0.0, 0.0, 1.0,
+            0.0, -1.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, -1.0, 0.0, 1.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

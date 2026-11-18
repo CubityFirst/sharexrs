@@ -29,7 +29,16 @@ impl EffectImpl for ContrastImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let mut scale = (100.0 + self.amount) / 100.0;
+        scale = scale * scale;
+        let shift = 0.5 * (1.0 - scale);
+        #[rustfmt::skip]
+        let m = [
+            scale, 0.0, 0.0, 0.0, shift,
+            0.0, scale, 0.0, 0.0, shift,
+            0.0, 0.0, scale, 0.0, shift,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

@@ -22,7 +22,13 @@ impl EffectImpl for PolaroidImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        #[rustfmt::skip]
+        let m = [
+            1.438, -0.062, -0.062, 0.0, 0.0,
+            -0.122, 1.378, -0.122, 0.0, 0.0,
+            -0.016, -0.016, 1.483, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

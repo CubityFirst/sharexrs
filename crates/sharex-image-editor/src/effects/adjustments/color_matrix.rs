@@ -86,7 +86,13 @@ impl EffectImpl for ColorMatrixImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        #[rustfmt::skip]
+        let m = [
+            self.rr, self.rg, self.rb, self.ra, self.ro,
+            self.gr, self.gg, self.gb, self.ga, self.go,
+            self.br, self.bg, self.bb, self.ba, self.bo,
+            self.ar, self.ag, self.ab, self.aa, self.ao,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

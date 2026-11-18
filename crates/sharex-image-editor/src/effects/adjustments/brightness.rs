@@ -29,7 +29,14 @@ impl EffectImpl for BrightnessImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let v = self.amount / 100.0;
+        #[rustfmt::skip]
+        let m = [
+            1.0, 0.0, 0.0, 0.0, v,
+            0.0, 1.0, 0.0, 0.0, v,
+            0.0, 0.0, 1.0, 0.0, v,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

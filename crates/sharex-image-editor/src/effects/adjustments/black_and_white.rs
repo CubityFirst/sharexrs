@@ -22,7 +22,9 @@ impl EffectImpl for BlackAndWhiteImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        Ok(apply_pixel_operation(source, |c| {
+            let lum = 0.2126 * c.r as f32 + 0.7152 * c.g as f32 + 0.0722 * c.b as f32;
+            if lum > 127.0 { color::WHITE } else { color::BLACK }
+        }))
     }
 }

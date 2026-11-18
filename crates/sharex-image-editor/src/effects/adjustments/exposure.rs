@@ -29,7 +29,18 @@ impl EffectImpl for ExposureImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let amount = clampf(self.amount, -10.0, 10.0);
+        if amount.abs() < 0.0001 {
+            return Ok(source.clone());
+        }
+        let gain = 2f32.powf(amount);
+        Ok(apply_pixel_operation(source, |c| {
+            SkColor::rgba(
+                clamp_to_byte(c.r as f32 * gain),
+                clamp_to_byte(c.g as f32 * gain),
+                clamp_to_byte(c.b as f32 * gain),
+                c.a,
+            )
+        }))
     }
 }

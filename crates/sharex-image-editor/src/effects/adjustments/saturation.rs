@@ -29,7 +29,17 @@ impl EffectImpl for SaturationImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let x = 1.0 + (self.amount / 100.0);
+        let (lum_r, lum_g, lum_b) = (0.3086f32, 0.6094f32, 0.0820f32);
+        let inv = 1.0 - x;
+        let (r, g, b) = (inv * lum_r, inv * lum_g, inv * lum_b);
+        #[rustfmt::skip]
+        let m = [
+            r + x, g, b, 0.0, 0.0,
+            r, g + x, b, 0.0, 0.0,
+            r, g, b + x, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &m))
     }
 }

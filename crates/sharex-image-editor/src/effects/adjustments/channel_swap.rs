@@ -38,7 +38,13 @@ impl EffectImpl for ChannelSwapImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let mode = self.mode;
+        Ok(apply_pixel_operation(source, |c| match mode {
+            ChannelSwapMode::RedGreen => SkColor::rgba(c.g, c.r, c.b, c.a),
+            ChannelSwapMode::RedBlue => SkColor::rgba(c.b, c.g, c.r, c.a),
+            ChannelSwapMode::GreenBlue => SkColor::rgba(c.r, c.b, c.g, c.a),
+            ChannelSwapMode::RotateRGB => SkColor::rgba(c.b, c.r, c.g, c.a),
+            ChannelSwapMode::RotateBGR => SkColor::rgba(c.g, c.b, c.r, c.a),
+        }))
     }
 }

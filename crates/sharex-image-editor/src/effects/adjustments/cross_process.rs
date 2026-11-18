@@ -29,7 +29,17 @@ impl EffectImpl for CrossProcessImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let s = clampf(self.strength / 100.0, 0.0, 1.0);
+        if s <= 0.0 {
+            return Ok(source.clone());
+        }
+        #[rustfmt::skip]
+        let cross: [f32; 20] = [
+            1.2, 0.1, -0.1, 0.0, 0.05,
+            -0.1, 1.3, 0.0, 0.0, 0.02,
+            -0.1, 0.0, 0.8, 0.0, 0.1,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &blend_with_identity(&cross, s)))
     }
 }

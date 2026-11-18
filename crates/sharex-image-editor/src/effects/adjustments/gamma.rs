@@ -29,7 +29,9 @@ impl EffectImpl for GammaImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
+        // ShareX passes null for the alpha table: SKColorFilter.CreateTable
+        // always throws, so the effect never applies.
         let _ = source;
-        not_ported()
+        throw("Value cannot be null. (Parameter 'tableA')")
     }
 }

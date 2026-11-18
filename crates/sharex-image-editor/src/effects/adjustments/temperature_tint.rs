@@ -32,7 +32,18 @@ impl EffectImpl for TemperatureTintImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let temperature = clampf(self.temperature, -100.0, 100.0);
+        let tint = clampf(self.tint, -100.0, 100.0);
+        if temperature.abs() < 0.0001 && tint.abs() < 0.0001 {
+            return Ok(source.clone());
+        }
+        let temp_delta = temperature / 100.0 * 64.0;
+        let tint_delta = tint / 100.0 * 64.0;
+        Ok(apply_pixel_operation(source, |c| {
+            let r = c.r as f32 + temp_delta - tint_delta * 0.25;
+            let g = c.g as f32 + tint_delta;
+            let b = c.b as f32 - temp_delta - tint_delta * 0.25;
+            SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), c.a)
+        }))
     }
 }

@@ -374,3 +374,16 @@ pub fn fill_rect_with_image(dst: &mut Bitmap, rect: Rect, image: &Bitmap, tile: 
     });
     canvas.draw_rect(rect, &paint);
 }
+
+/// `matrix[i] = identity[i] * (1 - s) + effect[i] * s` (Sepia, Cross
+/// process, Lomo).
+pub fn blend_with_identity(effect: &[f32; 20], s: f32) -> [f32; 20] {
+    const IDENTITY: [f32; 20] = [
+        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+    ];
+    let mut m = [0f32; 20];
+    for i in 0..20 {
+        m[i] = IDENTITY[i] * (1.0 - s) + effect[i] * s;
+    }
+    m
+}

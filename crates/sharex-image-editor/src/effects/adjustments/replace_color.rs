@@ -35,7 +35,15 @@ impl EffectImpl for ReplaceColorImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let tol = (self.tolerance * 2.55) as i32;
+        let (target, replace) = (self.target_color, self.replace_color);
+        Ok(apply_pixel_operation(source, |c| {
+            let m = |a: u8, b: u8| (a as i32 - b as i32).abs() <= tol;
+            if m(c.r, target.r) && m(c.g, target.g) && m(c.b, target.b) && m(c.a, target.a) {
+                replace
+            } else {
+                c
+            }
+        }))
     }
 }

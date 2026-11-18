@@ -29,7 +29,11 @@ impl EffectImpl for ThresholdImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let t = self.value.clamp(0, 255);
+        Ok(apply_pixel_operation(source, |c| {
+            let luma = ((c.r as i32 * 77) + (c.g as i32 * 150) + (c.b as i32 * 29)) >> 8;
+            let bw = if luma >= t { 255 } else { 0 };
+            SkColor::rgba(bw, bw, bw, c.a)
+        }))
     }
 }

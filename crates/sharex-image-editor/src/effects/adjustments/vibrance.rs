@@ -29,7 +29,21 @@ impl EffectImpl for VibranceImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let amount = clampf(self.amount, -100.0, 100.0) / 100.0;
+        if amount.abs() < 0.0001 {
+            return Ok(source.clone());
+        }
+        Ok(apply_pixel_operation(source, |c| {
+            let (mut r, mut g, mut b) = (c.r as f32, c.g as f32, c.b as f32);
+            let max = r.max(g.max(b));
+            let min = r.min(g.min(b));
+            let saturation = (max - min) / 255.0;
+            let gray = (r + g + b) / 3.0;
+            let factor = if amount >= 0.0 { 1.0 + (amount * (1.0 - saturation)) } else { 1.0 + amount };
+            r = gray + ((r - gray) * factor);
+            g = gray + ((g - gray) * factor);
+            b = gray + ((b - gray) * factor);
+            SkColor::rgba(clamp_to_byte(r), clamp_to_byte(g), clamp_to_byte(b), c.a)
+        }))
     }
 }

@@ -29,7 +29,29 @@ impl EffectImpl for GrayscaleImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let strength = self.strength;
+        if strength >= 100.0 {
+            #[rustfmt::skip]
+            let m = [
+                0.2126, 0.7152, 0.0722, 0.0, 0.0,
+                0.2126, 0.7152, 0.0722, 0.0, 0.0,
+                0.2126, 0.7152, 0.0722, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0, 0.0,
+            ];
+            Ok(apply_color_matrix(source, &m))
+        } else if strength <= 0.0 {
+            Ok(source.clone())
+        } else {
+            let s = strength / 100.0;
+            let inv = 1.0 - s;
+            #[rustfmt::skip]
+            let m = [
+                0.2126 * s + inv, 0.7152 * s, 0.0722 * s, 0.0, 0.0,
+                0.2126 * s, 0.7152 * s + inv, 0.0722 * s, 0.0, 0.0,
+                0.2126 * s, 0.7152 * s, 0.0722 * s + inv, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0, 0.0,
+            ];
+            Ok(apply_color_matrix(source, &m))
+        }
     }
 }

@@ -29,7 +29,17 @@ impl EffectImpl for SepiaImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let s = clampf(self.strength / 100.0, 0.0, 1.0);
+        if s <= 0.0 {
+            return Ok(source.clone());
+        }
+        #[rustfmt::skip]
+        let sepia: [f32; 20] = [
+            0.393, 0.769, 0.189, 0.0, 0.0,
+            0.349, 0.686, 0.168, 0.0, 0.0,
+            0.272, 0.534, 0.131, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+        ];
+        Ok(apply_color_matrix(source, &blend_with_identity(&sepia, s)))
     }
 }

@@ -29,7 +29,19 @@ impl EffectImpl for PosterizeImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let levels = self.levels.clamp(2, 64);
+        let scale = (levels - 1) as f32;
+        let q = |v: u8| -> u8 {
+            let bucket = (v as f32 * scale / 255.0).round_ties_even();
+            let mapped = bucket * 255.0 / scale;
+            if mapped <= 0.0 {
+                return 0;
+            }
+            if mapped >= 255.0 {
+                return 255;
+            }
+            mapped.round_ties_even() as u8
+        };
+        Ok(apply_pixel_operation(source, |c| SkColor::rgba(q(c.r), q(c.g), q(c.b), c.a)))
     }
 }
