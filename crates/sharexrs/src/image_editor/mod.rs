@@ -38,6 +38,7 @@ use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
 mod background;
 mod canvas_size;
+mod effects;
 pub(crate) mod emoji_picker;
 mod insert_image;
 pub(crate) mod modal;
@@ -54,6 +55,8 @@ enum PickTarget {
     NewImage,
     CanvasFill,
     Background(background::ColorTarget),
+    /// An effect dialog's colour parameter.
+    Effect(usize),
 }
 
 /// The dialog in `EditorView`'s modal host (`ModalContent`).
@@ -197,6 +200,8 @@ enum MenuCmd {
     ZoomFit,
     /// `OpenRecentImageCommand` with the recent file at this index.
     OpenRecent(u8),
+    /// The favourite image effect at this index of the favourites menu.
+    FavoriteEffect(u8),
 }
 
 /// `EditorZoomController.ZoomLevels` (`ZoomPickerDropdown`'s too).
@@ -251,6 +256,8 @@ pub struct EditorWindow {
     layout: Layout,
     /// Open the File menu once the toolbar is laid out (`OpenFileMenu`).
     open_file_menu: bool,
+    /// `--render`: the favourite effects menu once the toolbar is laid out.
+    open_favorites_menu: bool,
     /// The window's client area on the desktop (points) and its scale.
     window_inner: Option<(Rect, f32)>,
     /// The Canvas size tool, while open (`IsCanvasSizeModeActive`).
@@ -281,6 +288,9 @@ pub struct EditorWindow {
     emoji_sunglasses: bool,
     /// `_autoSizePending` (`AutoSizeWindow`).
     auto_size_pending: bool,
+    /// The image effects: browser, dialog and preview
+    /// (`IsEffectsPanelOpen`, `EffectsPanelContent`).
+    fx: effects::Effects,
 }
 
 struct Layout {
@@ -318,13 +328,28 @@ pub fn pixmap_of(image: &RgbaImage) -> Pixmap {
 }
 
 /// A premultiplied pixmap as straight RGBA (`SKBitmap.Copy` to a
-/// `Bitmap`).
+/// `Bitmap`, as ShareX's copied and saved images have it): in `f32`, each
+/// channel and the alpha divided by 255, the channel times the alpha's
+/// inverse, times 255, rounded half to even. Fitted to ShareX's copied PNG
+/// of a rounded-corners effect, whose translucent corners hold both kinds
+/// of tie: premultiplied 4 at alpha 120 is 8 (8.5 exactly), 232 at 240 is
+/// 247 (246.50002); Skia's `readPixels` (`* (1/255)`) and integer rounding
+/// each get one wrong.
 pub fn rgba_of(pm: &Pixmap) -> RgbaImage {
     let mut out = RgbaImage::new(pm.width(), pm.height());
     for (px, c) in out.pixels_mut().zip(pm.pixels()) {
-        let a = c >> 24;
-        let un = |v: u32| (v * 255 + a / 2).checked_div(a).map_or(0, |x| x.min(255) as u8);
-        *px = image::Rgba([un((c >> 16) & 0xFF), un((c >> 8) & 0xFF), un(c & 0xFF), a as u8]);
+        let a = (c >> 24) as u8;
+        let un = |v: u32| -> u8 {
+            match a {
+                0 => 0,
+                255 => v as u8,
+                _ => {
+                    let inv = 1.0f32 / (a as f32 / 255.0);
+                    ((v as f32 / 255.0) * inv * 255.0).min(255.0).round_ties_even() as u8
+                }
+            }
+        };
+        *px = image::Rgba([un((c >> 16) & 0xFF), un((c >> 8) & 0xFF), un(c & 0xFF), a]);
     }
     out
 }
@@ -368,6 +393,7 @@ impl EditorWindow {
             url_job: None,
             layout: Layout::default(),
             open_file_menu: false,
+            open_favorites_menu: false,
             window_inner: None,
             canvas_resize: None,
             canvas_resize_on_open: false,
@@ -381,9 +407,12 @@ impl EditorWindow {
             bring_into_view: None,
             bar: Vec::new(),
             auto_size_pending: false,
+            fx: effects::Effects::default(),
             emoji_sunglasses: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_micros()).is_multiple_of(10),
         };
         w.apply_toolbar_items();
+        // `EnsureEffectBrowserPanel`'s `SetOptions`.
+        w.fx.load(&mut w.ws.tools.options);
         w.auto_size_pending = w.ws.tools.options.AutoSizeWindow;
         w.title = w.window_title();
         // `QueueAutoCopyImageToClipboard`: the opened image copied.
@@ -504,7 +533,8 @@ impl EditorWindow {
     fn window_title(&self) -> String {
         let mut t = crate::rs_title(ie::MainViewModel_WindowTitle());
         if self.has_image {
-            let (w, h) = self.ws.size();
+            // `ImageDimensions`: an effect's preview's while it shows.
+            let (w, h) = self.fx.preview().map_or(self.ws.size(), |(_, pm)| (pm.width(), pm.height()));
             t.push_str(&format!(" - {w}x{h}"));
         }
         if let Some(name) = self.file_path.as_ref().and_then(|p| p.file_name()).and_then(|n| n.to_str()) {
@@ -532,9 +562,10 @@ impl EditorWindow {
         }
     }
 
-    /// The Background panel's frame for the image as it is now.
+    /// The Background panel's frame for the image as it is now (none while
+    /// an effect previews: `AreBackgroundEffectsActive`).
     fn update_bg_frame(&mut self) {
-        if !self.has_image {
+        if !self.has_image || self.fx.preview().is_some() {
             self.bg_frame = None;
             return;
         }
@@ -558,10 +589,15 @@ impl EditorWindow {
                 (f.frame.width, f.frame.height, ox, oy)
             }
             None => {
-                let (w, h) = self.ws.size();
+                let (w, h) = self.display_size();
                 (w, h, 0, 0)
             }
         }
+    }
+
+    /// The image's size as the canvas shows it (an effect's preview's).
+    fn display_size(&self) -> (u32, u32) {
+        self.fx.preview().map_or(self.ws.size(), |(_, pm)| (pm.width(), pm.height()))
     }
 
     // Commands.
@@ -778,7 +814,136 @@ impl EditorWindow {
                     self.load_recent(&path);
                 }
             }
+            MenuCmd::FavoriteEffect(i) => {
+                if let Some(id) = self.fx.menu.get(i as usize).copied() {
+                    self.run_effect(id);
+                }
+            }
         }
+    }
+
+    /// `ToggleEffectsPanel` (needs an image): the browser opens, closes,
+    /// or replaces an open dialog (its preview dropped).
+    fn toggle_effects(&mut self) {
+        if !self.has_image {
+            return;
+        }
+        if self.fx.browser_visible() {
+            self.fx.open = false;
+        } else {
+            self.fx.show_browser();
+            self.bring_into_view = Some(Item::ImageEffects);
+        }
+        self.update_title();
+    }
+
+    /// `CloseEffectsPanel`.
+    fn close_effects(&mut self) {
+        self.fx.close();
+        self.update_title();
+    }
+
+    /// An effect item's `ExecuteCommand` (`OnEffectDialogRequested`): it
+    /// goes first in Recent; an editor operation with parameters or an
+    /// effect with a dialog opens it in the sidebar, the rest apply at once.
+    fn run_effect(&mut self, id: &'static str) {
+        self.fx.browser.register_recent(id);
+        self.fx.persist(&mut self.ws.tools.options);
+        let Some(def) = sharex_image_editor::effects::find(id) else { return };
+        if !self.has_image {
+            return;
+        }
+        self.image_changed_elsewhere();
+        let op = def.editor_operation();
+        if (op.is_some() && def.parameters.is_empty()) || (op.is_none() && def.apply_immediately) {
+            // `TryHandleEditorOperation` without a schema, or
+            // `TryHandleImmediateCatalogEffect`.
+            let values = def.default_values();
+            match self.ws.apply_effect(|core| sharex_image_editor::effects::apply_to_core(core, def, &values)) {
+                Ok(true) => self.effect_applied(def, &values),
+                Ok(false) => {}
+                Err(e) => eprintln!("Image editor: {} failed: {e}", def.id),
+            }
+            self.close_effects();
+            self.tex = None;
+            return;
+        }
+        // `ShowEffectDialog` / `ShowEditorOperationDialog`.
+        self.fx.dialog = Some(effects::EffectDialog::new(def, self.ws.core()));
+        self.fx.open = true;
+    }
+
+    /// The notification an applied effect shows (`ShowEffectAppliedNotification`,
+    /// or the editor operation's own).
+    fn effect_applied(&mut self, def: &sharex_image_editor::effects::EffectDefinition, values: &sharex_image_editor::effects::EffectValues) {
+        use sharex_image_editor::effects::EditorOperation as Op;
+        let (w, h) = self.ws.size();
+        let (message, icon): (String, &'static str) = match def.editor_operation() {
+            Some(Op::AutoCropImage) => (ie::MainViewModel_ImageAutoCropped().into(), tool_icons::Crop),
+            Some(Op::CropImage) => (Self::size_message(ie::MainViewModel_ImageCropped(), w, h), tool_icons::Crop),
+            Some(Op::ResizeImage) => (ie::MainViewModel_ImageResized().into(), tool_icons::Image),
+            Some(Op::ResizeCanvas) => (ie::MainViewModel_CanvasResized().into(), app_icons::Wallpaper),
+            Some(Op::Rotate90Clockwise) => (ie::MainViewModel_ImageRotated90Clockwise().into(), app_icons::RotateRight),
+            Some(Op::Rotate90CounterClockwise) => (ie::MainViewModel_ImageRotated90CounterClockwise().into(), app_icons::RotateLeft),
+            Some(Op::Rotate180) => (ie::MainViewModel_ImageRotated180().into(), app_icons::RotateRight),
+            Some(Op::RotateCustomAngle) => {
+                let angle = values.get("angle").and_then(|v| v.as_number()).unwrap_or(0.0) as f32;
+                let a = effects::format_0_hash(((angle as f64) * 100.0).round() / 100.0);
+                (ie::MainViewModel_ImageRotatedByDegrees().replace("{0}", &a), app_icons::RotateRight)
+            }
+            Some(Op::FlipHorizontal) => (ie::MainViewModel_ImageFlippedHorizontally().into(), app_icons::Sparkles),
+            Some(Op::FlipVertical) => (ie::MainViewModel_ImageFlippedVertically().into(), app_icons::Sparkles),
+            // "Applied {Name}" ending with a full stop.
+            None => (format!("Applied {}.", def.name), app_icons::Sparkles),
+        };
+        self.notify(message, icon);
+        self.update_title();
+    }
+
+    /// The dialog's and browser's requests.
+    fn effect_action(&mut self, a: effects::Action) {
+        match a {
+            effects::Action::Run(id) => self.run_effect(id),
+            effects::Action::Changed => self.fx.persist(&mut self.ws.tools.options),
+            effects::Action::Close => self.close_effects(),
+            effects::Action::Cancel => self.close_effects(),
+            effects::Action::PickScreenColor(i) => {
+                self.pick_target = Some(PickTarget::Effect(i));
+                self.effects.push(Effect::PickScreenColorOverWindow);
+            }
+            effects::Action::Apply => {
+                let Some(d) = self.fx.dialog.as_mut() else { return };
+                let def = d.def;
+                let values = d.values.clone();
+                if let Some(preview) = d.take_preview() {
+                    match self.ws.apply_effect(|core| preview.apply(core, def, &values)) {
+                        Ok(true) => self.effect_applied(def, &values),
+                        Ok(false) => {}
+                        Err(e) => eprintln!("Image editor: {} failed: {e}", def.id),
+                    }
+                }
+                self.close_effects();
+                self.tex = None;
+            }
+        }
+    }
+
+    /// The favourites menu (`OnFavoriteEffectsMenuRequested`): a plain
+    /// `ContextMenu` under the Image Effects button, the favourites by name.
+    fn favorites_flyout(&mut self, button: Rect) -> Option<Flyout<MenuCmd>> {
+        let items = self.fx.browser.favorite_menu();
+        if items.is_empty() {
+            return None;
+        }
+        self.fx.menu = items.iter().map(|i| i.id).collect();
+        let entries = items
+            .iter()
+            .enumerate()
+            .map(|(k, i)| MenuEntry::item(i.name.clone(), i.icon, MenuCmd::FavoriteEffect(k as u8)).icon(sharex_ui::menu::MenuIcon::Plain(i.icon, 16.0)))
+            .collect();
+        let mut f = Flyout::menu(Id::new("editor-favorite-effects"), entries, button, Placement::BottomEdgeAlignedLeft);
+        f.style = sharex_ui::menu::MenuStyle::Standard;
+        Some(f)
     }
 
     fn set_zoom(&mut self, z: f64) {
@@ -853,7 +1018,7 @@ impl EditorWindow {
                 self.bg_panel.toggle();
                 self.tex = None;
             }
-            Item::ImageEffects => self.effects.push(Effect::NotPorted("Image editor: Image effects panel")),
+            Item::ImageEffects => self.toggle_effects(),
             _ => {
                 if let Some(t) = item.tool() {
                     self.popups.close();
@@ -1068,7 +1233,8 @@ impl EditorWindow {
             } else {
                 let on = it.tool().is_some_and(|t| t == active)
                     || (it == Item::CanvasSize && self.canvas_resize.is_some())
-                    || (it == Item::Background && self.bg_panel.open);
+                    || (it == Item::Background && self.bg_panel.open)
+                    || (it == Item::ImageEffects && self.fx.open);
                 captb::button(&clip, p, r, self.item_icon(it), on, hovered, 1.0);
             }
             self.layout.items.push((it, r.intersect(rect)));
@@ -1200,7 +1366,7 @@ impl EditorWindow {
             self.zoom_to_fit_pending = false;
             self.zoom_to_fit();
         }
-        let (w, h) = self.ws.size();
+        let (w, h) = self.display_size();
         let (fw, fh, ox, oy) = self.display_frame();
         // One image pixel is one DIP at 100%.
         let size = vec2(fw as f32, fh as f32) * self.zoom as f32;
@@ -1214,7 +1380,13 @@ impl EditorWindow {
         let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
         let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
         self.layout.image = image;
-        let version = self.ws.version();
+        // An effect's preview (`UpdatePreviewImageOnly`) under the
+        // annotations, keyed apart from the workspace's versions.
+        let preview_seq = self.fx.preview().map(|(s, _)| *s);
+        let version = match preview_seq {
+            Some(s) => (1 << 63) | (s << 32) | (self.ws.version() & 0xFFFF_FFFF),
+            None => self.ws.version(),
+        };
         // The frame's key: the image's version and the panel's settings.
         let key = match &self.bg_frame {
             Some(f) => {
@@ -1237,7 +1409,10 @@ impl EditorWindow {
         };
         if self.tex.as_ref().is_none_or(|(v, _)| *v != version) || key != self.bg_key {
             self.bg_key = key;
-            let composite = self.ws.composite().clone();
+            let composite = match self.fx.preview() {
+                Some((_, pm)) => sharex_image_editor::render::render(pm, self.ws.annotations()),
+                None => self.ws.composite().clone(),
+            };
             let pm = match &self.bg_frame {
                 Some(f) => f.render(&composite, self.ws.source()),
                 None => composite,
@@ -1299,6 +1474,14 @@ impl EditorWindow {
     /// The part of the window the toolbars, menus and popups cover.
     fn over_ui(&self, p: Pos2) -> bool {
         if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) || self.bg_panel.contains(p) {
+            return true;
+        }
+        // The effect browser's scrim covers the view; the dialog's sidebar
+        // and its colour popup their part.
+        if self.fx.browser_visible()
+            || (self.fx.sidebar_visible() && p.x >= self.layout.view.max.x - effects::SIDEBAR)
+            || self.fx.dialog.as_ref().is_some_and(|d| d.popup_contains(p))
+        {
             return true;
         }
         if self.toolbars_hidden {
@@ -1453,10 +1636,11 @@ impl EditorWindow {
                     }
                 }
                 egui::Event::Text(t) => {
-                    if !modal && self.ws.text_edit().is_some() {
+                    if !modal && self.ws.text_edit().is_some() && !(self.fx.open && ctx.egui_wants_keyboard_input()) {
                         self.ws.text_input(&t);
                     }
                 }
+                egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) if self.fx.open && (self.fx.browser_visible() || ctx.egui_wants_keyboard_input()) => {}
                 egui::Event::Copy => self.key_down(ed::Key::Letter('C'), ed::Mods { ctrl: true, ..ed::Mods::NONE }),
                 egui::Event::Cut => self.key_down(ed::Key::Letter('X'), ed::Mods { ctrl: true, ..ed::Mods::NONE }),
                 egui::Event::Paste(_) => self.key_down(ed::Key::Letter('V'), ed::Mods { ctrl: true, ..ed::Mods::NONE }),
@@ -1468,6 +1652,19 @@ impl EditorWindow {
                             self.modal = None;
                         }
                         continue;
+                    }
+                    // `OnKeyUp`: Escape closes the image effects panel (the
+                    // browser or a dialog) before anything else.
+                    if self.fx.open {
+                        if !pressed && key == egui::Key::Escape && !modifiers.any() {
+                            self.close_effects();
+                            continue;
+                        }
+                        // The browser's search box (and a dialog's boxes)
+                        // have the keys.
+                        if self.fx.browser_visible() || ctx.egui_wants_keyboard_input() {
+                            continue;
+                        }
                     }
                     // Popups and menus have the keys while open.
                     if self.popups.open.is_some() || self.flyout.is_some() || self.zoom_open {
@@ -1522,16 +1719,22 @@ impl EditorWindow {
 
     /// The toolbars' buttons (their `Click`s); the modal scrim covers them.
     fn toolbar_clicks(&mut self, ui: &Ui) {
-        if self.toolbars_hidden || self.modal.is_some() {
+        // (The effect browser's scrim covers them too.)
+        if self.toolbars_hidden || self.modal.is_some() || self.fx.browser_visible() {
             return;
         }
         for (it, r) in self.layout.items.clone() {
-            if ui.interact(r, Id::new(("editor-item", format!("{it:?}"))), Sense::click()).clicked() {
+            let resp = ui.interact(r, Id::new(("editor-item", format!("{it:?}"))), Sense::click());
+            if resp.clicked() {
                 if it == Item::File {
                     self.flyout = Some(self.file_flyout(r));
                 } else {
                     self.select_item(it);
                 }
+            }
+            // A right click on Image Effects: the favourites menu.
+            if it == Item::ImageEffects && resp.secondary_clicked() {
+                self.flyout = self.favorites_flyout(r);
             }
         }
         if let Some(row) = self.layout.options.clone() {
@@ -2059,7 +2262,7 @@ impl EditorWindow {
         let chrome = full.size() - self.layout.canvas.size();
         let w = (fw as f32).max(toolbar_w) + margin + chrome.x;
         let h = fh as f32 + toolbar_h * 2.0 + margin + chrome.y;
-        let (w, h) = (w.max(640.0), h.max(480.0));
+        // (`Math.Max(width, MinWidth)`: `EditorWindow` sets no minimum.)
         let fits = sharex_capture::screenshot::screens().into_iter().find(|s| s.primary).is_none_or(|s| {
             let ppp = self.window_inner.map_or(1.0, |(_, p)| p);
             // The frame (title bar and borders) on top of the client size.
@@ -2133,7 +2336,8 @@ impl Dialog for EditorWindow {
         let maximized = if saved { o.IsWindowMaximized } else { !o.AutoSizeWindow };
         // `AutoSizeWindow`: maximized until the image is laid out, then
         // sized to it (`TryAutoSize`).
-        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 640.0, 480.0) }
+        // `EditorWindow` sets no `MinWidth`/`MinHeight`.
+        Spec { maximized: maximized || o.AutoSizeWindow, ..Spec::sized(self.title.clone(), w, h, 0.0, 0.0) }
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -2159,11 +2363,24 @@ impl Dialog for EditorWindow {
         }
         ui.painter().rect_filled(full, 0.0, p.background_main);
         self.input(ui);
+        // The effect dialog's live preview of its current values.
+        if let Some(d) = self.fx.dialog.as_mut() {
+            d.update_preview();
+        }
         self.update_bg_frame();
-        // The left sidebar (`Grid` column 0) takes its width from the
-        // canvas host.
-        let canvas_area = if self.bg_panel.open { Rect::from_min_max(pos2(full.min.x + background::WIDTH, full.min.y), full.max) } else { full };
+        // The left sidebar (`Grid` column 0) and the right one (column 2,
+        // the effect dialog) take their width from the canvas host.
+        let mut canvas_area = if self.bg_panel.open { Rect::from_min_max(pos2(full.min.x + background::WIDTH, full.min.y), full.max) } else { full };
+        if self.fx.sidebar_visible() {
+            canvas_area.max.x -= effects::SIDEBAR;
+        }
         self.paint_canvas(ui, &p, canvas_area);
+        if self.fx.sidebar_visible() {
+            let modal = self.modal.is_some();
+            if let Some(a) = self.fx.dialog.as_mut().and_then(|d| d.show(ui, &p, full, modal)) {
+                self.effect_action(a);
+            }
+        }
         if self.bg_panel.open {
             let modal = self.modal.is_some();
             let r = self.bg_panel.show(ui, &p, full, &mut self.ws.tools.options, modal);
@@ -2181,6 +2398,13 @@ impl Dialog for EditorWindow {
                 && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::File)
             {
                 self.flyout = Some(self.file_flyout(*r));
+            }
+            if self.open_favorites_menu
+                && self.bring_into_view.is_none()
+                && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::ImageEffects).copied()
+            {
+                self.open_favorites_menu = false;
+                self.flyout = self.favorites_flyout(r);
             }
         } else {
             self.layout.top = None;
@@ -2207,6 +2431,12 @@ impl Dialog for EditorWindow {
             self.pick_target = Some(PickTarget::Background(t));
             self.effects.push(Effect::PickScreenColorOverWindow);
         }
+        // An effect dialog's colour popup.
+        if self.fx.sidebar_visible()
+            && let Some(a) = self.fx.dialog.as_mut().and_then(|d| d.show_popup(ui, &p, full))
+        {
+            self.effect_action(a);
+        }
         if let Some(f) = self.flyout.as_mut() {
             let out = f.show(ui, full);
             if out.closed {
@@ -2225,6 +2455,14 @@ impl Dialog for EditorWindow {
         }
         // The notification (`ZIndex="28"`), under the modal host.
         self.notify.paint(ui, &p, full);
+        // The effect browser (`ZIndex="30"`), over the toolbars and the
+        // notification.
+        if self.fx.browser_visible() {
+            let modal = self.modal.is_some();
+            if let Some(a) = self.fx.show_browser_ui(ui, &p, full, modal) {
+                self.effect_action(a);
+            }
+        }
         self.modal_ui(ui, &p, full);
         // The cursor the workspace wants over the canvas.
         if let Some(pos) = ui.ctx().pointer_hover_pos()
@@ -2241,6 +2479,9 @@ impl Dialog for EditorWindow {
             ui.ctx().set_cursor_icon(icon);
         }
         self.update_title();
+        if self.fx.dialog.as_ref().is_some_and(|d| d.is_pending()) {
+            ui.ctx().request_repaint();
+        }
         if self.ws.is_interacting() || self.pan.is_some() || self.canvas_resize.as_ref().is_some_and(|c| c.is_dragging()) {
             ui.ctx().request_repaint();
         }
@@ -2310,6 +2551,11 @@ impl Dialog for EditorWindow {
                 }
             }
             PickTarget::CanvasFill => self.ws.tools.options.CanvasFillColorHex = hex,
+            PickTarget::Effect(i) => {
+                if let Some(d) = self.fx.dialog.as_mut() {
+                    d.set_color(i, c32);
+                }
+            }
             PickTarget::Background(t) => {
                 let o = &mut self.ws.tools.options;
                 match t {
@@ -2353,6 +2599,20 @@ impl Dialog for EditorWindow {
         }
         Some((o.WindowX?, o.WindowY?))
     }
+}
+
+/// A parameter's value as `--state effect:` writes it: a number, `true` /
+/// `false`, an option's index, `#AARRGGBB`, or text.
+fn parse_param(def: &sharex_image_editor::effects::EffectDefinition, key: &str, v: &str) -> Option<sharex_image_editor::effects::ParamValue> {
+    use sharex_image_editor::effects::{ParamKind as K, ParamValue as V, SkColor};
+    let p = def.parameters.iter().find(|p| p.key == key)?;
+    Some(match p.kind {
+        K::Slider { .. } | K::Numeric { .. } => V::Number(v.parse().ok()?),
+        K::Checkbox { .. } => V::Bool(v == "true"),
+        K::Enum { .. } => V::Choice(v.parse().ok()?),
+        K::Color { .. } => V::Color(SkColor::from_hex(v)?),
+        K::Text { .. } | K::FilePath { .. } => V::Text(v.to_string()),
+    })
 }
 
 /// `--render image-editor --image <png>`: the window on an image.
@@ -2421,6 +2681,50 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
             }
             w.bring_into_view = Some(Item::Background);
         }
+        Some("effects-favorites") => {
+            // The favourites menu, once the toolbar is laid out (scrolled
+            // to Image Effects).
+            w.bring_into_view = Some(Item::ImageEffects);
+            w.open_favorites_menu = true;
+        }
+        Some(st) if st.starts_with("effects") => {
+            // `--state effects[:search][@recent=id,id...]`: the browser
+            // (the toolbar scrolled to its button, as ShareX's is after
+            // Image Effects is invoked).
+            let (st, recent) = st.split_once("@recent=").map_or((st, None), |(a, b)| (a, Some(b)));
+            if let Some(r) = recent {
+                let ids: Vec<String> = r.split(',').map(str::to_string).collect();
+                let favs = w.ws.tools.options.FavoriteEffects.clone();
+                w.fx.browser.load(&ids, &favs);
+            }
+            w.toggle_effects();
+            if let Some(q) = st.strip_prefix("effects:") {
+                w.fx.browser.search = q.to_string();
+            }
+            w.fx.set_scroll(o.scroll);
+        }
+        Some(st) if st.starts_with("effect:") => {
+            // `--state effect:<id>[:key=value,...]`: its dialog, previewed.
+            let mut parts = st["effect:".len()..].splitn(2, ':');
+            let id = parts.next().unwrap_or_default();
+            let Some(def) = sharex_image_editor::effects::find(id) else { return Err(format!("no effect {id}")) };
+            w.toggle_effects();
+            w.run_effect(def.id);
+            if let Some(d) = w.fx.dialog.as_mut() {
+                for kv in parts.next().unwrap_or_default().split(',').filter(|s| !s.is_empty()) {
+                    let Some((k, v)) = kv.split_once('=') else { continue };
+                    if k == "popup" {
+                        d.open_color(v.parse().unwrap_or(0));
+                        continue;
+                    }
+                    if let Some(val) = parse_param(def, k, v) {
+                        d.set(k, val);
+                    }
+                }
+                d.update_preview();
+            }
+            w.update_title();
+        }
         Some("confirm") => w.modal = Some(Modal::Confirm),
         Some("insert") => {
             let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));
@@ -2471,5 +2775,17 @@ impl crate::App {
             Some(img) => self.open_image_editor(event_loop, Some(img), Some(path.to_path_buf()), task, None),
             None => eprintln!("Image editor: couldn't load {}", path.display()),
         }
+    }
+}
+
+#[cfg(test)]
+mod rgba_tests {
+    #[test]
+    fn unpremultiplies_as_sharex_copies() {
+        // Premultiplied RGBA, the two corner pixels of ShareX's copy.
+        let pm = sharex_skia::Pixmap::from_premul_rgba(2, 1, &[120, 4, 75, 120, 232, 0, 150, 240]);
+        let img = super::rgba_of(&pm);
+        assert_eq!(img.get_pixel(0, 0).0, [255, 8, 159, 120]);
+        assert_eq!(img.get_pixel(1, 0).0, [247, 0, 159, 240]);
     }
 }

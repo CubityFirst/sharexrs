@@ -357,6 +357,11 @@ draw the same values.
   &values)` runs an effect on any `Bitmap`. An effect that throws in ShareX
   returns `Err(EffectError)` with .NET's message (Gamma always does;
   Reflection does when its height rounds to 0).
+- The browser: `effects::browser::Browser::new(label)` (the sections and
+  their items, `search`, `visible()`, `register_recent`, `right_click`,
+  `load`/`recent_ids`/`favorite_ids` for `ImageEditorOptions`,
+  `favorite_menu`) and `browser::score` (`EffectSearch.Score`); the editor
+  window's panel is "Image effects" under "The editor UI".
 
 ### Validation
 
@@ -797,19 +802,104 @@ printer or `DefaultPrinterOverride`; the page from `RenderImagePage`,
 drawn with `StretchDIBits` over the page bounds). `RenderImagePage`
 against ShareX's own (`tools/tools-harness --print-page`,
 `crates/sharexrs/tests/data/print`): 3 of 4 pages pixel-identical, the
-enlarged one within one level. Print options vs ShareX dark 0.64%
-(`--render print-window`). End to end: the test image printed with no
+enlarged one within one level. Print options vs ShareX dark 0.64%, light
+0.78% (`--render print-window`; ShareX's light window opened from its
+editor's Print button and closed without printing). End to end: the test image printed with no
 dialog to Microsoft Print to PDF into a temp file (`SHAREXRS_PRINT_TO_FILE`):
 one A4 page, the image (JPEG: the driver's compression) over the whole
 page, the content where ShareX's page has it (mean error 0.33 levels); the
 PDF was deleted. ShareX's own print couldn't run here: Windows 11's print
 dialog (`PrintDialog.exe`) never shows a window in this remote session.
 
+### Image effects (`image_editor/effects.rs`, `effects::browser`)
+
+The toolbar's Image Effects item (`ToggleEffectsPanel`, needs an image)
+opens `EffectBrowserPanel`: the `overlay-scrim` over the whole view (the
+toolbars too; a press on it closes the browser) and the 800px
+`floating-panel` 125px from the top, as tall as its content up to 125px
+from the bottom. Its search box (`Search image effects... (230)`, focused
+and cleared on open), then the sections: Recent and Favorites (each with
+its light bulb hint), Manipulations, Adjustments, Filters, Drawings, each
+"Name (count)" over a wrap of `Button.effect-item`s (the 16px icon, the
+localised browser label, the description as tooltip). A click runs the
+effect and puts it first in Recent (ten kept); a right click removes an
+item from Recent there and toggles its favourite elsewhere; both lists are
+kept in `ImageEditorOptions.RecentEffects`/`FavoriteEffects` (resolved
+through `NormalizeEffectId` and ShareX's aliases on load). A right click on
+the Image Effects item opens the favourites menu (by name). The model is
+`sharex_image_editor::effects::browser` (unit-tested): `EffectSearch.Score`
+(keywords, filler words, one typo in words of five letters or more),
+matches by score then label length then label, categories by their best
+match while searching with Recent and Favorites first, and each category's
+items in label order as `EffectCategory.Insert` sorts them.
+
+Running an effect follows `EditorView.EffectsHost`: rotate 90/180 and the
+flips (editor operations without parameters) and the `ApplyImmediately`
+effects apply at once through `EditorCore`; everything else opens
+`SchemaDrivenEffectDialog` in the right sidebar (`editor-sidebar.right`,
+282 wide; the canvas narrows, the top toolbar floats over the dialog's
+title): the effect's icon and name, then per parameter a slider with its
+`0.##` value capsule, a `LabeledToggleSwitch`, a combo box, the
+`ColorPickerDropdown` (its popup with the screen colour picker), a numeric
+box (`0` or `0.0`, its increment), a text box, or a path box with
+Browse..., then Cancel and Apply. Crop and Resize image start at the
+image's size. Every change previews at once (`PreviewEffect` on the image
+as it was: the canvas and the window title show the preview, the
+annotations stay over it, the Background panel's frame is off while
+previewing). Apply commits the latest preview with undo (editor operations
+through `EditorCore`, annotations moved) and shows ShareX's notification
+("Applied Gaussian blur.", or the operation's own); Cancel, Escape, the
+Image Effects item and the scrim drop it. Region capture has no image
+effects (`RegionCaptureToolbar.CreateItems` keeps only the tools).
+
+Validation (`scripts/compare-editor-effects.sh`, ShareX's shots in
+`shots/sharex/editor-effects/` taken with `scripts/editor-effects.ps1` in
+the maximized editor on the 640x400 test image; `--render image-editor
+--state effects[:search][@recent=...]|effects-favorites|effect:<id>[:key=value,...]`):
+
+| Screen | Dark | Light |
+|---|---|---|
+| Browser (light: with eight in Recent) | 0.41% | 0.24% |
+| Search "blur" | 0.13% | 0.11% |
+| Resize image (numeric, toggle; Manipulations) | 0.08% | 0.06% |
+| Rotate (slider, toggle) | 0.06% | 0.06% |
+| Colorize (colour, slider; Adjustments) | 0.06% | 0.05% |
+| Channel swap (enum) | 0.05% | 0.05% |
+| ASCII art (sliders, text, toggles; Filters) | 1.50% | 1.48% |
+| Background image (file path; Drawings) | 0.06% | 0.06% |
+| Border (enums, slider, colour; Drawings; the image grows) | 0.08% | 0.06% |
+| Gaussian blur (slider) | 0.06% | 0.05% |
+| Favourites menu (the menu, aligned) | | 1.59% |
+
+Each dialog shot includes its live preview on the canvas. Only text
+anti-aliasing differs, and ASCII art's preview glyphs (DirectWrite, as in
+the catalogue's validation); the favourites menu's extra is its popup
+window's transparent corners. The live window matches its render (browser
+0.41%, Gaussian blur dialog 0.06%).
+
+Side by side (`scripts/effects-side-by-side.ps1`: each app's editor on the
+test image, the browser searched, the first result opened, Apply, Copy,
+the clipboard dumped, undo): 20 effects (Gaussian blur at its default and
+at a slider position clicked in both, Colorize, Channel swap, Border,
+Invert, Emboss, Polaroid, Rotate 90° clockwise, Flip horizontal, Black and
+white, Heat map, Checkerboard, Pixelate, Sharpen, Vignette, Sepia, Rounded
+corners, Shadow, Posterize): **20/20 copied PNGs pixel-identical, 20/20
+CF_DIBs byte-identical.** Rounded corners' translucent corners showed how
+ShareX's copy unpremultiplies (in `f32`: the channel over 255 times the
+inverse of the alpha over 255, times 255, rounded half to even; now the
+editor's `rgba_of`): neither Skia's `readPixels` nor integer rounding
+matched both of its ties.
+
 ### The rest
 
 - `AutoSizeWindow` (`TryAutoSize`): once there's an image, the window fits
   it (the frame, at least the toolbar's width, the toolbars' room above and
-  below, 24 more) centred in the work area, or is maximized.
+  below, 24 more) centred in the work area, or is maximized. `EditorWindow`
+  has no minimum size (ShareXrs's 640x480 was dropped). Side by side with
+  the same options (a toolbar of five items, since the whole toolbar is
+  wider than the 1024x768 monitor and always maximizes): a 300x200 image
+  gives a 651x467 window at 186,126, 640x400 696x667 at 164,26, 900x500
+  maximized, in both apps.
 - A new text grows the canvas while it's typed
   (`OnLiveTextEditorBoundsChanged`: the overflow + 150 right, + 16 down,
   outside the history), replaced by the exact fit on commit.
@@ -817,7 +907,14 @@ dialog (`PrintDialog.exe`) never shows a window in this remote session.
   overlay under the pointer (inserted centred on that monitor), and the
   colour popups' screen colour picker opens the app's
   (`ScreenColorPickerWindow.PickAsync`), its colour going to the option.
-  Unit-tested; not exercised live.
+  Exercised live over `--test-pattern`: the picker opens on the pointer's
+  monitor and inserts a 160px emoji centred there; the screen colour
+  picker reads the pattern's exact colour (#BC58C8 at 700,600) and sets the
+  border colour. Two bugs that only showed live were fixed: the overlay
+  never gave the pointer to the popups' egui widgets (the palette, the
+  eyedropper, lists and sliders did nothing), and the Emoji button's
+  release went to the picker, leaving the toolbar pressed on Emoji so that
+  the next tool click opened the picker again.
 - The 1280x720 window: a dialog created maximized was then clamped and
   centred, which winit turned into a later restore, leaving a 1280x720
   normal size on the 1024x768 monitor (and `winshot.ps1`'s `SW_RESTORE`
@@ -827,14 +924,19 @@ dialog (`PrintDialog.exe`) never shows a window in this remote session.
 
 ### Not ported yet
 
-- The Image effects panel and dialogs (the catalogue they show is
-  `sharex_image_editor::effects`, see "The image effect catalogue").
 - The macOS and Linux wallpaper services; the Background sidebar's
   open/close animation; ellipse and freehand regions (their toolbar items
   only log).
 - ShareX's print checked live (its print dialog doesn't show in this
-  session); the preview window and the light Print window weren't compared;
-  `AutoSizeWindow` wasn't compared with ShareX's.
+  session); the print preview window wasn't compared.
+- Effects: the browser's item fade-in and the panel's open/close
+  transitions; the favourites menu as its own OS window (it's drawn in the
+  editor window, so it stays inside it: ShareX's popup is clamped to the
+  screen, 5px further left at the right edge); tooltips are egui's; the
+  dialogs' preview runs on the UI thread as ShareX's does (slow for big
+  images in a debug build); an effect that throws on Apply (Gamma) is
+  logged and the panel closes (ShareX's unhandled exception wasn't
+  compared).
 
 ## Plan for the editor UI
 

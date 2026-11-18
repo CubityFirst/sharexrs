@@ -24,6 +24,7 @@
 //! premultiplied); [`to_bitmap`] and [`to_pixmap`] convert from and to the
 //! editor's [`Pixmap`].
 
+pub mod browser;
 pub mod color;
 pub mod params;
 pub mod random;

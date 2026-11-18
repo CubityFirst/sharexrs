@@ -11,6 +11,8 @@ param(
     [Parameter(Mandatory)] [string] $Process,
     [string] $Window = '.',
     [string] $Invoke,
+    # A regex on the element's name instead of the exact name.
+    [string] $InvokeMatch,
     [switch] $Dump
 )
 $ErrorActionPreference = 'Stop'
@@ -65,8 +67,19 @@ if ($Dump) {
     return
 }
 
+if ($InvokeMatch) {
+    # The first element whose name matches the regex (names with a tooltip's
+    # second line, such as the editor's "Image Effects").
+    $el = $win.FindAll($scope::Descendants, [System.Windows.Automation.Condition]::TrueCondition) |
+        Where-Object { $_.Current.Name -match $InvokeMatch } | Select-Object -First 1
+    if (-not $el) { throw "no element matching '$InvokeMatch'" }
+    $Invoke = $el.Current.Name
+}
+
 if ($Invoke) {
-    $el = $win.FindFirst($scope::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::NameProperty, $Invoke)))
+    if (-not $el) {
+        $el = $win.FindFirst($scope::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::NameProperty, $Invoke)))
+    }
     if (-not $el) { throw "no element named '$Invoke'" }
     $pattern = $null
     if ($el.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) { $pattern.Invoke() }

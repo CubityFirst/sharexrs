@@ -700,7 +700,7 @@ fn overlay(ui: &Ui, rect: Rect, radius: CornerRadius, resp: &egui::Response) {
 
 /// `Border.capsule` at the right of `row`: `Padding="6,3"`, 4px corners,
 /// the accent fill, its text in the accent foreground.
-fn capsule(ui: &Ui, p: &Palette, row: Rect, text: &str) {
+pub(super) fn capsule(ui: &Ui, p: &Palette, row: Rect, text: &str) {
     // (ShareX's shot shows it Regular.)
     let font = widgets::font(13.0, 400);
     let w = widgets::text_width(ui, text, font.clone()).ceil() + 12.0;
@@ -713,7 +713,7 @@ fn capsule(ui: &Ui, p: &Palette, row: Rect, text: &str) {
 
 /// A `Button.active` (`ratio-button`): the accent fill in every state, the
 /// accent foreground.
-fn active_button(ui: &Ui, p: &Palette, rect: Rect, id: Id, text: &str) -> bool {
+pub(super) fn active_button(ui: &Ui, p: &Palette, rect: Rect, id: Id, text: &str) -> bool {
     let r = ui.interact(rect, id, Sense::click());
     border::border(ui.painter(), rect, 4.0, 1.0, Some(Brush::accent(ui.ctx())), Some(p.border));
     let font = sharex_ui::controls::content_font(13.0, 400);

@@ -1486,6 +1486,12 @@ fn tool_hotkey(bar: &[toolbar::Item], k: ed::Key, m: ed::Mods) -> Option<EditorT
 }
 
 impl RegionCapture {
+    /// An option's popup is open (its widgets take the pointer, through
+    /// the overlay window's egui input).
+    pub fn popup_open(&self) -> bool {
+        self.popups.open.is_some()
+    }
+
     /// The colour popup's screen colour picker request
     /// (`OnScreenColorPickerClick`: `ScreenColorPickerWindow.PickAsync`),
     /// taken by the host, which opens the picker over the overlay.
