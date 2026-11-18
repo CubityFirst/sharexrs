@@ -408,6 +408,16 @@ impl RegionCapture {
             }
             view.popup = self.popups.rect;
         }
+        // The open tooltip, at the pointer where it opened, on its monitor.
+        if let Some((part, (x, y), _)) = self.tip.open
+            && view.toolbar.is_some()
+            && view.monitor.contains(x.floor() as i32, y.floor() as i32)
+            && let Some(text) = self.tooltip_text(part)
+        {
+            let at = pos2((x - view.monitor.x as f64) as f32 / ppp, (y - view.monitor.y as f64) as f32 / ppp + super::tooltip::VERTICAL_OFFSET);
+            let area = Rect::from_min_size(Pos2::ZERO, vec2(view.monitor.w as f32, view.monitor.h as f32) / ppp);
+            super::tooltip::paint(ui, &p, at, area, &text, self.tip.opacity(now));
+        }
     }
 
     /// `RegionSelectionOverlay.Render` for this window's part of the

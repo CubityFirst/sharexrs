@@ -110,7 +110,10 @@ pub fn render(
     } else {
         session.pointer_moved(PointF::new(pointer.0 as f64, pointer.1 as f64), none);
     }
-    Ok(screen.render(|ui| session.paint(ui, &mut view, later)))
+    // Time passes: a tooltip due opens and fades in.
+    let opened = later + Duration::from_secs(1);
+    session.tick(opened);
+    Ok(screen.render(|ui| session.paint(ui, &mut view, opened + Duration::from_secs(1))))
 }
 
 /// Runs `--steps` (`;`-separated, as `scripts/annotate-session.ps1` takes

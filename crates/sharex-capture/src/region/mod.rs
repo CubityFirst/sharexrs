@@ -33,6 +33,7 @@ pub mod options_row;
 pub mod paint;
 pub mod shape;
 pub mod toolbar;
+pub mod tooltip;
 
 use std::time::{Duration, Instant};
 
@@ -338,6 +339,10 @@ pub struct RegionCapture {
 
     /// Escape went to the text box, so its release doesn't cancel.
     escape_to_text: bool,
+    /// The toolbar's tooltip (`ToolTipService`).
+    pub(crate) tip: tooltip::TipState,
+    /// Where the pointer is, desktop pixels (the tooltip opens there).
+    tip_pointer: (f64, f64),
 }
 
 /// `Distance(...) >= 4` before a press on a hovered window starts a new
@@ -429,6 +434,8 @@ impl RegionCapture {
             slider_drag: None,
             popups: Default::default(),
             escape_to_text: false,
+            tip: tooltip::TipState::default(),
+            tip_pointer: (0.0, 0.0),
         };
         // `OnOpened`: the pointer, the toolbar on its monitor, the hover.
         let desktop = cursor.or_else(|| me.screens.iter().find(|s| s.primary).map(|s| (s.bounds.x, s.bounds.y)));
@@ -467,11 +474,27 @@ impl RegionCapture {
         if now >= at {
             self.keyboard_enabled = true;
         }
+        let tip = if self.toolbar.hidden || self.toolbar.drag.is_some() { None } else { self.tip.tick(now, self.tip_pointer) };
         let animating = self.toolbar.hidden_changed.is_some_and(|t| now < t + Duration::from_millis(200));
-        if animating {
-            return Some(now + Duration::from_millis(16));
+        let next = if animating { Some(now + Duration::from_millis(16)) } else { (!self.keyboard_enabled).then_some(at) };
+        match (next, tip) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
         }
-        (!self.keyboard_enabled).then_some(at)
+    }
+
+    /// The text of a toolbar part's tooltip (`ToolTip.Tip`).
+    pub(crate) fn tooltip_text(&self, part: toolbar::Part) -> Option<String> {
+        match part {
+            toolbar::Part::Option(item) => {
+                let tool = self.editor.as_ref().map(|e| e.active_tool());
+                let name = tool
+                    .and_then(|t| toolbar::TOOLS.iter().find(|i| i.tool == t).map(|i| (i.name)().to_string()))
+                    .unwrap_or_default();
+                Some(item.tooltip(&name))
+            }
+            other => toolbar::tooltip(other, &self.bar),
+        }
     }
 
     fn clamp(&self, p: PointF) -> PointF {
@@ -744,6 +767,7 @@ impl RegionCapture {
             return Outcome::Continue;
         }
         self.pointer_known = true;
+        self.tip_pointer = (self.screen_bounds.x as f64 + p.x, self.screen_bounds.y as f64 + p.y);
         // `FollowPointerWithCaptureToolbar`
         let desktop = (self.screen_bounds.x + p.x.round() as i32, self.screen_bounds.y + p.y.round() as i32);
         if let Some((ox, oy)) = self.toolbar.drag {
@@ -805,6 +829,8 @@ impl RegionCapture {
         }
         // `OnCaptureHostPointerPressed`
         self.toolbar.follows_pointer = false;
+        // A press closes the tooltip.
+        self.tip.press(Instant::now());
         // An open popup has the press; one elsewhere dismisses it (its own
         // button's press toggles it below).
         if let Some(open) = self.popups.open {
@@ -1618,6 +1644,7 @@ impl RegionCapture {
     /// window that has the pointer laid it out.
     pub fn set_toolbar_hover(&mut self, part: Option<toolbar::Part>) {
         self.toolbar_hover = if self.toolbar.hidden { None } else { part };
+        self.tip.hover(self.toolbar_hover, Instant::now());
     }
 
     /// The toolbar part under the pointer, as last told.
