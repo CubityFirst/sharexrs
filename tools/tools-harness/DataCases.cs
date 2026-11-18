@@ -241,6 +241,23 @@ static partial class Program
                 File.WriteAllText(o + ".json", r.ToString());
                 return true;
             }
+            case "video-trim-time":
+            {
+                // VideoTrimmerViewModel.FormatTime and TryParseTime (also the GIF trimmer's).
+                Type vmt = typeof(VideoConverterOptions).Assembly.GetType("ShareX.Tools.VideoTrimmerViewModel");
+                MethodInfo fmt = vmt.GetMethod("FormatTime", BindingFlags.Public | BindingFlags.Static);
+                MethodInfo parse = vmt.GetMethod("TryParseTime", BindingFlags.NonPublic | BindingFlags.Static);
+                JArray formats = new(((JArray)c["seconds"]).Select(x => (string)fmt.Invoke(null, [(double)x])));
+                JArray parsed = new();
+                foreach (JToken t in (JArray)c["texts"])
+                {
+                    object[] args = [(string)t, 0d];
+                    bool ok = (bool)parse.Invoke(null, args);
+                    parsed.Add(ok ? (JToken)(double)args[1] : JValue.CreateNull());
+                }
+                File.WriteAllText(o + ".json", new JObject { ["format"] = formats, ["parse"] = parsed }.ToString());
+                return true;
+            }
             case "video-trim-args":
             {
                 Type svc = typeof(VideoConverterOptions).Assembly.GetType("ShareX.Tools.VideoTrimmerService");

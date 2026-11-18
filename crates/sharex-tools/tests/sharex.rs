@@ -169,6 +169,32 @@ fn gif_trimmer_reencode_is_byte_identical() {
 }
 
 #[test]
+fn gif_trimmer_selection_follows_the_view_model() {
+    use sharex_tools::video::gif_trimmer::{AnimatedGifTrimmerDocument, CropRect, TrimSelection};
+    let doc = AnimatedGifTrimmerDocument::open(std::fs::read(input("trim.gif")).unwrap()).unwrap();
+    let mut s = TrimSelection::new(&doc);
+    assert_eq!((s.start_index, s.end_index, s.can_trim(), s.reencode), (0, 5, false, false));
+    s.set_crop(CropRect { x: 5, y: 3, width: 100, height: 100 });
+    assert_eq!(s.crop, CropRect { x: 5, y: 3, width: 55, height: 37 });
+    assert!(s.is_transformed() && s.reencode && s.can_trim() && !s.can_use_lossless());
+    s.set_output_width(110.0);
+    assert_eq!(s.output_size(), (110, 74));
+    s.reset_crop();
+    assert!(!s.is_transformed() && s.reencode, "a reset keeps re-encode on");
+    // Frame starts 0, 3, 10, 20, 21, 46 centiseconds.
+    s.set_start(&doc, 0.1);
+    assert_eq!((s.start_index, s.position_index), (2, 2));
+    s.set_end(&doc, 0.0);
+    assert_eq!((s.end_index, s.position_index), (3, 2));
+    s.set_end_time(&doc, "00:00:00.200");
+    assert_eq!(s.end_index, 3, "unchanged: 20 cs is still the boundary after frame 2");
+    s.set_end_time(&doc, "bad");
+    s.step_position(10);
+    assert_eq!(s.position_index, 4);
+    assert_eq!(TrimSelection::output_name("C:/x/a.b.gif"), "a.b-trimmed.gif");
+}
+
+#[test]
 fn gif_lossless_trim_is_byte_identical() {
     let data = std::fs::read(input("trim.gif")).unwrap();
     let t = sharex_tools::video::gif_trimmer::GifLosslessTrimmer::parse(&data).unwrap();

@@ -730,6 +730,200 @@ impl AnimatedGifTrimmerDocument {
     }
 }
 
+/// `AnimatedGifTrimmerViewModel`'s selection without the window: the frame
+/// range, the playhead, the crop and the output scale, and the rules tying
+/// them together (a crop or resize forces a re-encode).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrimSelection {
+    pub width: i32,
+    pub height: i32,
+    pub frame_count: usize,
+    pub start_index: usize,
+    /// Exclusive.
+    pub end_index: usize,
+    pub position_index: usize,
+    pub crop: CropRect,
+    pub scale: f64,
+    pub reencode: bool,
+}
+
+impl TrimSelection {
+    /// After `LoadInputAsync`: everything selected, the whole GIF, scale 1.
+    pub fn new(doc: &AnimatedGifTrimmerDocument) -> Self {
+        let (w, h) = (doc.width() as i32, doc.height() as i32);
+        TrimSelection {
+            width: w,
+            height: h,
+            frame_count: doc.frame_count(),
+            start_index: 0,
+            end_index: doc.frame_count(),
+            position_index: 0,
+            crop: CropRect { x: 0, y: 0, width: w, height: h },
+            scale: 1.0,
+            reencode: false,
+        }
+    }
+
+    fn full(&self) -> CropRect {
+        CropRect { x: 0, y: 0, width: self.width, height: self.height }
+    }
+
+    /// `OutputSize`: the crop times the scale, rounded half to even, 1-65535.
+    pub fn output_size(&self) -> (i32, i32) {
+        let f = |v: i32| ((v as f64 * self.scale).round_ties_even() as i64).clamp(1, 65535) as i32;
+        (f(self.crop.width), f(self.crop.height))
+    }
+
+    /// `IsTransformed`.
+    pub fn is_transformed(&self) -> bool {
+        self.crop != self.full() || self.output_size() != (self.crop.width, self.crop.height)
+    }
+
+    /// `CanUseLossless` (with the window able to browse).
+    pub fn can_use_lossless(&self) -> bool {
+        !self.is_transformed()
+    }
+
+    /// `CanTrim` (with the window able to edit).
+    pub fn can_trim(&self) -> bool {
+        self.start_index > 0 || self.end_index < self.frame_count || self.is_transformed()
+    }
+
+    /// `CanPlay`.
+    pub fn can_play(&self) -> bool {
+        self.end_index - self.start_index > 1
+    }
+
+    fn transform_changed(&mut self) {
+        if self.is_transformed() {
+            self.reencode = true;
+        }
+    }
+
+    /// `SetCrop`: clipped to the GIF; ignored when empty or unchanged.
+    pub fn set_crop(&mut self, rect: CropRect) {
+        let l = rect.x.max(0);
+        let t = rect.y.max(0);
+        let r = (rect.x + rect.width).min(self.width);
+        let b = (rect.y + rect.height).min(self.height);
+        // SKRectI.Intersect leaves the rect alone when they don't intersect.
+        let rect = if l < r && t < b { CropRect { x: l, y: t, width: r - l, height: b - t } } else { rect };
+        if rect.width < 1 || rect.height < 1 || rect == self.crop {
+            return;
+        }
+        self.crop = rect;
+        self.transform_changed();
+    }
+
+    fn set_scale(&mut self, scale: f64) {
+        if (scale - self.scale).abs() < 1e-9 {
+            return;
+        }
+        self.scale = scale;
+        self.transform_changed();
+    }
+
+    /// `OutputWidth`'s setter: scales the crop, keeping its aspect ratio.
+    pub fn set_output_width(&mut self, value: f64) {
+        if value > 0.0 && self.crop.width > 0 {
+            self.set_scale(value / self.crop.width as f64);
+        }
+    }
+
+    /// `OutputHeight`'s setter.
+    pub fn set_output_height(&mut self, value: f64) {
+        if value > 0.0 && self.crop.height > 0 {
+            self.set_scale(value / self.crop.height as f64);
+        }
+    }
+
+    /// `ResetCrop` (also after a successful export).
+    pub fn reset_crop(&mut self) {
+        self.scale = 1.0;
+        self.crop = self.full();
+        self.transform_changed();
+    }
+
+    /// `Seek`.
+    pub fn seek(&mut self, doc: &AnimatedGifTrimmerDocument, seconds: f64) {
+        self.position_index = doc.frame_at(seconds);
+    }
+
+    /// `SetStart`: the nearest frame boundary, before the end.
+    pub fn set_start(&mut self, doc: &AnimatedGifTrimmerDocument, seconds: f64) {
+        let index = doc.nearest_boundary(seconds, false).min(self.end_index - 1);
+        if index != self.start_index {
+            self.start_index = index;
+            self.position_index = index;
+        }
+    }
+
+    /// `SetEnd`: the nearest boundary (the end included), after the start.
+    pub fn set_end(&mut self, doc: &AnimatedGifTrimmerDocument, seconds: f64) {
+        let index = doc.nearest_boundary(seconds, true).max(self.start_index + 1);
+        if index != self.end_index {
+            self.end_index = index;
+            self.position_index = (index - 1).min(self.frame_count - 1);
+        }
+    }
+
+    /// `SetStartTime(text)`: a `TryParseTime` text, or nothing.
+    pub fn set_start_time(&mut self, doc: &AnimatedGifTrimmerDocument, text: &str) {
+        if let Some(s) = super::trimmer::try_parse_time(text) {
+            self.set_start(doc, s);
+        }
+    }
+
+    /// `SetEndTime(text)`.
+    pub fn set_end_time(&mut self, doc: &AnimatedGifTrimmerDocument, text: &str) {
+        if let Some(s) = super::trimmer::try_parse_time(text) {
+            self.set_end(doc, s);
+        }
+    }
+
+    /// `StepPosition(frames)`.
+    pub fn step_position(&mut self, frames: i32) {
+        self.position_index = (self.position_index as i64 + frames as i64).clamp(0, self.frame_count as i64 - 1) as usize;
+    }
+
+    /// `NotifySelectionChanged`'s status: `AnimatedGifTrimmer_UseReencode`
+    /// when a lossless cut can't start at the selected frame.
+    pub fn status_text(&self, doc: &AnimatedGifTrimmerDocument) -> String {
+        if self.reencode || doc.can_copy_selection(self.start_index, self.end_index) {
+            String::new()
+        } else {
+            sharex_strings::tools::AnimatedGifTrimmer_UseReencode().to_string()
+        }
+    }
+
+    /// `FrameText`: `Frame {0} of {1}`.
+    pub fn frame_text(&self) -> String {
+        crate::text::format_dotnet(
+            sharex_strings::tools::AnimatedGifTrimmer_Frame(),
+            &[((self.position_index + 1) as i64).into(), (self.frame_count as i64).into()],
+        )
+    }
+
+    /// The save dialog's suggested name: `<input name>-trimmed.gif`.
+    pub fn output_name(input: &str) -> String {
+        let name = crate::dotnet::file_name(input);
+        let stem = name.rfind('.').map_or(name, |i| &name[..i]);
+        format!("{stem}-trimmed.gif")
+    }
+
+    /// `ExportAsync`'s call: [`AnimatedGifTrimmerDocument::export`] with this
+    /// selection.
+    pub fn export(
+        &self,
+        doc: &AnimatedGifTrimmerDocument,
+        source_path: &str,
+        output: &str,
+        progress: Option<&mut dyn FnMut(f64)>,
+    ) -> Result<bool, String> {
+        doc.export(source_path, output, self.start_index, self.end_index, self.reencode, self.crop, self.output_size(), progress)
+    }
+}
+
 /// `CropAndResize`: `DrawImage(image, crop, dest, Mitchell)`.
 pub fn crop_and_resize(source: &Bitmap, crop: CropRect, size: (i32, i32)) -> Bitmap {
     let mut out = imaging::create_bitmap(size.0 as u32, size.1 as u32);

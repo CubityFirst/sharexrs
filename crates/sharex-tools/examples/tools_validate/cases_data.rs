@@ -206,6 +206,13 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             );
             json_eq(&serde_json::json!(ours), &read_json(ctx, name))
         }
+        "video-trim-time" => {
+            let ours = serde_json::json!({
+                "format": c["seconds"].as_array().unwrap().iter().map(|v| trimmer::format_time(v.as_f64().unwrap())).collect::<Vec<_>>(),
+                "parse": c["texts"].as_array().unwrap().iter().map(|v| trimmer::try_parse_time(v.as_str().unwrap())).collect::<Vec<_>>(),
+            });
+            json_eq(&ours, &read_json(ctx, name))
+        }
         "video-outputinfo" => {
             let text = std::fs::read_to_string(ctx.sharex.join(format!("{name}.txt"))).unwrap();
             let theirs = read_json(ctx, name);
