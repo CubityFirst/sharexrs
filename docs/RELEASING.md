@@ -113,7 +113,27 @@ The installer only creates the context menu. The app registers the rest itself:
 
 `FileTypeRegistration.RegisterMissingExtensions` registers `.sxcu` and `.sxie` again
 at every start, except in portable and Store builds. `ShareX.exe -uninstall` runs
-`IntegrationHelpers.Uninstall`, which turns all of the above off.
+`IntegrationHelpers.Uninstall`, which turns all of the above off, in Steam builds only
+(the other builds ignore `-uninstall`).
+
+ShareXrs does the same at run time (`crates/sharexrs/src/integration.rs`, Application
+settings › Integration), under its own names:
+
+| What | ShareXrs's key or place | Command |
+|---|---|---|
+| Upload with ShareXrs | `*\shell\ShareXrs`, `Directory\shell\ShareXrs` | `"sharexrs.exe" "%1"` |
+| Edit with ShareXrs Image editor / Photo editor | `image\shell\ShareXrsImageEditor`, `ShareXrsPhotoEditor` | `-ImageEditor "%1"`, `-PhotoEditor "%1"` (both editors' windows aren't ported: logged) |
+| `.sxcu` | `ShareXrs.sxcu` ("ShareXrs custom uploader", the program's icon) in `.sxcu\OpenWithProgids` | `-CustomUploader "%1"` |
+| `.sxie` | `ShareXrs.sxie` ("ShareXrs image effect") | `-ImageEffect "%1"` |
+| Browser extensions | `…\Chrome\NativeMessagingHosts\com.sharexrs.sharexrs`, `…\Mozilla\NativeMessagingHosts\ShareXrs` | `host-manifest-*.json` beside the program, naming `sharexrs-native-messaging.exe` |
+| Send To | `SendTo\ShareXrs.lnk` | |
+
+ShareX takes the `.sxcu` and `.sxie` default over and deletes the whole extension key
+when it unregisters. ShareXrs lists its ProgID in `OpenWithProgids`, takes the default
+only when it's empty, and removes only its own values, which is what its uninstaller
+expects; an installed ShareX keeps its registration. The browser extensions ShareX
+publishes ask for ShareX's host (`com.getsharex.sharex`), so they reach ShareXrs only
+if an extension asks for ShareXrs's host name.
 
 ### Update check (`ShareXUpdateManager`)
 
@@ -155,7 +175,7 @@ at every start, except in portable and Store builds. `ShareX.exe -uninstall` run
 | Platform | File | Contents |
 |---|---|---|
 | Windows x64 and ARM64 | `ShareXrs-<ver>-setup-<x64\|arm64>.exe` | The Inno Setup installer (`packaging/windows/ShareXrs-setup.iss`) |
-| | `ShareXrs-<ver>-portable-<x64\|arm64>.zip` | At the zip's root: `sharexrs.exe`, `ffmpeg.exe`, `onnxruntime.dll`, `Models/`, `Licenses/`, `Portable` |
+| | `ShareXrs-<ver>-portable-<x64\|arm64>.zip` | At the zip's root: `sharexrs.exe`, `sharexrs-native-messaging.exe`, `host-manifest-chrome.json`, `host-manifest-firefox.json`, `ffmpeg.exe`, `onnxruntime.dll`, `Models/`, `Licenses/`, `Portable` |
 | macOS Apple silicon | `ShareXrs-macos-aarch64.dmg` | `ShareXrs.app` and a link to `Applications` |
 | | `ShareXrs-macos-aarch64.app.zip` | `ShareXrs.app` (packed with `ditto`), for an updater that replaces the whole app |
 | Linux x86_64 | `ShareXrs-<ver>-linux-x64.deb` | `/usr/lib/sharexrs/{sharexrs, ffmpeg, libonnxruntime.so, Models/}`, `/usr/bin/sharexrs` (launcher), `/usr/share/applications/sharexrs.desktop`, hicolor icons, `/usr/share/doc/sharexrs/{copyright, Licenses/}` |
@@ -264,20 +284,20 @@ user agent and go through the proxy setting.
 | AppId | `82E6AC09-…` | `F7492E77-AA16-4212-9FD6-53D97873DD92` (never change it) |
 | Install folder | `{commonpf}\ShareX` or `{userpf}\ShareX` | `{commonpf}\ShareXrs` or `{userpf}\ShareXrs`. A `/DIR=` on the command line is kept (ShareX overrides it for non-admins) |
 | Privileges, MinVersion, licence page, architectures | as listed above | the same |
-| Running copy | `AppMutex`, and a `taskkill` prompt on uninstall | ShareXrs has no mutex yet. Setup uses the Restart Manager; uninstall finds `sharexrs.exe` with `tasklist`, then shows the same prompt (suppressible) and runs `taskkill` |
+| Running copy | `AppMutex`, and a `taskkill` prompt on uninstall | the same: `AppMutex` is ShareXrs's AppId, the mutex the installed `sharexrs.exe` holds. Uninstall checks it, then shows the same prompt (suppressible) and runs `taskkill`. A portable copy holds a mutex keyed by its folder instead, so it doesn't count as the installed copy running |
 | Desktop, Start menu, startup | checked; `ShareX.lnk -silent` | the same, with `ShareXrs.lnk -silent`, the shortcut `startup.rs` reads and writes |
-| Context menu, Send To | checked | **unchecked** until ShareXrs acts on files passed on its command line. `ApplicationCommandLine` isn't ported, so they'd only start a second ShareXrs |
+| Context menu, Send To | checked | checked, as ShareX (they were unchecked until ShareXrs ran the files on its command line). A second launch passes its files to the running copy |
 | Context menu keys | `*\shell\ShareX`, `Directory\shell\ShareX` | `*\shell\ShareXrs`, `Directory\shell\ShareXrs` ("Upload with ShareXrs") |
-| Browser extension support | native messaging hosts | left out: ShareXrs has no native messaging host |
+| Browser extension support | checked; native messaging hosts `com.getsharex.sharex` and `ShareX`, `ShareX_NativeMessagingHost.exe` | checked; `com.sharexrs.sharexrs` and `ShareXrs`, `sharexrs-native-messaging.exe` and the two host manifests. Both keys are removed on uninstall even when Application settings made them |
 | Print Screen for Snipping Tool | checked; the value is removed on uninstall | the same, but only offered when Print Screen still opens the Snipping Tool, so a value ShareX set is never removed |
 | Removed on uninstall | `.sxcu`, `ShareX.sxcu`, `.sxie`, `ShareX.sxie`, the image and photo editor keys | `ShareXrs.sxcu`, `ShareXrs.sxie`, `ShareXrsImageEditor`, `ShareXrsPhotoEditor`. In the shared `.sxcu` and `.sxie` keys, only the `OpenWithProgids` value `ShareXrs.*` and a default that is `ShareXrs.*` are removed, so ShareX's registration stays |
 | Old language DLLs | `[InstallDelete]` | not needed (the translations are inside `sharexrs.exe`) |
 | `/UPDATE`, `/NORUN` | | the same |
 
-When `FileTypeRegistration` and `IntegrationHelpers` are ported, they must use the
-`ShareXrs.*` ProgIDs and add them to `OpenWithProgids`. They should take the default
-of `.sxcu` or `.sxie` only when nothing else has it, which is what the uninstaller
-expects.
+`FileTypeRegistration` and `IntegrationHelpers` use these `ShareXrs.*` ProgIDs and
+list them in `OpenWithProgids`, taking the default of `.sxcu` or `.sxie` only when
+nothing else has it, which is what the uninstaller expects ("Shell integration at run
+time" above).
 
 ### Not shipped (and why)
 
@@ -289,7 +309,8 @@ expects.
 - **Notarisation**: the Mac app is self-signed, so the first launch needs System
   Settings › Privacy & Security › Open Anyway ([MACOS-LEARNINGS.md](MACOS-LEARNINGS.md)
   1.3).
-- **`ShareX_File_Icon.ico`**: ShareXrs doesn't register `.sxcu` or `.sxie` yet.
+- **`ShareX_File_Icon.ico`**: ShareX's file type icon. ShareXrs's `.sxcu` and `.sxie`
+  types use the program's own icon.
 - **Languages folder**: the translations are compiled into the program.
 
 ## 3. The bundled pieces, pinned
@@ -359,6 +380,10 @@ a static build with dozens of libraries it's large.
   cargo-deb 3.8 and a stand-in binary. The `.deb`'s control file and its data paths
   and modes were checked, as was the tarball's layout. `Depends` is empty there
   because `dpkg-shlibdeps` only exists on Linux; CI fills it.
+- **Command line and integration changes** (Context menu and Send To checked, browser
+  extension support, `AppMutex`): `scripts/package-windows.ps1` ran on stand-in files and
+  ISCC 6.7.4 compiled the script with no warnings; the portable zip has the host and its
+  manifests. The installer wasn't run.
 - **Linting**: `shellcheck` 0.11 on the shell scripts, and `actionlint` 1.7.12 (with
   shellcheck) on the workflows. Both clean.
 - **macOS**: `macos-bundle.sh` (the payload and nested signing) is only checked by
