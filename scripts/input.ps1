@@ -14,6 +14,9 @@
   scripts/input.ps1 -Text 'not a url'
   scripts/input.ps1 -Down 200,150 -DragTo 600,450 -Hold   # press, drag, keep pressed
   scripts/input.ps1 -Up                                   # release the left button
+  scripts/input.ps1 -Chord Ctrl+C                         # a key with modifiers
+  scripts/input.ps1 -Chord Shift+Right
+  scripts/input.ps1 -RightDown 500,400                    # press (and later -RightUp) the right button
 #>
 param(
     [int[]] $MoveTo,
@@ -34,7 +37,15 @@ param(
     # Types this text into the focused window (SendKeys, special characters escaped).
     [string] $Text,
     # Turns the mouse wheel by this many notches where the cursor is (negative scrolls down).
-    [int] $Wheel
+    [int] $Wheel,
+    # A key with modifiers held: Ctrl+C, Shift+Right, Alt+Left, H, Delete,
+    # Add, Subtract, OemPlus, OemMinus, F1..F12, A..Z, 0..9 and -Key's names.
+    [string] $Chord,
+    # Presses (there) or releases the right or middle button.
+    [int[]] $RightDown,
+    [switch] $RightUp,
+    [int[]] $MiddleDown,
+    [switch] $MiddleUp
 )
 $ErrorActionPreference = 'Stop'
 Add-Type @'
@@ -123,6 +134,40 @@ if ($Wheel) {
         [Input]::mouse_event(0x800, 0, 0, $delta, [IntPtr]::Zero)
         Start-Sleep -Milliseconds 60
     }
+}
+if ($RightDown) {
+    Move-To $RightDown[0] $RightDown[1]
+    [Input]::mouse_event(0x8, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+}
+if ($RightUp) {
+    [Input]::mouse_event(0x10, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($MiddleDown) {
+    Move-To $MiddleDown[0] $MiddleDown[1]
+    [Input]::mouse_event(0x20, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+}
+if ($MiddleUp) {
+    [Input]::mouse_event(0x40, 0, 0, 0, [IntPtr]::Zero)
+}
+if ($Chord) {
+    $names = @{ Escape = 0x1B; Enter = 0x0D; Left = 0x25; Up = 0x26; Right = 0x27; Down = 0x28; Space = 0x20; Tab = 0x09;
+        Delete = 0x2E; Add = 0x6B; Subtract = 0x6D; OemPlus = 0xBB; OemMinus = 0xBD; Home = 0x24; End = 0x23 }
+    $mods = @{ Ctrl = 0x11; Shift = 0x10; Alt = 0x12 }
+    $parts = $Chord -split '\+'
+    $held = @()
+    foreach ($m in $parts[0..($parts.Count - 2)]) { if ($parts.Count -gt 1) { $held += $mods[$m] } }
+    $k = $parts[-1]
+    $vk = if ($names.ContainsKey($k)) { $names[$k] } elseif ($k -match '^F([0-9]+)$') { 0x6F + [int]$Matches[1] } else { [int][char]$k.ToUpperInvariant() }
+    foreach ($m in $held) { [Input]::keybd_event([byte]$m, 0, 0, [IntPtr]::Zero) }
+    # Arrows, Delete, Home and End are extended keys.
+    $ext = if (@(0x25, 0x26, 0x27, 0x28, 0x2E, 0x24, 0x23) -contains $vk) { 1 } else { 0 }
+    [Input]::keybd_event([byte]$vk, 0, $ext, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 30
+    [Input]::keybd_event([byte]$vk, 0, 2 -bor $ext, [IntPtr]::Zero)
+    [array]::Reverse($held)
+    foreach ($m in $held) { [Input]::keybd_event([byte]$m, 0, 2, [IntPtr]::Zero) }
 }
 if ($Text) {
     Add-Type -AssemblyName System.Windows.Forms

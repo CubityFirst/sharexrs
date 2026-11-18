@@ -32,6 +32,7 @@ mod recording;
 mod region_render;
 mod region_session;
 mod render;
+mod screen_tools;
 mod settings_form;
 mod shell;
 #[cfg(windows)]
@@ -238,6 +239,7 @@ fn main() {
         auto_close: is_command_present(&args, &["AutoClose"]),
         exit_requested: false,
         queued_dialogs: Vec::new(),
+        screen_tools: Default::default(),
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -354,6 +356,8 @@ struct App {
     exit_requested: bool,
     /// Message boxes waiting for the open one to close.
     queued_dialogs: Vec<(MessageBox, DialogPurpose)>,
+    /// The Screen tools' windows and overlays that are open.
+    screen_tools: screen_tools::ScreenTools,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -516,7 +520,7 @@ impl App {
             return;
         }
         if let MenuCommand::Tool(key) = command
-            && self.open_image_tool(event_loop, key, None)
+            && (self.open_image_tool(event_loop, key, None) || self.open_screen_tool(event_loop, key))
         {
             return;
         }
@@ -1195,6 +1199,9 @@ impl App {
         if self.run_upload_job(event_loop, &job, &task) {
             return;
         }
+        if self.run_screen_job(event_loop, &job, &task, None) {
+            return;
+        }
         if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
             self.open_image_tool(event_loop, key, Some(task));
             return;
@@ -1483,6 +1490,9 @@ impl ApplicationHandler<UserEvent> for App {
         if self.ffmpeg_options_window_event(event_loop, id, &event) {
             return;
         }
+        if self.screen_tools_window_event(event_loop, id, &event) {
+            return;
+        }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
             let outcome = region.session.window_event(event_loop, id, event);
             if !matches!(outcome, Outcome::Continue) {
@@ -1607,7 +1617,9 @@ impl ApplicationHandler<UserEvent> for App {
         let dialogs = self.dialogs_due(now);
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
+        let screen_tools = self.screen_tools_wake_at(now);
         let next = [
+            screen_tools,
             self.main.as_ref().and_then(|w| w.repaint_at),
             self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
             region,
