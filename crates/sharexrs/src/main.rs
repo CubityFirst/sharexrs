@@ -1554,8 +1554,13 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
             let outcome = region.session.window_event(event_loop, id, event);
+            region.session.handle_editor_requests();
+            let pick = region.session.take_pick_request();
             if !matches!(outcome, Outcome::Continue) {
                 self.finish_region_capture(event_loop, outcome);
+            } else if let Some(item) = pick {
+                // `ScreenColorPickerWindow.PickAsync(owner)` over the overlay.
+                self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Region(item));
             }
             return;
         }

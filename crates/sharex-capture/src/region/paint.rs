@@ -422,8 +422,8 @@ impl RegionCapture {
             );
             let r = self.popups.show(ui, &p, anchor, screen, e);
             if r.pick_screen_color {
-                // `ScreenColorPickerWindow` over the overlay isn't ported.
-                eprintln!("region capture: the screen colour picker isn't ported");
+                // `ScreenColorPickerWindow.PickAsync`: the host opens it.
+                self.pick_request = Some(item);
             }
             view.popup = self.popups.rect;
         }

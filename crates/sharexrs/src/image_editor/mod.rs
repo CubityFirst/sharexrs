@@ -38,9 +38,9 @@ use crate::dialogs::{Cx, Dialog, Effect, Spec, UploadRequest};
 
 mod background;
 mod canvas_size;
-mod emoji_picker;
+pub(crate) mod emoji_picker;
 mod insert_image;
-mod modal;
+pub(crate) mod modal;
 mod new_image;
 mod notify;
 mod start_screen;

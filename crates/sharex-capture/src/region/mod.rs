@@ -296,6 +296,9 @@ pub struct RegionCapture {
     pub(crate) bar: Vec<toolbar::Item>,
     /// The toolbar part under the pointer.
     pub(crate) toolbar_hover: Option<toolbar::Part>,
+    /// A colour popup's screen colour picker was asked for (the option
+    /// whose colour it sets).
+    pub(crate) pick_request: Option<options_row::OptionItem>,
     pub(crate) pointer_known: bool,
     closing: bool,
     /// The image editor's workspace, when annotations are enabled.
@@ -352,6 +355,7 @@ impl RegionCapture {
             screens,
             windows: if options.DetectWindows { windows } else { Vec::new() },
             bar: toolbar::items(&options.ToolbarItems),
+            pick_request: None,
             options,
             last_regions,
             enable_annotations,
@@ -1482,6 +1486,51 @@ fn tool_hotkey(bar: &[toolbar::Item], k: ed::Key, m: ed::Mods) -> Option<EditorT
 }
 
 impl RegionCapture {
+    /// The colour popup's screen colour picker request
+    /// (`OnScreenColorPickerClick`: `ScreenColorPickerWindow.PickAsync`),
+    /// taken by the host, which opens the picker over the overlay.
+    pub fn take_pick_request(&mut self) -> Option<options_row::OptionItem> {
+        self.pick_request.take()
+    }
+
+    /// The picked colour (`SelectedColorValue`, a recent colour).
+    pub fn set_picked_color(&mut self, item: options_row::OptionItem, c: egui::Color32) {
+        crate::editor_popups::add_recent_color(c);
+        let hex = sharex_ui::accent::to_hex(c);
+        if let Some(e) = self.editor.as_mut() {
+            e.set_option(|s, t| match item {
+                options_row::OptionItem::BorderColor => s.set_selected_color(&hex, t),
+                options_row::OptionItem::FillColor => s.set_fill_color(&hex, t),
+                options_row::OptionItem::TextColor => s.set_text_color(&hex, t),
+                _ => {}
+            });
+        }
+    }
+
+    /// The workspace's requests for the host (the emoji picker).
+    pub fn take_editor_requests(&mut self) -> Vec<ed::Request> {
+        self.editor.as_mut().map(|e| e.take_requests()).unwrap_or_default()
+    }
+
+    /// `InsertEmojiAnnotation` (`at`: the sticker's top-left, image pixels).
+    pub fn insert_emoji(&mut self, unicode: &str, name: &str, at: (f64, f64)) {
+        if let Some(e) = self.editor.as_mut() {
+            e.insert_emoji(unicode, name, at);
+        }
+    }
+
+    /// `ReplaceEmojiAnnotation`.
+    pub fn replace_emoji(&mut self, id: &str, unicode: &str, name: &str) {
+        if let Some(e) = self.editor.as_mut() {
+            e.replace_emoji(id, unicode, name);
+        }
+    }
+
+    /// The virtual screen's origin (image (0, 0)), desktop pixels.
+    pub fn origin(&self) -> (i32, i32) {
+        (self.screen_bounds.x, self.screen_bounds.y)
+    }
+
     /// The toolbar's item with this id (`--render`, tests).
     pub fn toolbar_index(&self, id: &str) -> Option<usize> {
         self.bar.iter().position(|t| t.def.id == id)
