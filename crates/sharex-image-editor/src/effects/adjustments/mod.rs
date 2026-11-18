@@ -1,0 +1,71 @@
+//! `Core/ImageEffects/Adjustments`.
+
+use super::{def, EffectDefinition};
+
+pub(crate) mod alpha;
+pub(crate) mod auto_contrast;
+pub(crate) mod black_and_white;
+pub(crate) mod brightness;
+pub(crate) mod channel_swap;
+pub(crate) mod clarity;
+pub(crate) mod color_balance;
+pub(crate) mod color_matrix;
+pub(crate) mod colorize;
+pub(crate) mod contrast;
+pub(crate) mod cross_process;
+pub(crate) mod dehaze;
+pub(crate) mod duotone_gradient_map;
+pub(crate) mod exposure;
+pub(crate) mod film_emulation;
+pub(crate) mod gamma;
+pub(crate) mod grayscale;
+pub(crate) mod hue;
+pub(crate) mod invert;
+pub(crate) mod levels;
+pub(crate) mod lomo;
+pub(crate) mod polaroid;
+pub(crate) mod posterize;
+pub(crate) mod replace_color;
+pub(crate) mod saturation;
+pub(crate) mod sepia;
+pub(crate) mod shadows_highlights;
+pub(crate) mod solarize;
+pub(crate) mod split_toning;
+pub(crate) mod temperature_tint;
+pub(crate) mod threshold;
+pub(crate) mod vibrance;
+
+pub(crate) fn register(list: &mut Vec<EffectDefinition>) {
+    list.push(def::<alpha::AlphaImageEffect>());
+    list.push(def::<auto_contrast::AutoContrastImageEffect>());
+    list.push(def::<black_and_white::BlackAndWhiteImageEffect>());
+    list.push(def::<brightness::BrightnessImageEffect>());
+    list.push(def::<channel_swap::ChannelSwapImageEffect>());
+    list.push(def::<clarity::ClarityImageEffect>());
+    list.push(def::<color_balance::ColorBalanceImageEffect>());
+    list.push(def::<color_matrix::ColorMatrixImageEffect>());
+    list.push(def::<colorize::ColorizeImageEffect>());
+    list.push(def::<contrast::ContrastImageEffect>());
+    list.push(def::<cross_process::CrossProcessImageEffect>());
+    list.push(def::<dehaze::DehazeImageEffect>());
+    list.push(def::<duotone_gradient_map::DuotoneGradientMapImageEffect>());
+    list.push(def::<exposure::ExposureImageEffect>());
+    list.push(def::<film_emulation::FilmEmulationImageEffect>());
+    list.push(def::<gamma::GammaImageEffect>());
+    list.push(def::<grayscale::GrayscaleImageEffect>());
+    list.push(def::<hue::HueImageEffect>());
+    list.push(def::<invert::InvertImageEffect>());
+    list.push(def::<levels::LevelsImageEffect>());
+    list.push(def::<lomo::LomoImageEffect>());
+    list.push(def::<polaroid::PolaroidImageEffect>());
+    list.push(def::<posterize::PosterizeImageEffect>());
+    list.push(def::<replace_color::ReplaceColorImageEffect>());
+    list.push(def::<saturation::SaturationImageEffect>());
+    list.push(def::<sepia::SepiaImageEffect>());
+    list.push(def::<shadows_highlights::ShadowsHighlightsImageEffect>());
+    list.push(def::<solarize::SolarizeImageEffect>());
+    list.push(def::<split_toning::SplitToningImageEffect>());
+    list.push(def::<temperature_tint::TemperatureTintImageEffect>());
+    list.push(def::<threshold::ThresholdImageEffect>());
+    list.push(def::<vibrance::VibranceImageEffect>());
+}
