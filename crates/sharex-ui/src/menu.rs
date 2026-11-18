@@ -1011,7 +1011,9 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
         f.base_medium_low
     } else if accent_hover {
         p.accent_foreground
-    } else if fluent_item {
+    } else if fluent_item && (state.hovered || state.selected) {
+        // `MenuFlyoutItemForegroundPointerOver` (AltBaseHigh); at rest the
+        // item keeps ShareX's text colour (measured).
         f.base_high
     } else if state.hovered {
         p.text
