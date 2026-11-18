@@ -543,45 +543,6 @@ pub fn rotate_point(p: (f64, f64), c: (f64, f64), degrees: f64) -> (f64, f64) {
     (c.0 + dx * cos - dy * sin, c.1 + dx * sin + dy * cos)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rect(l: f32, t: f32, r: f32, b: f32) -> Annotation {
-        let mut a = Annotation::new("Rectangle").unwrap();
-        a.common.start_point = Point::new(l, t);
-        a.common.end_point = Point::new(r, b);
-        a
-    }
-
-    #[test]
-    fn rectangles_hit_inside_their_bounds_only() {
-        let a = rect(10.0, 10.0, 50.0, 40.0);
-        assert!(shape_hit(&a, 10.0, 10.0));
-        assert!(shape_hit(&a, 50.0, 40.0));
-        assert!(!shape_hit(&a, 9.0, 20.0));
-    }
-
-    #[test]
-    fn lines_hit_within_ten_pixels() {
-        let mut a = Annotation::new("Line").unwrap();
-        a.common.start_point = Point::new(0.0, 0.0);
-        a.common.end_point = Point::new(100.0, 0.0);
-        assert!(shape_hit(&a, 50.0, 9.0));
-        assert!(!shape_hit(&a, 50.0, 11.0));
-    }
-
-    #[test]
-    fn curve_points_follow_moves() {
-        let mut a = Annotation::new("Line").unwrap();
-        a.common.end_point = Point::new(100.0, 0.0);
-        ensure_curve_activated(&mut a);
-        move_by(&mut a, 5.0, 5.0);
-        let Kind::Line(p) = &a.kind else { unreachable!() };
-        assert_eq!(p.curve_point, Point::new(55.0, 5.0));
-    }
-}
-
 /// `Annotation.TransformAdditionalPoints` of each type: a freehand's
 /// points, a step's tail (once it has one), a balloon's tail (its
 /// effective point, kept placed or set when it has one). A line's or an
@@ -624,5 +585,44 @@ pub fn scale(a: &mut Annotation, sx: f32, sy: f32) {
     a.common.stroke_width *= sx.min(sy);
     if let Kind::Text(t) = &mut a.kind {
         t.font_size *= sy;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(l: f32, t: f32, r: f32, b: f32) -> Annotation {
+        let mut a = Annotation::new("Rectangle").unwrap();
+        a.common.start_point = Point::new(l, t);
+        a.common.end_point = Point::new(r, b);
+        a
+    }
+
+    #[test]
+    fn rectangles_hit_inside_their_bounds_only() {
+        let a = rect(10.0, 10.0, 50.0, 40.0);
+        assert!(shape_hit(&a, 10.0, 10.0));
+        assert!(shape_hit(&a, 50.0, 40.0));
+        assert!(!shape_hit(&a, 9.0, 20.0));
+    }
+
+    #[test]
+    fn lines_hit_within_ten_pixels() {
+        let mut a = Annotation::new("Line").unwrap();
+        a.common.start_point = Point::new(0.0, 0.0);
+        a.common.end_point = Point::new(100.0, 0.0);
+        assert!(shape_hit(&a, 50.0, 9.0));
+        assert!(!shape_hit(&a, 50.0, 11.0));
+    }
+
+    #[test]
+    fn curve_points_follow_moves() {
+        let mut a = Annotation::new("Line").unwrap();
+        a.common.end_point = Point::new(100.0, 0.0);
+        ensure_curve_activated(&mut a);
+        move_by(&mut a, 5.0, 5.0);
+        let Kind::Line(p) = &a.kind else { unreachable!() };
+        assert_eq!(p.curve_point, Point::new(55.0, 5.0));
     }
 }

@@ -35,6 +35,9 @@ impl Snapshot for CoreMemento {
     }
 }
 
+/// What an image operation does to the annotations (`transformAnnotations`).
+pub type AnnotationTransform<'a> = &'a dyn Fn(&mut Vec<Annotation>);
+
 /// `EditorCore.MaxAutoExpandPerSide`.
 const MAX_AUTO_EXPAND_PER_SIDE: i32 = 20000;
 
@@ -272,7 +275,7 @@ impl EditorCore {
         &mut self,
         operation: impl FnOnce(&Pixmap) -> Option<Pixmap>,
         clear_annotations: bool,
-        transform: Option<&dyn Fn(&mut Vec<Annotation>)>,
+        transform: Option<AnnotationTransform>,
     ) -> bool {
         let Some(result) = operation(&self.source) else {
             return false;
@@ -416,7 +419,7 @@ impl EditorCore {
         }
         let shift = left > 0 || top > 0;
         let shift_by = |list: &mut Vec<Annotation>| translate(list, left as f32, top as f32);
-        let transform: Option<&dyn Fn(&mut Vec<Annotation>)> =
+        let transform: Option<AnnotationTransform> =
             if shift { Some(&shift_by) } else { None };
         let expanded = self.apply_image_operation(
             |img| image_ops::resize_canvas(img, left, top, right, bottom, background),

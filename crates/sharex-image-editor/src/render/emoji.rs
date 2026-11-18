@@ -80,13 +80,16 @@ pub fn is_available() -> bool {
     font().is_some()
 }
 
+/// `StickerCache`: stickers by sequence and size.
+type StickerCache = HashMap<(String, u32), Option<Arc<Pixmap>>>;
+
 /// `RenderStickerBitmap(sequence, size)`: the emoji, trimmed and fitted in
 /// a `size` x `size` square (cached, as ShareX caches its stickers).
 pub fn sticker_bitmap(sequence: &str, size: u32) -> Option<Arc<Pixmap>> {
     if sequence.trim().is_empty() || size == 0 {
         return None;
     }
-    static CACHE: OnceLock<Mutex<HashMap<(String, u32), Option<Arc<Pixmap>>>>> = OnceLock::new();
+    static CACHE: OnceLock<Mutex<StickerCache>> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
     let key = (sequence.to_string(), size);
     if let Some(v) = cache.lock().unwrap().get(&key) {
