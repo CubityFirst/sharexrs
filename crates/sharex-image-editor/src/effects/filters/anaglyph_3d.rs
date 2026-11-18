@@ -45,7 +45,47 @@ impl EffectImpl for Anaglyph3DImageEffect {
     }
 
     fn apply(&self, source: &Bitmap) -> EffectResult {
-        let _ = source;
-        not_ported()
+        let ghost = clampf(self.ghost_reduction, 0.0, 100.0) / 100.0;
+        if self.separation_x == 0 && self.separation_y == 0 {
+            return Ok(source.clone());
+        }
+        let (width, height) = (source.width() as i32, source.height() as i32);
+        let half_x = self.separation_x as f32 * 0.5;
+        let half_y = self.separation_y as f32 * 0.5;
+        let src = pixels(source);
+        let mut dst = vec![SkColor::default(); src.len()];
+        for y in 0..height {
+            let row = y * width;
+            for x in 0..width {
+                let left = bilinear_sample(&src, width, height, x as f32 - half_x, y as f32 - half_y);
+                let right = bilinear_sample(&src, width, height, x as f32 + half_x, y as f32 + half_y);
+                let lg = analog_luminance01(left);
+                let rg = analog_luminance01(right);
+                let (r, g, b) = match self.mode {
+                    AnaglyphMode::AmberBlue => (
+                        lerp(left.r as f32 / 255.0, lg, ghost * 0.85),
+                        lerp(left.g as f32 / 255.0, lg, ghost * 0.50),
+                        lerp(right.b as f32 / 255.0, rg, ghost),
+                    ),
+                    AnaglyphMode::GreenMagenta => (
+                        lerp(right.r as f32 / 255.0, rg, ghost * 0.85),
+                        lerp(left.g as f32 / 255.0, lg, ghost),
+                        lerp(right.b as f32 / 255.0, rg, ghost * 0.85),
+                    ),
+                    AnaglyphMode::RedCyan => (
+                        lerp(left.r as f32 / 255.0, lg, ghost),
+                        lerp(right.g as f32 / 255.0, rg, ghost * 0.90),
+                        lerp(right.b as f32 / 255.0, rg, ghost),
+                    ),
+                };
+                dst[(row + x) as usize] = SkColor::rgba(
+                    clamp_to_byte(r * 255.0),
+                    clamp_to_byte(g * 255.0),
+                    clamp_to_byte(b * 255.0),
+                    ((left.a as i32 + right.a as i32) / 2) as u8,
+                );
+            }
+        }
+        Ok(from_pixels(width as u32, height as u32, &dst))
     }
 }
