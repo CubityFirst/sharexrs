@@ -259,6 +259,7 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         s if crate::image_tools::render::is_render_screen(s) => crate::image_tools::render::render_dialog(s, o)?,
         s if crate::image_effects::render::is_render_screen(s) => crate::image_effects::render::render_dialog(s, o)?,
         s if crate::screen_tools::render::is_render_screen(s) => crate::screen_tools::render::render_dialog(s, o)?,
+        s if crate::scrolling_capture::render::is_render_screen(s) => crate::scrolling_capture::render::render_dialog(s, o)?,
         other => return Err(format!("no dialog named {other}")),
     })
 }
@@ -287,6 +288,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
         || crate::image_tools::render::is_render_screen(screen)
         || crate::image_effects::render::is_render_screen(screen)
         || crate::screen_tools::render::is_render_screen(screen)
+        || crate::scrolling_capture::render::is_render_screen(screen)
+        || crate::auto_capture::render::is_render_screen(screen)
 }
 
 /// Draws the dialog `name` at its window's size.
@@ -294,9 +297,15 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
     if let Some(db) = &o.db {
         crate::history::use_database(db)?;
     }
-    let mut d = dialog(name, o)?;
+    // The auto capture window reads and writes the settings it's drawn with.
+    let (mut d, mut settings) = if crate::auto_capture::render::is_render_screen(name) {
+        let mut settings = crate::auto_capture::render::settings(o);
+        let d = crate::auto_capture::render::render_dialog(name, o, &mut settings)?;
+        (d, settings)
+    } else {
+        (dialog(name, o)?, ApplicationConfig::default())
+    };
     let spec = d.spec();
-    let mut settings = ApplicationConfig::default();
     let store = UploadersConfigStore::loaded(mock_config());
     let mut height = spec.height;
     if spec.size_to_content {

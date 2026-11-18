@@ -327,6 +327,54 @@ pub trait ScrollTarget {
     }
 }
 
+/// The screen: the selected window and region of a real capture
+/// (`ScrollingCaptureManager`'s `selectedWindow`, `selectedRectangle`).
+pub struct ScreenTarget {
+    pub handle: isize,
+    pub rect: crate::Rect,
+}
+
+/// `VirtualKeyCode.HOME`, `NEXT` (Page Down), `DOWN`.
+const VK_HOME: u16 = 0x24;
+const VK_NEXT: u16 = 0x22;
+const VK_DOWN: u16 = 0x28;
+/// `ScrollBarCommands.SB_LINEDOWN`, `SB_TOP`.
+const SB_LINEDOWN: usize = 1;
+const SB_TOP: usize = 6;
+
+impl ScrollTarget for ScreenTarget {
+    fn activate(&mut self) {
+        crate::platform::activate_window(self.handle);
+    }
+
+    fn scroll_top(&mut self) {
+        crate::platform::send_key_press(VK_HOME);
+        crate::platform::send_vscroll(self.handle, SB_TOP);
+    }
+
+    fn capture(&mut self) -> Option<RgbaImage> {
+        let screens = crate::screenshot::screens();
+        crate::screenshot::Screenshot { capture_cursor: false, ..Default::default() }.capture_rectangle(&screens, self.rect)
+    }
+
+    fn scroll(&mut self, method: ScrollMethod, amount: i32) {
+        match method {
+            ScrollMethod::MouseWheel => crate::platform::send_mouse_wheel(-120 * amount),
+            ScrollMethod::DownArrow => {
+                for _ in 0..amount {
+                    crate::platform::send_key_press(VK_DOWN);
+                }
+            }
+            ScrollMethod::PageDown => crate::platform::send_key_press(VK_NEXT),
+            ScrollMethod::ScrollMessage => {
+                for _ in 0..amount {
+                    crate::platform::send_vscroll(self.handle, SB_LINEDOWN);
+                }
+            }
+        }
+    }
+}
+
 /// What a capture ended with.
 #[derive(Clone, Debug)]
 pub struct CaptureOutcome {

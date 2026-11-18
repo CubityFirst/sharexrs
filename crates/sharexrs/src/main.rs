@@ -34,6 +34,7 @@ mod region_render;
 mod region_session;
 mod render;
 mod screen_tools;
+mod scrolling_capture;
 mod settings_form;
 mod shell;
 #[cfg(windows)]
@@ -104,6 +105,10 @@ pub enum UserEvent {
     /// The browser extension's image, downloaded
     /// (`ProcessImagesDuringExtensionUpload`).
     ExtensionImage(Box<cli::ExtensionImage>),
+    /// A worker finished (the scrolling capture's loop): look again.
+    Wake,
+    /// The auto capture window's tray icon.
+    AutoCaptureTray(TrayEvent),
 }
 
 fn main() {
@@ -241,6 +246,8 @@ fn main() {
         exit_requested: false,
         queued_dialogs: Vec::new(),
         screen_tools: Default::default(),
+        scrolling: Default::default(),
+        auto_capture: Default::default(),
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -359,6 +366,10 @@ struct App {
     queued_dialogs: Vec<(MessageBox, DialogPurpose)>,
     /// The Screen tools' windows and overlays that are open.
     screen_tools: screen_tools::ScreenTools,
+    /// Capture › Scrolling capture's window and capture.
+    scrolling: scrolling_capture::ScrollingCapture,
+    /// Capture › Auto capture's window and timer.
+    auto_capture: auto_capture::AutoCapture,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -541,6 +552,17 @@ impl App {
         if let Some(job) = job {
             let task = task();
             self.capture(job, task, auto_hide);
+            return;
+        }
+        // `TaskHelpers.OpenScrollingCapture()`, `OpenAutoCapture()`: the
+        // default task settings.
+        if let MenuCommand::ScrollingCapture | MenuCommand::AutoCapture = command {
+            let task = task();
+            if command == MenuCommand::ScrollingCapture {
+                self.open_scrolling_capture(event_loop, task);
+            } else {
+                self.open_auto_capture(event_loop, task);
+            }
             return;
         }
         // `TaskHelpers.StartScreenRecording(output, Region)`: the default
@@ -1225,6 +1247,11 @@ impl App {
             HotkeyType::ToggleTrayMenu => self.toggle_tray_menu(event_loop),
             HotkeyType::ExitShareX => self.exit(event_loop),
             HotkeyType::OCR => self.ocr_capture(task, false),
+            // `OpenScrollingCapture`, `OpenAutoCapture`, `StartAutoCapture`, `StopAutoCapture`.
+            HotkeyType::ScrollingCapture => self.open_scrolling_capture(event_loop, task),
+            HotkeyType::AutoCapture => self.open_auto_capture(event_loop, task),
+            HotkeyType::StartAutoCapture => self.start_auto_capture(event_loop, task),
+            HotkeyType::StopAutoCapture => self.stop_auto_capture(event_loop),
             HotkeyType::OpenHistory => self.show_history(event_loop),
             HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
             _ => eprintln!("{}: not ported yet", job.name()),
@@ -1452,6 +1479,8 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::WatchFolder(id, path) => self.watch_folder_trigger(event_loop, id, &path),
             UserEvent::Arguments(a) => self.arguments_received(event_loop, a),
             UserEvent::ExtensionImage(result) => self.extension_image(*result),
+            UserEvent::Wake => {}
+            UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
         }
     }
 
@@ -1506,6 +1535,12 @@ impl ApplicationHandler<UserEvent> for App {
             return;
         }
         if self.screen_tools_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.scrolling_window_event(event_loop, id, &event) {
+            return;
+        }
+        if self.auto_capture_window_event(event_loop, id, &event) {
             return;
         }
         if let Some(region) = self.region.as_mut().filter(|r| r.session.owns(id)) {
@@ -1633,8 +1668,12 @@ impl ApplicationHandler<UserEvent> for App {
         let region = self.region.as_mut().and_then(|r| r.session.wake_at());
         let pending = self.pending_capture.as_ref().map(|p| p.at);
         let screen_tools = self.screen_tools_wake_at(now);
+        let scrolling = self.scrolling_tick(event_loop);
+        let auto_capture = self.auto_capture_tick(event_loop);
         let next = [
             screen_tools,
+            scrolling,
+            auto_capture,
             self.main.as_ref().and_then(|w| w.repaint_at),
             self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
             region,

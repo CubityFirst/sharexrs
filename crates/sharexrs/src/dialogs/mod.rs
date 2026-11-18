@@ -161,6 +161,20 @@ pub enum Effect {
     /// (`StartAsync` returns): the manager hears the answer, and ShareXrs
     /// exits when the installer (or the replaced program) takes over.
     UpdateFinished { result: sharex_update::DialogResult, origin: update::UpdateOrigin, shutdown: bool },
+    /// The scrolling capture window's `SelectWindowAsync`.
+    ScrollingSelect,
+    /// `ScrollingCaptureService.StopCapture`.
+    ScrollingStop,
+    /// The scrolling capture's notification sound (`ActionCompleted`).
+    ScrollingSound,
+    /// The scrolling capture options overlay's OK.
+    ScrollingOptionsSaved(Box<sharex_capture::scrolling::ScrollingCaptureOptions>),
+    /// `RestoreAndActivate` / `ShowAndActivate`: shown, restored, activated.
+    RestoreAndActivate,
+    /// The auto capture window's Select region...
+    AutoCaptureSelectRegion,
+    /// The auto capture window hides to the tray, or comes back from it.
+    AutoCaptureTray(bool),
     /// `DownloaderWindow.Install`'s question about an unsigned installer.
     AskInvalidSignature,
     /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
@@ -302,6 +316,27 @@ pub trait Dialog {
     /// A Pin to screen source gave nothing.
     fn pin_failed(&mut self, _source: crate::screen_tools::pin::Source) {}
 
+    /// `Closing`: closes, unless the window cancels it (a scrolling capture
+    /// stops first).
+    fn close_requested(&mut self) -> Vec<Effect> {
+        vec![Effect::Close]
+    }
+
+    /// `Activated`.
+    fn activated(&mut self) -> Vec<Effect> {
+        Vec::new()
+    }
+
+    /// The scrolling capture window, for the app to report to.
+    fn as_scrolling(&mut self) -> Option<&mut crate::scrolling_capture::window::ScrollingCaptureWindow> {
+        None
+    }
+
+    /// The auto capture window, for the app to drive.
+    fn as_auto_capture(&mut self) -> Option<&mut crate::auto_capture::window::AutoCaptureWindow> {
+        None
+    }
+
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
     fn position(&self, work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
@@ -380,7 +415,12 @@ impl App {
         let mut cx = Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
         let d = &mut self.dialogs[i];
         let effects = match event {
-            WindowEvent::CloseRequested => vec![Effect::Close],
+            WindowEvent::CloseRequested => d.dialog.close_requested(),
+            WindowEvent::Focused(true) => {
+                d.window.on_event(event);
+                d.window.window.request_redraw();
+                d.dialog.activated()
+            }
             WindowEvent::RedrawRequested => {
                 let dialog = &mut d.dialog;
                 d.window.paint(|ui| {
@@ -423,6 +463,8 @@ impl App {
                     let mut cx = Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
                     let last = d.dialog.closed(&mut cx);
                     drop(d);
+                    self.scrolling_window_closed(id);
+                    self.auto_capture_window_closed(id);
                     self.dialog_effects(event_loop, id, last);
                 }
                 Effect::Upload(request) => self.upload_request(event_loop, *request),
@@ -506,6 +548,13 @@ impl App {
                 },
                 Effect::FileService(service, path) => self.file_service(event_loop, service, path),
                 Effect::OcrSelectRegion => self.ocr_select_region(id),
+                Effect::ScrollingSelect => self.scrolling_select(id),
+                Effect::ScrollingStop => self.scrolling_stop(),
+                Effect::ScrollingSound => self.scrolling_sound(),
+                Effect::ScrollingOptionsSaved(o) => self.scrolling_options_saved(*o),
+                Effect::RestoreAndActivate => self.restore_and_activate(id),
+                Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
+                Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                 Effect::PickScreenColor => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {

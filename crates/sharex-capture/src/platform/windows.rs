@@ -810,6 +810,40 @@ pub fn activate_window(handle: isize) {
     unsafe { SetForegroundWindow(handle as HWND) };
 }
 
+/// `InputHelpers.SendKeyPress(keyCode)`: the key down and up through
+/// `SendInput`, by virtual key alone (no scan code), as ShareX's
+/// `InputManager.AddKeyPress`.
+pub fn send_key_press(vk: u16) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput};
+    let key = |flags| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: vk, wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+    };
+    let inputs = [key(0), key(KEYEVENTF_KEYUP)];
+    // SAFETY: a valid array of INPUTs and its element size.
+    unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32) };
+}
+
+/// `InputHelpers.SendMouseWheel(delta)`: one wheel event of `delta` at the
+/// pointer (`MOUSEEVENTF_WHEEL`).
+pub fn send_mouse_wheel(delta: i32) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_WHEEL, MOUSEINPUT, SendInput};
+    let input = INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: delta as u32, dwFlags: MOUSEEVENTF_WHEEL, time: 0, dwExtraInfo: 0 } },
+    };
+    // SAFETY: one valid INPUT and its size.
+    unsafe { SendInput(1, &input, std::mem::size_of::<INPUT>() as i32) };
+}
+
+/// `NativeMethods.SendMessage(handle, WM_VSCROLL, code, 0)` (`SB_TOP` = 6,
+/// `SB_LINEDOWN` = 1).
+pub fn send_vscroll(handle: isize, code: usize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_VSCROLL};
+    // SAFETY: no pointers; an invalid handle only fails.
+    unsafe { SendMessageW(handle as HWND, WM_VSCROLL, code, 0) };
+}
+
 /// `WindowsList.GetVisibleWindowsList`: top-level windows in z-order that
 /// are visible, not cloaked, titled, not the desktop (`Progman`) or a
 /// `Button`, with a non-empty rectangle.

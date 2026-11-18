@@ -205,6 +205,14 @@ pub fn restore_window(_handle: isize) {}
 
 pub fn activate_window(_handle: isize) {}
 
+/// Sending input to other apps (scrolling capture) isn't ported outside
+/// Windows yet.
+pub fn send_key_press(_vk: u16) {}
+
+pub fn send_mouse_wheel(_delta: i32) {}
+
+pub fn send_vscroll(_handle: isize, _code: usize) {}
+
 /// `WindowsList.GetVisibleWindowsList`.
 pub fn visible_windows() -> Vec<crate::VisibleWindow> {
     listed_windows()
