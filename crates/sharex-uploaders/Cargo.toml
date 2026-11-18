@@ -36,7 +36,7 @@ native-tls = "0.2"
 # which don't cross-check for macOS from Windows). Curve25519 key exchange,
 # host key signatures and the user's OpenSSH keys.
 x25519-dalek = "2"
-ssh-key = { version = "0.6", default-features = false, features = ["std", "ed25519", "p256", "p384", "p521", "rsa", "encryption", "getrandom"] }
+ssh-key = { version = "0.6", default-features = false, features = ["std", "ed25519", "p256", "p384", "p521", "rsa", "encryption", "tdes", "getrandom"] }
 # ecdh-sha2-nistp256/384/521 key exchange (RustCrypto, MIT/Apache-2.0).
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "std"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "std"] }
@@ -44,6 +44,12 @@ p521 = { version = "0.13", default-features = false, features = ["ecdh", "std"] 
 elliptic-curve = { version = "0.13", default-features = false, features = ["sec1", "std"] }
 # 3des-cbc (SSH ciphers, encrypted PEM keys; RustCrypto, MIT/Apache-2.0).
 des = "0.8"
+# The key files SSH.NET reads: PKCS#8 (PBES2), SEC1 EC keys, PuTTY v3's
+# Argon2, OpenSSH's bcrypt KDF (RustCrypto, MIT/Apache-2.0).
+pkcs8 = { version = "0.10", features = ["encryption", "std"] }
+sec1 = { version = "0.7", features = ["der", "std"] }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+bcrypt-pbkdf = "0.10"
 rand_core = { version = "0.6", features = ["getrandom"] }
 signature = "2"
 # PEM RSA keys and SSH.NET's ssh-rsa / rsa-sha2-256 signatures.

@@ -817,6 +817,21 @@ ftp_case("sftp-mkdir-denied", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": [], "sftp_fail_once": [["MKDIR /home/user/shots", 3, "Permission denied"]]})
 ftp_case("sftp-open-failure", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_fail_once": [["OPEN", 4, "Failure"]]})
+KEY_PASS = "made-up-passphrase"
+for key, passphrase in [("sftp_test_rsa_pem_aes", KEY_PASS), ("sftp_test_rsa_pem_3des", KEY_PASS), ("sftp_test_rsa_pkcs8_enc", KEY_PASS),
+                        ("sftp_test_ec384_pem", KEY_PASS), ("sftp_test_ec256_pkcs8", ""), ("sftp_test_ed25519_pkcs8_enc", KEY_PASS),
+                        ("sftp_test_ec521", ""), ("sftp_test_rsa_v2.ppk", KEY_PASS), ("sftp_test_rsa_v3.ppk", KEY_PASS),
+                        ("sftp_test_rsa_v3_plain.ppk", ""), ("sftp_test_rsa_sshcom", KEY_PASS)]:
+    ftp_case("sftp-key-" + key.replace("sftp_test_", "").replace(".ppk", "-ppk").replace("_", "-"),
+             [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + key, Passphrase=passphrase)], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "authorized_key": pub(key)})
+for key, passphrase, label in [("sftp_test_rsa_pem_aes", "", "no-passphrase"), ("sftp_test_rsa_pem_aes", "wrong", "wrong-passphrase"),
+                               ("sftp_test_rsa_v2.ppk", "wrong", "ppk-wrong-passphrase"), ("sftp_test_rsa_v3.ppk", "", "ppk-no-passphrase"),
+                               ("sftp_test_ed25519_pkcs8_enc", "wrong", "pkcs8-wrong-passphrase"),
+                               ("sftp_test_rsa_sshcom", "wrong", "sshcom-wrong-passphrase"), ("sftp_test_rsa.pub", "", "not-a-key"),
+                               ("sftp_test_rsa", "wrong", "openssh-wrong-passphrase")]:
+    ftp_case("sftp-key-error-" + label, [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + key, Passphrase=passphrase)], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"]})
 for kex in ["ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521", "diffie-hellman-group-exchange-sha256",
             "diffie-hellman-group16-sha512", "diffie-hellman-group18-sha512", "diffie-hellman-group14-sha256",
             "diffie-hellman-group-exchange-sha1", "diffie-hellman-group14-sha1", "diffie-hellman-group1-sha1"]:

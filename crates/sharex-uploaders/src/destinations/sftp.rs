@@ -38,31 +38,10 @@ pub enum Credentials {
     Key(Box<UserKey>),
 }
 
-/// `new PrivateKeyFile(path[, passphrase])`: OpenSSH keys (encrypted or
-/// not) and unencrypted PEM RSA keys (PKCS#1, PKCS#8).
+/// `new PrivateKeyFile(path[, passphrase])`: every format SSH.NET reads
+/// ([`super::sftp_keys`]).
 pub fn load_private_key(text: &str, passphrase: Option<&str>) -> Result<UserKey, String> {
-    if text.contains("BEGIN OPENSSH PRIVATE KEY") {
-        let key = ssh_key::PrivateKey::from_openssh(text).map_err(|e| e.to_string())?;
-        return if key.is_encrypted() {
-            key.decrypt(passphrase.unwrap_or("").as_bytes()).map_err(|_| "The passphrase is wrong or the key is invalid.".to_owned())
-        } else {
-            Ok(key)
-        };
-    }
-    use rsa::pkcs1::DecodeRsaPrivateKey;
-    use rsa::pkcs8::DecodePrivateKey;
-    let rsa = if text.contains("BEGIN RSA PRIVATE KEY") {
-        if text.contains("ENCRYPTED") {
-            return Err("Encrypted PEM keys aren't supported; convert the key to the OpenSSH format (ssh-keygen -p).".into());
-        }
-        rsa::RsaPrivateKey::from_pkcs1_pem(text).map_err(|e| e.to_string())?
-    } else if text.contains("BEGIN PRIVATE KEY") {
-        rsa::RsaPrivateKey::from_pkcs8_pem(text).map_err(|e| e.to_string())?
-    } else {
-        return Err("Invalid private key file.".into());
-    };
-    let keypair = ssh_key::private::RsaKeypair::try_from(rsa).map_err(|e| e.to_string())?;
-    ssh_key::PrivateKey::new(ssh_key::private::KeypairData::Rsa(keypair), "").map_err(|e| e.to_string())
+    super::sftp_keys::load(text, passphrase)
 }
 
 /// The `rsa` crate's key of an RSA key, from its components.
