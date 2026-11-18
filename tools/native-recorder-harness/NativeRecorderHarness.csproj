@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless reference for ShareXrs's native recorder: drives ShareX's own
+    ShareX.ScreenRecordingLib.dll (from a ShareX build of REFERENCE_COMMIT)
+    with synthetic frames, camera frames and sound, without capturing the
+    screen, opening a camera or an audio device. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22621.0</SupportedOSPlatformVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ShareXBuild Condition="'$(ShareXBuild)' == ''">G:\scripts\sharexrs-ref\ShareX-build</ShareXBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ShareX.ScreenRecordingLib"><HintPath>$(ShareXBuild)\ShareX.ScreenRecordingLib.dll</HintPath></Reference>
+    <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="Vortice.Direct3D11"><HintPath>$(ShareXBuild)\Vortice.Direct3D11.dll</HintPath></Reference>
+    <Reference Include="Vortice.DXGI"><HintPath>$(ShareXBuild)\Vortice.DXGI.dll</HintPath></Reference>
+    <Reference Include="Vortice.DirectX"><HintPath>$(ShareXBuild)\Vortice.DirectX.dll</HintPath></Reference>
+    <Reference Include="Vortice.Mathematics"><HintPath>$(ShareXBuild)\Vortice.Mathematics.dll</HintPath></Reference>
+    <Reference Include="Vortice.MediaFoundation"><HintPath>$(ShareXBuild)\Vortice.MediaFoundation.dll</HintPath></Reference>
+    <Reference Include="SharpGen.Runtime"><HintPath>$(ShareXBuild)\SharpGen.Runtime.dll</HintPath></Reference>
+    <Reference Include="SharpGen.Runtime.COM"><HintPath>$(ShareXBuild)\SharpGen.Runtime.COM.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
+    <!-- Everything else ShareX's libraries load. -->
+    <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

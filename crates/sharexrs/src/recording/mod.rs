@@ -8,12 +8,17 @@
 //! recording frame (with its own tray icon) shows while a worker thread
 //! runs [`run_ffmpeg_session`]; the finished file becomes a file task.
 //!
-//! ShareX's default recorder is its native one (`ScreenRecordUseNative`),
-//! which isn't ported: ShareXrs records with FFmpeg then too, and says so.
+//! ShareX's default recorder is its native one (`ScreenRecordUseNative`):
+//! on Windows it runs `sharex_native_recorder` (Media Foundation H.264/AAC
+//! or the adaptive GIF writer, `native.rs`), with FFmpeg grabbing the
+//! screen for it until Windows Graphics Capture is ported; its sound and
+//! camera wait for real WASAPI and camera capture. Elsewhere it falls back
+//! to the FFmpeg recorder, as before.
 
 pub mod bar;
 pub mod ffmpeg_options;
 pub mod frame;
+mod native;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -23,7 +28,7 @@ use sharex_capture::Rect as PxRect;
 use sharex_screen_recording::discovery::{self, FFmpegCheckError};
 use sharex_screen_recording::session::{
     FFmpegSession, PreparedRecording, RecordingControl, ScreenRecordOutput, ScreenRecordStartMethod, ScreenRecordState,
-    ScreenRecordingStatus, SessionHooks, StartError, prepare_ffmpeg_recording, run_ffmpeg_session,
+    ScreenRecordingStatus, SessionHooks, StartError, prepare_ffmpeg_recording, prepare_native_recording, run_ffmpeg_session,
 };
 use sharex_screen_recording::{DesktopScreen, RecorderInput};
 use sharex_settings::types::Rectangle;
@@ -68,6 +73,8 @@ pub enum Event {
     Tray(TrayEvent),
     /// FFmpeg's download ended.
     FFmpegDownloaded,
+    /// The native recorder failed: ShareX's message box.
+    NativeError(String),
 }
 
 /// The frame's tray menu entries (`_trayStartItem` and the rest).
@@ -125,6 +132,22 @@ struct Active {
     tray: Option<tray::Tray>,
     tray_shown: Option<(TrayIcon, String, bool)>,
     tray_menu: Option<TrayMenu<TrayCommand>>,
+}
+
+/// Whether a recording uses the native recorder: `ScreenRecordUseNative`,
+/// on Windows (its encoders are Media Foundation's; elsewhere FFmpeg records).
+fn uses_native(capture: &TaskSettingsCapture) -> bool {
+    cfg!(windows) && capture.ScreenRecordUseNative
+}
+
+/// `StartRecording`'s checks for the recorder the settings choose.
+fn prepare(output: ScreenRecordOutput, capture: &TaskSettingsCapture, area: Rectangle, bounds: Rectangle) -> Result<PreparedRecording, StartError> {
+    let ffmpeg = discovery::resolve_ffmpeg(&capture.FFmpegOptions);
+    if uses_native(capture) {
+        prepare_native_recording(output, capture, area, bounds, ffmpeg)
+    } else {
+        prepare_ffmpeg_recording(output, capture, area, bounds, ffmpeg)
+    }
 }
 
 impl App {
@@ -222,22 +245,28 @@ impl App {
         let bounds = to_rectangle(sharex_capture::screenshot::screen_bounds(&screens));
         // The FFmpeg checks come first (`CheckFFmpeg`, the sources), before
         // any area is chosen.
-        let prepared = match prepare_ffmpeg_recording(output, &capture, bounds, bounds, discovery::resolve_ffmpeg(&capture.FFmpegOptions)) {
+        let prepared = match prepare(output, &capture, bounds, bounds) {
             Ok(p) => p,
             Err(e) => {
                 self.recording_start_failed(event_loop, e, &capture);
                 return;
             }
         };
-        if capture.ScreenRecordUseNative {
-            eprintln!("ShareX's native screen recorder isn't ported yet: recording with FFmpeg instead.");
+        if uses_native(&capture) {
+            let kind = if output == ScreenRecordOutput::GIF { "Adaptive GIF" } else { "H.264/AAC MP4" };
+            eprintln!("Starting native screen recording. {kind}, FPS: {}", prepared.fps);
+            eprintln!("Windows Graphics Capture isn't ported yet: FFmpeg grabs the screen for the native recorder.");
+        } else {
+            if capture.ScreenRecordUseNative {
+                eprintln!("ShareX's native screen recorder is Windows only: recording with FFmpeg instead.");
+            }
+            eprintln!(
+                "Starting screen recording. Video encoder: \"{}\", Audio encoder: \"{}\", FPS: {}",
+                prepared.capture.FFmpegOptions.VideoCodec.description(),
+                prepared.capture.FFmpegOptions.AudioCodec.description(),
+                prepared.fps
+            );
         }
-        eprintln!(
-            "Starting screen recording. Video encoder: \"{}\", Audio encoder: \"{}\", FPS: {}",
-            prepared.capture.FFmpegOptions.VideoCodec.description(),
-            prepared.capture.FFmpegOptions.AudioCodec.description(),
-            prepared.fps
-        );
         let mut recording = Recording {
             output,
             method,
@@ -312,7 +341,7 @@ impl App {
         let capture = r.task.CaptureSettings.clone().unwrap_or_default();
         let screens = sharex_capture::screenshot::screens();
         let bounds = to_rectangle(sharex_capture::screenshot::screen_bounds(&screens));
-        Some(prepare_ffmpeg_recording(r.output, &capture, to_rectangle(rect), bounds, discovery::resolve_ffmpeg(&capture.FFmpegOptions)))
+        Some(prepare(r.output, &capture, to_rectangle(rect), bounds))
     }
 
     /// The area is known: clipped to the screens and made even, then the
@@ -335,7 +364,8 @@ impl App {
             return;
         }
         let Some(r) = self.recording.as_ref() else { return };
-        let even = prepared.capture.FFmpegOptions.is_even_size_required();
+        // `evenSize = useNative ? !isGif : FFmpegOptions.IsEvenSizeRequired`.
+        let even = if uses_native(&prepared.capture) { !prepared.use_gif_fps } else { prepared.capture.FFmpegOptions.is_even_size_required() };
         let (gif, theme) = (r.use_gif_fps, self.current_theme);
         let screens = sharex_capture::screenshot::screens();
         let opened = gpu(&mut self.gpu).and_then(|g| BarWindow::open(event_loop, g, &screens, rect, prepared.capture.clone(), gif, even, theme));
@@ -457,16 +487,25 @@ impl App {
             counter: self.settings.settings.NameParserAutoIncrementNumber,
             send: Box::new(send),
         };
-        let session = FFmpegSession {
-            prepared,
-            screens: screens.iter().map(|s| DesktopScreen { bounds: to_rectangle(s.bounds), primary: s.primary }).collect(),
-            input: RecorderInput::default(),
+        let spawned = if uses_native(&prepared.capture) {
+            let session = native::session(prepared, r.output == ScreenRecordOutput::GIF);
+            std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
+                let mut hooks = hooks;
+                let path = native::run(session, control, &mut hooks);
+                (hooks.send)(Event::Done { path, counter: hooks.counter });
+            })
+        } else {
+            let session = FFmpegSession {
+                prepared,
+                screens: screens.iter().map(|s| DesktopScreen { bounds: to_rectangle(s.bounds), primary: s.primary }).collect(),
+                input: RecorderInput::default(),
+            };
+            std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
+                let mut hooks = hooks;
+                let path = run_ffmpeg_session(session, control, &mut hooks);
+                (hooks.send)(Event::Done { path, counter: hooks.counter });
+            })
         };
-        let spawned = std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
-            let mut hooks = hooks;
-            let path = run_ffmpeg_session(session, control, &mut hooks);
-            (hooks.send)(Event::Done { path, counter: hooks.counter });
-        });
         if let Err(e) = spawned {
             eprintln!("couldn't start recording: {e}");
             self.recording = None;
@@ -488,6 +527,13 @@ impl App {
                 eprintln!("{output}");
                 let title = sharex_strings::helpers_lib::FFmpegCLIManager_Error_title();
                 let message = MessageBox::ok(title, output, MessageBoxIcon::Error);
+                if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::Information) {
+                    eprintln!("couldn't open the message box: {e}");
+                }
+            }
+            Event::NativeError(message) => {
+                // `MessageBox.Show(e.Message, "ShareX", OK, Error)`.
+                let message = MessageBox::ok("ShareX", message, MessageBoxIcon::Error);
                 if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::Information) {
                     eprintln!("couldn't open the message box: {e}");
                 }
@@ -541,10 +587,23 @@ impl App {
     /// What the frame, its tray menu or a hotkey asked of the frame.
     fn frame_action(&mut self, action: FrameAction) {
         let Some(Phase::Recording(a)) = self.recording.as_mut().map(|r| &mut r.phase) else { return };
+        // The native recorder resumes at the frame's region (it can be dragged while paused).
+        a.control.set_recording_region(to_rectangle(a.frame.recording_region()));
         let f = &mut a.frame.frame;
         match action {
             FrameAction::StartStop => a.control.start_stop_recording(),
-            FrameAction::PauseResume => a.control.pause_resume_recording(),
+            FrameAction::PauseResume => {
+                let before = a.control.status();
+                a.control.pause_resume_recording();
+                // `UseInProcessPause`: the frame stops and restarts its own timer.
+                if a.control.use_in_process_pause() {
+                    match (before, a.control.status()) {
+                        (ScreenRecordingStatus::Recording, ScreenRecordingStatus::Paused) => f.paused_in_process(),
+                        (ScreenRecordingStatus::Paused, ScreenRecordingStatus::Recording) => f.resumed_in_process(),
+                        _ => {}
+                    }
+                }
+            }
             FrameAction::Restart => {
                 if matches!(a.control.status(), ScreenRecordingStatus::Recording | ScreenRecordingStatus::Paused) {
                     a.control.restart_recording();
@@ -784,6 +843,10 @@ impl SessionHooks for Hooks {
 
     fn ffmpeg_error(&mut self, output: &str) {
         (self.send)(Event::Error(output.to_owned()));
+    }
+
+    fn native_error(&mut self, message: &str) {
+        (self.send)(Event::NativeError(message.to_owned()));
     }
 }
 
