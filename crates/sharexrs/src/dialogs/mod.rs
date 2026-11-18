@@ -417,6 +417,9 @@ impl App {
             None => center(&w.window, event_loop),
         }
         w.window.set_visible(true);
+        // Maximized once it's sized, placed and shown: a window created
+        // maximized and then resized or moved (the clamp above, centring)
+        // is restored by winit later, leaving it at its normal size.
         if spec.maximized {
             w.window.set_maximized(true);
         }
@@ -702,8 +705,7 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
             egui::Theme::Light => winit::window::Theme::Light,
         }))
         .with_visible(false)
-        .with_active(spec.activate)
-        .with_maximized(spec.maximized);
+        .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
     }

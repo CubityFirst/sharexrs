@@ -1435,13 +1435,19 @@ fn main_window_attributes() -> WindowAttributes {
     attrs.with_decorations(false)
 }
 
+/// `WindowStartupLocation.CenterScreen`: centred in the working area of the
+/// window's screen (Avalonia's `Screen.WorkingArea`).
 fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
     let Some(monitor) = window.current_monitor().or_else(|| event_loop.primary_monitor()) else { return };
     let (m, size) = (monitor.position(), monitor.size());
+    let (mut ax, mut ay, mut aw, mut ah) = (m.x, m.y, size.width as i32, size.height as i32);
+    if let Some(s) = sharex_capture::screenshot::screens().into_iter().find(|s| s.bounds.contains(m.x, m.y)) {
+        (ax, ay, aw, ah) = (s.work_area.x, s.work_area.y, s.work_area.w as i32, s.work_area.h as i32);
+    }
     let outer = window.outer_size();
     window.set_outer_position(winit::dpi::PhysicalPosition::new(
-        m.x + (size.width as i32 - outer.width as i32) / 2,
-        m.y + (size.height as i32 - outer.height as i32) / 2,
+        ax + (aw - outer.width as i32) / 2,
+        ay + (ah - outer.height as i32) / 2,
     ));
 }
 
