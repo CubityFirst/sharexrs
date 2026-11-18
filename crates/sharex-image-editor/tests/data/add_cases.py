@@ -161,6 +161,25 @@ CASES += [
 ]
 
 
+EMOJI_PENDING = ("ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); "
+                 "ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, "
+                 "so edges and gradients differ slightly")
+
+
+def emoji(name, seq, s, e, **kw):
+    return {"name": name, "pending": EMOJI_PENDING, "fonts": ["Segoe UI Emoji"],
+            "annotations": [ann("Emoji", s, e, UnicodeSequence=seq, **kw)]}
+
+
+CASES += [
+    emoji("emoji-grinning", "1f600", (40, 40), (160, 160)),
+    emoji("emoji-small", "1f44d", (200, 30), (232, 62)),
+    emoji("emoji-zwj", "1f469 200d 1f4bb", (250, 120), (370, 200)),
+    emoji("emoji-flag", "1f1fa-1f1f8", (60, 200), (140, 280)),
+    emoji("emoji-rotated", "2764 fe0f", (180, 180), (260, 260), RotationAngle=30),
+]
+
+
 def main():
     path = os.path.join(HERE, "cases.json")
     with open(path, encoding="utf-8") as f:

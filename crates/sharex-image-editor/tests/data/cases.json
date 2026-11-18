@@ -5312,6 +5312,112 @@
      "op": "redo"
     }
    ]
+  },
+  {
+   "name": "emoji-grinning",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 160,
+      "Y": 160
+     },
+     "UnicodeSequence": "1f600"
+    }
+   ]
+  },
+  {
+   "name": "emoji-small",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 200,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 232,
+      "Y": 62
+     },
+     "UnicodeSequence": "1f44d"
+    }
+   ]
+  },
+  {
+   "name": "emoji-zwj",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 250,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 200
+     },
+     "UnicodeSequence": "1f469 200d 1f4bb"
+    }
+   ]
+  },
+  {
+   "name": "emoji-flag",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 60,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 280
+     },
+     "UnicodeSequence": "1f1fa-1f1f8"
+    }
+   ]
+  },
+  {
+   "name": "emoji-rotated",
+   "pending": "ShareX draws emoji with Direct2D (DrawTextLayout, Segoe UI Emoji's COLRv1 glyphs); ShareXrs paints the same COLRv1 graphs with Skia's rasteriser, then trims and fits as ShareX does, so edges and gradients differ slightly",
+   "fonts": [
+    "Segoe UI Emoji"
+   ],
+   "annotations": [
+    {
+     "$type": "Emoji",
+     "StartPoint": {
+      "X": 180,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 260
+     },
+     "UnicodeSequence": "2764 fe0f",
+     "RotationAngle": 30
+    }
+   ]
   }
  ]
 }

@@ -86,6 +86,19 @@ internal static class Program
             return DumpText(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3] == "1", args[4]);
         }
 
+        if (args[0] == "--emoji-raw")
+        {
+            // WindowsEmojiBitmapRenderer.RenderWithDirect2D(glyph, canvasSize, fontSize)
+            MethodInfo raw = typeof(ShareX.ImageEditor.Presentation.Emoji.WindowsEmojiBitmapRenderer)
+                .GetMethod("RenderWithDirect2D", BindingFlags.NonPublic | BindingFlags.Static)!;
+            string glyph = ShareX.ImageEditor.Presentation.Emoji.EmojiCatalogService.ToGlyph(args[1]);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            using SKBitmap? bitmap = (SKBitmap?)raw.Invoke(null, [glyph, int.Parse(args[2], inv), float.Parse(args[3], inv)]);
+            if (bitmap == null) return 1;
+            SaveRaw(bitmap, args[4]);
+            return 0;
+        }
+
         if (args[0] == "--cursors" || args[0] == "--emoji")
         {
             AppBuilder.Configure<HarnessApp>()
