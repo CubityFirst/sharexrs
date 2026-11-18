@@ -21,6 +21,7 @@
   up  rdown:X,Y  rup  mdown:X,Y  mup  wheel:N  key:Chord (Ctrl+C, H,
   Escape...)  sleep:MS  shot:PATH  clip:PATH (dump the clipboard)
   setclip:PNG (an image on the clipboard)  cli:Job (the app's -Job)
+  raise:TitleRegex (lift a non-topmost window above the pattern)
 #>
 param(
     [Parameter(Mandatory)] [ValidateSet('ShareX', 'sharexrs')] [string] $Process,
@@ -83,6 +84,12 @@ try {
                 Start-Sleep -Milliseconds 300
                 & "$PSScriptRoot/screen-shot.ps1" -Out $arg | Out-Null
                 python "$PSScriptRoot/pattern-check.py" $arg --min 0.3 --delete
+            }
+            # A window that isn't topmost (the Measure window) above the
+            # pattern: the app's window whose title matches.
+            'raise' {
+                $name = if ($Process -eq 'ShareX') { 'ShareX' } else { 'sharexrs' }
+                & "$PSScriptRoot/raise.ps1" -Process $name -Title $arg | Out-Null
             }
             'clip' { & "$PSScriptRoot/clipboard-dump.ps1" -Out $arg }
             'setclip' {
