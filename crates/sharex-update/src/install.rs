@@ -426,8 +426,9 @@ mod tests {
         std::fs::write(folder.join("sharexrs"), b"old").unwrap();
         std::fs::write(folder.join("Portable"), b"").unwrap();
         // A portable profile is `ShareXrs/` beside `sharexrs`, which only a
-        // case-sensitive file system (Linux) can hold.
-        let profile = folder.join(if cfg!(windows) { "profile" } else { "ShareXrs" });
+        // case-sensitive file system (Linux; not Windows' or macOS's
+        // defaults) can hold.
+        let profile = folder.join(if cfg!(target_os = "linux") { "ShareXrs" } else { "profile" });
         std::fs::create_dir_all(&profile).unwrap();
         std::fs::write(profile.join("ApplicationConfig.json"), b"{}").unwrap();
         let tar = dir.path().join("update.tar.gz");
