@@ -127,9 +127,135 @@ fn quoted_printable(text: &str) -> String {
     out
 }
 
-/// A header value that may need MIME encoding (`Subject`).
-fn encode_header_text(text: &str) -> String {
-    if text.is_ascii() && !text.contains(['\r', '\n']) { text.to_owned() } else { format!("=?utf-8?B?{}?=", b64(text.as_bytes())) }
+/// `MimeBasePart.EncodeHeaderValue(value, utf-8, base64, headerLength)`: an
+/// ASCII value as is; otherwise base64 encoded words (`=?utf-8?B?…?=`) of
+/// whole characters, a new word on a new line (`\r\n `) before one would
+/// pass 70 columns (`Base64Encoder.LineBreakNeeded`; the first line counts
+/// the header name's length).
+fn encode_header_value(text: &str, header_length: usize) -> String {
+    if text.is_ascii() && !text.contains(['\r', '\n']) {
+        return text.to_owned();
+    }
+    const HEADER: &str = "=?utf-8?B?";
+    const FOOTER: &str = "?=";
+    const MAP: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    struct State {
+        out: String,
+        line: usize,
+        padding: u8,
+        last_bits: u8,
+    }
+    impl State {
+        fn append(&mut self, s: &str) {
+            self.out.push_str(s);
+            self.line += s.len();
+        }
+        fn push(&mut self, i: u8) {
+            self.out.push(MAP[i as usize] as char);
+            self.line += 1;
+        }
+        fn padding(&mut self) {
+            match self.padding {
+                2 => {
+                    self.push(self.last_bits);
+                    self.push(64);
+                    self.push(64);
+                }
+                1 => {
+                    self.push(self.last_bits);
+                    self.push(64);
+                }
+                _ => {}
+            }
+            self.padding = 0;
+        }
+        fn byte(&mut self, b: u8) {
+            match self.padding {
+                0 => {
+                    self.push((b & 0xFC) >> 2);
+                    self.last_bits = (b & 3) << 4;
+                    self.padding = 2;
+                }
+                2 => {
+                    self.push(self.last_bits | ((b & 0xF0) >> 4));
+                    self.last_bits = (b & 0xF) << 2;
+                    self.padding = 1;
+                }
+                _ => {
+                    self.push(self.last_bits | ((b & 0xC0) >> 6));
+                    self.push(b & 0x3F);
+                    self.padding = 0;
+                }
+            }
+        }
+        fn line_break_needed(&self, bytes: usize) -> bool {
+            let (completing, pending) = match self.padding {
+                2 => (2, 3),
+                1 => (1, 2),
+                _ => (0, 0),
+            };
+            let rest = bytes as isize - completing;
+            if rest <= 0 {
+                return false;
+            }
+            let groups = (rest as usize).div_ceil(3);
+            self.line + pending + groups * 4 + FOOTER.len() > 70
+        }
+    }
+    let mut s = State { out: String::new(), line: header_length, padding: 0, last_bits: 0 };
+    s.append(HEADER);
+    let mut buf = [0u8; 4];
+    for c in text.chars() {
+        let bytes = c.encode_utf8(&mut buf).as_bytes();
+        if s.line_break_needed(bytes.len()) {
+            s.padding();
+            s.append(FOOTER);
+            s.out.push_str("\r\n");
+            s.line = 0;
+            s.append(" ");
+            s.append(HEADER);
+        }
+        for &b in bytes {
+            s.byte(b);
+        }
+    }
+    s.padding();
+    s.append(FOOTER);
+    s.out
+}
+
+/// `BaseWriter.WriteHeader(name, value)`: `Name: value` and CRLF, the
+/// value folded at a space before it passes 76 columns, its own folds
+/// (CRLF and a space) kept.
+fn write_header(name: &str, value: &str) -> String {
+    let v: Vec<char> = value.chars().collect();
+    let mut out = format!("{name}: ");
+    let mut on_line = name.len() as isize + 2;
+    let (mut space, mut start) = (0usize, 0usize);
+    let mut i = 0;
+    while i < v.len() {
+        let fws = v[i] == '\r' && i + 2 < v.len() && v[i + 1] == '\n' && (v[i + 2] == ' ' || v[i + 2] == '\t');
+        if fws {
+            i += 2;
+            out.extend(&v[start..i]);
+            start = i;
+            space = i;
+            on_line = 0;
+        } else if (i - start) as isize > 76 - on_line && space != start {
+            out.extend(&v[start..space]);
+            out.push_str("\r\n");
+            start = space;
+            on_line = 0;
+        } else if v[i] == ' ' || v[i] == '\t' {
+            space = i;
+        }
+        i += 1;
+    }
+    if v.len() > start {
+        out.extend(&v[start..]);
+    }
+    out.push_str("\r\n");
+    out
 }
 
 /// `Name: value; p=v; …`, a parameter moved to its own line (`;\r\n `)
@@ -179,8 +305,13 @@ fn text_part(body: &str) -> (String, String) {
 
 /// The message as `MailMessage` writes it for `SmtpClient.Send`.
 pub fn build_message(from: &str, to: &[String], subject: &str, body: &str, attachment: Option<(&str, &[u8])>) -> String {
-    let mut m = format!("MIME-Version: 1.0\r\nFrom: {from}\r\nTo: {}\r\nDate: {}\r\n", to.join(", "), mail_date());
-    m.push_str(&format!("Subject: {}\r\n", encode_header_text(subject)));
+    let mut m = write_header("MIME-Version", "1.0");
+    m.push_str(&write_header("From", from));
+    m.push_str(&write_header("To", &to.join(", ")));
+    m.push_str(&write_header("Date", &mail_date()));
+    if !subject.is_empty() {
+        m.push_str(&write_header("Subject", &encode_header_value(subject, "Subject".len())));
+    }
     let (text_headers, text_body) = text_part(body);
     match attachment {
         None => {
@@ -284,7 +415,6 @@ pub struct EmailSettings {
 pub fn send_mail(settings: &EmailSettings, to: &str, subject: &str, body: &str, attachment: Option<(&str, &[u8])>) -> UResult<()> {
     let from = parse_addresses(&settings.from_email)?.remove(0);
     let to = parse_addresses(to)?;
-    let message = build_message(&from, &to, subject, body, attachment);
     let port = u16::try_from(settings.smtp_port).map_err(|_| smtp_error("Specified argument was out of the range of valid values. (Parameter 'value')"))?;
     let addrs: Vec<_> = (settings.smtp_server.as_str(), port).to_socket_addrs().map_err(|e| smtp_error(format!("Failure sending mail. {e}")))?.collect();
     let stream = addrs
@@ -347,6 +477,9 @@ pub fn send_mail(settings: &EmailSettings, to: &str, subject: &str, body: &str, 
     if r.code != 354 {
         return Err(smtp_error(format!("Failure sending mail. The server response was: {}", r.text)));
     }
+    // The message (its boundary number, its date) is made when it's
+    // written, after DATA, as MailMessage does.
+    let message = build_message(&from, &to, subject, body, attachment);
     let mut data = String::new();
     for line in message.split("\r\n") {
         if line.starts_with('.') {
@@ -479,7 +612,7 @@ mod tests {
     #[test]
     fn messages_as_mail_message_writes_them() {
         assert_eq!(quoted_printable("a=1&b=two words"), "a=3D1&b=3Dtwo words");
-        assert_eq!(encode_header_text("Écran"), "=?utf-8?B?w4ljcmFu?=");
+        assert_eq!(encode_header_value("Écran", 7), "=?utf-8?B?w4ljcmFu?=");
         let h = header_with_params("Content-Type", "multipart/mixed", &[("boundary", "--boundary_0_3dcb2e09-a8db-4da5-85e8-38b47ed1ee63".into())]);
         assert_eq!(h, "Content-Type: multipart/mixed;\r\n boundary=--boundary_0_3dcb2e09-a8db-4da5-85e8-38b47ed1ee63");
         assert!(parse_addresses("user").is_err());

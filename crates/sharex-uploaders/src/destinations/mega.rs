@@ -184,6 +184,62 @@ pub fn api_error_message(code: i64) -> String {
     }
 }
 
+/// `MegaFolderInfo`: a folder of the picker (`MegaSelectedFolder` in
+/// `UploadersConfig`). The root is the empty one (`Mega.RootFolder`).
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub struct MegaFolderInfo {
+    #[serde(rename = "ID")]
+    pub id: Option<String>,
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
+}
+
+impl MegaFolderInfo {
+    /// `Mega.RootFolder`.
+    pub fn root() -> Self {
+        Self { id: Some(String::new()), name: Some(String::new()) }
+    }
+}
+
+/// `DecryptNodeName`: the node's `n` attribute, its key decrypted with the
+/// master key (the first of its `user:key` entries that works).
+fn decrypt_node_name(node: &Value, master_key: &[u8]) -> Option<String> {
+    let s = |k: &str| node.get(k).and_then(|v| json::to_dotnet_string(v).ok().flatten());
+    let attributes = s("a").filter(|a| !a.trim().is_empty())?;
+    let key_data = s("k").filter(|k| !k.trim().is_empty())?;
+    for entry in key_data.split('/') {
+        let encoded = entry.split_once(':').map(|(_, k)| k).unwrap_or(entry);
+        let Ok(encrypted_key) = from_base64_url(encoded) else { continue };
+        if encrypted_key.len() != 16 {
+            continue;
+        }
+        let Ok(folder_key) = transform_ecb(&encrypted_key, master_key, false) else { continue };
+        let Ok(data) = from_base64_url(&attributes) else { continue };
+        if data.is_empty() || !data.len().is_multiple_of(16) {
+            continue;
+        }
+        let mut plain = data.clone();
+        let cipher = aes(&folder_key);
+        let mut previous = [0u8; 16];
+        for block in plain.chunks_mut(16) {
+            let encrypted: [u8; 16] = block.try_into().expect("16 bytes");
+            {
+                use aes::cipher::BlockDecrypt;
+                cipher.decrypt_block(GenericArray::from_mut_slice(block));
+            }
+            for (b, p) in block.iter_mut().zip(previous) {
+                *b ^= p;
+            }
+            previous = encrypted;
+        }
+        let text = String::from_utf8_lossy(&plain).trim_end_matches('\0').to_owned();
+        let Some(rest) = text.strip_prefix("MEGA") else { continue };
+        let Ok(Value::Object(o)) = json::parse(rest) else { continue };
+        return o.get("n").and_then(|n| json::to_dotnet_string(n).ok().flatten());
+    }
+    None
+}
+
 /// A login's result (`MegaSessionInfo`): the session ID and the master key
 /// (base64url), to save as `MegaSessionID` and `MegaMasterKey`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,6 +537,40 @@ impl Mega {
             .filter(|h| !h.trim().is_empty())
             .map(str::to_owned)
             .ok_or_else(|| MegaError::Other("MEGA did not return the Cloud Drive root folder.".into()))
+    }
+
+    /// `GetFoldersAsync(parent)`: the folders right under `parent` (the
+    /// Cloud Drive root when its ID is empty), names decrypted, sorted by
+    /// name. The folder picker of Destination settings shows these.
+    pub fn get_folders(&mut self, parent: Option<&MegaFolderInfo>) -> MegaResult<Vec<MegaFolderInfo>> {
+        if self.session_id.as_deref().is_none_or(|s| s.trim().is_empty()) || self.master_key.as_ref().is_none_or(|k| k.len() != 16) {
+            return Err(MegaError::Other("MEGA login is required. Log in from Destination settings.".into()));
+        }
+        let response = self.api(json::object([("a", "f".into()), ("c", 1.into())]), true)?;
+        let nodes: Vec<Value> = response.get("f").and_then(Value::as_array).cloned().unwrap_or_default();
+        let node_str = |n: &Value, k: &str| n.get(k).and_then(|v| json::to_dotnet_string(v).ok().flatten());
+        let node_type = |n: &Value| n.get("t").and_then(|t| t.as_i64().or_else(|| t.as_str().and_then(|s| s.trim().parse().ok())));
+        let mut parent_id = parent.and_then(|p| p.id.clone()).filter(|id| !id.trim().is_empty());
+        if parent_id.is_none() {
+            parent_id = nodes.iter().find(|n| node_type(n) == Some(2)).and_then(|n| node_str(n, "h"));
+        }
+        let Some(parent_id) = parent_id.filter(|id| !id.trim().is_empty()) else {
+            return Err(MegaError::Other("MEGA did not return the Cloud Drive root folder.".into()));
+        };
+        let master_key = self.master_key.clone().unwrap_or_default();
+        let mut folders: Vec<MegaFolderInfo> = nodes
+            .iter()
+            .filter(|n| node_type(n) == Some(1) && node_str(n, "p").as_deref() == Some(parent_id.as_str()))
+            .map(|n| MegaFolderInfo { id: node_str(n, "h"), name: decrypt_node_name(n, &master_key) })
+            .filter(|f| f.id.as_deref().is_some_and(|id| !id.trim().is_empty()))
+            .collect();
+        folders.sort_by(|a, b| match (&a.name, &b.name) {
+            (Some(x), Some(y)) => sharex_helpers::culture::current_culture_ignore_case_cmp(x, y),
+            (None, Some(_)) => std::cmp::Ordering::Less,
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        });
+        Ok(folders)
     }
 
     fn upload_url(&mut self, file_size: u64) -> MegaResult<String> {

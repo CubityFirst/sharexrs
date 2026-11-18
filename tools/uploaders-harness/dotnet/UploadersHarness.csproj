@@ -21,6 +21,12 @@
     <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath><Private>false</Private></Reference>
     <!-- UploadInfoParser and TaskInfo, for the after upload results (AfterUpload.cs). -->
     <Reference Include="ShareX"><HintPath>$(ShareXBuild)\ShareX.dll</HintPath><Private>false</Private></Reference>
+    <!-- IRemoteStorageProvider, for the remote storage browser cases (RemoteCases.cs). -->
+    <Reference Include="ShareX.Tools"><HintPath>$(ShareXBuild)\ShareX.Tools.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ShareX.exe runs with NLS (its runtimeconfig): the providers sort names with it. -->
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
   </ItemGroup>
 </Project>

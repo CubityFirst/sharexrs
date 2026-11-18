@@ -266,6 +266,88 @@ fn run_oauth(case: &Value, out: &mut Value) {
     }
 }
 
+/// A "remote" case: the remote storage browser's provider, step by step.
+fn run_remote(case: &Value, out: &mut Value) {
+    use sharex_uploaders::destinations::ftp::FTPAccount;
+    let account = case.get("account").filter(|a| !a.is_null()).map(|a| {
+        let mut account: FTPAccount = serde_json::from_value(a.clone()).expect("account");
+        // Key files are relative to the repository.
+        if let Some(k) = account.Keypath.clone().filter(|k| !k.is_empty()) {
+            let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            account.Keypath = Some(repo.join(k).to_string_lossy().into_owned());
+        }
+        account
+    });
+    let r = sharex_uploaders::testing::remote::run_remote_case(case, account);
+    for (k, v) in r.as_object().expect("object") {
+        out[k] = v.clone();
+    }
+}
+
+/// A "listing" case: a destination picker's list (Imgur albums, MEGA folders).
+fn run_listing(case: &Value, out: &mut Value) {
+    use sharex_uploaders::destinations::images::Imgur;
+    use sharex_uploaders::destinations::mega::{Mega, MegaFolderInfo, from_base64_url};
+    use sharex_uploaders::json as sx_json;
+    use sharex_uploaders::oauth::OAuth2Info;
+    let error = |e: &dyn std::fmt::Display| json!({"exception": e.to_string()});
+    let mut steps = Vec::new();
+    match case["service"].as_str().unwrap_or("") {
+        "imgur" => {
+            let info: OAuth2Info = serde_json::from_value(case["oauth2"].clone()).unwrap_or_default();
+            let mut imgur = Imgur::new(info);
+            for step in case["steps"].as_array().into_iter().flatten() {
+                let r = match step["op"].as_str().unwrap_or("") {
+                    "albums" => imgur
+                        .get_albums(step["max_page"].as_i64().unwrap_or(10) as i32, step["per_page"].as_i64().unwrap_or(100) as i32)
+                        .map(|a| serde_json::to_value(a).expect("albums")),
+                    "album_images" => imgur.get_album_images(step["album_id"].as_str().unwrap_or("")).map(|a| serde_json::to_value(a).expect("images")),
+                    op => panic!("unknown op {op}"),
+                };
+                steps.push(match r {
+                    Ok(v) => json!(sx_json::to_string(&v)),
+                    Err(e) => error(&e),
+                });
+            }
+            out["token"] = token_json(&imgur.auth_info);
+            out["uploader_errors"] = errors_json(&imgur.base.errors);
+        }
+        "mega" => {
+            let key = from_base64_url(case["master_key"].as_str().unwrap_or("")).unwrap_or_default();
+            let mut mega = Mega::with_session(case["session_id"].as_str().unwrap_or(""), key);
+            for step in case["steps"].as_array().into_iter().flatten() {
+                let parent = (!step["parent"].is_null())
+                    .then(|| MegaFolderInfo { id: step["parent"]["id"].as_str().map(str::to_owned), name: step["parent"]["name"].as_str().map(str::to_owned) });
+                let root = MegaFolderInfo::root();
+                steps.push(match mega.get_folders(Some(parent.as_ref().unwrap_or(&root))) {
+                    Ok(folders) => Value::Array(folders.iter().map(|f| json!({"id": f.id, "name": f.name})).collect()),
+                    Err(e) => error(&e),
+                });
+            }
+            out["uploader_errors"] = errors_json(&mega.base.errors);
+        }
+        other => panic!("unknown listing service {other}"),
+    }
+    out["steps"] = Value::Array(steps);
+}
+
+/// `OAuthCases.Token`: what the .NET harness reports of a token.
+fn token_json(info: &sharex_uploaders::oauth::OAuth2Info) -> Value {
+    match &info.Token {
+        None => json!({"access_token": null, "refresh_token": null, "expires_in": null, "token_type": null, "scope": null,
+                       "has_expire_date": null, "expired": null}),
+        Some(t) => json!({
+            "access_token": t.access_token.get(),
+            "refresh_token": t.refresh_token.get(),
+            "expires_in": t.expires_in,
+            "token_type": t.token_type,
+            "scope": t.scope,
+            "has_expire_date": t.ExpireDate.as_str().is_some_and(|d| !d.starts_with("0001-01-01T00:00:00")),
+            "expired": t.is_expired(),
+        }),
+    }
+}
+
 fn run_case(case: &Value, port: u16) -> Value {
     reset(port, &case["responses"]);
     if !case["servers"].is_null() {
@@ -274,6 +356,19 @@ fn run_case(case: &Value, port: u16) -> Value {
     let mut out = json!({});
     if case["kind"] == "oauth" {
         run_oauth(case, &mut out);
+        out["requests"] = log(port);
+        return out;
+    }
+    if case["kind"] == "remote" {
+        run_remote(case, &mut out);
+        out["requests"] = log(port);
+        if !case["servers"].is_null() {
+            out["servers"] = servers_log();
+        }
+        return out;
+    }
+    if case["kind"] == "listing" {
+        run_listing(case, &mut out);
         out["requests"] = log(port);
         return out;
     }

@@ -320,6 +320,15 @@ def norm_servers(servers):
     return out
 
 
+def strip_exception_types(v):
+    """A remote storage or listing step's value without `exception_type`."""
+    if isinstance(v, dict):
+        return {k: strip_exception_types(x) for k, x in v.items() if k != "exception_type"}
+    if isinstance(v, list):
+        return [strip_exception_types(x) for x in v]
+    return v
+
+
 def compare_case(a, b, case=None):
     diffs = []
     ra, rb = a.get("requests", []), b.get("requests", [])
@@ -355,8 +364,15 @@ def compare_case(a, b, case=None):
                      min(len(na['body']), len(nb['body'])))
             diffs.append(f"request {i} body differs at byte {j} (lengths {len(na['body'])}/{len(nb['body'])}): "
                          f"sharex {na['body'][max(0, j - 40):j + 40]!r} vs sharexrs {nb['body'][max(0, j - 40):j + 40]!r}")
-    for k in ["check_config", "request_url", "written_file_base64", "steps", "auth", "servers"]:
-        if (norm_servers(a.get(k)) if k == "servers" else a.get(k)) != (norm_servers(b.get(k)) if k == "servers" else b.get(k)):
+    for k in ["check_config", "request_url", "written_file_base64", "steps", "auth", "servers", "display_name", "root_display_name",
+              "root_path", "capabilities", "create", "token"]:
+        va, vb = a.get(k), b.get(k)
+        if k == "servers":
+            va, vb = norm_servers(va), norm_servers(vb)
+        elif k in ("steps", "create"):
+            # .NET exception types can't be matched; their messages are.
+            va, vb = strip_exception_types(va), strip_exception_types(vb)
+        if va != vb:
             diffs.append(f"{k}: sharex {a.get(k)!r} vs sharexrs {b.get(k)!r}")
     if (a.get("sxcu_export") or "").replace("\r\n", "\n") != (b.get("sxcu_export") or "").replace("\r\n", "\n"):
         diffs.append(f"sxcu_export:\n--- sharex\n{a.get('sxcu_export')}\n--- sharexrs\n{b.get('sxcu_export')}")

@@ -27,6 +27,23 @@ impl Default for SmtpMockConfig {
     }
 }
 
+impl SmtpMockConfig {
+    /// The settings from a harness case's `servers` object: `user`,
+    /// `password`, `smtp_fail_once` (`[[prefix, reply]]`); STARTTLS with the
+    /// test certificate.
+    pub fn from_spec(v: &serde_json::Value) -> Self {
+        Self {
+            user: v["user"].as_str().unwrap_or("user").to_owned(),
+            password: v["password"].as_str().unwrap_or("pass").to_owned(),
+            tls: super::ftp::test_tls_acceptor(),
+            fail_once: v["smtp_fail_once"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), p[1].as_str()?.to_owned()))).collect())
+                .unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
     log: Vec<String>,

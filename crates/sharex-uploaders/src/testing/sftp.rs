@@ -28,12 +28,64 @@ pub struct SftpMockConfig {
     /// request whose log line starts with the key arrives
     /// (`("MKDIR /home/user/a", (3, "Permission denied"))`).
     pub fail_once: Vec<(String, (u32, String))>,
+    /// Files there at the start, by absolute path.
+    pub files: Vec<(String, Vec<u8>)>,
+    /// The key exchanges, ciphers and MACs offered (all when empty); the
+    /// log then names what was chosen (`kex <kex> <cipher> <mac>`).
+    pub kex: Vec<String>,
+    pub ciphers: Vec<String>,
+    pub macs: Vec<String>,
 }
 
 impl Default for SftpMockConfig {
     fn default() -> Self {
-        Self { user: "user".into(), password: "pass".into(), authorized_key: None, home: "/home/user".into(), dirs: Vec::new(), fail_once: Vec::new() }
+        Self {
+            user: "user".into(),
+            password: "pass".into(),
+            authorized_key: None,
+            home: "/home/user".into(),
+            dirs: Vec::new(),
+            fail_once: Vec::new(),
+            files: Vec::new(),
+            kex: Vec::new(),
+            ciphers: Vec::new(),
+            macs: Vec::new(),
+        }
     }
+}
+
+impl SftpMockConfig {
+    /// The settings from a harness case's `servers` object: `user`,
+    /// `password`, `authorized_key`, `home`, `dirs`, `sftp_fail_once`
+    /// (`[[prefix, code, message]]`), `sftp_files` (`{path: base64}`),
+    /// `sftp_kex`, `sftp_ciphers`, `sftp_macs` (the algorithms offered).
+    pub fn from_spec(v: &serde_json::Value) -> Self {
+        use base64::Engine;
+        Self {
+            user: v["user"].as_str().unwrap_or("user").to_owned(),
+            password: v["password"].as_str().unwrap_or("pass").to_owned(),
+            authorized_key: v["authorized_key"].as_str().map(str::to_owned),
+            home: v["home"].as_str().unwrap_or("/home/user").to_owned(),
+            dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
+            fail_once: v["sftp_fail_once"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), (p[1].as_u64()? as u32, p[2].as_str()?.to_owned())))).collect())
+                .unwrap_or_default(),
+            files: v["sftp_files"]
+                .as_object()
+                .map(|o| {
+                    o.iter().map(|(k, b)| (k.clone(), base64::engine::general_purpose::STANDARD.decode(b.as_str().unwrap_or("")).unwrap_or_default())).collect()
+                })
+                .unwrap_or_default(),
+            kex: list(&v["sftp_kex"]),
+            ciphers: list(&v["sftp_ciphers"]),
+            macs: list(&v["sftp_macs"]),
+        }
+    }
+}
+
+fn list(v: &serde_json::Value) -> Vec<String> {
+    v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect()).unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -129,6 +181,17 @@ impl SftpMockServer {
             }
         }
         s.fail_once = c.fail_once.clone();
+        for (path, bytes) in &c.files {
+            let path = normalize("/", path);
+            let mut p = String::new();
+            let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
+            for part in &parts[..parts.len().saturating_sub(1)] {
+                p.push('/');
+                p.push_str(part);
+                s.dirs.insert(p.clone());
+            }
+            s.files.insert(path, bytes.clone());
+        }
     }
 
     pub fn log_lines(&self) -> Vec<String> {
@@ -164,7 +227,22 @@ impl Session {
     fn run(&self, stream: TcpStream) -> SshResult<()> {
         stream.set_read_timeout(Some(Duration::from_secs(30)))?;
         self.log("connect");
-        let mut t = Transport::accept(stream, "SSH-2.0-OpenSSH_9.6 ShareXrs-mock", &mock_host_key())?;
+        let mut algorithms = Algorithms::server();
+        let configured = !self.config.kex.is_empty() || !self.config.ciphers.is_empty() || !self.config.macs.is_empty();
+        if !self.config.kex.is_empty() {
+            algorithms.kex = self.config.kex.clone();
+        }
+        if !self.config.ciphers.is_empty() {
+            algorithms.ciphers = self.config.ciphers.clone();
+        }
+        if !self.config.macs.is_empty() {
+            algorithms.macs = self.config.macs.clone();
+        }
+        let mut t = Transport::accept_with(stream, "SSH-2.0-OpenSSH_9.6 ShareXrs-mock", &mock_host_key(), &algorithms)?;
+        if configured {
+            let n = &t.negotiated;
+            self.log(format!("kex {} {} {}", n[0], n[2], n[3]));
+        }
         // Authentication.
         let p = t.recv()?;
         if p.first() != Some(&MSG_SERVICE_REQUEST) {
@@ -309,6 +387,20 @@ fn describe(kind: u8, body: &[u8]) -> String {
             format!("WRITE offset={offset} len={len}")
         }
         FXP_CLOSE => "CLOSE".into(),
+        FXP_OPENDIR => format!("OPENDIR {}", path()),
+        FXP_READDIR => "READDIR".into(),
+        FXP_READ => {
+            let _ = path();
+            let offset = r.u64().unwrap_or(0);
+            let len = r.u32().unwrap_or(0);
+            format!("READ offset={offset} len={len}")
+        }
+        FXP_REMOVE => format!("REMOVE {}", path()),
+        FXP_RMDIR => format!("RMDIR {}", path()),
+        FXP_RENAME => {
+            let from = path();
+            format!("RENAME {from} {}", path())
+        }
         _ => format!("OTHER {kind}"),
     }
 }
@@ -346,6 +438,20 @@ impl SftpFs {
         } else {
             s.files.get(path).map(|f| Self::file_attrs(f.len()))
         }
+    }
+
+    /// A directory's entries as `sftp-server` reads them: `.`, `..`, then
+    /// the children (sorted here).
+    fn entries(&self, dir: &str) -> Vec<(String, Attrs)> {
+        let s = self.state.lock().expect("sftp state");
+        let prefix = if dir == "/" { "/".to_owned() } else { format!("{dir}/") };
+        let child = |p: &str| p.strip_prefix(prefix.as_str()).filter(|r| !r.is_empty() && !r.contains('/')).map(str::to_owned);
+        let mut children: Vec<(String, Attrs)> = s.dirs.iter().filter_map(|d| child(d).map(|n| (n, Self::dir_attrs()))).collect();
+        children.extend(s.files.iter().filter_map(|(f, b)| child(f).map(|n| (n, Self::file_attrs(b.len())))));
+        children.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut entries = vec![(".".to_owned(), Self::dir_attrs()), ("..".to_owned(), Self::dir_attrs())];
+        entries.extend(children);
+        entries
     }
 
     fn handle(&mut self, packet: &[u8], session: &Session) -> SshResult<Option<Vec<u8>>> {
@@ -459,6 +565,112 @@ impl SftpFs {
                     (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
                 } else {
                     s.dirs.insert(full);
+                    (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+                }
+            }
+            FXP_OPENDIR => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("OPENDIR {p}");
+                let is_dir = self.state.lock().expect("sftp state").dirs.contains(&full);
+                if is_dir {
+                    self.next_handle += 1;
+                    let h = format!("d{}", self.next_handle);
+                    self.handles.insert(h.clone(), (full, false));
+                    (line, Writer::new(FXP_HANDLE).u32(id).string(&h).0, "HANDLE".into())
+                } else {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                }
+            }
+            FXP_READDIR => {
+                let h = r.string()?;
+                match self.handles.get(&h).cloned() {
+                    Some((dir, false)) => {
+                        self.handles.insert(h, (dir.clone(), true));
+                        let entries = self.entries(&dir);
+                        let mut w = Writer::new(FXP_NAME).u32(id).u32(entries.len() as u32);
+                        for (name, attrs) in &entries {
+                            let kind = if attrs.is_dir() { "d" } else { "-" };
+                            let long = format!("{kind}rw-r--r--    1 user     user     {:>8} Jan  1 00:00 {name}", attrs.size.unwrap_or(0));
+                            w = attrs.write(w.string(name).string(&long));
+                        }
+                        let names: Vec<&str> = entries.iter().map(|(n, _)| n.as_str()).collect();
+                        ("READDIR".into(), w.0, format!("NAME {}", names.join(" | ")))
+                    }
+                    Some((_, true)) => ("READDIR".into(), Self::status(id, FX_EOF, "End of file"), format!("STATUS {FX_EOF} End of file")),
+                    None => ("READDIR".into(), Self::status(id, FX_FAILURE, "Bad handle"), "STATUS 4 Bad handle".into()),
+                }
+            }
+            FXP_READ => {
+                let h = r.string()?;
+                let offset = r.u64()? as usize;
+                let len = r.u32()? as usize;
+                let line = format!("READ offset={offset} len={len}");
+                let data = self.handles.get(&h).and_then(|(p, _)| self.state.lock().expect("sftp state").files.get(p).cloned());
+                match data {
+                    Some(d) if offset < d.len() => {
+                        let end = (offset + len).min(d.len());
+                        (line, Writer::new(FXP_DATA).u32(id).bytes(&d[offset..end]).0, format!("DATA {}", end - offset))
+                    }
+                    Some(_) => (line, Self::status(id, FX_EOF, "End of file"), format!("STATUS {FX_EOF} End of file")),
+                    None => (line, Self::status(id, FX_FAILURE, "Bad handle"), "STATUS 4 Bad handle".into()),
+                }
+            }
+            FXP_REMOVE => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("REMOVE {p}");
+                let mut s = self.state.lock().expect("sftp state");
+                if s.files.remove(&full).is_some() {
+                    (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+                } else if s.dirs.contains(&full) {
+                    (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
+                } else {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                }
+            }
+            FXP_RMDIR => {
+                let p = path_arg(&mut r)?;
+                let full = normalize(&self.home, &p);
+                let line = format!("RMDIR {p}");
+                let mut s = self.state.lock().expect("sftp state");
+                let prefix = format!("{}/", full.trim_end_matches('/'));
+                if !s.dirs.contains(&full) {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                } else if s.dirs.iter().any(|d| d.starts_with(&prefix)) || s.files.keys().any(|f| f.starts_with(&prefix)) {
+                    (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
+                } else {
+                    s.dirs.remove(&full);
+                    (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
+                }
+            }
+            FXP_RENAME => {
+                let from = path_arg(&mut r)?;
+                let to = path_arg(&mut r)?;
+                let (f, t) = (normalize(&self.home, &from), normalize(&self.home, &to));
+                let line = format!("RENAME {from} {to}");
+                let mut s = self.state.lock().expect("sftp state");
+                let exists = s.files.contains_key(&f) || s.dirs.contains(&f);
+                if !exists {
+                    (line, Self::status(id, FX_NO_SUCH_FILE, "No such file"), format!("STATUS {FX_NO_SUCH_FILE} No such file"))
+                } else if s.files.contains_key(&t) || s.dirs.contains(&t) || !s.dirs.contains(&parent(&t)) {
+                    (line, Self::status(id, FX_FAILURE, "Failure"), format!("STATUS {FX_FAILURE} Failure"))
+                } else {
+                    if let Some(b) = s.files.remove(&f) {
+                        s.files.insert(t, b);
+                    } else {
+                        let prefix = format!("{f}/");
+                        let dirs: Vec<String> = s.dirs.iter().filter(|d| **d == f || d.starts_with(&prefix)).cloned().collect();
+                        for d in dirs {
+                            s.dirs.remove(&d);
+                            s.dirs.insert(format!("{t}{}", &d[f.len()..]));
+                        }
+                        let files: Vec<String> = s.files.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+                        for k in files {
+                            let b = s.files.remove(&k).expect("listed");
+                            s.files.insert(format!("{t}{}", &k[f.len()..]), b);
+                        }
+                    }
                     (line, Self::status(id, FX_OK, "Success"), "STATUS 0".into())
                 }
             }

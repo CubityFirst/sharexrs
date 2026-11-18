@@ -169,6 +169,14 @@ static class Harness
             {
                 OAuthCases.Run(c, output, ref uploader);
             }
+            else if ((string)c["kind"] == "remote")
+            {
+                RemoteCases.Run(c, output);
+            }
+            else if ((string)c["kind"] == "listing")
+            {
+                RemoteCases.RunListing(c, output, ref uploader);
+            }
             else
             {
                 UploadResult result = Execute(c, ref uploader, output);

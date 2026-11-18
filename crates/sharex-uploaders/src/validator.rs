@@ -125,9 +125,39 @@ pub fn url_sharing(dest: &URLSharingServices, config: &UploadersConfig) -> bool 
     }
 }
 
+/// `IsValidRemoteStorageAccount`: an FTP account the remote storage
+/// browser lists (a host, and a port for FTP/FTPS; a user and a password
+/// or key file for SFTP).
+pub fn is_valid_remote_storage_account(account: Option<&crate::destinations::ftp::FTPAccount>) -> bool {
+    use crate::enums::FTPProtocol;
+    let Some(a) = account else { return false };
+    let blank = |s: &Option<String>| s.as_deref().is_none_or(|s| s.trim().is_empty());
+    if blank(&a.Host) {
+        return false;
+    }
+    if matches!(a.Protocol, FTPProtocol::FTP | FTPProtocol::FTPS) {
+        return a.Port > 0;
+    }
+    a.Protocol == FTPProtocol::SFTP && !blank(&a.Username) && (!a.Password.as_str().trim().is_empty() || !blank(&a.Keypath))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_storage_accounts() {
+        use crate::destinations::ftp::FTPAccount;
+        use crate::enums::FTPProtocol;
+        let ftp = FTPAccount { Host: Some("h".into()), ..Default::default() };
+        assert!(is_valid_remote_storage_account(Some(&ftp)));
+        assert!(!is_valid_remote_storage_account(Some(&FTPAccount { Port: 0, ..ftp.clone() })));
+        assert!(!is_valid_remote_storage_account(Some(&FTPAccount { Host: Some(" ".into()), ..ftp.clone() })));
+        let sftp = FTPAccount { Protocol: FTPProtocol::SFTP, Username: Some("u".into()), ..ftp.clone() };
+        assert!(!is_valid_remote_storage_account(Some(&sftp)));
+        assert!(is_valid_remote_storage_account(Some(&FTPAccount { Keypath: Some("k".into()), ..sftp })));
+        assert!(!is_valid_remote_storage_account(None));
+    }
 
     #[test]
     fn fresh_configs_validate_as_sharex() {

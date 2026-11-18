@@ -327,6 +327,103 @@ impl AmazonS3 {
         Ok(self.base.last_response_info.as_ref().is_some_and(ResponseInfo::is_success))
     }
 
+    /// `ListObjectsAsync(prefix, delimiter, maxKeys)`: every page
+    /// (`list-type=2`, keys URL-encoded), `None` when a request or its XML
+    /// fails.
+    pub fn list_objects(&mut self, prefix: &str, delimiter: Option<&str>, max_keys: Option<i32>) -> UResult<Option<Vec<AmazonS3ObjectInfo>>> {
+        let prefix = normalize_object_key(prefix);
+        let mut objects = Vec::new();
+        let mut continuation: Option<String> = None;
+        loop {
+            let mut query: Vec<(&str, String)> = vec![("encoding-type", "url".into()), ("list-type", "2".into())];
+            if !prefix.is_empty() {
+                query.push(("prefix", prefix.clone()));
+            }
+            if let Some(d) = delimiter.filter(|d| !d.is_empty()) {
+                query.push(("delimiter", d.to_owned()));
+            }
+            if let Some(m) = max_keys.filter(|m| *m > 0) {
+                query.push(("max-keys", m.to_string()));
+            }
+            if let Some(t) = continuation.as_deref().filter(|t| !t.is_empty()) {
+                query.push(("continuation-token", t.to_owned()));
+            }
+            query.sort_by(|a, b| a.0.cmp(b.0));
+            let canonical_query = query.iter().map(|(k, v)| format!("{}={}", url_helpers::url_encode(k, false), url_helpers::url_encode(v, false))).collect::<Vec<_>>().join("&");
+            let request_data = self.create_request_data("")?;
+            let headers = self.create_signed_request_headers(&HttpMethod::GET, &request_data, &canonical_query, &self.empty_payload_hash(), None, None);
+            let response = self.base.send_request(HttpMethod::GET, &get_request_url(&request_data, &canonical_query), &[], Some(&headers))?;
+            let ok = self.base.last_response_info.as_ref().is_some_and(ResponseInfo::is_success);
+            let Some(response) = response.filter(|r| ok && !r.trim().is_empty()) else { return Ok(None) };
+            let Some(page) = parse_list_objects_response(&response) else { return Ok(None) };
+            objects.extend(page.objects);
+            if let Some(m) = max_keys.filter(|m| *m > 0)
+                && objects.len() >= m as usize
+            {
+                break;
+            }
+            continuation = if page.is_truncated { page.next_continuation_token } else { None };
+            if page.is_truncated && continuation.as_deref().is_none_or(str::is_empty) {
+                return Ok(None);
+            }
+            if continuation.as_deref().is_none_or(str::is_empty) {
+                break;
+            }
+        }
+        Ok(Some(objects))
+    }
+
+    /// `DownloadObjectAsync`: the object's bytes into `destination`.
+    pub fn download_object(&mut self, object_key: &str, destination: &mut dyn std::io::Write) -> UResult<bool> {
+        if object_key.is_empty() {
+            return exception("The value cannot be an empty string. (Parameter 'objectKey')");
+        }
+        let request_data = self.create_request_data(&normalize_object_key(object_key))?;
+        let headers = self.create_signed_request_headers(&HttpMethod::GET, &request_data, "", &self.empty_payload_hash(), None, None);
+        let url = get_request_url(&request_data, "");
+        let Some(response) = self.base.get_response(HttpMethod::GET, &url, None, &[], Some(&headers), &[], false)? else { return Ok(false) };
+        if let Err(e) = destination.write_all(response.response_data.as_deref().unwrap_or(&[])) {
+            self.base.process_error(&e.to_string(), &url, None);
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    /// `UploadObjectAsync`: one object (multipart when the settings say
+    /// so), its key as given.
+    pub fn upload_object(&mut self, data: &SharedStream, object_key: &str) -> UResult<bool> {
+        if object_key.is_empty() {
+            return exception("The value cannot be an empty string. (Parameter 'objectKey')");
+        }
+        let object_key = normalize_object_key(object_key);
+        let content_type = mime_types::get_mime_type_from_file_name(&object_key);
+        let request_data = self.create_request_data(&object_key)?;
+        let url = self.generate_url(&object_key);
+        let length = http::stream_length(data).map_err(|e| UploadError::Exception(e.to_string()))?;
+        let result = if self.settings.UseMultipartUpload && length > 0 {
+            self.upload_multipart(data, length, &content_type, &url, &request_data)?
+        } else {
+            self.upload_single_request(data, length, &content_type, &url, &request_data)?
+        };
+        Ok(result.is_some())
+    }
+
+    /// `CopyObjectAsync`: a `PUT` with `x-amz-copy-source`.
+    pub fn copy_object(&mut self, source_key: &str, destination_key: &str) -> UResult<bool> {
+        if source_key.is_empty() {
+            return exception("The value cannot be an empty string. (Parameter 'sourceObjectKey')");
+        }
+        if destination_key.is_empty() {
+            return exception("The value cannot be an empty string. (Parameter 'destinationObjectKey')");
+        }
+        let source = normalize_object_key(source_key);
+        let request_data = self.create_request_data(&normalize_object_key(destination_key))?;
+        let mut headers = self.create_object_headers();
+        headers.set("x-amz-copy-source", format!("/{}", url_helpers::url_encode(&url_helpers::combine_url(self.bucket(), &source), true)));
+        let response = self.send_s3_request(HttpMethod::PUT, &request_data, "", None, None, Some(headers))?;
+        Ok(self.base.last_response_info.as_ref().is_some_and(ResponseInfo::is_success) && !is_s3_error_response(response.as_deref()))
+    }
+
     /// `SendAmazonS3RequestAsync`: an empty body is `None`.
     fn send_s3_request(
         &mut self,
@@ -529,6 +626,81 @@ fn file_name_without_extension(path: &str) -> String {
         Some(i) => name[..i].to_owned(),
         None => name.to_owned(),
     }
+}
+
+/// `AmazonS3ObjectInfo`: a key of a listing (a folder is a common prefix).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AmazonS3ObjectInfo {
+    pub key: String,
+    pub is_folder: bool,
+    pub size: Option<i64>,
+    pub last_modified: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
+struct ListPage {
+    objects: Vec<AmazonS3ObjectInfo>,
+    is_truncated: bool,
+    next_continuation_token: Option<String>,
+}
+
+/// `NormalizeObjectKey`: `\` as `/`, no leading slash.
+pub fn normalize_object_key(key: &str) -> String {
+    key.replace('\\', "/").trim_start_matches('/').to_owned()
+}
+
+/// `XElement.Value`: the text of the element and its descendants.
+fn element_value(node: roxmltree::Node) -> String {
+    node.descendants().filter(|n| n.is_text()).filter_map(|n| n.text()).collect()
+}
+
+/// `GetElementValue`: the first child element with that local name.
+fn child_value(parent: roxmltree::Node, local_name: &str) -> Option<String> {
+    parent.children().find(|c| c.is_element() && c.tag_name().name() == local_name).map(element_value)
+}
+
+/// `DateTimeOffset.TryParse(s, InvariantCulture, AssumeUniversal)` for the
+/// ISO dates S3 sends.
+fn parse_date_time_offset(s: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    let s = s.trim();
+    if let Ok(d) = chrono::DateTime::parse_from_rfc3339(s) {
+        return Some(d);
+    }
+    for f in ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%dT%H:%M", "%Y-%m-%d"] {
+        if let Ok(n) = chrono::NaiveDateTime::parse_from_str(s, f) {
+            return Some(n.and_utc().fixed_offset());
+        }
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(s, f) {
+            return Some(d.and_hms_opt(0, 0, 0)?.and_utc().fixed_offset());
+        }
+    }
+    chrono::DateTime::parse_from_rfc2822(s).ok()
+}
+
+/// `ParseListObjectsResponse`.
+fn parse_list_objects_response(response: &str) -> Option<ListPage> {
+    let doc = roxmltree::Document::parse(response).ok()?;
+    let root = doc.root_element();
+    if root.tag_name().name() != "ListBucketResult" {
+        return None;
+    }
+    let is_truncated = child_value(root, "IsTruncated").is_some_and(|v| v.trim().eq_ignore_ascii_case("true"));
+    let mut page = ListPage { objects: Vec::new(), is_truncated, next_continuation_token: child_value(root, "NextContinuationToken") };
+    let decode = |v: Option<String>| v.map(|v| if v.is_empty() { v } else { url_helpers::url_decode(&v, 1) });
+    for prefix in root.children().filter(|c| c.is_element() && c.tag_name().name() == "CommonPrefixes") {
+        if let Some(key) = decode(child_value(prefix, "Prefix")).filter(|k| !k.is_empty()) {
+            page.objects.push(AmazonS3ObjectInfo { key, is_folder: true, size: None, last_modified: None });
+        }
+    }
+    for content in root.children().filter(|c| c.is_element() && c.tag_name().name() == "Contents") {
+        let Some(key) = decode(child_value(content, "Key")).filter(|k| !k.is_empty()) else { continue };
+        let size = child_value(content, "Size").and_then(|s| {
+            let t = s.trim();
+            t.strip_prefix('+').unwrap_or(t).parse().ok()
+        });
+        let last_modified = child_value(content, "LastModified").and_then(|d| parse_date_time_offset(&d));
+        page.objects.push(AmazonS3ObjectInfo { key, is_folder: false, size, last_modified });
+    }
+    Some(page)
 }
 
 /// `GetRequestURL`.

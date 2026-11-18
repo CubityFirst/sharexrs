@@ -109,7 +109,7 @@ static class OAuthCases
         }
     }
 
-    static JsonObject Token(OAuth2Info info)
+    internal static JsonObject Token(OAuth2Info info)
     {
         OAuth2Token t = info.Token;
         return new JsonObject

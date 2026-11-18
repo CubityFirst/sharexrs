@@ -187,6 +187,287 @@ impl Imgur {
     }
 }
 
+impl Imgur {
+    /// `GetAlbumsAsync(maxPage, perPage)` (ShareX: 10 pages of 100): the
+    /// signed-in account's albums, page by page until a short one. Destination
+    /// settings saves them as `ImgurAlbumList` ("Refresh albums").
+    pub fn get_albums(&mut self, max_page: i32, per_page: i32) -> UResult<Vec<ImgurAlbumData>> {
+        let mut albums = Vec::new();
+        for page in 0..max_page {
+            match self.get_albums_page(page, per_page)? {
+                Some(p) if !p.is_empty() => {
+                    let short = (p.len() as i64) < i64::from(per_page);
+                    albums.extend(p);
+                    if short {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+        Ok(albums)
+    }
+
+    fn get_albums_page(&mut self, page: i32, per_page: i32) -> UResult<Option<Vec<ImgurAlbumData>>> {
+        if !self.check_authorization()? {
+            return Ok(None);
+        }
+        let args = args![("page", page.to_string()), ("perPage", per_page.to_string())];
+        let headers = self.auth_headers();
+        let response = self.base.send_request(HttpMethod::GET, "https://api.imgur.com/3/account/me/albums", &args, Some(&headers))?;
+        self.list_response(response.as_deref(), ImgurAlbumData::from_jtoken)
+    }
+
+    /// `GetAlbumImagesAsync(albumID)`: an album's images.
+    pub fn get_album_images(&mut self, album_id: &str) -> UResult<Option<Vec<ImgurImageData>>> {
+        if !self.check_authorization()? {
+            return Ok(None);
+        }
+        let headers = self.auth_headers();
+        let response = self.base.send_request(HttpMethod::GET, &format!("https://api.imgur.com/3/album/{album_id}/images"), &[], Some(&headers))?;
+        self.list_response(response.as_deref(), ImgurImageData::from_jtoken)
+    }
+
+    /// `DeserializeObject<ImgurResponse>`, then the `data` array as a list,
+    /// or `HandleErrors`.
+    fn list_response<T>(&mut self, response: Option<&str>, convert: fn(&Value) -> Result<T, String>) -> UResult<Option<Vec<T>>> {
+        let Some(response) = deserialize_object(response)? else { return Ok(None) };
+        let data = get(&response, "data").cloned().unwrap_or(Value::Null);
+        if get_bool(&response, "success") && get_i64(&response, "status") == 200 {
+            return match data {
+                Value::Array(items) => items.iter().map(convert).collect::<Result<Vec<T>, String>>().map(Some).map_err(UploadError::Exception),
+                Value::Null => Err(UploadError::Exception(NULL_REFERENCE.into())),
+                Value::Object(_) => Err(UploadError::Exception("Unable to cast object of type 'Newtonsoft.Json.Linq.JObject' to type 'Newtonsoft.Json.Linq.JArray'.".into())),
+                _ => Err(UploadError::Exception("Unable to cast object of type 'Newtonsoft.Json.Linq.JValue' to type 'Newtonsoft.Json.Linq.JArray'.".into())),
+            };
+        }
+        if let Some((error, request)) = parse_error(&data)? {
+            let status = get_i64(&response, "status");
+            self.base.errors.add(
+                strings::Imgur_Error_details().replace("{0}", &status.to_string()).replace("{1}", request.as_deref().unwrap_or("")).replace("{2}", &error),
+            );
+        }
+        Ok(None)
+    }
+}
+
+/// Newtonsoft's conversions of a property for `ToObject<T>()`.
+mod newtonsoft {
+    use serde_json::Value;
+
+    use crate::json::{get, to_dotnet_string};
+
+    fn kind(v: &Value) -> &'static str {
+        match v {
+            Value::Null => "Null",
+            Value::Bool(_) => "Boolean",
+            Value::Number(n) if n.is_f64() => "Float",
+            Value::Number(_) => "Integer",
+            Value::String(_) => "String",
+            Value::Array(_) => "Array",
+            Value::Object(_) => "Object",
+        }
+    }
+
+    pub fn string(o: &Value, name: &str) -> Result<Option<String>, String> {
+        match get(o, name) {
+            None => Ok(None),
+            Some(v) => to_dotnet_string(v),
+        }
+    }
+
+    fn integer(v: &Value, type_name: &str) -> Result<Option<i64>, String> {
+        match v {
+            Value::Null => Ok(None),
+            Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f.round() as i64)).map(Some).ok_or_else(|| format!("Error converting value to type '{type_name}'.")),
+            Value::String(s) if s.is_empty() => Ok(None),
+            Value::String(s) => s.trim().parse().map(Some).map_err(|_| format!("Could not convert string to integer: {s}.")),
+            Value::Bool(b) => Ok(Some(i64::from(*b))),
+            other => Err(format!("Unexpected character encountered while parsing value: {}.", kind(other))),
+        }
+    }
+
+    pub fn int(o: &Value, name: &str) -> Result<i32, String> {
+        match get(o, name) {
+            None => Ok(0),
+            Some(v) => match integer(v, "System.Int32")? {
+                Some(n) => i32::try_from(n).map_err(|_| "Value was either too large or too small for an Int32.".to_owned()),
+                None => Err(format!("Error converting value {{null}} to type 'System.Int32'. Path '{name}'.")),
+            },
+        }
+    }
+
+    pub fn long(o: &Value, name: &str) -> Result<i64, String> {
+        match get(o, name) {
+            None => Ok(0),
+            Some(v) => integer(v, "System.Int64")?.ok_or_else(|| format!("Error converting value {{null}} to type 'System.Int64'. Path '{name}'.")),
+        }
+    }
+
+    pub fn long_opt(o: &Value, name: &str) -> Result<Option<i64>, String> {
+        match get(o, name) {
+            None => Ok(None),
+            Some(v) => integer(v, "System.Nullable`1[System.Int64]"),
+        }
+    }
+
+    fn boolean(v: &Value) -> Result<Option<bool>, String> {
+        match v {
+            Value::Null => Ok(None),
+            Value::Bool(b) => Ok(Some(*b)),
+            Value::Number(n) => Ok(Some(n.as_f64().unwrap_or(0.0) != 0.0)),
+            Value::String(s) if s.is_empty() => Ok(None),
+            Value::String(s) => match s.trim().to_ascii_lowercase().as_str() {
+                "true" => Ok(Some(true)),
+                "false" => Ok(Some(false)),
+                _ => Err(format!("Could not convert string to boolean: {s}.")),
+            },
+            other => Err(format!("Unexpected character encountered while parsing value: {}.", kind(other))),
+        }
+    }
+
+    pub fn bool(o: &Value, name: &str) -> Result<bool, String> {
+        match get(o, name) {
+            None => Ok(false),
+            Some(v) => boolean(v)?.ok_or_else(|| format!("Error converting value {{null}} to type 'System.Boolean'. Path '{name}'.")),
+        }
+    }
+
+    pub fn bool_opt(o: &Value, name: &str) -> Result<Option<bool>, String> {
+        match get(o, name) {
+            None => Ok(None),
+            Some(v) => boolean(v),
+        }
+    }
+}
+
+/// `ImgurImageData` (an album's images, as `JsonConvert` writes them).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ImgurImageData {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub datetime: i32,
+    #[serde(rename = "type")]
+    pub kind: Option<String>,
+    pub animated: bool,
+    pub width: i32,
+    pub height: i32,
+    pub size: i32,
+    pub views: i32,
+    pub bandwidth: i64,
+    pub deletehash: Option<String>,
+    pub name: Option<String>,
+    pub section: Option<String>,
+    pub link: Option<String>,
+    pub gifv: Option<String>,
+    pub mp4: Option<String>,
+    pub webm: Option<String>,
+    pub looping: bool,
+    pub favorite: bool,
+    pub nsfw: Option<bool>,
+    pub vote: Option<String>,
+    pub comment_preview: Option<String>,
+}
+
+impl ImgurImageData {
+    /// `ToObject<ImgurImageData>()`.
+    pub fn from_jtoken(v: &Value) -> Result<Self, String> {
+        use newtonsoft::*;
+        if !v.is_object() {
+            return Err("Error converting value to type 'ShareX.UploadersLib.ImageUploaders.ImgurImageData'.".into());
+        }
+        Ok(Self {
+            id: string(v, "id")?,
+            title: string(v, "title")?,
+            description: string(v, "description")?,
+            datetime: int(v, "datetime")?,
+            kind: string(v, "type")?,
+            animated: bool(v, "animated")?,
+            width: int(v, "width")?,
+            height: int(v, "height")?,
+            size: int(v, "size")?,
+            views: int(v, "views")?,
+            bandwidth: long(v, "bandwidth")?,
+            deletehash: string(v, "deletehash")?,
+            name: string(v, "name")?,
+            section: string(v, "section")?,
+            link: string(v, "link")?,
+            gifv: string(v, "gifv")?,
+            mp4: string(v, "mp4")?,
+            webm: string(v, "webm")?,
+            looping: bool(v, "looping")?,
+            favorite: bool(v, "favorite")?,
+            nsfw: bool_opt(v, "nsfw")?,
+            vote: string(v, "vote")?,
+            comment_preview: string(v, "comment_preview")?,
+        })
+    }
+}
+
+/// `ImgurAlbumData`: an album of the account (`ImgurAlbumList`,
+/// `ImgurSelectedAlbum` in `UploadersConfig`).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ImgurAlbumData {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub datetime: i32,
+    pub cover: Option<String>,
+    pub cover_width: Option<String>,
+    pub cover_height: Option<String>,
+    pub account_url: Option<String>,
+    pub account_id: Option<i64>,
+    pub privacy: Option<String>,
+    pub layout: Option<String>,
+    pub views: i32,
+    pub link: Option<String>,
+    pub favorite: bool,
+    pub nsfw: Option<bool>,
+    pub section: Option<String>,
+    pub order: i32,
+    pub deletehash: Option<String>,
+    pub images_count: i32,
+    pub images: Option<Vec<ImgurImageData>>,
+}
+
+impl ImgurAlbumData {
+    /// `ToObject<ImgurAlbumData>()`.
+    pub fn from_jtoken(v: &Value) -> Result<Self, String> {
+        use newtonsoft::*;
+        if !v.is_object() {
+            return Err("Error converting value to type 'ShareX.UploadersLib.ImageUploaders.ImgurAlbumData'.".into());
+        }
+        let images = match json::get(v, "images") {
+            None | Some(Value::Null) => None,
+            Some(Value::Array(a)) => Some(a.iter().map(ImgurImageData::from_jtoken).collect::<Result<Vec<_>, String>>()?),
+            Some(_) => return Err("Cannot deserialize the current JSON object into type 'ShareX.UploadersLib.ImageUploaders.ImgurImageData[]'.".into()),
+        };
+        Ok(Self {
+            id: string(v, "id")?,
+            title: string(v, "title")?,
+            description: string(v, "description")?,
+            datetime: int(v, "datetime")?,
+            cover: string(v, "cover")?,
+            cover_width: string(v, "cover_width")?,
+            cover_height: string(v, "cover_height")?,
+            account_url: string(v, "account_url")?,
+            account_id: long_opt(v, "account_id")?,
+            privacy: string(v, "privacy")?,
+            layout: string(v, "layout")?,
+            views: int(v, "views")?,
+            link: string(v, "link")?,
+            favorite: bool(v, "favorite")?,
+            nsfw: bool_opt(v, "nsfw")?,
+            section: string(v, "section")?,
+            order: int(v, "order")?,
+            deletehash: string(v, "deletehash")?,
+            images_count: int(v, "images_count")?,
+            images,
+        })
+    }
+}
+
 /// `ParseError`: the error text (a string, or an object's `message`) and
 /// the request.
 fn parse_error(data: &Value) -> UResult<Option<(String, Option<String>)>> {

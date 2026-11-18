@@ -26,6 +26,10 @@ use serde_json::Value;
 use sharex_helpers::NameParserType;
 
 use super::cloud_storage::name_parse;
+use super::ftp_list::{
+    FtpListItem, FtpObjectType, FtpOperatingSystem, FtpParser, FtpServer, ListParser, ParseContext, ZosState, detect_capability, get_ftp_directory_name,
+    is_ftp_root_directory, parse_listing, read_all_lines, sanitize_path,
+};
 use super::shared_folder::{browser_protocol_prefix, file_name_without_extension};
 use super::uploader_base;
 use crate::custom::CustomUploaderParser;
@@ -361,18 +365,49 @@ pub struct FtpClient {
     pub data_encryption: bool,
     /// The connect and read timeout.
     pub timeout: Duration,
+    /// How the server's certificate is checked and which certificate this
+    /// side shows (`FTPSCertificateLocation`).
+    pub tls: TlsSettings,
     reader: Option<BufReader<Conn>>,
-    features: Vec<String>,
-    working_directory: String,
+    /// `HasFeature`: what `FEAT` listed (`ServerFeatureModule.Detect`).
+    capabilities: Vec<&'static str>,
+    /// The text encoding: UTF-8 once the server lists `UTF8`, ASCII before.
+    utf8: bool,
+    working_directory: Option<String>,
     binary: bool,
+    /// The server software (`ServerType`), from the welcome or `SYST`.
+    pub server: FtpServer,
+    server_os: FtpOperatingSystem,
+    /// `Config.ListingParser`.
+    listing_parser: FtpParser,
+    list_parser: ListParser,
+    zos: ZosState,
+    /// `Status.FileSizeASCIINotSupported`.
+    file_size_ascii_not_supported: bool,
 }
 
-fn tls_connector() -> FtpResult<TlsConnector> {
-    TlsConnector::builder()
-        .danger_accept_invalid_certs(true)
-        .danger_accept_invalid_hostnames(true)
-        .build()
-        .map_err(|e| FtpError::Other(e.to_string()))
+/// How FTPS checks the server and identifies this side.
+#[derive(Clone, Default)]
+pub struct TlsSettings {
+    /// ShareX's `ValidateCertificate` handler: a server certificate with
+    /// errors is accepted (when no client certificate is set).
+    pub accept_invalid: bool,
+    /// The client certificate (`ClientCertificates`).
+    pub identity: Option<native_tls::Identity>,
+}
+
+/// `ArgumentException("Required parameter is null or blank.", name)`.
+fn blank(name: &str) -> FtpError {
+    FtpError::Other(format!("Required parameter is null or blank. (Parameter '{name}')"))
+}
+
+fn is_blank(s: &str) -> bool {
+    s.trim().is_empty()
+}
+
+/// `SanitizerModule.SanitizePath`; its exception as an error.
+fn sanitize(path: &str) -> FtpResult<String> {
+    sanitize_path(path).map_err(FtpError::Other)
 }
 
 impl FtpClient {
@@ -386,10 +421,18 @@ impl FtpClient {
             encryption: Encryption::None,
             data_encryption: false,
             timeout: Duration::from_secs(15),
+            tls: TlsSettings { accept_invalid: true, identity: None },
             reader: None,
-            features: Vec::new(),
-            working_directory: "/".into(),
+            capabilities: Vec::new(),
+            utf8: false,
+            working_directory: None,
             binary: false,
+            server: FtpServer::Unknown,
+            server_os: FtpOperatingSystem::Unknown,
+            listing_parser: FtpParser::Auto,
+            list_parser: ListParser::default(),
+            zos: ZosState::default(),
+            file_size_ascii_not_supported: false,
         }
     }
 
@@ -398,20 +441,28 @@ impl FtpClient {
         self.reader.is_some()
     }
 
+    /// `HasFeature(capability)`.
+    pub fn has_capability(&self, name: &str) -> bool {
+        self.capabilities.contains(&name)
+    }
+
     fn conn(&mut self) -> FtpResult<&mut BufReader<Conn>> {
         self.reader.as_mut().ok_or_else(|| FtpError::Other("The FTP client is not connected.".into()))
     }
 
+    fn decode(&self, bytes: &[u8]) -> String {
+        if self.utf8 { String::from_utf8_lossy(bytes).into_owned() } else { bytes.iter().map(|b| if *b < 0x80 { *b as char } else { '?' }).collect() }
+    }
+
     /// `GetReply()`: one reply, multi-line ones whole.
     pub fn get_reply(&mut self) -> FtpResult<FtpReply> {
-        let reader = self.conn()?;
         let mut lines = Vec::new();
         loop {
-            let mut line = String::new();
-            if reader.read_line(&mut line)? == 0 {
+            let mut raw = Vec::new();
+            if self.conn()?.read_until(b'\n', &mut raw)? == 0 {
                 return Err(FtpError::Other("The connection was closed by the server.".into()));
             }
-            let line = line.trim_end_matches(['\r', '\n']).to_owned();
+            let line = self.decode(&raw).trim_end_matches(['\r', '\n']).to_owned();
             lines.push(line.clone());
             let b = line.as_bytes();
             if b.len() >= 4 && b[..3].iter().all(u8::is_ascii_digit) && b[3] == b' ' {
@@ -423,17 +474,61 @@ impl FtpClient {
         }
     }
 
-    /// `Execute(command)`.
+    /// `Execute(command)`; a successful `CWD` sets the working directory
+    /// (`OnPostExecute`).
     pub fn execute(&mut self, command: &str) -> FtpResult<FtpReply> {
+        let line = if self.utf8 { command.to_owned() } else { command.chars().map(|c| if c.is_ascii() { c } else { '?' }).collect() };
         let conn = self.conn()?.get_mut();
-        conn.write_all(format!("{command}\r\n").as_bytes())?;
+        conn.write_all(format!("{line}\r\n").as_bytes())?;
         conn.flush()?;
-        self.get_reply()
+        let reply = self.get_reply()?;
+        if reply.success() {
+            let upper = command.to_uppercase();
+            if upper.trim_end() == "CWD" || upper.starts_with("CWD ") {
+                let dir = if command.len() <= 4 { "" } else { &command[4..] };
+                if dir.starts_with('/') || dir.starts_with("./") || dir.starts_with("../") {
+                    self.working_directory = Some(dir.to_owned());
+                } else {
+                    self.working_directory = None;
+                    self.read_working_directory()?;
+                }
+            } else if upper.starts_with("TYPE I") {
+                self.binary = true;
+            } else if upper.starts_with("TYPE A") {
+                self.binary = false;
+            }
+        }
+        Ok(reply)
     }
 
     fn execute_ok(&mut self, command: &str) -> FtpResult<FtpReply> {
         let reply = self.execute(command)?;
         if reply.success() { Ok(reply) } else { Err(FtpError::Command(reply)) }
+    }
+
+    /// `ReadCurrentWorkingDirectory`: `PWD`.
+    fn read_working_directory(&mut self) -> FtpResult<String> {
+        let pwd = self.execute_ok("PWD")?;
+        let dir = match pwd.message.find('"') {
+            Some(i) => match pwd.message.rfind('"') {
+                Some(j) if j > i => sanitize(&pwd.message[i + 1..j])?,
+                _ => "/".to_owned(),
+            },
+            None => match pwd.message.find("PWD = ") {
+                Some(i) => sanitize(&pwd.message[i + 6..])?,
+                None => "/".to_owned(),
+            },
+        };
+        self.working_directory = Some(dir.clone());
+        Ok(dir)
+    }
+
+    /// `GetWorkingDirectory()`.
+    pub fn working_directory(&mut self) -> FtpResult<String> {
+        match self.working_directory.clone() {
+            Some(d) => Ok(d),
+            None => self.read_working_directory(),
+        }
     }
 
     fn connect_tcp(&self) -> FtpResult<TcpStream> {
@@ -448,10 +543,22 @@ impl FtpClient {
         Err(FtpError::Other("Failed to connect to host.".into()))
     }
 
+    fn tls_connect(&self, tcp: TcpStream) -> FtpResult<TlsStream<TcpStream>> {
+        let mut b = TlsConnector::builder();
+        if self.tls.accept_invalid {
+            b.danger_accept_invalid_certs(true).danger_accept_invalid_hostnames(true);
+        }
+        if let Some(id) = &self.tls.identity {
+            b.identity(id.clone());
+        }
+        let connector = b.build().map_err(|e| FtpError::Other(e.to_string()))?;
+        connector.connect(&self.host, tcp).map_err(|e| FtpError::Other(tls_error_message(&e.to_string())))
+    }
+
     fn upgrade_tls(&mut self) -> FtpResult<()> {
         let Some(reader) = self.reader.take() else { return Err(FtpError::Other("The FTP client is not connected.".into())) };
         let Conn::Plain(tcp) = reader.into_inner() else { return Err(FtpError::Other("TLS is already on.".into())) };
-        let tls = tls_connector()?.connect(&self.host, tcp).map_err(|e| FtpError::Other(e.to_string()))?;
+        let tls = self.tls_connect(tcp)?;
         self.reader = Some(BufReader::new(Conn::Tls(Box::new(tls))));
         Ok(())
     }
@@ -459,16 +566,22 @@ impl FtpClient {
     /// `Connect()`.
     pub fn connect(&mut self) -> FtpResult<()> {
         let tcp = self.connect_tcp()?;
-        let conn = if self.encryption == Encryption::Implicit {
-            Conn::Tls(Box::new(tls_connector()?.connect(&self.host, tcp).map_err(|e| FtpError::Other(e.to_string()))?))
-        } else {
-            Conn::Plain(tcp)
-        };
+        let conn = if self.encryption == Encryption::Implicit { Conn::Tls(Box::new(self.tls_connect(tcp)?)) } else { Conn::Plain(tcp) };
         self.reader = Some(BufReader::new(conn));
+        self.utf8 = false;
+        self.binary = false;
+        self.working_directory = None;
         let banner = self.get_reply()?;
         if !banner.success() {
             return Err(FtpError::Command(banner));
         }
+        // DetectFtpServer: the welcome's message and its other lines.
+        let mut welcome = banner.message.clone();
+        for l in &banner.lines[..banner.lines.len() - 1] {
+            welcome.push_str(l);
+            welcome.push('\n');
+        }
+        self.server = FtpServer::by_welcome(&welcome);
         if self.encryption == Encryption::Explicit {
             self.execute_ok("AUTH TLS")?;
             self.upgrade_tls()?;
@@ -487,23 +600,35 @@ impl FtpClient {
             self.execute_ok("PBSZ 0")?;
             self.execute_ok(if self.data_encryption { "PROT P" } else { "PROT C" })?;
         }
+        self.capabilities.clear();
         let feat = self.execute("FEAT")?;
-        self.features = if feat.success() { feat.lines.iter().skip(1).filter(|l| l.starts_with(' ')).map(|l| l.trim().to_ascii_uppercase()).collect() } else { Vec::new() };
-        if self.has_feature("UTF8") {
+        if feat.success() && feat.lines.len() > 1 {
+            for l in &feat.lines[..feat.lines.len() - 1] {
+                if let Some(c) = detect_capability(l)
+                    && !self.capabilities.contains(&c)
+                {
+                    self.capabilities.push(c);
+                }
+            }
+        }
+        if self.has_capability("UTF8") {
+            self.utf8 = true;
             self.execute("OPTS UTF8 ON")?;
         }
-        self.execute("SYST")?;
-        let pwd = self.execute("PWD")?;
-        if pwd.success()
-            && let Some(dir) = pwd.message.split('"').nth(1)
-        {
-            self.working_directory = dir.to_owned();
+        let syst = self.execute("SYST")?;
+        if syst.success() {
+            if self.server == FtpServer::Unknown {
+                self.server = FtpServer::by_syst(&syst.message);
+            }
+            self.server_os = FtpOperatingSystem::by_syst(&syst.message);
         }
+        self.listing_parser = self.server.parser();
+        if self.has_capability("MLST") {
+            self.listing_parser = FtpParser::Machine;
+        }
+        self.list_parser.init(self.server_os, self.listing_parser);
+        self.read_working_directory()?;
         Ok(())
-    }
-
-    fn has_feature(&self, name: &str) -> bool {
-        self.features.iter().any(|f| f == name || f.starts_with(&format!("{name} ")))
     }
 
     /// `Disconnect()` / `Dispose()`: `QUIT`, then the connection closes.
@@ -524,45 +649,85 @@ impl FtpClient {
         }
     }
 
+    /// `GetAbsolutePath(path)`.
+    fn absolute_path(&mut self, path: &str) -> FtpResult<String> {
+        if is_blank(path) {
+            let wd = self.working_directory()?;
+            return Ok(if is_blank(&wd) { "/".into() } else { wd });
+        }
+        let bytes = path.as_bytes();
+        if path.starts_with('/') || (bytes.len() > 1 && bytes[1] == b':') {
+            return Ok(path.to_owned());
+        }
+        if self.server == FtpServer::OpenVms && path.contains('[') && path.contains(']') {
+            return Ok(path.to_owned());
+        }
+        let wd = self.working_directory()?;
+        if !is_blank(&wd) && path != wd {
+            let rest = path.strip_prefix("./").unwrap_or(path);
+            return sanitize(&format!("{wd}/{rest}"));
+        }
+        Ok(path.to_owned())
+    }
+
     /// `DirectoryExists(path)`.
     pub fn directory_exists(&mut self, path: &str) -> FtpResult<bool> {
-        let path = path.trim_end_matches('/');
-        if path.is_empty() || path == "." || path == "/" {
+        let path = sanitize(path)?;
+        if is_ftp_root_directory(&path) {
             return Ok(true);
         }
-        let pwd = self.working_directory.clone();
+        let wd = self.working_directory()?;
         if self.execute(&format!("CWD {path}"))?.success() {
-            if !path.starts_with('/') {
-                self.execute("PWD")?;
+            if !self.execute(&format!("CWD {wd}"))?.success() {
+                return Err(FtpError::Other("DirectoryExists(): Failed to restore the working directory.".into()));
             }
-            self.execute_ok(&format!("CWD {pwd}"))?;
             return Ok(true);
         }
         Ok(false)
     }
 
-    /// `CreateDirectory(path)` (forced: the missing parents too).
-    pub fn create_directory(&mut self, path: &str) -> FtpResult<()> {
-        let path = path.trim_end_matches('/');
-        if path.is_empty() || path == "/" {
-            return Ok(());
+    /// `CreateDirectory(path)` (forced: the missing parents too); `false`
+    /// when the server says no with 550 or "already exists".
+    pub fn create_directory(&mut self, path: &str) -> FtpResult<bool> {
+        let path = sanitize(path)?;
+        if is_ftp_root_directory(&path) {
+            return Ok(false);
         }
-        let parent = url_helpers::get_directory_path(path);
-        let parent = if parent == path { String::new() } else { parent };
-        if !parent.is_empty() && parent != "/" && !self.directory_exists(&parent)? {
+        if self.server == FtpServer::ProFtpd && self.has_capability("SITE_MKDIR") && self.execute(&format!("SITE MKDIR {path}"))?.success() {
+            return Ok(true);
+        }
+        let path = path.trim_end_matches('/').to_owned();
+        let parent = get_ftp_directory_name(&path);
+        if !self.directory_exists(&parent)? {
             self.create_directory(&parent)?;
         }
-        self.execute_ok(&format!("MKD {path}"))?;
+        let reply = self.execute(&format!("MKD {path}"))?;
+        if reply.success() {
+            return Ok(true);
+        }
+        if reply.code == "550" {
+            return Ok(false);
+        }
+        const EXISTS: [&str; 8] =
+            ["exist on server", "exists on server", "file exist", "directory exist", "folder exist", "file already exist", "directory already exist", "folder already exist"];
+        let message = reply.message.to_lowercase();
+        if reply.code.starts_with('5') && EXISTS.iter().any(|e| message.contains(e)) {
+            return Ok(false);
+        }
+        Err(FtpError::Command(reply))
+    }
+
+    /// `SetDataType(Binary)`: `TYPE I` unless it's already binary.
+    fn binary_mode(&mut self) -> FtpResult<()> {
+        if !self.binary {
+            self.execute_ok("TYPE I")?;
+        }
         Ok(())
     }
 
-    /// Opens a data connection for `command` (`TYPE I`, `EPSV` or
-    /// `EPRT`/`PORT`, then the command).
+    /// Opens a data connection for `command` (`EPSV` or `EPRT`/`PORT`,
+    /// then the command).
     fn open_data(&mut self, command: &str) -> FtpResult<DataStream> {
-        if !self.binary {
-            self.execute_ok("TYPE I")?;
-            self.binary = true;
-        }
         let stream = match self.data_connection {
             DataConnection::AutoPassive => {
                 let reply = self.execute_ok("EPSV")?;
@@ -595,25 +760,297 @@ impl FtpClient {
             }
         };
         stream.set_write_timeout(Some(self.timeout))?;
+        stream.set_read_timeout(Some(self.timeout))?;
         if self.encryption != Encryption::None && self.data_encryption {
-            let tls = tls_connector()?.connect(&self.host, stream).map_err(|e| FtpError::Other(e.to_string()))?;
-            Ok(DataStream::Tls(Box::new(tls)))
+            Ok(DataStream::Tls(Box::new(self.tls_connect(stream)?)))
         } else {
             Ok(DataStream::Plain(stream))
         }
     }
 
-    /// `OpenWrite(path)`: `SIZE` (whether it exists), then `STOR`.
+    /// `GetFileSize(path, -1)`: `SIZE` when the server has it.
+    pub fn get_file_size(&mut self, path: &str) -> FtpResult<i64> {
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        let path = sanitize(path)?;
+        if !self.has_capability("SIZE") {
+            return Ok(-1);
+        }
+        loop {
+            if self.file_size_ascii_not_supported {
+                self.binary_mode()?;
+            }
+            let reply = self.execute(&format!("SIZE {path}"))?;
+            if !reply.success() {
+                if !self.file_size_ascii_not_supported && reply.code == "550" && reply.message.to_lowercase().contains("ascii") {
+                    self.file_size_ascii_not_supported = true;
+                    continue;
+                }
+                return Ok(-1);
+            }
+            return Ok(reply.message.trim().parse().unwrap_or(-1));
+        }
+    }
+
+    /// `OpenWrite(path)`: `SIZE` (whether it exists), `TYPE I`, then `STOR`.
     pub fn open_write(&mut self, path: &str) -> FtpResult<DataStream> {
-        self.execute(&format!("SIZE {path}"))?;
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        let path = sanitize(path)?;
+        self.get_file_size(&path)?;
+        self.binary_mode()?;
         self.open_data(&format!("STOR {path}"))
     }
+
+    /// `OpenRead(path)` read to the end, then the transfer's reply
+    /// (ShareX's `DownloadFile`).
+    pub fn download(&mut self, path: &str, out: &mut dyn Write) -> FtpResult<()> {
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        let path = sanitize(path)?;
+        self.get_file_size(&path)?;
+        self.binary_mode()?;
+        let mut data = self.open_data(&format!("RETR {path}"))?;
+        let copied = std::io::copy(&mut data, out);
+        data.close();
+        copied?;
+        self.get_reply()?;
+        Ok(())
+    }
+
+    /// `GetListing(path)` (`FtpListOption.Auto`).
+    pub fn get_listing(&mut self, path: &str) -> FtpResult<Vec<FtpListItem>> {
+        self.get_listing_options(path, false)
+    }
+
+    /// `GetListing(path, options)`, with `Recursive` or not: servers that
+    /// list recursively get `LIST -R`, others are walked directory by
+    /// directory (`GetListingRecursive`).
+    fn get_listing_options(&mut self, path: &str, recursive: bool) -> FtpResult<Vec<FtpListItem>> {
+        let machine = self.listing_parser == FtpParser::Machine && self.has_capability("MLST");
+        if recursive && (!self.server.recursive_list() || self.has_capability("MLST")) {
+            let start = self.absolute_path(path)?;
+            let mut stack = vec![start];
+            let mut all = Vec::new();
+            while let Some(mut dir) = stack.pop() {
+                if !dir.ends_with('/') {
+                    dir.push('/');
+                }
+                let listing = self.get_listing_options(&dir, false)?;
+                for item in &listing {
+                    let name = item.name();
+                    if item.kind == FtpObjectType::Directory && name.as_deref() != Some(".") && name.as_deref() != Some("..") {
+                        stack.push(item.full_name.clone().unwrap_or_default());
+                    }
+                }
+                all.extend(listing);
+            }
+            return Ok(all);
+        }
+        let path = if path.is_empty() { path.to_owned() } else { sanitize(path)? };
+        let mut path = self.absolute_path(&path)?;
+        let server_recursive = recursive;
+        let command = if machine {
+            "MLSD".to_owned()
+        } else if server_recursive {
+            "LIST -R".to_owned()
+        } else {
+            "LIST".to_owned()
+        };
+        let command = format!("{command} {}", sanitize(&path)?);
+        let raw = self.get_listing_internal(&command)?;
+        let wd = self.working_directory()?;
+        let has_mlst = self.has_capability("MLST");
+        let mut list = Vec::new();
+        // A recursive LIST names each directory before its entries ("/dir:").
+        let mut sections: Vec<(String, Vec<String>)> = vec![(path.clone(), Vec::new())];
+        for line in raw {
+            if server_recursive && line.starts_with('/') && line.ends_with(':') {
+                path = line.trim_end_matches(':').to_owned();
+                sections.push((path.clone(), Vec::new()));
+            } else {
+                sections.last_mut().expect("one section").1.push(line);
+            }
+        }
+        let mut parser = self.list_parser;
+        let mut zos = self.zos;
+        for (dir, lines) in sections {
+            let mut ctx = ParseContext { working_directory: &wd, zos: &mut zos };
+            // z/OS member listings ask the server for the record length.
+            let mut xdss = |p: &str| -> Result<String, String> { self.execute_ok(&format!("XDSS {p}")).map(|r| r.message).map_err(|e| e.to_string()) };
+            list.extend(parse_listing(&mut parser, &dir, &lines, has_mlst, machine, &mut ctx, &mut xdss).map_err(FtpError::Other)?);
+        }
+        self.list_parser = parser;
+        self.zos = zos;
+        Ok(list)
+    }
+
+    /// `GetListingInternal`: `TYPE I`, the data connection, its lines; a
+    /// 550 is an empty listing.
+    fn get_listing_internal(&mut self, command: &str) -> FtpResult<Vec<String>> {
+        self.binary_mode()?;
+        let result = (|| -> FtpResult<Vec<u8>> {
+            let mut data = self.open_data(command)?;
+            let mut bytes = Vec::new();
+            let read = data.read_to_end(&mut bytes);
+            data.close();
+            if let Err(e) = read
+                && !matches!(e.kind(), std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted | std::io::ErrorKind::UnexpectedEof)
+            {
+                return Err(e.into());
+            }
+            let reply = self.get_reply()?;
+            if !reply.success() && !reply.code.starts_with("550") {
+                return Err(FtpError::Command(reply));
+            }
+            Ok(bytes)
+        })();
+        match result {
+            Ok(bytes) => Ok(read_all_lines(&bytes, self.utf8)),
+            Err(FtpError::Command(r)) if r.code.starts_with("550") => Ok(Vec::new()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// `DeleteFile(path)`: `DELE`.
+    pub fn delete_file(&mut self, path: &str) -> FtpResult<()> {
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        let path = sanitize(path)?;
+        self.execute_ok(&format!("DELE {path}"))?;
+        Ok(())
+    }
+
+    /// `DeleteDirectory(path)`: what's in it (listed recursively), then the
+    /// directory; ProFTPD's `SITE RMDIR` and Serv-U's `RMDA` when listed.
+    pub fn delete_directory(&mut self, path: &str) -> FtpResult<()> {
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        let path = sanitize(path)?;
+        self.delete_dir_internal(&path, true, true, true, true)
+    }
+
+    fn delete_dir_internal(&mut self, path: &str, delete_contents: bool, recursive: bool, delete_final: bool, first_call: bool) -> FtpResult<()> {
+        let path = sanitize(path)?;
+        if delete_final && !is_ftp_root_directory(&path) && delete_contents {
+            let quick = match self.server {
+                FtpServer::ProFtpd if self.has_capability("SITE_RMDIR") => Some(format!("SITE RMDIR {path}")),
+                FtpServer::ServU if self.has_capability("RMDA") => Some(format!("RMDA {path}")),
+                _ => None,
+            };
+            if let Some(c) = quick
+                && self.execute(&c)?.success()
+            {
+                return Ok(());
+            }
+        }
+        if delete_contents {
+            let flat = !recursive;
+            let mut items = self.get_listing_options(&path, recursive)?;
+            if !flat {
+                let kind_order = |k: FtpObjectType| match k {
+                    FtpObjectType::File => 0,
+                    FtpObjectType::Directory => 1,
+                    FtpObjectType::Link => 2,
+                };
+                items.sort_by(|a, b| {
+                    let depth = |i: &FtpListItem| i.full_name.as_deref().unwrap_or("").matches('/').count();
+                    depth(b).cmp(&depth(a)).then(kind_order(a.kind).cmp(&kind_order(b.kind)))
+                });
+            }
+            for item in items {
+                let full = item.full_name.clone().unwrap_or_default();
+                match item.kind {
+                    FtpObjectType::File => self.delete_file(&full)?,
+                    FtpObjectType::Directory => self.delete_dir_internal(&full, flat, recursive, true, false)?,
+                    FtpObjectType::Link => return Err(FtpError::Other("Don't know how to delete object type: Link".into())),
+                }
+            }
+        }
+        if !is_ftp_root_directory(&path) && (!first_call || delete_final) {
+            self.execute_ok(&format!("RMD {path}"))?;
+        }
+        Ok(())
+    }
+
+    /// `Rename(path, dest)`: `RNFR`, `RNTO`.
+    pub fn rename(&mut self, path: &str, dest: &str) -> FtpResult<()> {
+        if is_blank(path) {
+            return Err(blank("path"));
+        }
+        if is_blank(dest) {
+            return Err(blank("dest"));
+        }
+        let path = sanitize(path)?;
+        let dest = sanitize(dest)?;
+        let path = self.absolute_path(&path)?;
+        let dest = self.absolute_path(&dest)?;
+        self.execute_ok(&format!("RNFR {path}"))?;
+        self.execute_ok(&format!("RNTO {dest}"))?;
+        Ok(())
+    }
+}
+
+/// The message of a TLS handshake that failed (.NET's `SslStream` words a
+/// certificate that doesn't validate this way).
+fn tls_error_message(native: &str) -> String {
+    let lower = native.to_lowercase();
+    // FluentFTP always validates through its callback: a certificate it
+    // doesn't accept is "rejected by the callback".
+    if lower.contains("certificate") || lower.contains("trust") || lower.contains("0x800b0109") || lower.contains("0x800b010f") || lower.contains("0x80090325") {
+        "The remote certificate was rejected by the provided RemoteCertificateValidationCallback.".into()
+    } else {
+        native.to_owned()
+    }
+}
+
+/// `X509CertificateLoader.LoadCertificateFromFile`: an X.509 certificate,
+/// PEM or DER (a PKCS#12 file or anything else is refused). Only the
+/// certificate is read: the OS TLS stack gets no private key from it (on
+/// Windows ShareX's .NET finds the key in the user's certificate store,
+/// which the OS TLS library here can't be handed), so the certificate turns
+/// off the lenient server check and isn't presented.
+fn load_certificate(path: &str) -> Result<(), String> {
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let not_found = || "Cannot find the requested object.".to_owned();
+    if let Ok(text) = std::str::from_utf8(&bytes)
+        && text.contains("-----BEGIN CERTIFICATE-----")
+    {
+        return Ok(());
+    }
+    // DER: a SEQUENCE whose first element (tbsCertificate) is a SEQUENCE; a
+    // PFX starts with its INTEGER version instead.
+    let header = |b: &[u8]| -> Option<usize> {
+        if b.first() != Some(&0x30) {
+            return None;
+        }
+        match *b.get(1)? {
+            n if n < 0x80 => Some(2),
+            n => Some(2 + (n & 0x7f) as usize),
+        }
+    };
+    let h = header(&bytes).ok_or_else(not_found)?;
+    if bytes.get(h) == Some(&0x30) { Ok(()) } else { Err(not_found()) }
 }
 
 /// An open data connection.
 pub enum DataStream {
     Plain(TcpStream),
     Tls(Box<TlsStream<TcpStream>>),
+}
+
+impl Read for DataStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            DataStream::Plain(s) => s.read(buf),
+            DataStream::Tls(s) => s.read(buf),
+        }
+    }
 }
 
 impl Write for DataStream {
@@ -655,6 +1092,9 @@ pub struct Ftp {
     pub base: Uploader,
     pub account: FTPAccount,
     client: FtpClient,
+    /// What `new FTP(account)` threw (a client certificate file .NET
+    /// can't load): uploads and the remote storage browser fail with it.
+    creation_error: Option<String>,
 }
 
 uploader_base!(Ftp, FileUploader);
@@ -662,16 +1102,28 @@ impl WritesBackConfig for Ftp {}
 
 impl Ftp {
     pub fn new(account: FTPAccount) -> Self {
+        let mut creation_error = None;
         let port = u16::try_from(account.Port).unwrap_or(21);
         let mut client = FtpClient::new(s(&account.Host), port, s(&account.Username), account.Password.as_str());
         client.data_connection = if account.IsActive { DataConnection::AutoActive } else { DataConnection::AutoPassive };
         if account.Protocol == FTPProtocol::FTPS {
             client.encryption = if account.FTPSEncryption == FTPSEncryption::Implicit { Encryption::Implicit } else { Encryption::Explicit };
             client.data_encryption = true;
-            // A client certificate (FTPSCertificateLocation) isn't sent: the
-            // OS TLS libraries need the private key with it.
+            // With a client certificate file, ShareX adds it and doesn't
+            // install its handler that accepts any server certificate.
+            if let Some(path) = account.FTPSCertificateLocation.as_deref().filter(|p| !p.is_empty() && std::path::Path::new(p).is_file()) {
+                match load_certificate(path) {
+                    Ok(()) => client.tls.accept_invalid = false,
+                    Err(e) => creation_error = Some(e),
+                }
+            }
         }
-        Self { base: Uploader::new(), account, client }
+        Self { base: Uploader::new(), account, client, creation_error }
+    }
+
+    /// The exception `new FTP(account)` threw, if any.
+    pub fn creation_error(&self) -> Option<&str> {
+        self.creation_error.as_deref()
     }
 
     /// The client, for the remote storage browser (listing aside).
@@ -680,6 +1132,9 @@ impl Ftp {
     }
 
     fn upload(&mut self, data: &SharedStream, file_name: &str) -> CoreResult {
+        if let Some(e) = &self.creation_error {
+            return Err(UploadError::Exception(e.clone()));
+        }
         if self.base.stop_requested() {
             return Err(UploadError::Cancelled);
         }

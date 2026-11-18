@@ -2,5 +2,6 @@
 //! ([`ftp`]), SFTP ([`sftp`]) and SMTP ([`smtp`]). They bind 127.0.0.1 only.
 
 pub mod ftp;
+pub mod remote;
 pub mod sftp;
 pub mod smtp;

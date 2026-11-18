@@ -2,8 +2,10 @@
 //! explicit and implicit, SFTP, SMTP), on fixed ports of 127.0.0.1, with a
 //! small HTTP control port both harnesses use like the HTTP mock's:
 //!
-//! - `POST /reset` `{"user", "password", "dirs", "fail_once": [[prefix, reply]]}`
-//!   clears the logs and files and sets up the next case,
+//! - `POST /reset` with a case's `servers` object (`user`, `password`,
+//!   `dirs`, `fail_once`, the `ftp_*`, `sftp_*` and `smtp_*` settings of
+//!   `FtpMockConfig::from_spec` and the others) clears the logs and files
+//!   and sets up the next case,
 //! - `GET /log` gives `{"ftp": [lines], "files": {path: base64}}`.
 //!
 //! ```text
@@ -17,48 +19,20 @@ use std::net::TcpListener;
 
 use base64::Engine;
 use serde_json::{Value, json};
-use sharex_uploaders::testing::ftp::{FtpMockConfig, FtpMockServer, test_tls_acceptor};
+use sharex_uploaders::testing::ftp::{FtpMockConfig, FtpMockServer};
 use sharex_uploaders::testing::sftp::{SftpMockConfig, SftpMockServer};
 use sharex_uploaders::testing::smtp::{SmtpMockConfig, SmtpMockServer};
 
 fn config(v: &Value, tls: bool, implicit: bool) -> FtpMockConfig {
-    FtpMockConfig {
-        user: v["user"].as_str().unwrap_or("user").to_owned(),
-        password: v["password"].as_str().unwrap_or("pass").to_owned(),
-        dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
-        tls: if tls { test_tls_acceptor() } else { None },
-        implicit_tls: implicit,
-        fail_once: v["fail_once"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), p[1].as_str()?.to_owned()))).collect())
-            .unwrap_or_default(),
-    }
+    FtpMockConfig::from_spec(v, tls, implicit)
 }
 
 fn sftp_config(v: &Value) -> SftpMockConfig {
-    SftpMockConfig {
-        user: v["user"].as_str().unwrap_or("user").to_owned(),
-        password: v["password"].as_str().unwrap_or("pass").to_owned(),
-        authorized_key: v["authorized_key"].as_str().map(str::to_owned),
-        home: v["home"].as_str().unwrap_or("/home/user").to_owned(),
-        dirs: v["dirs"].as_array().map(|a| a.iter().filter_map(|d| d.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
-        fail_once: v["sftp_fail_once"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), (p[1].as_u64()? as u32, p[2].as_str()?.to_owned())))).collect())
-            .unwrap_or_default(),
-    }
+    SftpMockConfig::from_spec(v)
 }
 
 fn smtp_config(v: &Value) -> SmtpMockConfig {
-    SmtpMockConfig {
-        user: v["user"].as_str().unwrap_or("user").to_owned(),
-        password: v["password"].as_str().unwrap_or("pass").to_owned(),
-        tls: test_tls_acceptor(),
-        fail_once: v["smtp_fail_once"]
-            .as_array()
-            .map(|a| a.iter().filter_map(|p| Some((p[0].as_str()?.to_owned(), p[1].as_str()?.to_owned()))).collect())
-            .unwrap_or_default(),
-    }
+    SmtpMockConfig::from_spec(v)
 }
 
 fn main() {

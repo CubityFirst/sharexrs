@@ -788,6 +788,11 @@ ftp_case("ftps-implicit", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 3, FTP
          {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
 ftp_case("ftps-explicit-active", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, IsActive=True)], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": ["/shots/sub"]})
+for label, cert in [("pem", "ftps_client.crt"), ("der", "ftps_client.cer"), ("pfx", "ftps_client.pfx"), ("missing", "no_such_cert.crt")]:
+    ftp_case("ftps-client-cert-" + label, [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 2, FTPSEncryption="Explicit",
+                                                 FTPSCertificateLocation="crates/sharex-uploaders/tests/fixtures/" + cert)], BIN_PNG, {"user": "user", "password": "pass", "dirs": []})
+ftp_case("ftps-implicit-client-cert", [dict(FTP_ACCOUNT, Protocol="FTPS", Port=MOCK + 3, FTPSEncryption="Implicit",
+                                            FTPSCertificateLocation="crates/sharex-uploaders/tests/fixtures/ftps_client.crt")], BIN_PNG, {"user": "user", "password": "pass", "dirs": []})
 ftp_case("ftp-second-account", [FTP_ACCOUNT, dict(FTP_ACCOUNT, Name="two", SubFolderPath="", HttpHomePath="cdn.example.com:8080/x?f=")],
          BIN_PNG, {"user": "user", "password": "pass", "dirs": []}, selected=1)
 ftp_case("ftp-connection-refused", [dict(FTP_ACCOUNT, Port=MOCK + 9)], BIN_PNG)
@@ -817,7 +822,33 @@ ftp_case("sftp-mkdir-denied", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": [], "sftp_fail_once": [["MKDIR /home/user/shots", 3, "Permission denied"]]})
 ftp_case("sftp-open-failure", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_fail_once": [["OPEN", 4, "Failure"]]})
-ftp_case("sftp-absolute", [dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
+KEY_PASS = "made-up-passphrase"
+for key, passphrase in [("sftp_test_rsa_pem_aes", KEY_PASS), ("sftp_test_rsa_pem_3des", KEY_PASS), ("sftp_test_rsa_pkcs8_enc", KEY_PASS),
+                        ("sftp_test_ec384_pem", KEY_PASS), ("sftp_test_ec256_pkcs8", ""), ("sftp_test_ed25519_pkcs8_enc", KEY_PASS),
+                        ("sftp_test_ec521", ""), ("sftp_test_rsa_v2.ppk", KEY_PASS), ("sftp_test_rsa_v3.ppk", KEY_PASS),
+                        ("sftp_test_rsa_v3_plain.ppk", ""), ("sftp_test_rsa_sshcom", KEY_PASS)]:
+    ftp_case("sftp-key-" + key.replace("sftp_test_", "").replace(".ppk", "-ppk").replace("_", "-"),
+             [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + key, Passphrase=passphrase)], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "authorized_key": pub(key)})
+for key, passphrase, label in [("sftp_test_rsa_pem_aes", "", "no-passphrase"), ("sftp_test_rsa_pem_aes", "wrong", "wrong-passphrase"),
+                               ("sftp_test_rsa_v2.ppk", "wrong", "ppk-wrong-passphrase"), ("sftp_test_rsa_v3.ppk", "", "ppk-no-passphrase"),
+                               ("sftp_test_ed25519_pkcs8_enc", "wrong", "pkcs8-wrong-passphrase"),
+                               ("sftp_test_rsa_sshcom", "wrong", "sshcom-wrong-passphrase"), ("sftp_test_rsa.pub", "", "not-a-key"),
+                               ("sftp_test_rsa", "wrong", "openssh-wrong-passphrase")]:
+    ftp_case("sftp-key-error-" + label, [dict(SFTP_ACCOUNT, Password="", Keypath=KEYS + key, Passphrase=passphrase)], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"]})
+for kex in ["ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521", "diffie-hellman-group-exchange-sha256",
+            "diffie-hellman-group16-sha512", "diffie-hellman-group18-sha512", "diffie-hellman-group14-sha256",
+            "diffie-hellman-group-exchange-sha1", "diffie-hellman-group14-sha1", "diffie-hellman-group1-sha1"]:
+    ftp_case("sftp-kex-" + kex.replace("diffie-hellman-", "dh-"), [SFTP_ACCOUNT], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_kex": [kex]})
+for cipher, mac in [("aes128-cbc", "hmac-sha1"), ("aes256-cbc", "hmac-sha2-512"), ("3des-cbc", "hmac-sha1"),
+                    ("aes256-ctr", "hmac-sha2-256-etm@openssh.com"), ("aes192-cbc", "hmac-sha1-etm@openssh.com"),
+                    ("aes128-ctr", "hmac-sha2-512-etm@openssh.com")]:
+    ftp_case(f"sftp-cipher-{cipher}-{mac.replace('@openssh.com', '')}", [SFTP_ACCOUNT], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_kex": ["diffie-hellman-group14-sha256"],
+              "sftp_ciphers": [cipher], "sftp_macs": [mac]})
+ftp_case("sftp-absolute",[dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
          {"user": "user", "password": "pass", "dirs": ["/srv"]})
 
 # Email (SMTP with STARTTLS, automatic send: no window).
@@ -832,6 +863,12 @@ cases.append({"id": "email-unicode", "kind": "builtin", "service": "file:Email",
 cases.append({"id": "email-auth-failed", "kind": "builtin", "service": "file:Email", "config": dict(EMAIL, EmailPassword="nope"),
               "input": BIN_PNG, "responses": [], "servers": SMTP})
 cases.append({"id": "email-invalid-from", "kind": "builtin", "service": "file:Email", "config": dict(EMAIL, EmailFrom="user"),
+              "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-long-subject", "kind": "builtin", "service": "file:Email",
+              "config": dict(EMAIL, EmailDefaultSubject="Écran capturé — " * 9 + "fin 🙂🙂🙂 " + "x" * 30,
+                             EmailDefaultBody="Body"), "input": BIN_PNG, "responses": [], "servers": SMTP})
+cases.append({"id": "email-long-ascii-subject", "kind": "builtin", "service": "file:Email",
+              "config": dict(EMAIL, EmailDefaultSubject="A long plain subject " * 8 + "end", EmailDefaultBody="Body"),
               "input": BIN_PNG, "responses": [], "servers": SMTP})
 cases.append({"id": "email-share-url", "kind": "builtin", "service": "sharing:Email", "config": EMAIL, "input": url_input(), "responses": [],
               "servers": SMTP})
@@ -868,6 +905,269 @@ oauth_case("signin-mega", "mega", [{"op": "login", "email": " Someone@Example.co
     resp(json.dumps([{"k": b64url(aes_ecb(MEGA_MASTER, MEGA_PWKEY)), "tsid": b64url(MEGA_TSID + aes_ecb(MEGA_TSID, MEGA_MASTER))}]))])
 oauth_case("signin-mega-2fa", "mega", [{"op": "login", "email": "someone@example.com", "password": MEGA_PASSWORD}], [
     resp(json.dumps([{"v": 2, "s": b64url(MEGA_SALT)}])), resp("[-26]")])
+
+# ---------------------------------------------------------------------------
+# The remote storage browser (Tools › Remote storage browser): ShareX's own
+# FTP/SFTP/Amazon S3 providers, step by step, against the mock servers.
+
+
+def remote_case(id, provider, steps, servers=None, account=None, s3=None, responses=None, allow_upload=True):
+    c = {"id": id, "kind": "remote", "provider": provider, "steps": steps, "allow_upload": allow_upload, "responses": responses or []}
+    if account is not None:
+        c["account"] = account
+    if s3 is not None:
+        c["s3"] = s3
+    if servers is not None:
+        c["servers"] = servers
+    cases.append(c)
+
+
+def item(path, is_folder=False, size=None):
+    return {"name": path.rstrip("/").rsplit("/", 1)[-1], "path": path, "is_folder": is_folder, "size": size}
+
+
+def b64(b):
+    return base64.b64encode(b).decode()
+
+
+FTP_FILES = {"/docs/a.txt": b64(b"hello"), "/docs/sub/deep.bin": b64(bytes(range(64))), "/top.png": BIN_PNG["content_base64"],
+             "/Zeta.txt": b64(b"z"), "/alpha.txt": b64(b"")}
+FTP_BROWSE = [
+    {"op": "display_path", "path": ""}, {"op": "display_path", "path": "/docs/sub/"}, {"op": "display_path", "path": "a\\b"},
+    {"op": "parent_path", "path": ""}, {"op": "parent_path", "path": "docs"}, {"op": "parent_path", "path": "/docs/sub/"},
+    {"op": "list", "path": ""}, {"op": "list", "path": "docs"}, {"op": "list", "path": "missing"},
+    {"op": "has_children", "item": item("docs", True)}, {"op": "has_children", "item": item("empty", True)},
+    {"op": "has_children", "item": item("top.png")},
+    {"op": "download", "item": item("docs/a.txt")}, {"op": "download", "item": item("docs")},
+    {"op": "url", "item": item("docs/a b.txt")}, {"op": "url", "item": item("top.png")}, {"op": "url", "item": item("docs", True)},
+    {"op": "upload", "dir": "docs", "name": "new file.bin", "content_base64": b64(bytes(range(200)))},
+    {"op": "upload", "dir": "newdir/deeper", "name": "x.txt", "content_base64": b64(b"x")},
+    {"op": "create_folder", "dir": "", "name": "made"}, {"op": "create_folder", "dir": "docs", "name": "a/b"},
+    {"op": "create_folder", "dir": "", "name": ".."}, {"op": "create_folder", "dir": "made", "name": "inner"},
+    {"op": "rename", "item": item("docs/a.txt"), "name": "b.txt"}, {"op": "rename", "item": item("missing.txt"), "name": "c.txt"},
+    {"op": "delete", "item": item("docs/b.txt")}, {"op": "delete", "item": item("docs", True)},
+    {"op": "delete", "item": item("nothing.txt")}, {"op": "list", "path": ""},
+]
+FTP_SERVERS = {"user": "user", "password": "pass", "dirs": ["/empty"], "ftp_files": FTP_FILES}
+FTP_REMOTE = dict(FTP_ACCOUNT, SubFolderPath="", HttpHomePath="files.example.com/~me")
+remote_case("remote-ftp-browse", "ftp", FTP_BROWSE, FTP_SERVERS, FTP_REMOTE)
+remote_case("remote-ftp-mlsd", "ftp", FTP_BROWSE, dict(FTP_SERVERS, ftp_mlsd=True, ftp_greeting="220---------- Welcome to Pure-FTPd [privsep] [TLS] ----------\r\n"
+                                                                    "220 You will be disconnected after 15 minutes of inactivity."),
+            dict(FTP_REMOTE, Name=""))
+remote_case("remote-ftp-iis", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}, {"op": "has_children", "item": item("docs", True)}],
+            dict(FTP_SERVERS, ftp_windows_list=True, ftp_greeting="220 Microsoft FTP Service", ftp_syst="215 Windows_NT"), FTP_REMOTE)
+remote_case("remote-ftp-listing-formats", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "win"}, {"op": "list", "path": "odd"}],
+            dict(FTP_SERVERS, ftp_listings={
+                "/": ["total 12",
+                      "drwxr-xr-x    2 1000     1000         4096 Mar 04  2025 dir one",
+                      "-rw-r--r--    1 1000     1000       123456 Jan 15 10:30 recent.txt",
+                      "-rw-r--r--    1 owner    group         7 Dec  1  1999 old.txt",
+                      "lrwxrwxrwx    1 1000     1000           11 Feb 02  2024 link -> target/file",
+                      "-rw-r--r--    1 ftp      ftp      1.234.567 Jul 07 07:07 dotted size.bin",
+                      "drwxr-xr-x    3 user     group        4096 May 31 23:59 .",
+                      "drwxr-xr-x    3 user     group        4096 May 31 23:59 ..",
+                      "-rw-r--r--   1 user  group  9  Aug  9  2021  spaced   name .txt",
+                      "crw-rw-rw-    1 0        0          1, 3 Mar 04  2025 null",
+                      "-rw-r--r-- 1 0 0 5 2025-03-04 05:06 iso.txt"],
+                "/win": ["03-04-25  05:06AM       <DIR>          Folder A",
+                         "12-31-1999  11:59PM              1,234 old file.txt",
+                         "2025-03-04  17:06            5 iso time.txt"],
+                "/odd": ["été.txt", "garbage line", "-rwxr-xr-x 1 u g 10 Mar 4 2025 x"]}), FTP_REMOTE)
+remote_case("remote-ftp-upload-disabled", "ftp", [{"op": "upload", "dir": "", "name": "x.txt", "content_base64": b64(b"x")},
+                                                  {"op": "list", "path": "docs"}], FTP_SERVERS, FTP_REMOTE, allow_upload=False)
+remote_case("remote-ftps-explicit", "ftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")},
+                                            {"op": "upload", "dir": "docs", "name": "up.bin", "content_base64": b64(b"up")}],
+            FTP_SERVERS, dict(FTP_REMOTE, Protocol="FTPS", Port=MOCK + 2, FTPSEncryption="Explicit"))
+remote_case("remote-ftp-active", "ftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/sub/deep.bin")}],
+            FTP_SERVERS, dict(FTP_REMOTE, IsActive=True))
+remote_case("remote-ftp-login-failed", "ftp", [{"op": "list", "path": ""}, {"op": "download", "item": item("top.png")}],
+            FTP_SERVERS, dict(FTP_REMOTE, Password="wrong"))
+remote_case("remote-ftp-sftp-account", "ftp", [], FTP_SERVERS, dict(FTP_REMOTE, Protocol="SFTP"))
+DELETE_TREE = [{"op": "create_folder", "dir": "docs/sub", "name": "deeper"}, {"op": "delete", "item": item("docs", True)},
+               {"op": "list", "path": ""}]
+remote_case("remote-ftp-pureftpd-recursive", "ftp", DELETE_TREE,
+            dict(FTP_SERVERS, ftp_greeting="220---------- Welcome to Pure-FTPd [privsep] [TLS] ----------\r\n220 Local time is now 10:00."),
+            FTP_REMOTE)
+remote_case("remote-ftp-proftpd-site", "ftp", DELETE_TREE + [{"op": "create_folder", "dir": "new/deep", "name": "x"}],
+            dict(FTP_SERVERS, ftp_greeting="220 ProFTPD Server (ProFTPD Default Installation) [127.0.0.1]",
+                 ftp_features=["SITE MKDIR", "SITE RMDIR"]), FTP_REMOTE)
+remote_case("remote-ftp-servu-rmda", "ftp", DELETE_TREE,
+            dict(FTP_SERVERS, ftp_greeting="220 Serv-U FTP Server v15.4 ready...", ftp_features=["RMDA directoryname"]), FTP_REMOTE)
+remote_case("remote-ftp-no-utf8", "ftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}],
+            dict(FTP_SERVERS, ftp_utf8=False, ftp_files=dict(FTP_FILES, **{"/docs/été.txt": b64(b"e")})), FTP_REMOTE)
+remote_case("remote-ftp-vms", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 VMS OpenVMS-like", ftp_listings={"/": [
+                "Directory DISK$USER:[USER]", "",
+                "FILE.TXT;1           2/4      14-JUN-2004 10:27:08  [GROUP,OWNER]  (RWED,RWED,RE,)",
+                "SUBDIR.DIR;1         1/1       1-JAN-2025 00:00:00  [GROUP,OWNER]  (RWE,RWE,RE,E)",
+                "BIG.DAT;3          123      31-DEC-1999 23:59:59  [OWNER]        (RWED,RWED,,)",
+                "Total of 3 files, 126/129 blocks."]}), FTP_REMOTE)
+remote_case("remote-ftp-nonstop", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 NONSTOP Type: L8", ftp_listings={"/": [
+                "File         Code             EOF  Last Modification    Owner  RWEP",
+                "TEST        101             807 11-Aug-25 13:56:09 255,255 \"nnnn\"",
+                "OTHER       0             12345 1-Jan-99 00:00:00 1,2 \"oooo\""]}), FTP_REMOTE)
+remote_case("remote-ftp-os400", "ftp", [{"op": "list", "path": ""}],
+            dict(FTP_SERVERS, ftp_syst="215 UNKNOWN", ftp_listings={"/": [
+                "QSYS            77824 02/23/00 15:09:55 *DIR       QDOC/",
+                "QSYS            12288 23/02/00 15:09:55 *STMF      a file.txt",
+                "QPGMR               0 01/01/24 00:00:00 *FILE      MYLIB.FILE/",
+                "QPGMR                                   *MEM       MYLIB.FILE/MBR.MBR"]}), FTP_REMOTE)
+SFTP_FILES = {"/home/user" + k: v for k, v in FTP_FILES.items()}
+SFTP_SERVERS = {"user": "user", "password": "pass", "dirs": ["/home/user/empty"], "sftp_files": SFTP_FILES}
+SFTP_REMOTE = dict(SFTP_ACCOUNT, SubFolderPath="", HttpHomePath="files.example.com/~me")
+SFTP_BROWSE = [s for s in FTP_BROWSE if s["op"] != "upload" or s["dir"] == "docs"] + [
+    {"op": "upload", "dir": "missing", "name": "x.txt", "content_base64": b64(b"x")},
+    {"op": "upload", "dir": "", "name": "big.bin", "content_base64": b64(bytes(range(256)) * 300)},
+    {"op": "download", "item": item("big.bin")}, {"op": "rename", "item": item("empty", True), "name": "made"},
+    {"op": "rename", "item": item("made", True), "name": "renamed"}, {"op": "delete", "item": item("renamed", True)}]
+remote_case("remote-sftp-browse", "sftp", SFTP_BROWSE, SFTP_SERVERS, SFTP_REMOTE)
+remote_case("remote-sftp-no-credentials", "sftp", [{"op": "list", "path": ""}, {"op": "delete", "item": item("docs", True)}],
+            SFTP_SERVERS, dict(SFTP_REMOTE, Password=""))
+remote_case("remote-sftp-wrong-password", "sftp", [{"op": "list", "path": ""}, {"op": "list", "path": "docs"}],
+            SFTP_SERVERS, dict(SFTP_REMOTE, Password="nope"))
+remote_case("remote-sftp-key", "sftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")}],
+            dict(SFTP_SERVERS, authorized_key=pub("sftp_test_ed25519")), dict(SFTP_REMOTE, Password="", Keypath=KEYS + "sftp_test_ed25519"))
+remote_case("remote-sftp-failures", "sftp", [{"op": "list", "path": "docs"}, {"op": "download", "item": item("docs/a.txt")},
+                                             {"op": "delete", "item": item("docs/a.txt")}, {"op": "create_folder", "dir": "docs", "name": "n"}],
+            dict(SFTP_SERVERS, sftp_fail_once=[["OPENDIR", 3, "Permission denied"], ["OPEN", 4, "Failure"], ["REMOVE", 3, "Permission denied"],
+                                               ["MKDIR", 4, "Failure"]]), SFTP_REMOTE)
+
+
+def s3_list(contents=(), prefixes=(), truncated=False, token=None):
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>made-up-bucket</Name>'
+    body += f"<IsTruncated>{'true' if truncated else 'false'}</IsTruncated>"
+    if token:
+        body += f"<NextContinuationToken>{token}</NextContinuationToken>"
+    for key, size, date in contents:
+        body += f"<Contents><Key>{key}</Key><LastModified>{date}</LastModified><ETag>&quot;e&quot;</ETag><Size>{size}</Size>" \
+                "<StorageClass>STANDARD</StorageClass></Contents>"
+    for p in prefixes:
+        body += f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>"
+    return resp(body + "</ListBucketResult>", headers=XML)
+
+
+S3_DATE = "2025-03-04T05:06:07.000Z"
+S3_NO_CONTENT = resp("", 204, headers=[])
+S3_COPIED = resp('<?xml version="1.0" encoding="UTF-8"?><CopyObjectResult><LastModified>2025-03-04T05:06:07.000Z</LastModified>'
+                 '<ETag>"e"</ETag></CopyObjectResult>', headers=XML)
+S3_REMOTE = dict(S3, ObjectPrefix="")
+remote_case("remote-s3-browse", "s3", [
+    {"op": "display_path", "path": ""}, {"op": "display_path", "path": "a\\b/c"}, {"op": "parent_path", "path": ""},
+    {"op": "parent_path", "path": "a/"}, {"op": "parent_path", "path": "/a/b/"}, {"op": "parent_path", "path": "a/b.txt"},
+    {"op": "list", "path": ""}, {"op": "list", "path": "docs/"}, {"op": "has_children", "item": item("docs/", True)},
+    {"op": "has_children", "item": item("empty/", True)}, {"op": "has_children", "item": item("top.png")},
+    {"op": "download", "item": item("docs/a.txt")}, {"op": "download", "item": item("missing.txt")},
+    {"op": "url", "item": item("docs/a b+c.txt")}, {"op": "url", "item": item("docs/", True)},
+    {"op": "upload", "dir": "docs", "name": "new file.bin", "content_base64": b64(bytes(range(200)))},
+    {"op": "create_folder", "dir": "", "name": "made"}, {"op": "create_folder", "dir": "docs", "name": "a/b"},
+    {"op": "rename", "item": item("docs/a.txt"), "name": "b.txt"}, {"op": "rename", "item": item("docs/", True), "name": "renamed"},
+    {"op": "delete", "item": item("top.png")}, {"op": "delete", "item": item("renamed/", True)},
+    {"op": "list", "path": "denied"}, {"op": "rename", "item": item("x.txt"), "name": "y.txt"},
+], s3=S3_REMOTE, responses=[
+    s3_list([("top.png", 768, S3_DATE), ("Zeta.txt", 1, S3_DATE), ("folder/", 0, S3_DATE), ("my+doc.txt", 3, "2025-03-04T05:06:07Z")],
+            ["docs/", "empty/", "folder/"], True, "tok/1+="),
+    s3_list([("alpha.txt", 0, S3_DATE), ("%C3%A9t%C3%A9.txt", 4, S3_DATE)]),
+    s3_list([("docs/", 0, S3_DATE), ("docs/a.txt", 5, S3_DATE), ("docs/a%20b.txt", 7, "not a date")], ["docs/sub/"]),
+    s3_list([("docs/", 0, S3_DATE), ("docs/a.txt", 5, S3_DATE)]),
+    s3_list([("empty/", 0, S3_DATE)]),
+    resp("hello", headers=[["Content-Type", "text/plain"]]),
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>',
+         404, XML),
+    resp("", headers=[]), resp("", headers=[]),
+    S3_COPIED, S3_NO_CONTENT,
+    s3_list([("docs/", 0, S3_DATE), ("docs/b.txt", 5, S3_DATE), ("docs/sub/x.bin", 9, S3_DATE)]),
+    S3_COPIED, S3_COPIED, S3_COPIED, S3_NO_CONTENT, S3_NO_CONTENT, S3_NO_CONTENT,
+    S3_NO_CONTENT,
+    s3_list([("renamed/", 0, S3_DATE), ("renamed/b.txt", 5, S3_DATE)]), S3_NO_CONTENT, S3_NO_CONTENT,
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>', 403, XML),
+    resp('<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code></Error>', headers=XML),
+])
+remote_case("remote-s3-path-style-errors", "s3", [
+    {"op": "list", "path": ""}, {"op": "rename", "item": item("a.txt"), "name": "b.txt"},
+    {"op": "upload", "dir": "", "name": "c.txt", "content_base64": b64(b"c")}, {"op": "delete", "item": item("d/", True)},
+    {"op": "list", "path": "truncated"},
+], s3=dict(S3_REMOTE, Bucket="made.up.bucket", Endpoint="https://minio.example.com/", Region="eu-central-1", SignedPayload=True,
+           UseCustomCNAME=True, CustomDomain="cdn.example.com"), responses=[
+    resp("not xml", headers=XML),
+    S3_COPIED, resp("", 500, headers=[]), S3_NO_CONTENT,
+    resp("", 503, headers=[]),
+    s3_list([("d/", 0, S3_DATE), ("d/x", 1, S3_DATE)]), S3_NO_CONTENT, resp("<Error/>", 403, XML),
+    s3_list([("t/a", 1, S3_DATE)], truncated=True),
+], allow_upload=True)
+remote_case("remote-s3-upload-disabled", "s3", [{"op": "upload", "dir": "", "name": "c.txt", "content_base64": b64(b"c")}],
+            s3=S3_REMOTE, allow_upload=False)
+remote_case("remote-ftp-sanitize", "ftp", [{"op": "list", "path": "a%20b"}, {"op": "list", "path": "x;y"}, {"op": "list", "path": "../etc"},
+                                           {"op": "download", "item": item("docs/../top.png")}], FTP_SERVERS, FTP_REMOTE)
+
+# ---------------------------------------------------------------------------
+# Destination settings' pickers: Imgur's albums ("Refresh albums") and an
+# album's images, MEGA's folder tree.
+
+
+def listing_case(id, service, steps, responses, **extra):
+    c = {"id": id, "kind": "listing", "service": service, "steps": steps, "responses": responses}
+    c.update(extra)
+    cases.append(c)
+
+
+def imgur_ok(data):
+    return resp(json.dumps({"data": data, "success": True, "status": 200}))
+
+
+ALBUM_A = {"id": "abc12", "title": "Shots", "description": None, "datetime": 1700000000, "cover": "cov1", "cover_width": 640,
+           "cover_height": "480", "account_url": "someone", "account_id": 12345, "privacy": "hidden", "layout": "blog", "views": 7,
+           "link": "https://imgur.com/a/abc12", "favorite": False, "nsfw": None, "section": None, "order": 0, "deletehash": "dh1",
+           "images_count": 2, "in_gallery": False, "is_ad": False}
+ALBUM_B = dict(ALBUM_A, id="def34", title="Café \"quoted\" <b>", datetime="1700000001", favorite="true", nsfw=True, order=3,
+               images=[{"id": "img1", "title": None, "datetime": 1700000002, "type": "image/png", "animated": False, "width": 10,
+                        "height": 20, "size": 300, "views": 0, "bandwidth": 12345678901, "link": "https://i.imgur.com/img1.png",
+                        "nsfw": None, "vote": None}])
+ALBUM_C = dict(ALBUM_A, id="ghi56", title="2024-01-02T03:04:05Z", account_id=None, description="x\ny")
+listing_case("listing-imgur-albums", "imgur", [{"op": "albums", "max_page": 3, "per_page": 2}, {"op": "albums"},
+                                               {"op": "album_images", "album_id": "def34"}],
+             [imgur_ok([ALBUM_A, ALBUM_B]), imgur_ok([ALBUM_C]), imgur_ok([]), imgur_ok(ALBUM_B["images"] * 2)], oauth2=oauth2())
+listing_case("listing-imgur-refresh-and-errors", "imgur", [{"op": "albums"}, {"op": "album_images", "album_id": "zz"},
+                                                           {"op": "albums"}, {"op": "album_images", "album_id": "yy"}],
+             [resp(json.dumps({"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 2419200,
+                               "token_type": "bearer"})),
+              resp(json.dumps({"data": {"error": "Unauthorized", "request": "/3/account/me/albums", "method": "GET"}, "success": False,
+                               "status": 403})),
+              resp(json.dumps({"data": {"error": {"code": 1003, "message": "Album not found", "type": "Exception"}, "request": "/3/album/zz/images",
+                               "method": "GET"}, "success": False, "status": 404}), 404),
+              imgur_ok({"not": "an array"}),
+              resp("<html>bad gateway</html>", 502, [["Content-Type", "text/html"]])],
+             oauth2=dict(oauth2(), Token=dict(oauth2()["Token"], ExpireDate=PAST)))
+listing_case("listing-imgur-not-signed-in", "imgur", [{"op": "albums"}], [], oauth2=dict(oauth2(), Token=None))
+
+
+def aes_cbc(data, key):
+    return subprocess.run(["openssl", "enc", "-aes-128-cbc", "-nopad", "-K", key.hex(), "-iv", "00" * 16], input=data,
+                          capture_output=True, check=True).stdout
+
+
+def mega_folder(handle, parent, name, key_byte, owner="u1"):
+    key = bytes([key_byte]) * 16
+    attrs = ("MEGA" + json.dumps({"n": name}, ensure_ascii=False, separators=(",", ":"))).encode("utf-8")
+    attrs += b"\0" * ((-len(attrs)) % 16)
+    return {"h": handle, "p": parent, "t": 1, "a": b64url(aes_cbc(attrs, key)), "k": f"{owner}:{b64url(aes_ecb(key, MEGA_MASTER))}",
+            "ts": 1700000000}
+
+
+MEGA_NODES = {"f": [
+    {"h": "ROOT1", "t": 2}, {"h": "INBOX", "t": 3}, {"h": "BIN", "t": 4},
+    mega_folder("F1", "ROOT1", "zeta shots", 1), mega_folder("F2", "ROOT1", "Alpha", 2), mega_folder("F3", "ROOT1", "été \U0001F600", 3),
+    dict(mega_folder("F4", "ROOT1", "bad key", 4), k="u1:notbase64!!/u2:" + b64url(aes_ecb(bytes([4]) * 16, MEGA_MASTER))),
+    dict(mega_folder("F5", "ROOT1", "no attributes", 5), a=""), mega_folder("F6", "F1", "inside zeta", 6),
+    dict(mega_folder("F7", "ROOT1", "wrong key", 7), k="u1:" + b64url(bytes(16))), mega_folder("", "ROOT1", "no handle", 8),
+    {"h": "FILE1", "p": "ROOT1", "t": 0, "a": "x", "k": "y"},
+]}
+listing_case("listing-mega-folders", "mega", [{"parent": None}, {"parent": {"id": "F1", "name": "zeta shots"}}, {"parent": None},
+                                              {"parent": {"id": "", "name": ""}}],
+             [resp(json.dumps([MEGA_NODES])), resp(json.dumps([MEGA_NODES])), resp("[-15]"),
+              resp(json.dumps([{"f": [{"h": "INBOX", "t": 3}]}]))],
+             session_id="made-up-session-id", master_key=b64url(MEGA_MASTER))
+listing_case("listing-mega-not-logged-in", "mega", [{"parent": None}], [], session_id="", master_key=b64url(MEGA_MASTER))
 
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "cases.json"), "w", encoding="utf-8", newline="\n") as f:

@@ -272,6 +272,18 @@ impl SftpClient {
         Self::status(&p)
     }
 
+    /// `READ`: the data, or `None` at the end of the file.
+    pub fn read(&mut self, handle: &[u8], offset: u64, len: u32) -> SftpResult<Option<Vec<u8>>> {
+        let p = self.request(FXP_READ, Writer::default().bytes(handle).u64(offset).u32(len))?;
+        if p.first() == Some(&FXP_STATUS) {
+            return match Self::status(&p) {
+                Err(SftpError::Status(FX_EOF, _)) | Ok(()) => Ok(None),
+                Err(e) => Err(e),
+            };
+        }
+        Ok(Some(Self::expect(&p, FXP_DATA)?.bytes()?.to_vec()))
+    }
+
     /// `CLOSE`.
     pub fn close_handle(&mut self, handle: &[u8]) -> SftpResult<()> {
         let id = self.send_request(FXP_CLOSE, Writer::default().bytes(handle))?;
@@ -300,6 +312,38 @@ impl SftpClient {
     pub fn rename(&mut self, from: &str, to: &str) -> SftpResult<()> {
         let id = self.send_request(FXP_RENAME, Writer::default().string(from).string(to))?;
         self.read_status(id)
+    }
+
+    /// `OPENDIR`: the handle.
+    pub fn opendir(&mut self, path: &str) -> SftpResult<Vec<u8>> {
+        let p = self.request(FXP_OPENDIR, Writer::default().string(path))?;
+        Ok(Self::expect(&p, FXP_HANDLE)?.bytes()?.to_vec())
+    }
+
+    /// `READDIR`: a batch of entries, `None` at the end.
+    pub fn readdir(&mut self, handle: &[u8]) -> SftpResult<Option<Vec<DirEntry>>> {
+        let p = self.request(FXP_READDIR, Writer::default().bytes(handle))?;
+        if p.first() == Some(&FXP_STATUS) {
+            return match Self::status(&p) {
+                Err(SftpError::Status(FX_EOF, _)) | Ok(()) => Ok(None),
+                Err(e) => Err(e),
+            };
+        }
+        let mut r = Self::expect(&p, FXP_NAME)?;
+        let n = r.u32()?;
+        let mut entries = Vec::new();
+        for _ in 0..n {
+            let name = r.string()?;
+            r.string()?;
+            entries.push(DirEntry { name, attrs: Attrs::read(&mut r)? });
+        }
+        Ok(Some(entries))
+    }
+
+    /// `FSTAT`.
+    pub fn fstat(&mut self, handle: &[u8]) -> SftpResult<Attrs> {
+        let p = self.request(FXP_FSTAT, Writer::default().bytes(handle))?;
+        Ok(Attrs::read(&mut Self::expect(&p, FXP_ATTRS)?)?)
     }
 
     /// `OPENDIR` + `READDIR` until EOF + `CLOSE`.
