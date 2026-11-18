@@ -30,6 +30,11 @@ pub struct SftpMockConfig {
     pub fail_once: Vec<(String, (u32, String))>,
     /// Files there at the start, by absolute path.
     pub files: Vec<(String, Vec<u8>)>,
+    /// The key exchanges, ciphers and MACs offered (all when empty); the
+    /// log then names what was chosen (`kex <kex> <cipher> <mac>`).
+    pub kex: Vec<String>,
+    pub ciphers: Vec<String>,
+    pub macs: Vec<String>,
 }
 
 impl Default for SftpMockConfig {
@@ -42,6 +47,9 @@ impl Default for SftpMockConfig {
             dirs: Vec::new(),
             fail_once: Vec::new(),
             files: Vec::new(),
+            kex: Vec::new(),
+            ciphers: Vec::new(),
+            macs: Vec::new(),
         }
     }
 }
@@ -49,7 +57,8 @@ impl Default for SftpMockConfig {
 impl SftpMockConfig {
     /// The settings from a harness case's `servers` object: `user`,
     /// `password`, `authorized_key`, `home`, `dirs`, `sftp_fail_once`
-    /// (`[[prefix, code, message]]`), `sftp_files` (`{path: base64}`).
+    /// (`[[prefix, code, message]]`), `sftp_files` (`{path: base64}`),
+    /// `sftp_kex`, `sftp_ciphers`, `sftp_macs` (the algorithms offered).
     pub fn from_spec(v: &serde_json::Value) -> Self {
         use base64::Engine;
         Self {
@@ -68,8 +77,15 @@ impl SftpMockConfig {
                     o.iter().map(|(k, b)| (k.clone(), base64::engine::general_purpose::STANDARD.decode(b.as_str().unwrap_or("")).unwrap_or_default())).collect()
                 })
                 .unwrap_or_default(),
+            kex: list(&v["sftp_kex"]),
+            ciphers: list(&v["sftp_ciphers"]),
+            macs: list(&v["sftp_macs"]),
         }
     }
+}
+
+fn list(v: &serde_json::Value) -> Vec<String> {
+    v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect()).unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -211,7 +227,22 @@ impl Session {
     fn run(&self, stream: TcpStream) -> SshResult<()> {
         stream.set_read_timeout(Some(Duration::from_secs(30)))?;
         self.log("connect");
-        let mut t = Transport::accept(stream, "SSH-2.0-OpenSSH_9.6 ShareXrs-mock", &mock_host_key())?;
+        let mut algorithms = Algorithms::server();
+        let configured = !self.config.kex.is_empty() || !self.config.ciphers.is_empty() || !self.config.macs.is_empty();
+        if !self.config.kex.is_empty() {
+            algorithms.kex = self.config.kex.clone();
+        }
+        if !self.config.ciphers.is_empty() {
+            algorithms.ciphers = self.config.ciphers.clone();
+        }
+        if !self.config.macs.is_empty() {
+            algorithms.macs = self.config.macs.clone();
+        }
+        let mut t = Transport::accept_with(stream, "SSH-2.0-OpenSSH_9.6 ShareXrs-mock", &mock_host_key(), &algorithms)?;
+        if configured {
+            let n = &t.negotiated;
+            self.log(format!("kex {} {} {}", n[0], n[2], n[3]));
+        }
         // Authentication.
         let p = t.recv()?;
         if p.first() != Some(&MSG_SERVICE_REQUEST) {

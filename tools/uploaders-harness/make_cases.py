@@ -817,7 +817,18 @@ ftp_case("sftp-mkdir-denied", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": [], "sftp_fail_once": [["MKDIR /home/user/shots", 3, "Permission denied"]]})
 ftp_case("sftp-open-failure", [SFTP_ACCOUNT], BIN_PNG,
          {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_fail_once": [["OPEN", 4, "Failure"]]})
-ftp_case("sftp-absolute", [dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
+for kex in ["ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521", "diffie-hellman-group-exchange-sha256",
+            "diffie-hellman-group16-sha512", "diffie-hellman-group18-sha512", "diffie-hellman-group14-sha256",
+            "diffie-hellman-group-exchange-sha1", "diffie-hellman-group14-sha1", "diffie-hellman-group1-sha1"]:
+    ftp_case("sftp-kex-" + kex.replace("diffie-hellman-", "dh-"), [SFTP_ACCOUNT], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_kex": [kex]})
+for cipher, mac in [("aes128-cbc", "hmac-sha1"), ("aes256-cbc", "hmac-sha2-512"), ("3des-cbc", "hmac-sha1"),
+                    ("aes256-ctr", "hmac-sha2-256-etm@openssh.com"), ("aes192-cbc", "hmac-sha1-etm@openssh.com"),
+                    ("aes128-ctr", "hmac-sha2-512-etm@openssh.com")]:
+    ftp_case(f"sftp-cipher-{cipher}-{mac.replace('@openssh.com', '')}", [SFTP_ACCOUNT], BIN_PNG,
+             {"user": "user", "password": "pass", "dirs": ["/home/user/shots/sub"], "sftp_kex": ["diffie-hellman-group14-sha256"],
+              "sftp_ciphers": [cipher], "sftp_macs": [mac]})
+ftp_case("sftp-absolute",[dict(SFTP_ACCOUNT, SubFolderPath="/srv/up", HttpHomePath="", BrowserProtocol="sftp")], image_input("é b.png"),
          {"user": "user", "password": "pass", "dirs": ["/srv"]})
 
 # Email (SMTP with STARTTLS, automatic send: no window).

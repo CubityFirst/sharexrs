@@ -30,6 +30,7 @@ pub mod result;
 pub mod sftp;
 pub mod signin;
 pub mod ssh;
+pub mod ssh_kex;
 #[doc(hidden)]
 pub mod testing;
 pub mod uploader;
