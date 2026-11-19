@@ -53,6 +53,16 @@ impl Gpu {
             label: Some("sharexrs"),
             // As large as the hardware allows, for very wide monitors.
             required_limits: adapter.limits(),
+            // wgpu's default (`Performance`) reserves its memory in blocks of
+            // 128 MB of video memory and 64 MB of upload memory (DX12 and
+            // Vulkan), both mapped into the process: 192 MB of GPU memory
+            // and private bytes for the ~50 MB of textures a ShareXrs window
+            // set uses. `MemoryUsage` starts at 8 and 4 MB and doubles each
+            // new block (8, 16, 32...: ~2x what's used). Blocks of 4 MB
+            // (gpu-allocator's least) hold the small textures and buffers;
+            // anything larger (a frozen screen, its upload) gets a block of
+            // its own size, freed with it.
+            memory_hints: wgpu::MemoryHints::Manual { suballocated_device_memory_block_size: 4 << 20..4 << 20 },
             ..Default::default()
         }))
         .map_err(|e| format!("failed to open graphics device: {e}"))?;
