@@ -3,12 +3,39 @@
 //! (`OpenFolderWithFile`) and deleting it to the recycle bin (`DeleteFile`).
 
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+/// Shows a message box with this text (the app's, set at startup).
+pub type MessageHook = Arc<dyn Fn(String) + Send + Sync>;
+
+static FILE_NOT_EXIST: Mutex<Option<MessageHook>> = Mutex::new(None);
+
+/// Where `OpenFile` and `OpenFolderWithFile` show their "File does not
+/// exist" message box (none: it's only logged).
+pub fn set_file_not_exist_hook(hook: Option<MessageHook>) {
+    *FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()) = hook;
+}
+
+/// `Helpers_OpenFile_File_not_exist_ + Environment.NewLine + filePath`.
+pub fn file_not_exist_text(path: &Path) -> String {
+    let newline = if cfg!(windows) { "\r\n" } else { "\n" };
+    format!("{}{newline}{}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display())
+}
+
+/// `MessageBox.Show(…File_not_exist_…, "ShareX", OK, Information)`.
+fn file_not_exist(path: &Path) {
+    let text = file_not_exist_text(path);
+    eprintln!("{text}");
+    let hook = FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some(hook) = hook {
+        hook(text);
+    }
+}
 
 /// `FileHelpers.OpenFile`: `Process.Start` with `UseShellExecute`.
 pub fn open_file(path: &Path) -> bool {
-    if !path.is_file() {
-        // ShareX says so in a message box (`Helpers_OpenFile_File_not_exist_`).
-        eprintln!("{} {}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display());
+    if path.as_os_str().is_empty() || !path.is_file() {
+        file_not_exist(path);
         return false;
     }
     match shell_open(path) {
@@ -38,7 +65,8 @@ pub fn open_url(url: &str) -> bool {
 /// `FileHelpers.OpenFolderWithFile`: the folder, with the file selected
 /// (`NativeMethods.OpenFolderAndSelectFile`).
 pub fn open_folder_with_file(path: &Path) -> bool {
-    if !path.is_file() {
+    if path.as_os_str().is_empty() || !path.is_file() {
+        file_not_exist(path);
         return false;
     }
     match select_in_folder(path) {
@@ -275,4 +303,25 @@ pub fn file_thumbnail(path: &Path, width: u32, height: u32) -> Option<image::Rgb
 #[cfg(not(windows))]
 pub fn file_thumbnail(_path: &Path, _width: u32, _height: u32) -> Option<image::RgbaImage> {
     None
+}
+
+#[cfg(test)]
+mod not_exist_tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_file_shows_the_message_box() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s = seen.clone();
+        set_file_not_exist_hook(Some(Arc::new(move |t: String| s.lock().unwrap().push(t))));
+        let missing = std::env::temp_dir().join("sharexrs-no-such-file-4f2a.png");
+        assert!(!open_file(&missing));
+        assert!(!open_folder_with_file(&missing));
+        set_file_not_exist_hook(None);
+        let seen = seen.lock().unwrap();
+        let expected = file_not_exist_text(&missing);
+        assert!(expected.starts_with(sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_()));
+        assert!(expected.ends_with(&missing.display().to_string()));
+        assert_eq!(seen.iter().filter(|t| **t == expected).count(), 2);
+    }
 }
