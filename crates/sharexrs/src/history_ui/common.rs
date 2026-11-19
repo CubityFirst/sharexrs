@@ -203,6 +203,174 @@ pub fn search_box(ui: &mut Ui, rect: Rect, id: Id, text: &mut String) -> bool {
     *text != before
 }
 
+/// The search box's suggestions (`AutoCompleteBox` with the process names
+/// as `ItemsSource`, `FilterMode="ContainsOrdinal"`), as Avalonia 12.1.6
+/// lays its drop-down out with ShareX's theme (`tools/editor-harness
+/// --control-dump autocomplete`): a popup under the box, at least as wide,
+/// `#2B2B2B`/`#F2F2F2` with a black border at 0.36/0.14, corners 5, padding
+/// 0,2,0,2, at most 374 tall (`AutoCompleteListMaxHeight`); `ListBoxItem`s
+/// 39 tall, padded 12,9,12,12.
+///
+/// Typing filters the names (ordinal, case-sensitive `Contains`; at least
+/// one character) and opens the drop-down when some match. Up and Down go
+/// through them (past either end back to what was typed), the text box
+/// showing the one selected; Enter or a click commits it, Escape puts back
+/// what was typed; a press elsewhere closes it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Suggestions {
+    pub open: bool,
+    /// The names that match (`View`).
+    pub items: Vec<String>,
+    /// The keyboard's selection in `items`.
+    pub selected: Option<usize>,
+    /// `SearchText`: what was typed.
+    pub typed: String,
+    scroll: f32,
+}
+
+/// `AutoCompleteListMaxHeight`.
+const SUGGESTIONS_MAX_HEIGHT: f32 = 374.0;
+const SUGGESTION_HEIGHT: f32 = 39.0;
+
+impl Suggestions {
+    /// The text was typed (`OnTextBoxTextChanged`, user initiated): filter
+    /// the names and open the drop-down if any match.
+    pub fn typed(&mut self, text: &str, names: &[String]) {
+        self.typed = text.to_owned();
+        self.selected = None;
+        self.scroll = 0.0;
+        self.items = if text.is_empty() { Vec::new() } else { names.iter().filter(|n| n.contains(text)).cloned().collect() };
+        self.open = !self.items.is_empty();
+    }
+
+    /// Up/Down, Enter and Escape while it's open; returns whether `text`
+    /// changed. The keys are taken from egui's input.
+    pub fn keys(&mut self, ui: &Ui, text: &mut String) -> bool {
+        if !self.open {
+            return false;
+        }
+        let before = text.clone();
+        let n = self.items.len() as i32;
+        for (key, pressed) in [egui::Key::ArrowDown, egui::Key::ArrowUp, egui::Key::Enter, egui::Key::Escape]
+            .map(|k| (k, ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, k))))
+        {
+            if !pressed {
+                continue;
+            }
+            match key {
+                // `SelectedIndexIncrement` / `Decrement`: past the ends, none.
+                egui::Key::ArrowDown => {
+                    let i = self.selected.map_or(0, |s| s as i32 + 1);
+                    self.selected = (i < n).then_some(i as usize);
+                }
+                egui::Key::ArrowUp => {
+                    let i = self.selected.map_or(n - 1, |s| s as i32 - 1);
+                    self.selected = (i >= 0).then_some(i as usize);
+                }
+                egui::Key::Enter => {
+                    self.open = false;
+                    continue;
+                }
+                _ => {
+                    // `OnAdapterSelectionCanceled`.
+                    *text = self.typed.clone();
+                    self.open = false;
+                    continue;
+                }
+            }
+            *text = self.selected.and_then(|i| self.items.get(i).cloned()).unwrap_or_else(|| self.typed.clone());
+            self.scroll_to_selected();
+        }
+        *text != before
+    }
+
+    fn scroll_to_selected(&mut self) {
+        let Some(i) = self.selected else { return };
+        let visible = SUGGESTIONS_MAX_HEIGHT - 6.0;
+        let top = i as f32 * SUGGESTION_HEIGHT;
+        if top < self.scroll {
+            self.scroll = top;
+        } else if top + SUGGESTION_HEIGHT > self.scroll + visible {
+            self.scroll = top + SUGGESTION_HEIGHT - visible;
+        }
+    }
+
+    /// The drop-down's rect under the search box `anchor`.
+    pub fn rect(&self, ui: &Ui, anchor: Rect) -> Rect {
+        let f = font(13.0, 400);
+        let text_w = self.items.iter().map(|t| text_width(ui, t, f.clone())).fold(0.0f32, f32::max);
+        let w = anchor.width().max(text_w + 24.0);
+        let h = (6.0 + SUGGESTION_HEIGHT * self.items.len() as f32).min(SUGGESTIONS_MAX_HEIGHT);
+        Rect::from_min_size(pos2(anchor.min.x, anchor.max.y), vec2(w, h))
+    }
+
+    /// Draws the drop-down; a click on a name commits it into `text`.
+    /// Returns whether `text` changed.
+    pub fn show(&mut self, ui: &mut Ui, id: Id, anchor: Rect, text: &mut String) -> bool {
+        if !self.open {
+            return false;
+        }
+        let r = self.rect(ui, anchor);
+        let dark = ui.ctx().theme() == egui::Theme::Dark;
+        let p = palette(ui.ctx());
+        let layer = egui::LayerId::new(egui::Order::Foreground, id);
+        let painter = ui.ctx().layer_painter(layer);
+        // The popup takes the pointer from the window under it.
+        let blocker = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(r));
+        let _ = blocker.interact(r, id.with("block"), egui::Sense::click());
+        border::border(&painter, r, 5.0, 1.0, Some(Brush::Solid(sharex_ui::tooltip::background(dark))), Some(sharex_ui::tooltip::border_color(dark)));
+        let list = Rect::from_min_max(pos2(r.min.x + 1.0, r.min.y + 3.0), pos2(r.max.x - 1.0, r.max.y - 3.0));
+        let content_h = SUGGESTION_HEIGHT * self.items.len() as f32;
+        let (pointer, pressed, released, wheel) =
+            ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_pressed(), i.pointer.primary_released(), i.smooth_scroll_delta.y));
+        if pointer.is_some_and(|p| r.contains(p)) {
+            self.scroll = (self.scroll - wheel).clamp(0.0, (content_h - list.height()).max(0.0));
+        }
+        let clip = painter.with_clip_rect(list);
+        let f = font(13.0, 400);
+        let lh = line_height(ui, &f);
+        let mut clicked = None;
+        for (i, name) in self.items.iter().enumerate() {
+            // The `ListBox`'s -1,0,-1,0 margin puts the items on the border.
+            let item = Rect::from_min_size(pos2(r.min.x, list.min.y + i as f32 * SUGGESTION_HEIGHT - self.scroll), vec2(r.width(), SUGGESTION_HEIGHT));
+            if !item.intersects(list) {
+                continue;
+            }
+            let selected = self.selected == Some(i);
+            let hovered = pointer.is_some_and(|p| item.contains(p) && list.contains(p));
+            controls::list_item_background(&clip, item, 0.0, hovered, hovered && ui.input(|i| i.pointer.primary_down()), selected);
+            let color = if selected { p.accent_foreground } else { p.text_secondary };
+            let content = Rect::from_min_max(pos2(item.min.x + 12.0, item.min.y + 9.0), pos2(item.max.x - 12.0, item.max.y - 12.0));
+            clip.galley(pos2(content.min.x, center_y(content, lh)), galley(ui, name, f.clone(), color, content.width()), color);
+            if released && hovered {
+                clicked = Some(i);
+            }
+        }
+        if let Some(i) = clicked {
+            // `OnAdapterSelectionComplete`.
+            *text = self.items[i].clone();
+            self.open = false;
+            return true;
+        }
+        if pressed && pointer.is_some_and(|p| !r.contains(p) && !anchor.contains(p)) {
+            self.open = false;
+        }
+        false
+    }
+
+}
+
+/// [`search_box`] with its [`Suggestions`] drop-down: returns whether the
+/// text changed (typed, picked or put back).
+pub fn search_box_with_suggestions(ui: &mut Ui, rect: Rect, id: Id, text: &mut String, names: &[String], s: &mut Suggestions) -> bool {
+    let mut changed = s.keys(ui, text);
+    if search_box(ui, rect, id, text) {
+        s.typed(text, names);
+        changed = true;
+    }
+    changed | s.show(ui, id.with("suggestions"), rect, text)
+}
+
 /// A dialog card over `ShareX.Brush.Overlay.Modal`, centred in `full`:
 /// `width` wide (border box), `height` tall. Returns the content box
 /// (inside the 1px border and `Padding="18"`), drawn on a foreground layer.
@@ -891,6 +1059,24 @@ pub fn text_box_focused(ctx: &egui::Context) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn suggestions_filter_ordinally_and_open_when_something_matches() {
+        let names: Vec<String> = ["chrome", "Code", "explorer", "notepad"].iter().map(|s| s.to_string()).collect();
+        let mut s = Suggestions::default();
+        s.typed("o", &names);
+        assert!(s.open);
+        assert_eq!(s.items, ["chrome", "Code", "explorer", "notepad"]);
+        // Case-sensitive: "C" is only in "Code".
+        s.typed("C", &names);
+        assert_eq!(s.items, ["Code"]);
+        s.typed("x", &names);
+        assert_eq!(s.items, ["explorer"]);
+        s.typed("zz", &names);
+        assert!(!s.open);
+        s.typed("", &names);
+        assert!(!s.open && s.items.is_empty());
+    }
 
     #[test]
     fn a_drag_starts_five_pixels_away_and_only_while_pressed() {

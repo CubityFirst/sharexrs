@@ -135,6 +135,8 @@ pub struct HistoryWindow {
     date_flyout: Option<(usize, super::date_picker::DateFlyout)>,
     /// `--render ... --state date-flyout`: open the From picker's flyout.
     render_date_flyout: bool,
+    /// The search box's process name suggestions.
+    suggestions: common::Suggestions,
 }
 
 impl HistoryWindow {
@@ -178,6 +180,7 @@ impl HistoryWindow {
             drag: common::ListDrag::default(),
             date_flyout: None,
             render_date_flyout: false,
+            suggestions: common::Suggestions::default(),
             settings,
         }
     }
@@ -475,6 +478,12 @@ impl HistoryWindow {
                 self.search = o.text.clone().unwrap_or_default();
                 self.apply_filter();
             }
+            // The search box's drop-down after typing `--text`.
+            Some("suggestions") => {
+                self.search = o.text.clone().unwrap_or_default();
+                self.suggestions.typed(&self.search, &self.process_names);
+                self.apply_filter();
+            }
             Some("stats") => self.modal = Some(Modal::Stats(sharex_history::stats::output_stats(&self.items))),
             Some("import") => self.modal = Some(Modal::Import { folder: String::new(), images_only: false, skip_duplicates: true, status: String::new() }),
             Some("settings") => {
@@ -577,7 +586,7 @@ impl HistoryWindow {
         let y = rect.min.y + 8.0;
         let mut x = rect.min.x + 1.0 + 8.0;
         let search_rect = Rect::from_min_size(pos2(x, y), vec2(250.0, 40.0));
-        if live && common::search_box(ui, search_rect, Id::new("history-search"), &mut self.search) {
+        if live && common::search_box_with_suggestions(ui, search_rect, Id::new("history-search"), &mut self.search, &self.process_names, &mut self.suggestions) {
             if self.settings.remember_search_text {
                 self.settings.search_text = self.search.clone();
             }

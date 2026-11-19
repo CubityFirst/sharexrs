@@ -91,6 +91,8 @@ pub struct ImageHistoryWindow {
     placement: super::window_state::Tracker,
     /// Dragging the selected files out of the grid.
     drag: common::ListDrag,
+    /// The search box's process name suggestions.
+    suggestions: common::Suggestions,
 }
 
 impl ImageHistoryWindow {
@@ -124,6 +126,7 @@ impl ImageHistoryWindow {
             click_armed: false,
             placement: super::window_state::Tracker::new(&settings.window_state),
             drag: common::ListDrag::default(),
+            suggestions: common::Suggestions::default(),
             settings,
         }
     }
@@ -529,7 +532,12 @@ impl ImageHistoryWindow {
         let mut x = rect.min.x + 1.0 + 8.0;
         let search_rect = Rect::from_min_size(pos2(x, y), vec2(280.0, 40.0));
         let mut text = self.search.clone();
-        if common::search_box(ui, search_rect, Id::new("ih-search"), &mut text) && live {
+        let changed = if live {
+            common::search_box_with_suggestions(ui, search_rect, Id::new("ih-search"), &mut text, &self.process_names, &mut self.suggestions)
+        } else {
+            common::search_box(ui, search_rect, Id::new("ih-search"), &mut text)
+        };
+        if changed && live {
             self.search = text;
             if self.settings.remember_search_text {
                 self.settings.search_text = self.search.clone();
