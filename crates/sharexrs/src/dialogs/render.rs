@@ -389,7 +389,14 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             Box::new(w)
         }
         "qr-code" => {
-            let mut w = super::qr_code::QrCodeWindow::new(Some(o.text.clone().unwrap_or_default()));
+            // `--state scan --image <file>`: the file's codes, as
+            // `-QRCode <file>` opens it.
+            let mut w = super::qr_code::QrCodeWindow::with_text(o.text.clone().unwrap_or_default());
+            w.play_sound = false;
+            if o.state.as_deref() == Some("scan") {
+                let path = o.image.as_ref().ok_or("--image <file> is required")?;
+                w.apply_scan(super::qr_code::scan_file(path));
+            }
             w.size = o.count as f64;
             Box::new(w)
         }
@@ -505,6 +512,8 @@ It shows the dialog.",
         s if crate::video_tools::render::is_render_screen(s) => crate::video_tools::render::render_dialog(s, o)?,
         s if crate::image_effects::render::is_render_screen(s) => crate::image_effects::render::render_dialog(s, o)?,
         s if crate::screen_tools::render::is_render_screen(s) => crate::screen_tools::render::render_dialog(s, o)?,
+        s if crate::data_tools::render::is_render_screen(s) => crate::data_tools::render::render_dialog(s, o)?,
+        s if crate::system_tools::render::is_render_screen(s) => crate::system_tools::render::render_dialog(s, o)?,
         s if crate::scrolling_capture::render::is_render_screen(s) => crate::scrolling_capture::render::render_dialog(s, o)?,
         other => return Err(format!("no dialog named {other}")),
     })
@@ -556,6 +565,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
         || crate::video_tools::render::is_render_screen(screen)
         || crate::image_effects::render::is_render_screen(screen)
         || crate::screen_tools::render::is_render_screen(screen)
+        || crate::data_tools::render::is_render_screen(screen)
+        || crate::system_tools::render::is_render_screen(screen)
         || crate::scrolling_capture::render::is_render_screen(screen)
         || crate::auto_capture::render::is_render_screen(screen)
 }

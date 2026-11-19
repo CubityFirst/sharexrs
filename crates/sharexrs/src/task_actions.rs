@@ -313,6 +313,11 @@ impl App {
             TaskCommand::TrimAnimatedGif if sel.is_file_exist && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("gif")) => {
                 self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
             }
+            // `TaskHelpers.AnalyzeImage(filePath)`: the default task settings.
+            TaskCommand::AnalyzeImage if sel.is_image_file => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+            }
             TaskCommand::AddImageEffects if sel.is_image_file => {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.open_image_effects_tool(event_loop, Some(path.clone()), task);

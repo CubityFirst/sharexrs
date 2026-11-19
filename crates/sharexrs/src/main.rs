@@ -18,6 +18,7 @@ mod capture;
 mod capture_job;
 mod cli;
 mod controls_gallery;
+mod data_tools;
 mod dialogs;
 mod history;
 mod history_ui;
@@ -46,6 +47,7 @@ mod shell;
 #[cfg(windows)]
 mod shortcut;
 mod sound;
+mod system_tools;
 mod start_screen;
 mod startup;
 mod task_actions;
@@ -616,7 +618,11 @@ impl App {
             return;
         }
         if let MenuCommand::Tool(key) = command
-            && (self.open_image_tool(event_loop, key, None) || self.open_video_tool(event_loop, key, None, None) || self.open_screen_tool(event_loop, key))
+            && (self.open_image_tool(event_loop, key, None)
+                || self.open_video_tool(event_loop, key, None, None)
+                || self.open_screen_tool(event_loop, key)
+                || self.open_data_tool(event_loop, key)
+                || self.open_system_tool(event_loop, key))
         {
             return;
         }
@@ -1432,6 +1438,9 @@ impl App {
         }
         if let Some(key) = video_tools::open::tool_for_hotkey(&job) {
             self.open_video_tool(event_loop, key, Some(task), None);
+            return;
+        }
+        if self.run_data_job(event_loop, &job, &task, None) || self.run_system_job(event_loop, &job, &task) {
             return;
         }
         match job {

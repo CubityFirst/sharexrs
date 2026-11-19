@@ -291,14 +291,13 @@ lacks; since clippy never links, the script points `cc` at a stub
   prior frame's restore-to-background, Wuffs' source-over pixels, palette
   entries past the table opaque black). Truncated or malformed GIFs may
   stop at a different frame than Wuffs does.
-- **The System tools' native side**: reading the clipboard, enumerating and
-  reading windows (`WindowInfo`), sending ICMP echoes and changing other
-  apps' window styles belong to the windows (sharex-capture already lists
-  windows for Capture › Window). The engines take their results
-  (`ClipboardSnapshot`, `WindowSnapshot`/`WindowEntry`, `Pinger`,
+- **The System tools' native side** is in the app (`system_tools::native`,
+  "The Data and System windows in ShareXrs" below): the engines take its
+  results (`ClipboardSnapshot`, `WindowSnapshot`/`WindowEntry`, `Pinger`,
   `WindowOps`). `is_network_available` is read-only and Windows only (it
   says yes elsewhere for now). There's no "canvas/sheet splitter" tool in
-  this ShareX version; the Image splitter is above.
+  this ShareX version (the OCR window's splitter is in docs/OCR.md); the
+  Image splitter is above.
 - **Playback** (the video player and trimmer: Media Foundation in ShareX)
   is in the app (`video_tools::media`, "The Video windows in ShareXrs"
   below). OCR is `sharex-ocr` (docs/OCR.md), the Remote storage browser's
@@ -558,6 +557,122 @@ settings JSON after the same edits (ShareX keeps these options in memory
 until its next save), tooltips are egui's, and other DPIs and monitors than
 one 1024x768 at 100%. ShareX keeps no pin out of captures, so neither does
 ShareXrs. ShareX's region capture has no colour picker mode in this version.
+
+## The Data and System windows in ShareXrs
+
+`crates/sharexrs/src/data_tools/` and `crates/sharexrs/src/system_tools/`
+port the Data and System categories of the Tools menu on the engines above,
+with the Images windows' blocks (`crate::image_tools`). The QR code window
+is `dialogs::qr_code`, OCR is `ocr_window` (docs/OCR.md); the Remote storage
+browser is another port's.
+
+| File | ShareX source | What's there |
+|---|---|---|
+| `data_tools/mod.rs` | | `ComboPopupShot` (an open combo box's dropdown alone, as the reference shots capture ShareX's popup windows), the centred icon-and-wrapped-text notice, `ToolsSettingsReference` read and written back |
+| `data_tools/hash_checker.rs` | `HashCheckerWindow`, `HashCheckerViewModel`, `TaskHelpers.OpenHashCheck` | one or two files (picker in the file's folder, drop), the algorithm, Check/Stop with progress on a thread, the upper-case result, the target pasted or the second file's, the green/red line, `SizeToContent`, the action sound |
+| `data_tools/index_folder.rs` | `DirectoryIndexerWindow`, `DirectoryIndexerViewModel`, `TaskHelpers.OpenDirectoryIndexer` | the folder picked on open (or dropped), the options and each output's, the index made on a thread, the read-only Consolas preview or the HTML notice, Save as (`Index for <folder>`, UTF-8 BOM), Upload (a text upload named with the output's extension); `IndexerSettings` written as they change |
+| `data_tools/metadata.rs` | `MetadataWindow`, `MetadataViewModel` | the file (command line, picker, drop), groups and their rows, search, Copy all, URL links, Strip metadata behind its confirmation overlay, the window title |
+| `data_tools/analyze_image.rs` | `AnalyzeImageWindow`, `AnalyzeImageViewModel`, `TaskHelpers.ShowAnalyzeImageWindow` | image from a file, a drop or a region (window minimised, PNG bytes), presets (placeholder combo), the prompt saved into `AIOptions.Input`, Analyze off the UI thread with the elapsed time, result or error, Copy all, auto start region/analysis, auto copy, the sound; the analyzer is injectable (tests and renders never call a provider) |
+| `data_tools/analyze_options.rs` | `AnalyzeImageOptionsWindow`, `AnalyzeImageOptionsViewModel` | provider, key page, password key boxes (untouched keys written back as read), editable model combo boxes (`AddCurrentModel`), Load models, custom URL, reasoning and verbosity, behaviour switches, Test connection, Save/Cancel |
+| `data_tools/open.rs` | `TaskHelpers`, `UploadManager.IndexFolder` | the Tools menu, hotkeys, `-HashCheck`/`-Metadata`/`-StripMetadata <file>`, `-AnalyzeImage`, `-QRCode [file]`, `QRCodeDecodeFromScreen`/`QRCodeScanRegion`, `-IndexFolder` (a picked folder indexed and uploaded; also `ClipboardUploadAutoIndexFolder`), the task list's and history windows' Analyze image and the after capture task |
+| `system_tools/native.rs` | `AvaloniaClipboard.Capture`, Avalonia.Win32's `OleDataObjectToDataTransferWrapper`/`ClipboardFormatRegistry`/`OleDataObjectHelper`, `InspectWindowService`, `WindowInfo`, `Ping`, `BorderlessWindowManager`'s natives | `ClipboardSource`, `WindowSource`, `IcmpPinger`, `NativeWindowOps` (below) |
+| `system_tools/clipboard_viewer.rs` | `ClipboardViewerWindow`, `ClipboardViewerViewModel` | formats with the count, the preview (Consolas text, an image in the comparison slider, the notice), details, Refresh keeping the selection, Clear |
+| `system_tools/inspect_window.rs` | `InspectWindowWindow`, `InspectWindowViewModel`, `InspectWindowPickerOverlay` | Pick window/control (the window hidden, a translucent topmost overlay per screen, `WindowFromPoint`/`GetAncestor`), the window list (icons), header and type badge, top-most switch and opacity slider, the property boxes, Copy all, Refresh |
+| `system_tools/monitor_test.rs` | `MonitorTestWindow`, `MonitorTestViewModel`, `MonitorTestPatternControl` | borderless and topmost on the screen under the pointer, the pattern texture, the five mode buttons (`.active`), each mode's options, colour buttons (the shared colour popup stands in for `ColorView`), clicks, wheel and keys |
+| `system_tools/network_monitor.rs` | `NetworkMonitorWindow`, `NetworkMonitorViewModel`, `NetworkMonitorChart`, `NetworkMonitorEventLog` | monitoring from open, a probe per round on a thread (a failure probed again after 1 s), the pulsing dot, target/interval/range, cards, the chart, events, `Logs/NetworkMonitor.log`, Copy all, Clear log, Open log; the prober is injectable |
+| `system_tools/borderless_window.rs` | `BorderlessWindowWindow`, `BorderlessWindowViewModel`, `BorderlessWindowManager` (static) | window list, title, options into `BorderlessWindowSettings`, Toggle borderless (the session's manager, shared with the Make active window borderless hotkey), the error line (`SizeToContent`) |
+| `system_tools/open.rs` | `TaskHelpers.Open*`, `MakeActiveWindowBorderless`/`TopMost` | the Tools menu, hotkeys, `-ClipboardViewer`, `-InspectWindow`, `-MonitorTest`, `-NetworkMonitor`, `-BorderlessWindow`, the picker overlays' start and answer |
+| `*/render.rs` | | `--render hash-checker|index-folder|metadata|analyze-image|analyze-options|clipboard-viewer|inspect-window|inspect-picker|monitor-test|network-monitor|borderless-window` with the manifest's states (module docs) |
+
+### The native side
+
+- **Clipboard** (`NativeClipboard`): on Windows, `OleGetClipboard` and the
+  data object's `EnumFormatEtc` in its order, as Avalonia lists them:
+  `CF_UNICODETEXT` as `UnicodeText` (text), `CF_HDROP` as `FileDrop`
+  (`DragQueryFile`), `CF_BITMAP` (`TYMED_GDI`) as PNG bytes named
+  `CF_BITMAP`, any registered format as its raw `HGLOBAL` bytes under its
+  name (`Unknown_Format_<id>` for unnamed ones), and `CF_DIB`/`CF_DIBV5`
+  left out (Avalonia's `ReadDataFromHGlobal` gives no value for those
+  `DataFormat<Bitmap>`s); when any image format is there, `Bitmap` is added:
+  the first of `image/png`, `PNG`, `CF_DIB` (made opaque), `CF_BITMAP`, as
+  PNG. Elsewhere: text, files and an image. Clear is
+  `sharex_capture::clipboard::clear`.
+- **Windows** (`NativeWindows`): `sharex_capture`'s visible windows, titles,
+  process names, icons, `GetWindowRect` with DWM's frame, client rectangles;
+  class names, `QueryFullProcessImageName`, `GetWindowLong` styles,
+  `GetLayeredWindowAttributes`, `HWND_TOPMOST`/`NOTOPMOST`, `WS_EX_LAYERED` +
+  `SetLayeredWindowAttributes` here.
+- **Pings** (`IcmpPinger`): `IcmpSendEcho` to the IPv4 targets with the
+  probe's timeout (a 0 ms answer takes the stopwatch's time); macOS and
+  Linux run the system `ping -c 1`.
+- **Borderless** (`NativeWindowOps`): `SearchWindow`, `IsIconic`/restore,
+  `GetWindowRect`, styles, `MonitorFromWindow` bounds or work area,
+  `SetWindowPos(SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER)`.
+
+Tests use in-memory clipboards, pretend windows and scripted probers; the
+renders use synthetic snapshots, windows and samples. Nothing reads the
+real clipboard, lists or changes another app's window, or sends an echo.
+
+### Validation
+
+`scripts/data-tools-compare.sh [-dark|-light]` and
+`scripts/system-tools-compare.sh` render each state at the `tools-data` /
+`tools-system` shots' size (inputs read in place from `phase2-32616/inputs`,
+never written; outputs under `target/compare`). Pixels differing by more
+than 40, dark / light:
+
+| Window | States |
+|---|---|
+| Hash checker | empty 0.16/0.11%, single result 0.40/0.26%, compare empty 0.40/0.26%, match 0.62/0.41%, mismatch 0.60/0.39%, algorithm menu 0.83/0.36% |
+| Index folder | empty 0.35/0.28%, "html" (the default Text, and JSON in light) 0.35/0.28%, text 0.35/0.28%, xml 0.34/0.28%, json 0.35/0.28%, format menu 0.85/0.22% |
+| Metadata | empty 0.21/0.18%, grouped 0.44/0.36%, filtered 0.22/0.19%, no match 0.27/0.22%, strip confirm 0.22/0.16% |
+| Analyze image | empty 0.08/0.23%, loaded (unconfigured) 0.26/0.38%, prompt menu 1.23/0.82%, custom prompt 0.47/0.38% |
+| Analyze options | OpenAI 0.41/0.32%, Gemini 0.33/0.26%, OpenRouter 0.34/0.27%, OpenAI legacy 0.42/0.33%; provider menu 1.36/0.56%, model menu 1.22/0.36%, reasoning menu 1.00/0.19%, verbosity menu 0.88/0.09% |
+| QR code | empty 0.19/0.14%, no code 0.19/0.14%, generated (light) 0.21%, oversize 6.18/5.67% |
+| Clipboard viewer | empty 0.17/0.13%, cleared 0.17/0.13%, unicode 0.16/0.11%, raw format 0.19/0.15%, file drop 0.38/0.28%, image 0.81/0.71% |
+| Inspect window | empty 0.16/0.11% |
+| Monitor test | grayscale 0.35/0.32%, RGB 0.61/0.58%, gradient 0.24/0.20%, pattern 0.36/0.33%, motion 1.94/1.90%; gradient direction menu 1.71/0.97%, pattern menu 1.57/0.56%, motion direction menu 1.35/0.58% |
+| Borderless window | empty 0.42/0.33% |
+
+What's left is text anti-aliasing (ClearType against grayscale, strongest
+on the dark popups, whose text extents are identical), and:
+
+- QR code oversize: the 4000-character paste wraps into 20 lines; egui
+  places each at a whole 17 px where Avalonia keeps Inter's 16.94, so
+  from the second line on the text sits a pixel low. The same holds for
+  other wrapped multi-line boxes with many lines.
+- Clipboard viewer image: the shot's first format is .NET's serialised
+  `System.Drawing.Bitmap`, whose bytes the render stands in for with the
+  PNG's, so the hex preview's digits differ.
+- Monitor test motion: the shot caught the bars at a fractional offset
+  (55.x px, anti-aliased edges); the render draws them at 55 / 57.
+- `compare.py --no-crop` is used for the monitor test: its patterns' black
+  edge rows looked like a capture border to the cropping.
+
+Built from source, no shot (rendered and looked at, not compared): hash
+checker running; index folder generated (text and HTML) and custom CSS;
+metadata stripped (a temp copy) and unsupported; Analyze image analyzing,
+result and API error (synthetic answers); options with loaded models, a
+connection result and the auto-start switches; QR decoded, custom size and
+generated (dark); clipboard viewer's Bitmap preview; Inspect window
+selected (window and control), the window menu, both picker overlays;
+monitor test with the controls hidden; every Network monitor state (its
+window opens pinging, so none was captured) and its three menus;
+Borderless window selected, window menu, toggled and not found.
+
+Two shared fixes came out of this: the Consolas face now sits at
+DirectWrite's baseline (`fonts::win_ascent_shift`: Consolas's `usWinAscent`
+is 363 units above its `hhea` ascent, 2.5 px at 14 px), and the QR code
+window encodes and scans with `sharex_tools::qr` (ZXing's mask choice
+differed from the `qrcode` crate's on the reference text).
+
+Not ported or not checked: `ColorView` flyouts (the shared HSV popup),
+tooltips (egui's), the image viewer from the previews (logged), Avalonia's
+state-dependent `PNG`/`image/png` clipboard formats after its first image
+read (ShareXrs always lists them as bytes), the Network monitor's ICMP on
+macOS/Linux beyond the system `ping`, window lists, picking and
+borderless outside Windows (empty or no-ops there), and every live
+behaviour (see the PORTING rows).
 
 ## Window plan
 

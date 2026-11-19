@@ -186,12 +186,42 @@ pub fn definitions() -> FontDefinitions {
     // `FontFamily="Consolas"` (the FFmpeg command box): Consolas where the
     // system has it, else the monospace font.
     let mut consolas_list = defs.families[&FontFamily::Monospace].clone();
-    if let Some(face) = first_of(&["Consolas"], &["consola.ttf"], 400) {
+    if let Some(mut face) = first_of(&["Consolas"], &["consola.ttf"], 400) {
+        // DirectWrite (Skia on Windows, so Avalonia) puts the baseline at
+        // the font's Windows ascent (`usWinAscent`, 1884 of 2048 units for
+        // Consolas) where egui puts it at `hhea`'s (1521): the glyphs go
+        // that much lower, the line box stays the same height.
+        face.tweak.y_offset_factor = win_ascent_shift(&face.font[..]);
         defs.font_data.insert("sharex-consolas".into(), Arc::new(face));
         consolas_list.insert(0, "sharex-consolas".into());
     }
     defs.families.insert(consolas(), consolas_list);
     defs
+}
+
+/// How much lower (a fraction of the font size) DirectWrite draws a
+/// font's glyphs than its `hhea` ascent puts them: `(usWinAscent -
+/// hhea.ascender) / unitsPerEm` for fonts that don't ask for their typo
+/// metrics (`USE_TYPO_METRICS`), else 0.
+pub fn win_ascent_shift(font: &[u8]) -> f32 {
+    let be16 = |d: &[u8], at: usize| d.get(at..at + 2).map(|b| u16::from_be_bytes([b[0], b[1]]));
+    let be32 = |d: &[u8], at: usize| d.get(at..at + 4).map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]));
+    let table = |tag: &[u8; 4]| -> Option<usize> {
+        let n = be16(font, 4)? as usize;
+        (0..n).find_map(|i| {
+            let rec = 12 + i * 16;
+            (font.get(rec..rec + 4)? == tag).then(|| be32(font, rec + 8).map(|o| o as usize)).flatten()
+        })
+    };
+    let shift = || -> Option<f32> {
+        let (head, hhea, os2) = (table(b"head")?, table(b"hhea")?, table(b"OS/2")?);
+        let units = be16(font, head + 18)? as f32;
+        let ascender = be16(font, hhea + 4)? as i16 as f32;
+        let fs_selection = be16(font, os2 + 62)?;
+        let win_ascent = be16(font, os2 + 74)? as f32;
+        (fs_selection & 0x80 == 0 && units > 0.0).then(|| (win_ascent - ascender) / units)
+    };
+    shift().unwrap_or(0.0)
 }
 
 /// `FontFamily="Consolas"`.

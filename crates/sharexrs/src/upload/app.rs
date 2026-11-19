@@ -187,6 +187,10 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
+            super::UiRequest::AnalyzeImage(path, task) => {
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+                return;
+            }
             super::UiRequest::FileExists(path, reply) => Box::new(dialogs::file_exist::FileExistWindow::new(&path, Some(reply))),
             super::UiRequest::PinToScreen(image, task) => {
                 self.pin_image(event_loop, *image, None, &task);
@@ -420,6 +424,7 @@ impl App {
                 ctx.files_confirmed = confirmed;
                 (manager::upload_files(&files, &task, &mut ctx), task)
             }
+            UploadRequest::IndexFolder { source, output, task } => (vec![manager::index_upload_task(source, output, task.clone(), &mut ctx)], task),
         };
         let confirm = ctx.confirm_files.take();
         self.start_upload_tasks(tasks);

@@ -167,6 +167,41 @@ pub fn create_text_uploader_task(text: String, task: TaskSettings, ctx: &mut New
     UploadTask { job: TaskJob::TextUpload, data_type: EDataType::Text, file_name, file_path: None, url: String::new(), task, source: Source::Text(text) }
 }
 
+/// `UploadManager.IndexFolder(folderPath, taskSettings)`: the folder
+/// indexed with the task's `IndexerSettings` (and the application's
+/// `BinaryUnits`) and uploaded as text named with the output's extension.
+/// ShareX indexes on a thread pool task; this indexes before returning.
+pub fn index_folder(folder: &str, task: &TaskSettings, ctx: &mut NewTaskContext) -> Option<UploadTask> {
+    if folder.is_empty() || !Path::new(folder).is_dir() {
+        return None;
+    }
+    let tools = task.ToolsSettings.clone().unwrap_or_default();
+    let settings = sharex_tools::indexer::IndexerSettings::from_json(&tools.IndexerSettings, ctx.app.BinaryUnits);
+    let source = sharex_tools::indexer::index(folder, &settings);
+    if source.is_empty() {
+        return None;
+    }
+    Some(index_upload_task(source, settings.output, task.clone(), ctx))
+}
+
+/// `WorkerTask.CreateTextUploaderTask(source, taskSettings)` with
+/// `Path.ChangeExtension(FileName, output)` (`OpenDirectoryIndexer`'s upload).
+pub fn index_upload_task(source: String, output: sharex_tools::indexer::IndexerOutput, task: TaskSettings, ctx: &mut NewTaskContext) -> UploadTask {
+    let mut t = create_text_uploader_task(source, task, ctx);
+    t.file_name = change_extension(&t.file_name, output.extension());
+    t
+}
+
+/// `Path.ChangeExtension(path, extension)`.
+pub fn change_extension(path: &str, extension: &str) -> String {
+    let name_start = path.rfind(['\\', '/']).map_or(0, |i| i + 1);
+    let stem = match path[name_start..].rfind('.') {
+        Some(dot) => &path[..name_start + dot],
+        None => path,
+    };
+    format!("{stem}.{}", extension.trim_start_matches('.'))
+}
+
 /// `WorkerTask.CreateURLShortenerTask`.
 pub fn create_url_shortener_task(url: String, task: TaskSettings) -> UploadTask {
     let service = factory::service_name("UrlShortenerType", task.URLShortenerDestination.name());
@@ -306,7 +341,7 @@ pub fn process_text_upload(text: &str, task: &TaskSettings, ctx: &mut NewTaskCon
         }
     }
     if upload.ClipboardUploadAutoIndexFolder && text.chars().count() <= 260 && Path::new(text).is_dir() {
-        eprintln!("Index folder isn't ported yet; uploading the text.");
+        return index_folder(text, task, ctx).into_iter().collect();
     }
     upload_text(text, task, true, ctx).into_iter().collect()
 }
