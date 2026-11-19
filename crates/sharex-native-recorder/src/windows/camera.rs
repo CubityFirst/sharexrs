@@ -3,11 +3,10 @@
 //! circle's centred square crop), and for a circle, blended over a copy of
 //! the screen under it by a pixel shader with an anti-aliased edge.
 
-use windows::Win32::Graphics::Direct3D::Fxc::D3DCompile;
-use windows::Win32::Graphics::Direct3D::{D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST, ID3DBlob};
+use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_NV12, DXGI_FORMAT_YUY2};
-use windows::core::{Interface, PCSTR};
+use windows::core::Interface;
 
 use super::device::GraphicsDevice;
 use super::err;
@@ -214,40 +213,8 @@ const CIRCLE_SOURCE: &str = r#"
         }
         "#;
 
-/// `ShaderCompiler.Compile`: Windows' own HLSL compiler, strictness and
-/// optimisation level 3.
 fn compile(entry: &str, target: &str) -> Result<Vec<u8>, String> {
-    // ShareX's source is a C# raw string: its lines lose the closing quotes' indentation.
-    let source: String = CIRCLE_SOURCE.lines().skip(1).map(|l| l.strip_prefix("        ").unwrap_or(l)).collect::<Vec<_>>().join("\n");
-    let entry = std::ffi::CString::new(entry).expect("ascii");
-    let target = std::ffi::CString::new(target).expect("ascii");
-    let name = c"camera overlay";
-    let (mut code, mut errors): (Option<ID3DBlob>, Option<ID3DBlob>) = (None, None);
-    // SAFETY: the source, names and out pointers are valid for the call.
-    let r = unsafe {
-        D3DCompile(
-            source.as_ptr().cast(),
-            source.len(),
-            PCSTR(name.as_ptr().cast()),
-            None,
-            None,
-            PCSTR(entry.as_ptr().cast()),
-            PCSTR(target.as_ptr().cast()),
-            (1 << 11) | (1 << 15),
-            0,
-            &mut code,
-            Some(&mut errors),
-        )
-    };
-    let blob_bytes = |b: &ID3DBlob| {
-        // SAFETY: the blob's buffer is BufferSize bytes.
-        unsafe { std::slice::from_raw_parts(b.GetBufferPointer() as *const u8, b.GetBufferSize()).to_vec() }
-    };
-    if let Err(e) = r {
-        let message = errors.as_ref().map(|b| String::from_utf8_lossy(&blob_bytes(b)).into_owned()).unwrap_or_default();
-        return Err(format!("Could not compile the camera overlay shader. {message} ({e})"));
-    }
-    code.as_ref().map(blob_bytes).ok_or_else(|| "Windows did not return camera overlay shader bytecode.".into())
+    super::compile_shader(CIRCLE_SOURCE, "camera overlay", entry, target)
 }
 
 /// `CameraCircleShader`.

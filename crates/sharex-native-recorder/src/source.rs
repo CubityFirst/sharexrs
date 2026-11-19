@@ -1,9 +1,9 @@
 //! The frame source: what `Video/GraphicsCapture.cs` is to ShareX's
 //! recorder (the latest frame of every monitor the region touches, copied
 //! into the canvas; the end of a closed window; moving to a new region
-//! while paused). Windows Graphics Capture waits for a desktop session; a
-//! [`FrameSource`] stands in, as [`SyntheticSource`] (generated frames) or
-//! FFmpeg's screen grab (`ffmpeg_source`).
+//! while paused). On Windows it's Windows Graphics Capture
+//! (`windows::capture`); [`SyntheticSource`] (generated frames) and
+//! FFmpeg's screen grab (`ffmpeg_source`) are the other [`FrameSource`]s.
 //!
 //! The pointer: ShareX's native recorder doesn't draw it, WGC does
 //! (`IsCursorCaptureEnabled = IncludeCursor`), so a source draws it or not.
@@ -20,6 +20,10 @@ pub trait Canvas {
     fn clear(&mut self);
     /// Copies `height` rows of `width` BGRA pixels, `stride` bytes apart, to (`x`, `y`).
     fn write_bgra(&mut self, x: i32, y: i32, width: i32, height: i32, data: &[u8], stride: usize);
+    /// The canvas's own type, for sources that copy on its device (WGC copies GPU textures).
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        None
+    }
 }
 
 /// `GraphicsCapture` as the worker uses it.
@@ -29,6 +33,11 @@ pub trait FrameSource: Send {
     /// The monitor whose adapter records (`targets[0].Monitor`); 0 = the default adapter.
     fn monitor(&self) -> isize {
         0
+    }
+    /// The constructor's part that needs the recording's canvas (WGC's frame
+    /// pools on its device); called once, after the encoders are made.
+    fn attach(&mut self, _canvas: &mut dyn Canvas) -> Result<(), String> {
+        Ok(())
     }
     fn start(&mut self) -> Result<(), String>;
     /// `Update`: the newest frame, if any, into the canvas.
@@ -55,6 +64,55 @@ pub fn region_size(options: &RecordingOptions) -> Result<(i32, i32), String> {
         return Err("The capture region exceeds D3D11 texture limits.".into());
     }
     Ok((w, h))
+}
+
+/// One monitor's part of a region (`GraphicsCapture.Target` without its item).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CaptureTarget {
+    /// The monitor (`HMONITOR`), or the window's nearest monitor.
+    pub monitor: isize,
+    /// The part of the monitor's (or window's) image to copy.
+    pub source: Rect,
+    /// Where it goes on the canvas.
+    pub destination: (i32, i32),
+}
+
+/// `GetTargets` for a region: the even-sized (MP4) region cut by every
+/// monitor it touches, in the monitors' order. `monitors` are
+/// `EnumDisplayMonitors`' handles and bounds.
+pub fn region_targets(options: &RecordingOptions, monitors: &[(isize, Rect)]) -> Result<(i32, i32, Vec<CaptureTarget>), String> {
+    let (width, height) = region_size(options)?;
+    let region = Rect::new(options.region.x, options.region.y, width, height);
+    let mut targets = Vec::new();
+    for &(monitor, bounds) in monitors {
+        let i = Rect::intersect(region, bounds);
+        if i.width <= 0 || i.height <= 0 {
+            continue;
+        }
+        targets.push(CaptureTarget { monitor, source: Rect::new(i.x - bounds.x, i.y - bounds.y, i.width, i.height), destination: (i.x - region.x, i.y - region.y) });
+    }
+    if targets.is_empty() {
+        return Err("The capture region does not intersect a display.".into());
+    }
+    Ok((width, height, targets))
+}
+
+/// `GetTargets` for a window: its whole image (`GraphicsCaptureItem.Size`),
+/// even-sized for MP4.
+pub fn window_size(options: &RecordingOptions, item_width: i32, item_height: i32) -> Result<(i32, i32), String> {
+    let (width, height) = if options.is_gif() { (item_width, item_height) } else { (item_width & !1, item_height & !1) };
+    if width < 2 || height < 2 {
+        return Err("The window has no capturable content.".into());
+    }
+    Ok((width, height))
+}
+
+/// `Update`'s copy of one target's frame: the part of `source` inside a
+/// `content_width` x `content_height` frame (`None` when nothing is).
+pub fn copy_size(source: Rect, content_width: i32, content_height: i32) -> Option<(i32, i32)> {
+    let w = source.width.min(content_width - source.x);
+    let h = source.height.min(content_height - source.y);
+    (w > 0 && h > 0).then_some((w, h))
 }
 
 /// Draws frame `n` of a region (`region`, `width`, `height`) into BGRA.
@@ -199,5 +257,54 @@ pub struct SyntheticSources {
 impl CaptureSources for SyntheticSources {
     fn open(&self, options: &RecordingOptions, time: Arc<dyn TimeSource>) -> Result<Box<dyn FrameSource>, String> {
         Ok(Box::new(SyntheticSource::new(options, time, self.capture_fps)?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(region: Rect, gif: bool) -> RecordingOptions {
+        let mut o = RecordingOptions::new(if gif { "a.gif" } else { "a.mp4" });
+        o.region = region;
+        o
+    }
+
+    #[test]
+    fn targets_across_monitors() {
+        // Two monitors side by side, a third above the first.
+        let monitors = [(1, Rect::new(0, 0, 1920, 1080)), (2, Rect::new(1920, 0, 2560, 1440)), (3, Rect::new(0, -1080, 1920, 1080))];
+        let (w, h, t) = region_targets(&options(Rect::new(1800, -11, 301, 101), false), &monitors).unwrap();
+        // MP4: even size; the region's origin stays.
+        assert_eq!((w, h), (300, 100));
+        assert_eq!(
+            t,
+            vec![
+                CaptureTarget { monitor: 1, source: Rect::new(1800, 0, 120, 89), destination: (120 - 120, 11) },
+                CaptureTarget { monitor: 2, source: Rect::new(0, 0, 180, 89), destination: (120, 11) },
+                CaptureTarget { monitor: 3, source: Rect::new(1800, 1069, 120, 11), destination: (0, 0) },
+            ]
+        );
+        // GIF keeps odd sizes.
+        let (w, h, _) = region_targets(&options(Rect::new(10, 10, 301, 101), true), &monitors).unwrap();
+        assert_eq!((w, h), (301, 101));
+        assert_eq!(region_targets(&options(Rect::new(5000, 5000, 100, 100), false), &monitors).unwrap_err(), "The capture region does not intersect a display.");
+        // Touching an edge isn't an intersection.
+        assert!(region_targets(&options(Rect::new(-100, 0, 100, 100), false), &monitors).is_err());
+        assert_eq!(region_targets(&options(Rect::new(0, 0, 16386, 100), false), &monitors).unwrap_err(), "The capture region exceeds D3D11 texture limits.");
+    }
+
+    #[test]
+    fn window_sizes() {
+        assert_eq!(window_size(&options(Rect::default(), false), 801, 601), Ok((800, 600)));
+        assert_eq!(window_size(&options(Rect::default(), true), 801, 601), Ok((801, 601)));
+        assert_eq!(window_size(&options(Rect::default(), false), 3, 1).unwrap_err(), "The window has no capturable content.");
+    }
+
+    #[test]
+    fn copies_inside_the_frame() {
+        assert_eq!(copy_size(Rect::new(0, 0, 100, 50), 1920, 1080), Some((100, 50)));
+        assert_eq!(copy_size(Rect::new(1900, 0, 100, 50), 1920, 1080), Some((20, 50)));
+        assert_eq!(copy_size(Rect::new(1920, 0, 100, 50), 1920, 1080), None);
     }
 }

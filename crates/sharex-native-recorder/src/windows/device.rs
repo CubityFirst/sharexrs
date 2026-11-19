@@ -16,6 +16,8 @@ use super::err;
 pub struct GraphicsDevice {
     pub device: ID3D11Device,
     pub context: ID3D11DeviceContext,
+    /// `WinRTDevice`: the device as Windows Graphics Capture takes it.
+    pub winrt_device: windows::Graphics::DirectX::Direct3D11::IDirect3DDevice,
 }
 
 // SAFETY: the device is created multithread protected (`SetMultithreadProtected`)
@@ -44,7 +46,10 @@ impl GraphicsDevice {
             let (device, context): (ID3D11Device, ID3D11DeviceContext) = (device.ok_or("no device")?, context.ok_or("no context")?);
             let multithread: ID3D11Multithread = context.cast().map_err(err)?;
             let _ = multithread.SetMultithreadProtected(true);
-            Ok(Self { device, context })
+            let dxgi: windows::Win32::Graphics::Dxgi::IDXGIDevice = device.cast().map_err(err)?;
+            let inspectable = windows::Win32::System::WinRT::Direct3D11::CreateDirect3D11DeviceFromDXGIDevice(&dxgi).map_err(err)?;
+            let winrt_device = inspectable.cast().map_err(err)?;
+            Ok(Self { device, context, winrt_device })
         }
     }
 

@@ -380,6 +380,7 @@ fn record(handle: &RecorderHandle, backends: &Backends, owns_output: &mut bool) 
     *owns_output = true;
     let mut media = backends.media.create(options, width, height, capture.monitor())?;
     *shared.encoder.lock().unwrap_or_else(|e| e.into_inner()) = Some(media.encoder());
+    capture.attach(media.canvas())?;
     let mut camera: Option<Box<dyn CameraSource>> = if options.capture_camera {
         let devices = backends.camera.as_ref().ok_or("No camera is available. Connect a camera or turn off the camera overlay.")?;
         Some(devices.open(options)?)
