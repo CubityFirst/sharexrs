@@ -26,6 +26,9 @@ if [ $# -ne 4 ] && [ $# -ne 5 ]; then
 fi
 bin=$1 version=$2 arch=$3 out=$4 payload=${5:-}
 here=$(cd "$(dirname "$0")" && pwd)
+# CFBundleShortVersionString and CFBundleVersion take numbers only
+# (Apple: up to three period-separated integers): 0.1.0-alpha -> 0.1.0.
+numeric=${version%%-*}
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -74,9 +77,9 @@ cat > "$app/Contents/Info.plist" <<EOF
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$version</string>
+	<string>$numeric</string>
 	<key>CFBundleVersion</key>
-	<string>$version</string>
+	<string>$numeric</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>11.0</string>
 	<key>LSUIElement</key>
