@@ -4,14 +4,15 @@
 // bounds (relative to its root), padding, margin, corner radius, brushes and
 // fonts, so ShareXrs can port the values instead of guessing them.
 //
-//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter
+//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter[-hover]
 //
 // autocomplete: the History window's search box (an AutoCompleteBox 250 wide
 // with FilterMode ContainsOrdinal and Padding 12,7,38,7) over a few process
 // names, the text "c" typed, the drop-down open: the popup's tree.
 // datepicker: the advanced filters' DatePicker (2026-11-19).
 // datepicker-presenter: the DatePicker's flyout (DatePickerPresenter) as it
-// opens for that date.
+// opens for that date; -hover: with each column's host under the pointer
+// (its up/down RepeatButtons shown).
 
 using Avalonia;
 using Avalonia.Controls;
@@ -40,7 +41,10 @@ internal static class ControlDump
                     DatePickerButton(variant);
                     break;
                 case "datepicker-presenter":
-                    Presenter(variant);
+                    Presenter(variant, false);
+                    break;
+                case "datepicker-presenter-hover":
+                    Presenter(variant, true);
                     break;
                 default:
                     Console.Error.WriteLine($"unknown control {kind}");
@@ -128,7 +132,7 @@ internal static class ControlDump
         window.Close();
     }
 
-    static void Presenter(Avalonia.Styling.ThemeVariant variant)
+    static void Presenter(Avalonia.Styling.ThemeVariant variant, bool hover)
     {
         DatePickerPresenter presenter = new()
         {
@@ -143,6 +147,36 @@ internal static class ControlDump
         Pump();
         window.UpdateLayout();
         Console.WriteLine($"presenter desired {presenter.DesiredSize} bounds {presenter.Bounds}");
+        if (hover)
+        {
+            // Each column's host under the pointer (`:pointerover`), which
+            // shows its up/down RepeatButtons.
+            foreach (Visual v in presenter.GetVisualDescendants().ToArray())
+            {
+                if (v is Control c && c.Name is { } n && n.EndsWith("Host"))
+                {
+                    ((Avalonia.Controls.IPseudoClasses)c.Classes).Set(":pointerover", true);
+                    Console.WriteLine($"hovered {n}");
+                }
+            }
+            Pump();
+            window.UpdateLayout();
+            foreach (string key in new[] { "DateTimePickerFlyoutButtonBackground", "DateTimePickerFlyoutButtonBackgroundPointerOver",
+                "DateTimePickerFlyoutButtonBackgroundPressed", "DateTimePickerFlyoutButtonBorderBrush", "DateTimePickerFlyoutButtonBorderBrushPointerOver",
+                "DateTimePickerFlyoutButtonBorderBrushPressed", "DateTimePickerFlyoutButtonForeground", "DateTimePickerFlyoutButtonForegroundPointerOver",
+                "DateTimePickerFlyoutButtonForegroundPressed", "DateTimePickerFlyoutButtonBorderThickness" })
+            {
+                bool found = Application.Current!.TryGetResource(key, presenter.ActualThemeVariant, out object? value);
+                Console.WriteLine($"resource {key} = {(found ? (value is IBrush br ? B(br) : value?.ToString()) : "(none)")}");
+            }
+            foreach (Visual v in presenter.GetVisualDescendants())
+            {
+                if (v is RepeatButton rb)
+                {
+                    Console.WriteLine($"repeat {rb.Name} visible {rb.IsVisible} delay {rb.Delay} interval {rb.Interval} height {rb.Height} focusable {rb.Focusable}");
+                }
+            }
+        }
         foreach (string key in new[] { "DatePickerFlyoutPresenterHighlightFill", "DatePickerFlyoutPresenterSpacerFill", "DatePickerFlyoutPresenterBackground",
             "DatePickerFlyoutPresenterBorderBrush", "DatePickerFlyoutPresenterItemPadding", "DatePickerFlyoutPresenterMonthPadding",
             "DatePickerFlyoutPresenterItemHeight", "DatePickerFlyoutPresenterAcceptDismissHostGridHeight", "DatePickerFlyoutPresenterHighlightHeight",

@@ -131,6 +131,8 @@ pub enum UserEvent {
     AutoCaptureTray(TrayEvent),
     /// A settings export or import finished its archive.
     SettingsBackup(Box<settings_backup::Done>),
+    /// `DeleteSelectedItemRemotelyAsync` finished: whether it succeeded.
+    RemoteDeleted(bool),
 }
 
 fn main() {
@@ -295,6 +297,29 @@ fn main() {
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
+    restart_if_requested();
+}
+
+/// `ApplicationLifecycle.Restart(asAdmin: true)` was asked for
+/// (Restart as administrator).
+static RESTART_AS_ADMIN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `ApplicationLifecycle.RestartIfRequested`: once this instance has
+/// closed (settings saved, the single instance mutex released), ShareXrs
+/// again through the shell with `-silent` and the `runas` verb.
+fn restart_if_requested() {
+    if !RESTART_AS_ADMIN.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    eprintln!("ShareX restarting.");
+    match std::env::current_exe() {
+        Ok(exe) => {
+            if let Err(e) = sharex_update::install::shell_execute(&exe, "-silent", true) {
+                eprintln!("{e}");
+            }
+        }
+        Err(e) => eprintln!("Unable to determine the ShareX executable path. {e}"),
+    }
 }
 
 /// A message box in its own window (`MessageBoxWindow`).
@@ -328,6 +353,8 @@ enum DialogPurpose {
     CommandLine(cli::CliQuestion),
     /// Application settings' "Would you like to reset ShareX settings?".
     ResetSettings,
+    /// `DeleteSelectedItemRemotelyAsync`'s question: Yes deletes this URL's object.
+    DeleteRemotely(String),
     /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
     /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
     Owned(winit::window::WindowId),
@@ -715,6 +742,11 @@ impl App {
             MenuCommand::History => self.show_history(event_loop),
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
+            // `ApplicationLifecycle.Restart(true)`.
+            MenuCommand::RestartAsAdministrator => {
+                RESTART_AS_ADMIN.store(true, std::sync::atomic::Ordering::SeqCst);
+                self.exit(event_loop);
+            }
             MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
             // `TaskHelpers.ToggleActionsToolbar`.
             MenuCommand::ActionsToolbar => self.toggle_actions_toolbar(event_loop),
@@ -1207,8 +1239,7 @@ impl App {
             return;
         }
         if let Some(tray) = &mut self.tray {
-            let size = tray::Tray::icon_size();
-            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::current_icon(size) };
+            let image = if progress >= 0 { tray::progress_icon(tray::glyph_icon_size(), progress) } else { tray::current_icon(tray::Tray::icon_size()) };
             tray.set_icon(&image);
         }
         self.tray_progress = progress;
@@ -1223,6 +1254,7 @@ impl App {
     /// until it's closed).
     fn start(&mut self, event_loop: &ActiveEventLoop) {
         self.system_theme = event_loop.system_theme();
+        tray::set_system_light(self.system_theme == Some(winit::window::Theme::Light));
         self.apply_appearance();
         // The Start screen comes first, on a fresh profile.
         if self.settings.settings.ShowStartScreen && !self.settings.paths.sandbox {
@@ -1253,6 +1285,7 @@ impl App {
         self.refresh_menus();
         // `ApplicationSettingsRuntime.InitializeAsync`: the update manager too.
         self.apply_update_settings();
+        shell::set_browser_path(&self.settings.settings.BrowserPath);
         self.hotkeys.repeat_limit = Duration::from_millis(self.settings.settings.hotkey_repeat_limit() as u64);
         let disabled = self.settings.settings.DisableHotkeys;
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
@@ -1361,6 +1394,10 @@ impl App {
             if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == owner) {
                 d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
                 d.window.window.request_redraw();
+            }
+        } else if let DialogPurpose::DeleteRemotely(url) = &dialog.purpose {
+            if result == DialogResult::Yes {
+                self.delete_remotely(url.clone());
             }
         } else if matches!(dialog.purpose, DialogPurpose::ResetSettings) {
             if result == DialogResult::Yes {
@@ -1517,6 +1554,8 @@ impl App {
             HotkeyType::StopAutoCapture => self.stop_auto_capture(event_loop),
             HotkeyType::OpenHistory => self.show_history(event_loop),
             HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
+            // `TaskHelpers.OpenScreenshotsFolder`.
+            HotkeyType::OpenScreenshotsFolder => self.open_screenshots_folder(),
             _ => eprintln!("{}: not ported yet", job.name()),
         }
     }
@@ -1762,6 +1801,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Wake => {}
             UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
             UserEvent::SettingsBackup(done) => self.backup_finished(event_loop, *done),
+            UserEvent::RemoteDeleted(ok) => self.remote_deleted(ok),
         }
     }
 
@@ -1806,6 +1846,7 @@ impl ApplicationHandler<UserEvent> for App {
             && self.system_theme != Some(t)
         {
             self.system_theme = Some(t);
+            tray::set_system_light(t == winit::window::Theme::Light);
             let o = self.settings.settings.ThemeOptions.clone().unwrap_or_default();
             if o.UseSystemTheme || o.UseSystemAccentColor {
                 self.apply_appearance();

@@ -50,6 +50,10 @@ pub enum InstallType {
     Event,
 }
 
+/// `DownloaderInstallEventHandler`: what `InstallType::Event` hands the
+/// downloaded file to (`InstallRequested`).
+pub type InstallRequested = Arc<dyn Fn(&Path) + Send + Sync>;
+
 enum WorkerMessage {
     Event(DownloadEvent),
     Finished(Result<bool, String>),
@@ -98,6 +102,8 @@ pub struct DownloaderWindow {
     /// ShareXrs should exit after the window closes (the installer, or the
     /// replaced program, starts it again).
     pub shutdown_after: bool,
+    /// `InstallRequested`, for `InstallType::Event`.
+    pub install_requested: Option<InstallRequested>,
     closed: bool,
     host: Arc<dyn UpdateHost>,
     downloader: Option<FileDownloader>,
@@ -134,6 +140,7 @@ impl DownloaderWindow {
             close_requested: false,
             result: DialogResult::None,
             shutdown_after: false,
+            install_requested: None,
             closed: false,
             host,
             downloader: None,
@@ -350,7 +357,8 @@ impl DownloaderWindow {
         self.status = DownloaderWindowStatus::InstallStarted;
         self.result = DialogResult::OK;
         self.action_enabled = false;
-        self.shutdown_after = !matches!(self.flow, InstallFlow::LinuxDeb);
+        // An `Event` install is the caller's (FFmpeg's extraction): ShareXrs stays.
+        self.shutdown_after = !matches!(self.flow, InstallFlow::LinuxDeb) && self.install_type != InstallType::Event;
         match &self.flow {
             InstallFlow::WindowsSetup | InstallFlow::WindowsPortable => self.run_installer_with_delay(1000),
             _ => {
@@ -372,10 +380,20 @@ impl DownloaderWindow {
     /// doesn't abandon it.
     fn run_installer_with_delay(&mut self, delay_ms: u64) {
         let (host, path, arguments) = (self.host.clone(), self.download_location.clone(), self.installer_arguments());
-        let elevate = install::is_default_install_dir() && !install::is_member_of_administrators_group();
+        // `RunInstaller` with `InstallType.Event`: `InstallRequested(DownloadLocation)`.
         if self.install_type == InstallType::Event {
+            let Some(handler) = self.install_requested.clone() else { return };
+            if self.run_installer_in_background {
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(delay_ms));
+                    handler(&path);
+                });
+            } else {
+                handler(&path);
+            }
             return;
         }
+        let elevate = install::is_default_install_dir() && !install::is_member_of_administrators_group();
         if self.run_installer_in_background {
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(delay_ms));

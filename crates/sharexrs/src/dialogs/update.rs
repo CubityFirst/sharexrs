@@ -220,6 +220,8 @@ impl Dialog for UpdateMessageWindow {
 pub struct DownloaderDialog {
     pub window: DownloaderWindow,
     pub origin: UpdateOrigin,
+    /// `FFmpegGitHubDownloader.DownloadFFmpeg`'s window (not an update).
+    ffmpeg: bool,
     opened: bool,
     asked: bool,
 }
@@ -227,7 +229,13 @@ pub struct DownloaderDialog {
 impl DownloaderDialog {
     /// `DownloaderWindow.ShowAsync(updateChecker)`.
     pub fn new(checker: &GitHubUpdateChecker, host: Arc<dyn UpdateHost>, origin: UpdateOrigin) -> Self {
-        Self { window: DownloaderWindow::for_update(checker, host), origin, opened: false, asked: false }
+        Self { window: DownloaderWindow::for_update(checker, host), origin, ffmpeg: false, opened: false, asked: false }
+    }
+
+    /// `FFmpegGitHubDownloader.DownloadFFmpeg(async, installRequested)`:
+    /// `DownloaderWindow.ShowAsync(url, "ffmpeg.zip")` with `InstallType.Event`.
+    pub fn ffmpeg(window: DownloaderWindow) -> Self {
+        Self { window, origin: UpdateOrigin::User, ffmpeg: true, opened: false, asked: false }
     }
 
     /// The description: a secondary `TextBlock` (the global 13px SemiBold).
@@ -334,6 +342,9 @@ impl Dialog for DownloaderDialog {
     /// `UpdateChecker.DownloadUpdateAsync` does with the result.
     fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {
         self.window.closing();
+        if self.ffmpeg {
+            return Vec::new();
+        }
         let installed = self.window.status == DownloaderWindowStatus::InstallStarted;
         vec![Effect::UpdateFinished { result: DialogResult::Yes, origin: self.origin, shutdown: installed && self.window.shutdown_after }]
     }
@@ -345,7 +356,7 @@ impl Dialog for DownloaderDialog {
     }
 
     fn single(&self) -> Option<&'static str> {
-        Some("update-downloader")
+        Some(if self.ffmpeg { "ffmpeg-downloader" } else { "update-downloader" })
     }
 }
 

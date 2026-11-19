@@ -7,6 +7,7 @@ pub mod borderless_window;
 pub mod clipboard_viewer;
 pub mod inspect_window;
 pub mod network_monitor;
+pub mod unix_ping;
 
 /// `Environment.NewLine`.
 #[cfg(windows)]

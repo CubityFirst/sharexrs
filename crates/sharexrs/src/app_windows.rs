@@ -185,6 +185,7 @@ impl App {
     pub(crate) fn apply_settings(&mut self) {
         let s = &self.settings.settings;
         self.hotkeys.repeat_limit = std::time::Duration::from_millis(s.hotkey_repeat_limit() as u64);
+        crate::shell::set_browser_path(&s.BrowserPath);
         if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }
@@ -626,7 +627,7 @@ pub fn open_path(path: &std::path::Path) {
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg(path).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
-    let r = std::process::Command::new("xdg-open").arg(path).spawn();
+    let r = crate::shell::linux_open(path);
     if let Err(e) = r {
         eprintln!("couldn't open {}: {e}", path.display());
     }

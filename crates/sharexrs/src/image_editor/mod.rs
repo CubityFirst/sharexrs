@@ -369,6 +369,8 @@ impl EditorWindow {
         let mut ws = Workspace::new(source, options.clone());
         ws.task_buttons = true;
         ws.continue_workflow = task_mode;
+        // `MainViewModel`'s constructor.
+        background::start_wallpaper_prewarm();
         let mut w = Self {
             ws,
             has_image,

@@ -42,5 +42,10 @@ libwebp-sys = { version = "=0.14.4", default-features = false }
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Globalization", "Win32_Storage_FileSystem", "Win32_Graphics_Gdi", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
 
+# The network monitor's ICMP echoes outside Windows (.NET's raw or
+# datagram ICMP socket).
+[target."cfg(unix)".dependencies]
+socket2 = { version = "0.6", features = ["all"] }
+
 [dev-dependencies]
 serde_json.workspace = true

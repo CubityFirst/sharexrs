@@ -16,6 +16,8 @@ ttf-parser = "0.25.1"
 harfrust = "0.12"
 # Installed families by name on every platform (Windows, macOS, Linux).
 fontdb = "0.23"
+# The wallpaper conversion cache's file names (LinuxDesktopWallpaperService).
+sha2 = "0.10"
 
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation"] }

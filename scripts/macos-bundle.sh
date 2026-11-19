@@ -87,6 +87,8 @@ cat > "$app/Contents/Info.plist" <<EOF
 	<string>ShareXrs records your microphone with the screen when you choose an audio source for screen recordings.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>ShareXrs records what's playing with the screen when you choose system audio for screen recordings.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>ShareXrs asks System Events for your desktop picture when the image editor's background uses the wallpaper.</string>
 </dict>
 </plist>
 EOF

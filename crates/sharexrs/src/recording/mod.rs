@@ -73,6 +73,9 @@ pub enum Event {
     Tray(TrayEvent),
     /// FFmpeg's download ended.
     FFmpegDownloaded,
+    /// `FFmpegUpdateChecker.GetLatestDownloadURL(true)` answered (FFmpeg
+    /// goes to the path): the downloader window opens.
+    FFmpegUrl(std::path::PathBuf, Option<String>),
     /// The native recorder failed: ShareX's message box.
     NativeError(String),
 }
@@ -369,8 +372,11 @@ impl App {
         let screens = sharex_capture::screenshot::screens();
         let opened = gpu(&mut self.gpu).and_then(|g| BarWindow::open(event_loop, g, &screens, rect, prepared.capture.clone(), gif, even, theme));
         match opened {
-            Ok(bar) => {
+            Ok(mut bar) => {
                 if let Some(r) = self.recording.as_mut() {
+                    // `ScreenRecorderBarSettings`: the recording's highlighter options.
+                    let tools = crate::screen_tools::tools_task(&r.task, &self.settings.settings.DefaultTaskSettings);
+                    bar.bar.set_highlighter(crate::screen_tools::highlighter::options_of(&tools));
                     r.phase = Phase::Bar(Box::new(bar));
                 }
             }
@@ -389,17 +395,31 @@ impl App {
         let r = self.recording.as_mut()?;
         let Phase::Bar(bar) = &r.phase else { return None };
         let draft = bar.bar.capture.clone();
+        let highlighter = bar.bar.highlighter.clone();
         let region = bar.region;
         // `ScreenRecorderBarSettings.Commit`: onto the recording's settings
         // and the settings the task came from.
         bar::apply_capture(&draft, r.task.CaptureSettings.get_or_insert_default());
+        highlighter.write_json(&mut r.task.ToolsSettings.get_or_insert_default().MouseHighlighterOptions);
         let origin = r.origin;
         let hotkey = origin.and_then(|i| self.settings.hotkeys.Hotkeys.get_mut(i)).map(|h| &mut h.TaskSettings);
-        let persisted = match hotkey {
-            Some(t) if !t.UseDefaultCaptureSettings => t.CaptureSettings.get_or_insert_default(),
-            _ => self.settings.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default(),
+        let (persisted, persisted_tools) = match hotkey {
+            Some(t) => {
+                let tools = !t.UseDefaultToolsSettings;
+                let capture = !t.UseDefaultCaptureSettings;
+                let defaults = &mut self.settings.settings.DefaultTaskSettings;
+                (
+                    if capture { t.CaptureSettings.get_or_insert_default() } else { defaults.CaptureSettings.get_or_insert_default() },
+                    if tools { t.ToolsSettings.get_or_insert_default() } else { defaults.ToolsSettings.get_or_insert_default() },
+                )
+            }
+            None => {
+                let defaults = &mut self.settings.settings.DefaultTaskSettings;
+                (defaults.CaptureSettings.get_or_insert_default(), defaults.ToolsSettings.get_or_insert_default())
+            }
         };
         bar::apply_capture(&draft, persisted);
+        highlighter.write_json(&mut persisted_tools.MouseHighlighterOptions);
         if let Err(e) = self.settings.save_application_config(false) {
             eprintln!("couldn't save the settings: {e}");
         }
@@ -551,6 +571,7 @@ impl App {
             }
             Event::Tray(e) => self.recording_tray_event(event_loop, e),
             Event::FFmpegDownloaded => self.ffmpeg_downloaded(event_loop),
+            Event::FFmpegUrl(target, url) => self.open_ffmpeg_downloader(event_loop, target, url),
             Event::State(..) | Event::Countdown(_) | Event::Progress(_) => {
                 let Some(Phase::Recording(a)) = self.recording.as_mut().map(|r| &mut r.phase) else { return };
                 let f = &mut a.frame.frame;
@@ -712,7 +733,13 @@ impl App {
                 if !bar.owns(id) {
                     return false;
                 }
-                if let Some(action) = bar.window_event(id, event) {
+                let action = bar.window_event(id, event);
+                // The highlighter panel's `Changed()`: `MouseHighlighterManager.RefreshOptions`.
+                let changed = std::mem::take(&mut bar.bar.highlighter_changed).then(|| bar.bar.highlighter.clone());
+                if let Some(o) = changed {
+                    self.screen_tools.highlighter.refresh(o);
+                }
+                if let Some(action) = action {
                     self.bar_action(event_loop, action);
                 }
                 true
@@ -894,12 +921,9 @@ impl Active {
             return;
         }
         if self.tray_shown.as_ref().is_none_or(|s| s.0 != t.icon) {
-            let size = tray::Tray::icon_size();
+            let size = tray::glyph_icon_size();
             let image = match t.icon {
-                TrayIcon::Glyph(key, color) => {
-                    let theme = if sharex_capture::platform::light_taskbar() { egui::Color32::BLACK } else { egui::Color32::WHITE };
-                    sharex_ui::icons::image(key, size, color.unwrap_or(theme))
-                }
+                TrayIcon::Glyph(key, color) => sharex_ui::icons::image(key, size, color.unwrap_or_else(tray::glyph_color)),
                 // `Helpers.GetProgressIconBytes(progress, Color.FromArgb(140, 0, 36))`.
                 TrayIcon::Progress(p) => Some(tray::progress_icon_in(size, p, [140, 0, 36])),
             };
@@ -1172,7 +1196,7 @@ impl BarWindow {
             at = if placed { bar::clamp_to_work(at, work, px) } else { bar::position_near_region(region, work, px, ppp as f64) };
             let origin = egui::pos2((at.0 - work.x) as f32 / ppp, (at.1 - work.y) as f32 / ppp);
             let action = bar.ui(ui, origin);
-            (action, px, bar.popup_rects())
+            (action, px, bar.popup_rects(ui.ctx()))
         });
         self.at = at;
         self.placed = true;
@@ -1373,6 +1397,16 @@ pub fn render(screen: &str, dark: bool, o: &RenderOptions) -> Result<image::Rgba
             }
             if c.starts_with("options") {
                 bar.open_options(c.contains("bar"));
+            }
+            // `highlighter[-circle]`: the Mouse highlighter panel, on the
+            // default options (Ripple) or in Circle mode.
+            if c.contains("highlighter") {
+                let mut o = sharex_tools::mouse_highlighter::MouseHighlighterOptions::default();
+                if c.contains("circle") {
+                    o.mode = sharex_tools::mouse_highlighter::Mode::Circle;
+                }
+                bar.set_highlighter(o);
+                bar.open_highlighter_panel();
             }
             let ctx = egui::Context::default();
             sharex_ui::install(&ctx);

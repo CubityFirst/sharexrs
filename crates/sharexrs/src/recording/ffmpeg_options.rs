@@ -1066,27 +1066,75 @@ impl App {
     }
 
     /// The "FFmpeg is missing" message was answered Yes:
-    /// `FFmpegGitHubDownloader.DownloadFFmpeg` on a thread, `ffmpeg.exe`
-    /// extracted to where FFmpeg was looked for.
+    /// `FFmpegGitHubDownloader.DownloadFFmpeg`: the latest release's
+    /// download URL (`GetLatestDownloadURL(true)`) on a thread, then the
+    /// downloader window, whose install extracts `ffmpeg.exe` to where
+    /// FFmpeg was looked for.
     pub(crate) fn download_ffmpeg(&mut self, target: PathBuf) {
-        if self.ffmpeg_download.is_some() {
-            return;
-        }
-        eprintln!("Downloading FFmpeg to {}", target.display());
         let proxy = self.proxy.clone();
-        let (tx, rx) = channel();
         std::thread::spawn(move || {
-            let result = download_ffmpeg_to(&target);
+            let url = latest_ffmpeg_url(FFMPEG_RELEASES);
+            let _ = proxy.send_event(crate::UserEvent::Recording(super::Event::FFmpegUrl(target, url)));
+        });
+    }
+
+    /// `DownloaderWindow.ShowAsync(url, "ffmpeg.zip", …)` with
+    /// `InstallType.Event` and `RunInstallerInBackground = async` (true):
+    /// `InstallRequested` extracts FFmpeg and tells the app.
+    pub(crate) fn open_ffmpeg_downloader(&mut self, event_loop: &ActiveEventLoop, target: PathBuf, url: Option<String>) {
+        let (tx, rx) = channel();
+        let proxy = std::sync::Mutex::new(self.proxy.clone());
+        let window = ffmpeg_downloader_window(url.unwrap_or_default(), self.updates.host.clone(), target, move |result| {
             let _ = tx.send(result);
-            let _ = proxy.send_event(crate::UserEvent::Recording(super::Event::FFmpegDownloaded));
+            let _ = proxy.lock().expect("event proxy").send_event(crate::UserEvent::Recording(super::Event::FFmpegDownloaded));
         });
         self.ffmpeg_download = Some(Download { rx });
+        self.open_dialog_window(event_loop, Box::new(crate::dialogs::update::DownloaderDialog::ffmpeg(window)));
     }
 }
 
+/// The FFmpeg downloader window: `ffmpeg.zip` from `url`, its install
+/// (`InstallRequested`) `ExtractFFmpeg` to `target`, then `done`.
+pub fn ffmpeg_downloader_window(
+    url: String,
+    host: std::sync::Arc<dyn sharex_update::UpdateHost>,
+    target: PathBuf,
+    done: impl Fn(Result<PathBuf, String>) + Send + Sync + 'static,
+) -> sharex_update::DownloaderWindow {
+    use sharex_update::downloader_window::InstallType;
+    let mut window = sharex_update::DownloaderWindow::new(&url, "ffmpeg.zip", sharex_update::InstallFlow::WindowsSetup, host);
+    window.install_type = InstallType::Event;
+    window.run_installer_in_background = true;
+    window.install_requested = Some(std::sync::Arc::new(move |archive: &Path| {
+        let result = std::fs::read(archive).map_err(|e| e.to_string()).and_then(|data| extract_ffmpeg(&data, &target)).map(|()| target.clone());
+        done(result);
+    }));
+    window
+}
+
+/// `GitHubUpdateChecker.GetLatestDownloadURL(true)` for ShareX/FFmpeg:
+/// the latest release's FFmpeg zip, if there's one (failures are logged).
+pub fn latest_ffmpeg_url(api: &str) -> Option<String> {
+    use sharex_uploaders::http;
+    let request = http::HttpRequest { method: sharex_uploaders::HttpMethod::GET, url: api.to_owned(), headers: Vec::new(), content: None };
+    let response = match http::send(request, http::RequestOptions::default()) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("{e}");
+            return None;
+        }
+    };
+    if !response.is_success() {
+        eprintln!("FFmpeg release check: {} {}", response.status_code, response.status_description);
+        return None;
+    }
+    let body = response.response_text.or_else(|| response.response_data.map(|d| String::from_utf8_lossy(&d).into_owned()))?;
+    release_download_url(&body)
+}
+
 impl App {
-    /// The download ended: says how (`DownloaderWindow`'s end isn't
-    /// ported; a message box tells).
+    /// The download ended: says how (a message box: ShareX has no caller
+    /// of its FFmpeg downloader to copy).
     pub(crate) fn ffmpeg_downloaded(&mut self, event_loop: &ActiveEventLoop) {
         let Some(result) = self.ffmpeg_download.as_ref().and_then(Download::finished) else { return };
         self.ffmpeg_download = None;
@@ -1162,23 +1210,6 @@ pub fn extract_ffmpeg(archive: &[u8], target: &Path) -> Result<(), String> {
     Err("the archive has no ffmpeg.exe".into())
 }
 
-fn download_ffmpeg_to(target: &Path) -> Result<PathBuf, String> {
-    use sharex_uploaders::http;
-    let get = |url: &str| -> Result<Vec<u8>, String> {
-        let request = http::HttpRequest { method: sharex_uploaders::HttpMethod::GET, url: url.to_owned(), headers: Vec::new(), content: None };
-        let response = http::send(request, http::RequestOptions::default()).map_err(|e| e.to_string())?;
-        if !response.is_success() {
-            return Err(format!("{} {}", response.status_code, response.status_description));
-        }
-        Ok(response.response_data.or_else(|| response.response_text.map(String::into_bytes)).unwrap_or_default())
-    };
-    let json = String::from_utf8(get(FFMPEG_RELEASES)?).map_err(|e| e.to_string())?;
-    let url = release_download_url(&json).ok_or("no FFmpeg download in the latest release")?;
-    let archive = get(&url)?;
-    extract_ffmpeg(&archive, target)?;
-    Ok(target.to_path_buf())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1210,6 +1241,74 @@ mod tests {
         extract_ffmpeg(&buf, &target).unwrap();
         assert_eq!(std::fs::read(&target).unwrap(), b"MZ ffmpeg");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn ffmpeg_zip() -> Vec<u8> {
+        use std::io::Write;
+        let mut buf = Vec::new();
+        {
+            let mut w = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            w.start_file("ffmpeg-7.1/bin/ffmpeg.exe", zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(b"MZ downloaded").unwrap();
+            w.finish().unwrap();
+        }
+        buf
+    }
+
+    /// A 127.0.0.1 server: `/release` is the release JSON pointing at
+    /// `/ffmpeg-win64.zip` (also `winarm64`), which is `zip`.
+    fn serve_release(zip: Vec<u8>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        let release = format!(
+            r#"{{"tag_name":"v7.1","assets":[{{"name":"ffmpeg-7.1-win64.zip","browser_download_url":"{base}/ffmpeg-win64.zip"}},{{"name":"ffmpeg-7.1-winarm64.zip","browser_download_url":"{base}/ffmpeg-win64.zip"}}]}}"#
+        );
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(8) {
+                let Ok(mut s) = stream else { continue };
+                let mut buf = [0u8; 4096];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).into_owned();
+                let (ctype, body) = if head.starts_with("GET /release") { ("application/json", release.clone().into_bytes()) } else { ("application/zip", zip.clone()) };
+                let _ = write!(s, "HTTP/1.1 200 OK\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = s.write_all(&body);
+            }
+        });
+        base
+    }
+
+    #[test]
+    fn the_ffmpeg_downloader_window_downloads_and_extracts() {
+        // `FFmpegGitHubDownloader.DownloadFFmpeg`: the URL, the window
+        // (`ffmpeg.zip`, `InstallType.Event`), its install extracting FFmpeg.
+        let base = serve_release(ffmpeg_zip());
+        let url = latest_ffmpeg_url(&format!("{base}/release")).unwrap();
+        assert_eq!(url, format!("{base}/ffmpeg-win64.zip"));
+        let dir = std::env::temp_dir().join(format!("sharexrs-ffmpeg-download-{}", std::process::id()));
+        let target = dir.join("ffmpeg.exe");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let tx = std::sync::Mutex::new(tx);
+        let mut window = ffmpeg_downloader_window(url, std::sync::Arc::new(crate::update::AppHost), target.clone(), move |r| {
+            let _ = tx.lock().unwrap().send(r);
+        });
+        assert_eq!(window.file_name, "ffmpeg.zip");
+        window.opened();
+        let start = Instant::now();
+        while window.status != sharex_update::DownloaderWindowStatus::InstallStarted {
+            window.poll();
+            assert!(start.elapsed() < Duration::from_secs(20), "{}", window.status_text);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        // Installed: the window closes, ShareXrs stays, and FFmpeg is there after the delay.
+        assert!(window.close_requested);
+        assert!(!window.shutdown_after);
+        let result = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(result, Ok(target.clone()));
+        assert_eq!(std::fs::read(&target).unwrap(), b"MZ downloaded");
+        let _ = std::fs::remove_dir_all(&dir);
+        // No release: no URL (the window then waits with an empty one, as ShareX's).
+        assert_eq!(latest_ffmpeg_url("http://127.0.0.1:9/release"), None);
     }
 
     #[test]

@@ -1549,10 +1549,11 @@ pub(crate) fn pick_folder(title: &str) -> Option<PathBuf> {
     }
 }
 
+/// Avalonia's folder picker outside Windows: the system's (NSOpenPanel on
+/// macOS, the XDG desktop portal on Linux), as `rfd` shows it.
 #[cfg(not(windows))]
-pub(crate) fn pick_folder(_title: &str) -> Option<PathBuf> {
-    eprintln!("folder picker: not ported on this platform yet");
-    None
+pub(crate) fn pick_folder(title: &str) -> Option<PathBuf> {
+    rfd::FileDialog::new().set_title(title).pick_folder()
 }
 
 #[cfg(test)]

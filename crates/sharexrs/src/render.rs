@@ -66,7 +66,8 @@
 //! frame's toolbar (`--content` waiting, before, working, recording,
 //! paused, confirm; `-labels` with button labels, `-notimer` without the
 //! timer; `--text` the timer's text). `recorder-bar` is the recorder bar
-//! (`--content` default, labels, options, options-bar, gif). Both draw on
+//! (`--content` default, labels, options, options-bar, gif, highlighter,
+//! highlighter-circle). Both draw on
 //! grey (#808080).
 //!
 //! `region-rest`, `region-drag` and `region-hover` draw the region capture
