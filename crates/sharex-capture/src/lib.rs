@@ -24,6 +24,7 @@ pub mod screenshot;
 pub mod transparent;
 pub mod scrolling;
 pub mod toolbar_items;
+pub mod trace;
 pub mod windows_list;
 
 pub use geometry::{PointF, Rect, RectF};

@@ -154,14 +154,18 @@ impl RegionSession {
         let cursor = request.cursor;
         let screen_bounds = request.screen_bounds;
         let active_monitor = request.options.ActiveMonitorMode;
+        use sharex_capture::trace;
         let capture = RegionCapture::new(request);
+        trace::mark("session (editor workspace)");
         let mut overlays = Vec::new();
         // The monitors the screenshot covers (only the active one in
         // active monitor mode, as ShareX's window spans `ScreenBounds`).
         for screen in screens.iter().filter(|s| s.bounds.intersect(&screen_bounds).is_valid()) {
             let window = open_window(event_loop, screen)?;
+            trace::mark("window created");
             let w = EguiWindow::new(window, gpu, None)?;
             w.ctx().set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
+            trace::mark("egui window (surface, renderer)");
             overlays.push(Overlay { window: w, view: OverlayView::new(screen.bounds), scale: screen.scale, pointer: None });
         }
         let mut me = Self {
@@ -183,7 +187,9 @@ impl RegionSession {
             let capture = &mut me.capture;
             let view = &mut o.view;
             o.window.paint(|ui| capture.paint(ui, view, now));
+            trace::mark("first frame painted");
             o.window.window.set_visible(true);
+            trace::mark("shown");
         }
         let focus = cursor
             .and_then(|(x, y)| me.overlays.iter().position(|o| o.view.monitor.contains(x, y)))
@@ -199,6 +205,7 @@ impl RegionSession {
             crate::window_geometry_log::record(&o.window.window, "Region capture", m, (m.w.max(0) as u32, m.h.max(0) as u32));
         }
         me.update_cursor(event_loop);
+        trace::end("overlay open");
         Ok(me)
     }
 

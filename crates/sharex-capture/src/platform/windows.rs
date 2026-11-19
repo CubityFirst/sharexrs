@@ -127,6 +127,7 @@ fn draw_native(w: i32, h: i32, background: Option<[u8; 3]>, draw: impl FnOnce(HD
         }
         draw(dc);
         GdiFlush();
+        crate::trace::mark("grab: BitBlt");
         let mut out = vec![0u8; len];
         for (o, i) in out.chunks_exact_mut(4).zip(pixels.chunks_exact(4)) {
             o.copy_from_slice(&[i[2], i[1], i[0], i[3]]);
@@ -159,6 +160,7 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
             p[3] = 255;
         }
     }
+    crate::trace::mark("grab: BGRA to opaque RGBA");
     image
 }
 

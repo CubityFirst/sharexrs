@@ -280,6 +280,7 @@ impl App {
     /// `SingleInstanceCommandRouter.ArgumentsReceived`.
     pub(crate) fn arguments_received(&mut self, event_loop: &ActiveEventLoop, arguments: Vec<String>) {
         eprintln!("Arguments received: \"{}\"", arguments.join(" "));
+        sharex_capture::trace::begin("arguments received");
         if self.router.ready {
             self.execute_received(event_loop, arguments);
         } else {

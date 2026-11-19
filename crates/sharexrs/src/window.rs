@@ -93,9 +93,12 @@ impl EguiWindow {
         sharex_ui::install(&ctx);
         let config = egui_wgpu::WgpuConfiguration { wgpu_setup: gpu.egui_setup(), ..Default::default() };
         let options = egui_wgpu::RendererOptions { dithering, ..Default::default() };
+        sharex_capture::trace::mark("egui context");
         let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, alpha, options));
+        sharex_capture::trace::mark("painter");
         pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window.clone())))
             .map_err(|e| format!("couldn't set up the window: {e}"))?;
+        sharex_capture::trace::mark("surface");
         let state = egui_winit::State::new(
             ctx,
             egui::ViewportId::ROOT,
@@ -279,6 +282,7 @@ impl EguiWindow {
                 }
             }
         });
+        sharex_capture::trace::mark("frame: ui");
         let (moved_out, fallback) = self.popups.prepare(&self.window, &mut self.painter, moved_out);
         output.shapes.extend(fallback);
         self.state.handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
@@ -289,6 +293,7 @@ impl EguiWindow {
             }
         }
         let primitives = ctx.tessellate(std::mem::take(&mut output.shapes), output.pixels_per_point);
+        sharex_capture::trace::mark("frame: tessellated");
         let clear = self.clear_color.unwrap_or_else(|| egui::Rgba::from(ctx.global_style().visuals.panel_fill).to_array());
         self.painter.paint_and_update_textures(
             egui::ViewportId::ROOT,
@@ -299,6 +304,7 @@ impl EguiWindow {
             Vec::new(),
             &self.window,
         );
+        sharex_capture::trace::mark("frame: textures uploaded, drawn, presented");
         output.textures_delta.clear();
         self.popups.paint(&self.window, &mut self.painter, &ctx, output.pixels_per_point, clear, moved_out);
         self.repaint_at = None;

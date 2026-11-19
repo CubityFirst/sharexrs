@@ -846,6 +846,7 @@ impl App {
     /// main window when asked (`autoHideForm`, from the main window's
     /// menus), then captures.
     fn capture(&mut self, job: CaptureJob, task: TaskSettings, auto_hide: bool) {
+        sharex_capture::trace::mark_or_begin("capture job");
         if self.region.is_some() || self.transparent.is_some() || self.pending_capture.is_some() {
             return;
         }
@@ -1006,6 +1007,7 @@ impl App {
     /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync`: freezes the
     /// screen and opens the overlay.
     fn start_region_capture(&mut self, event_loop: &ActiveEventLoop, task: TaskSettings, hidden: bool) {
+        sharex_capture::trace::mark("start region capture");
         let dark = self.theme() == egui::Theme::Dark;
         let opened = capture_job::prepare(&task, self.last_regions.clone()).and_then(|request| {
             let gpu = match &self.gpu {
