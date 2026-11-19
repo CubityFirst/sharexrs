@@ -219,6 +219,13 @@ pub enum Stretch {
 /// bilinearly (with mipmaps when shrinking), anti-aliased at its edges and
 /// clipped to the box's rounded corners (`radius`, 0 for none).
 pub fn fit(img: &RgbaImage, box_w: u32, box_h: u32, stretch: Stretch, radius: f32) -> RgbaImage {
+    fit_at(img, box_w, box_h, stretch, radius, 1.0)
+}
+
+/// [`fit`] into a box of physical pixels at `ppp` pixels per point: a 96 DPI
+/// `Bitmap`'s natural size is its pixels in DIPs, so `DownOnly` lets it grow
+/// to `ppp` times its pixels (at 125% a 100 px image shows 125 px wide).
+pub fn fit_at(img: &RgbaImage, box_w: u32, box_h: u32, stretch: Stretch, radius: f32, ppp: f32) -> RgbaImage {
     let (w, h) = (img.width() as f32, img.height() as f32);
     let mut out = RgbaImage::new(box_w, box_h);
     if w == 0.0 || h == 0.0 || box_w == 0 || box_h == 0 {
@@ -226,7 +233,7 @@ pub fn fit(img: &RgbaImage, box_w: u32, box_h: u32, stretch: Stretch, radius: f3
     }
     let mut scale = (box_w as f32 / w).min(box_h as f32 / h);
     if stretch == Stretch::UniformDownOnly {
-        scale = scale.min(1.0);
+        scale = scale.min(ppp);
     }
     let (dw, dh) = (w * scale, h * scale);
     let ox = ((box_w as f32 - dw) / 2.0).round_ties_even();
@@ -338,5 +345,24 @@ mod tests {
         assert_eq!((l.w, l.h), (1, 1));
         // (0 + 2*255 + 0) / 4, truncated.
         assert_eq!(l.px[0][0], 127.0);
+    }
+}
+
+#[cfg(test)]
+mod dpi_tests {
+    use super::*;
+
+    #[test]
+    fn a_down_only_preview_shows_its_natural_size_in_dips() {
+        // At 125% a 100x40 image in a 400x400 px box is 125x50 px; at 100%,
+        // 100x40; never more than the box.
+        let img = RgbaImage::from_pixel(100, 40, image::Rgba([255, 0, 0, 255]));
+        let opaque = |out: &RgbaImage| {
+            let row = out.height() / 2;
+            (0..out.width()).filter(|&x| out.get_pixel(x, row)[3] == 255).count()
+        };
+        assert_eq!(opaque(&fit_at(&img, 400, 400, Stretch::UniformDownOnly, 0.0, 1.25)), 125);
+        assert_eq!(opaque(&fit(&img, 400, 400, Stretch::UniformDownOnly, 0.0)), 100);
+        assert_eq!(opaque(&fit_at(&img, 80, 80, Stretch::UniformDownOnly, 0.0, 1.25)), 80);
     }
 }

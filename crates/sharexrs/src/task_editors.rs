@@ -185,7 +185,7 @@ impl ActionEditor {
             return Outcome::Open;
         }
         let (save, cancel) = footer(&ui, inner, &m, "action");
-        if closed || cancel || backdrop.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if closed || cancel || backdrop.clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return Outcome::Cancelled;
         }
         if save {
@@ -263,7 +263,7 @@ impl WatchFolderEditor {
         let y = y + m.check_h + 2.0 + 3.0;
         check(&child, &m, pos2(body.min.x, y + 1.0), s::TaskSettingsWindow_MoveFileToScreenshotsFolder(), &mut self.move_files_to_screenshots_folder, true);
         let (save, cancel) = footer(&ui, inner, &m, "watch");
-        if cancel || backdrop.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || backdrop.clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return Outcome::Cancelled;
         }
         if save {
@@ -636,7 +636,7 @@ impl NotificationButtonsEditor {
         if saved {
             return Outcome::Saved(self.to_json());
         }
-        if cancelled || backdrop.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancelled || backdrop.clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return Outcome::Cancelled;
         }
         Outcome::Open

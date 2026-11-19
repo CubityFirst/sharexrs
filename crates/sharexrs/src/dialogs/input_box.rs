@@ -83,6 +83,7 @@ impl Dialog for InputBoxWindow {
         let ok = compact.show(ui, rects[0], ui.id().with("ok"), labels[0], true, true).clicked();
         let cancel = compact.show(ui, rects[1], ui.id().with("cancel"), labels[1], false, true).clicked();
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if ok || enter {
             let text = self.text.clone();
             self.answer(Some(text));

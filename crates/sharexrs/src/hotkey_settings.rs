@@ -614,7 +614,7 @@ impl HotkeySettingsWindow {
         let by = inner.max.y - bh;
         let reset_rect = Rect::from_min_size(pos2(inner.max.x - rw, by), vec2(rw, bh));
         let cancel_rect = Rect::from_min_size(pos2(reset_rect.min.x - 8.0 - cw, by), vec2(cw, bh));
-        let cancelled = cancel_b.show(&ui, cancel_rect, Id::new("hk-reset-cancel"), cancel, true).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape));
+        let cancelled = cancel_b.show(&ui, cancel_rect, Id::new("hk-reset-cancel"), cancel, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx());
         if danger_button(&ui, reset_rect, Id::new("hk-reset-confirm"), reset).clicked() {
             self.confirm_reset(svc);
         } else if cancelled {

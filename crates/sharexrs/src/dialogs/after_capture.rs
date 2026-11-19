@@ -551,6 +551,7 @@ impl Dialog for AfterCaptureWindow {
         let cancel_rect = Rect::from_min_size(pos2(left.max.x - xw, buttons_top), vec2(xw, BUTTON_HEIGHT));
         let cont_rect = Rect::from_min_size(pos2(cancel_rect.min.x - 7.0 - cw, buttons_top), vec2(cw, BUTTON_HEIGHT));
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if compact(true).show(ui, cont_rect, ui.id().with("continue"), cont, true).clicked() || enter {
             let task = self.continue_jobs();
             return self.accept(task);

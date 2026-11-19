@@ -26,6 +26,29 @@ pub struct EguiWindow {
     /// (a click at the same place twice, the window cut to a region),
     /// while egui forgets the pointer when it leaves.
     last_cursor: Option<winit::dpi::PhysicalPosition<f64>>,
+    /// The left button is down in the window (winit has captured the mouse).
+    left_down: bool,
+    /// Where the last left press was on the screen and where the window
+    /// was then, in physical pixels: what [`Self::begin_move_drag`] anchors to.
+    press: Option<((i32, i32), (i32, i32))>,
+    /// A move drag in progress: the window follows the pointer from `press`.
+    move_drag: Option<((i32, i32), (i32, i32))>,
+    /// Popups past the window's edge, each in its own window
+    /// ([`crate::popup_window`]).
+    popups: crate::popup_window::Popups,
+}
+
+impl Drop for EguiWindow {
+    fn drop(&mut self) {
+        self.popups.clear(self.window.id());
+    }
+}
+
+/// Where a window dragged from `press` (the pointer on the screen) while
+/// at `origin` goes with the pointer at `cursor`: by the pointer's whole
+/// movement since the press, so it ends exactly where the pointer does.
+pub fn move_drag_target(press: (i32, i32), origin: (i32, i32), cursor: (i32, i32)) -> (i32, i32) {
+    (origin.0 + cursor.0 - press.0, origin.1 + cursor.1 - press.1)
 }
 
 impl EguiWindow {
@@ -74,7 +97,7 @@ impl EguiWindow {
             window.theme(),
             painter.max_texture_side(),
         );
-        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None })
+        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None, left_down: false, press: None, move_drag: None, popups: Default::default() })
     }
 
     pub fn ctx(&self) -> &egui::Context {
@@ -103,6 +126,9 @@ impl EguiWindow {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.last_cursor = Some(*position);
+                if self.move_drag.is_some() {
+                    self.follow_pointer();
+                }
                 let dir = self.resize_direction(position.x, position.y);
                 if dir != self.resize_hover {
                     self.resize_hover = dir;
@@ -120,11 +146,70 @@ impl EguiWindow {
                     let _ = self.window.drag_resize_window(d);
                     return;
                 }
+                self.left_down = true;
+                self.press = match (self.window.inner_position(), self.window.outer_position(), self.last_cursor) {
+                    (Ok(inner), Ok(outer), Some(c)) => {
+                        Some(((inner.x + c.x.round() as i32, inner.y + c.y.round() as i32), (outer.x, outer.y)))
+                    }
+                    _ => None,
+                };
             }
+            WindowEvent::MouseInput { state: winit::event::ElementState::Released, button: winit::event::MouseButton::Left, .. } => {
+                if self.move_drag.take().is_some() {
+                    self.follow_pointer_to_end();
+                }
+                self.left_down = false;
+            }
+            WindowEvent::Focused(false) => {
+                self.move_drag = None;
+            }
+            // Onto one of its popups: the pointer is still the window's.
+            WindowEvent::CursorLeft { .. } if self.popups.contains_cursor(&self.window) => return,
             _ => {}
         }
         if self.state.on_window_event(&self.window, event).repaint {
             self.window.request_redraw();
+        }
+    }
+
+    /// `BeginMoveDrag(e)` from a press egui handled a frame later. Avalonia
+    /// calls `DefWindowProc(WM_NCLBUTTONDOWN, HTCAPTION)` inside the press
+    /// handler, so the system's move loop anchors at the press
+    /// (`GetMessagePos`); winit's `drag_window` posts the message a frame
+    /// later and anchors wherever the pointer is by then, losing what it
+    /// moved in between (APP-13a), and running the loop synchronously
+    /// inside winit's handler would re-enter it. So on Windows the window
+    /// follows the pointer itself, from where it was pressed, until the
+    /// button comes up; elsewhere the system's drag (anchored at its event).
+    pub fn begin_move_drag(&mut self) {
+        if cfg!(windows)
+            && self.left_down
+            && let Some(press) = self.press
+        {
+            self.move_drag = Some(press);
+            self.follow_pointer();
+            return;
+        }
+        let _ = self.window.drag_window();
+    }
+
+    fn follow_pointer(&self) {
+        let Some((press, origin)) = self.move_drag else { return };
+        self.move_to_pointer(press, origin);
+    }
+
+    /// The release's position (the drag ends where the button came up).
+    fn follow_pointer_to_end(&self) {
+        if let Some((press, origin)) = self.press {
+            self.move_to_pointer(press, origin);
+        }
+    }
+
+    fn move_to_pointer(&self, press: (i32, i32), origin: (i32, i32)) {
+        let Some(cursor) = sharex_capture::screenshot::cursor_position() else { return };
+        let (x, y) = move_drag_target(press, origin, cursor);
+        if self.window.outer_position().is_ok_and(|p| (p.x, p.y) != (x, y)) {
+            self.window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
         }
     }
 
@@ -135,6 +220,10 @@ impl EguiWindow {
         }
         let size = self.window.inner_size();
         let (w, h) = (size.width as f64, size.height as f64);
+        if x < 0.0 || y < 0.0 || x >= w || y >= h {
+            // Over a popup past the edge.
+            return None;
+        }
         let (l, r, t, b) = (x < border, x >= w - border, y < border, y >= h - border);
         Some(match (l, r, t, b) {
             (true, _, true, _) => ResizeDirection::NorthWest,
@@ -155,11 +244,29 @@ impl EguiWindow {
         let ctx = self.ctx().clone();
         let mut result = None;
         let mut ui = Some(ui);
+        // Popups may leave the window ([`crate::popup_window`]).
+        let host = crate::popup_window::host_area(&self.window);
+        let mut moved_out: Vec<crate::popup_window::Wanted> = Vec::new();
         let mut output = ctx.run_ui(input, |root| {
+            sharex_ui::popup::set_host(root.ctx(), host);
             if let Some(f) = ui.take() {
                 result = Some(f(root));
+                let popups = sharex_ui::popup::take(root.ctx());
+                if host.is_some() {
+                    let client = root.ctx().viewport_rect();
+                    for popup in popups.into_iter().filter(|p| !crate::popup_window::fits(client, p.rect)) {
+                        let shapes = root
+                            .ctx()
+                            .graphics_mut(|g| g.get_mut(popup.layer).map(std::mem::take))
+                            .map(|list| list.all_entries().cloned().collect())
+                            .unwrap_or_default();
+                        moved_out.push(crate::popup_window::Wanted { popup, shapes });
+                    }
+                }
             }
         });
+        let (moved_out, fallback) = self.popups.prepare(&self.window, &mut self.painter, moved_out);
+        output.shapes.extend(fallback);
         self.state.handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
         if self.resize_hover.is_some() {
             // egui just set its own cursor; the edge's wins.
@@ -179,6 +286,7 @@ impl EguiWindow {
             &self.window,
         );
         output.textures_delta.clear();
+        self.popups.paint(&self.window, &mut self.painter, &ctx, output.pixels_per_point, clear, moved_out);
         self.repaint_at = None;
         if let Some(vp) = output.viewport_output.get(&egui::ViewportId::ROOT) {
             if vp.repaint_delay.is_zero() {
@@ -197,5 +305,20 @@ fn cursor_for(d: ResizeDirection) -> CursorIcon {
         ResizeDirection::North | ResizeDirection::South => CursorIcon::NsResize,
         ResizeDirection::NorthEast | ResizeDirection::SouthWest => CursorIcon::NeswResize,
         ResizeDirection::NorthWest | ResizeDirection::SouthEast => CursorIcon::NwseResize,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_move_drag_follows_the_whole_pointer_movement() {
+        // APP-13a: a drag of -160,-80 from client 26,19 moves the toolbar by
+        // exactly that, however many steps the pointer took.
+        let press = (771 + 26, 680 + 19);
+        let origin = (771, 680);
+        let step = |i: i32| (press.0 - 160 * i / 12, press.1 - 80 * i / 12);
+        assert_eq!(super::move_drag_target(press, origin, step(1)), (758, 674));
+        let cursor = step(12);
+        assert_eq!(super::move_drag_target(press, origin, cursor), (611, 600));
     }
 }

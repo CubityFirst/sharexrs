@@ -967,7 +967,7 @@ impl App {
         };
         let attrs = winit::window::WindowAttributes::default()
             .with_title(crate::rs_title(s::FFmpegOptionsWindow_Title()))
-            .with_window_icon(winit::window::Icon::from_rgba(crate::app_icon::rgba64(), 64, 64).ok())
+            .with_window_icon(crate::app_icon::window_icon())
             .with_theme(Some(match theme {
                 egui::Theme::Dark => winit::window::Theme::Dark,
                 egui::Theme::Light => winit::window::Theme::Light,

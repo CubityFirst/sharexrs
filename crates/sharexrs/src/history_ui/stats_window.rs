@@ -1125,7 +1125,7 @@ impl Dialog for StatsWindow {
             self.loader = None;
             self.show(r);
         }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !ComboBox::is_open(ui.ctx(), Id::new("stats-span")) {
+        if sharex_ui::popup::escape_pressed(ui.ctx()) && !ComboBox::is_open(ui.ctx(), Id::new("stats-span")) {
             self.effects.push(Effect::Close);
         }
         let p = palette(ui.ctx());

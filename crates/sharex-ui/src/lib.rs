@@ -28,6 +28,7 @@ pub mod keys;
 pub mod menu;
 pub mod icons;
 pub mod offscreen;
+pub mod popup;
 pub mod theme;
 pub mod tooltip;
 pub mod widgets;

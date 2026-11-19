@@ -66,6 +66,14 @@ pub struct DirectoryIndexerWindow {
     scroll: f32,
 }
 
+/// A picked or dropped folder as ShareX gets it: `IStorageFolder.Path` is a
+/// URI ending in `/`, so its `LocalPath` ends in a separator. The HTML's
+/// title takes `Path.GetFileName` of that, which is empty (`<title>Index
+/// for </title>`, DAT-04a), while the suggested file name trims it first.
+pub fn storage_folder_path(folder: &str) -> String {
+    if folder.ends_with(['\\', '/']) { folder.to_owned() } else { format!("{folder}{}", std::path::MAIN_SEPARATOR) }
+}
+
 impl DirectoryIndexerWindow {
     /// `new DirectoryIndexerWindow(indexerSettings, upload)` over the
     /// task's `ToolsSettingsReference.IndexerSettings`, `BinaryUnits` from
@@ -393,7 +401,7 @@ impl Dialog for DirectoryIndexerWindow {
             // `OnOpened` → `InitializeAsync` → `BrowseFolderAsync`.
             self.opened = true;
             if let Some(f) = tools::pick_folder(s::DirectoryIndexerWindow_Select_folder_to_index_dialog(), "") {
-                self.set_folder(&f, true);
+                self.set_folder(&storage_folder_path(&f), true);
             }
         }
         self.poll(&ctx);
@@ -420,7 +428,7 @@ impl Dialog for DirectoryIndexerWindow {
         if tools::text_button(ui, br, Id::new("indexer-browse"), browse, idle).clicked()
             && let Some(f) = tools::pick_folder(s::DirectoryIndexerWindow_Select_folder_to_index_dialog(), "")
         {
-            self.set_folder(&f, true);
+            self.set_folder(&storage_folder_path(&f), true);
         }
         if tools::icon_text_button(ui, gr, Id::new("indexer-generate"), icon::FolderSearch, gen_text, self.can_index()).clicked() {
             self.index();
@@ -468,7 +476,7 @@ impl Dialog for DirectoryIndexerWindow {
     fn dropped(&mut self, files: Vec<PathBuf>, _cx: &mut Cx) -> Vec<Effect> {
         // `OnDrop`: the first folder dropped (not indexed until Generate).
         if let Some(f) = files.iter().find(|f| f.is_dir()) {
-            self.set_folder(&f.to_string_lossy(), false);
+            self.set_folder(&storage_folder_path(&f.to_string_lossy()), false);
         }
         Vec::new()
     }
@@ -496,5 +504,22 @@ mod tests {
         assert!(w.source.contains("a.txt") && w.source.contains("b.txt"));
         assert_eq!(w.settings.output, IndexerOutput::Json);
         assert_eq!(w.settings.to_json()["Output"], "Json");
+    }
+
+    #[test]
+    fn a_picked_folders_html_title_has_no_name() {
+        // DAT-04a: the picker's path ends in a separator, so the title's
+        // `Path.GetFileName` is empty, as in ShareX; the files are listed.
+        let dir = std::env::temp_dir().join(format!("sharexrs-indexer-title-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("alpha.txt"), b"a").unwrap();
+        std::fs::write(dir.join("sub").join("beta.txt"), b"b").unwrap();
+        let picked = storage_folder_path(&dir.to_string_lossy());
+        assert!(picked.ends_with(std::path::MAIN_SEPARATOR));
+        assert_eq!(storage_folder_path(&picked), picked);
+        let html = sharex_tools::indexer::index(&picked, &sharex_tools::indexer::IndexerSettings::default());
+        assert!(html.contains("<title>Index for </title>"), "{html}");
+        assert!(html.contains("alpha.txt") && html.contains("beta.txt"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,5 +1,5 @@
 //! `sharexrs --render <screen> --out <png> [--theme dark|light]
-//! [--width W] [--height H] [--scale S] [--hover X,Y] [--unregistered 0,3]
+//! [--width W] [--height H] [--scale S] [--popup-host L,T,R,B] [--hover X,Y] [--unregistered 0,3]
 //! [--open 12,0] [--work-area L,T,R,B] [--monitors 1024x768,...]`: draws one screen offscreen, for
 //! comparing with a screenshot of ShareX.
 //!
@@ -305,6 +305,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--width" => width = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
             "--height" => height = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
             "--scale" => scale = val()?.parse().map_err(|e: std::num::ParseFloatError| e.to_string())?,
+            // Popups placed against this work area (window points), as a
+            // window that opens popup windows places them; their rectangles
+            // are printed (`sharex_ui::popup`).
+            "--popup-host" => {
+                let v: Vec<f32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
+                let [l, t, r, b] = v[..] else { return Err("--popup-host L,T,R,B".into()) };
+                sharex_ui::offscreen::set_popup_host(Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b))));
+            }
             "--hover" => {
                 let v = val()?;
                 let (x, y) = v.split_once(',').ok_or("--hover X,Y")?;
@@ -879,6 +887,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     image.save(&out).map_err(|e| e.to_string())?;
+    for p in sharex_ui::offscreen::last_popups() {
+        let (o, size) = crate::popup_window::physical_rect(p.rect, scale);
+        println!("popup {:?}: points {},{} {}x{}; pixels {},{} {}x{}", p.layer.id, p.rect.min.x, p.rect.min.y, p.rect.width(), p.rect.height(), o.0, o.1, size.0, size.1);
+    }
     println!("{screen}: {}x{} -> {out}", image.width(), image.height());
     Ok(())
 }

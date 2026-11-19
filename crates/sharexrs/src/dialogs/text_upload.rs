@@ -37,22 +37,8 @@ impl TextUploadWindow {
     fn character_count(&self) -> String {
         let n = self.text.encode_utf16().count();
         let format = if n == 1 { s::TextUploadWindow_Character_count_singular() } else { s::TextUploadWindow_Character_count_plural() };
-        format.replace("{0:N0}", &format_n0(n as u64)).replace("{0}", &n.to_string())
+        sharex_tools::text::format_dotnet(format, &[sharex_tools::text::Arg::I64(n as i64)])
     }
-}
-
-/// .NET's `{0:N0}`: digits grouped by three with the culture's separator
-/// (English: a comma).
-pub fn format_n0(n: u64) -> String {
-    let digits = n.to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    out
 }
 
 /// Focuses the text box `id` and selects all of `text` (`Focus()`,
@@ -106,7 +92,7 @@ impl Dialog for TextUploadWindow {
         let cancel = compact.show(ui, rects[0], ui.id().with("cancel"), labels[0], false, true).clicked();
         let upload = compact.show(ui, rects[1], ui.id().with("upload"), labels[1], true, true).clicked();
         // `IsCancel`: Escape closes.
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return vec![Effect::Close];
         }
         if upload {
@@ -130,7 +116,9 @@ impl Dialog for TextUploadWindow {
 mod tests {
     #[test]
     fn counts_are_grouped_by_thousands() {
-        assert_eq!(super::format_n0(16), "16");
-        assert_eq!(super::format_n0(1234567), "1,234,567");
+        // `{0:N0}` in en-US's separators (the formatter takes the current culture's).
+        assert_eq!(sharex_tools::text::format_number(16.0, "N0", true), "16");
+        assert_eq!(sharex_tools::text::format_number(1234567.0, "N0", true), "1,234,567");
+        assert_eq!(sharex_tools::text::with_separators("1,234,567.5", ".", ","), "1.234.567,5");
     }
 }

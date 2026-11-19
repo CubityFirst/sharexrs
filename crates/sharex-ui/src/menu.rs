@@ -517,8 +517,11 @@ impl<C: Clone> Flyout<C> {
     }
 
     /// Draws the flyout on top of `ui`'s window, keeping it within
-    /// `bounds` (the screen's work area in Avalonia), and handles its input.
+    /// `bounds` (the screen's work area in Avalonia: the host's, see
+    /// [`crate::popup`], when it can open popups past the window), and
+    /// handles its input.
     pub fn show(&mut self, ui: &Ui, bounds: Rect) -> FlyoutOutput<C> {
+        let bounds = crate::popup::bounds(ui.ctx(), bounds);
         // An open menu has the keyboard (Avalonia focuses it), so the
         // control that opened it mustn't take arrows and Enter.
         ui.ctx().memory_mut(|m| {
@@ -616,6 +619,7 @@ impl<C: Clone> Flyout<C> {
                         grid_out = g.paint(ui, frame, categories, &self.grid_params(), layer, true);
                     });
                 ctx.move_to_top(response.response.layer_id);
+                crate::popup::register(&ctx, response.response.layer_id, *rect, if depth == 0 { 6.0 } else { 5.0 });
                 continue;
             }
             let entries = self.entries(depth).unwrap();
@@ -660,6 +664,7 @@ impl<C: Clone> Flyout<C> {
                     }
                 });
             ctx.move_to_top(response.response.layer_id);
+            crate::popup::register(&ctx, response.response.layer_id, *rect, if depth == 0 { 6.0 } else { 5.0 });
         }
 
         // Hover: highlight, and open/close submenus after `MenuShowDelay`.
@@ -802,6 +807,9 @@ impl<C: Clone> Flyout<C> {
                 break;
             }
             self.key(key, out);
+            if key == Key::Escape && out.closed {
+                crate::popup::closed_by_escape(ctx);
+            }
             *changed = true;
         }
     }
@@ -884,6 +892,7 @@ impl<C: Clone> Flyout<C> {
                 grid_out = g.paint(ui, frame, categories, &self.grid_params(), layer, false);
             });
         ctx.move_to_top(response.response.layer_id);
+        crate::popup::register(&ctx, response.response.layer_id, rect, 6.0);
         let chosen = self.apply_grid(grid_out);
         if let Some(command) = chosen {
             out.command = Some(command);
@@ -891,6 +900,7 @@ impl<C: Clone> Flyout<C> {
         }
         if Self::take_keys(&ctx).contains(&Key::Escape) {
             out.closed = true;
+            crate::popup::closed_by_escape(&ctx);
         }
         out
     }

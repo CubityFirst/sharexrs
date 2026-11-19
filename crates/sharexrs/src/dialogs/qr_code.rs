@@ -254,7 +254,9 @@ impl Dialog for QrCodeWindow {
         }
         // Row 1: `ColumnDefinitions="430,*"`.
         let row = Rect::from_min_max(pos2(grid.min.x, grid.min.y + 40.0 + 12.0), pos2(grid.max.x, bottom - 12.0));
-        let left = Rect::from_min_max(row.min, pos2(row.min.x + 430.0, row.max.y));
+        // The column's width in whole device pixels (430.4 at 125%), which the
+        // preview's width, and so a Size 0 code's (417 at 125%), follows (DAT-05).
+        let left = Rect::from_min_max(row.min, pos2(row.min.x + sharex_ui::widgets::layout_round(ui.ctx(), 430.0), row.max.y));
         sharex_ui::border::border(ui.painter(), left, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(p.background_panel)), Some(p.border));
         let inner = left.shrink(17.0);
         let heading = font(15.0, 600);
@@ -340,7 +342,7 @@ impl Dialog for QrCodeWindow {
             // `ImageViewerWindowIntegration.ShowImage(stream.ToArray(), Image_viewer_title)`.
             out.push(Effect::ShowImageNamed(image.clone(), sharex_strings::tools::QRCodeWindow_Image_viewer_title().to_owned()));
         }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
             out.push(Effect::Close);
         }
         out
@@ -356,6 +358,29 @@ mod tests {
         let image = generate("https://example.com/qr-test", 300).unwrap();
         assert_eq!(image.dimensions(), (300, 300));
         assert_eq!(scan(&image), ["https://example.com/qr-test"]);
+    }
+
+    #[test]
+    fn a_size_0_code_fits_the_rounded_preview() {
+        // DAT-05: the 940x610 window at 125% (1175x762 pixels) copies a
+        // 417 px code, its 430 column being 430.4 points; 418 at 100%.
+        for (ppp, height, want) in [(1.25f32, 609.6f32, 417u32), (1.0, 610.0, 418)] {
+            let ctx = egui::Context::default();
+            sharex_ui::install(&ctx);
+            let mut w = QrCodeWindow::new(Some("ShareX local QR fixture".into()));
+            let mut settings = sharex_settings::ApplicationConfig::default();
+            let store = crate::upload::UploadersConfigStore::loaded(Default::default());
+            for t in 0..3 {
+                let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(940.0, height))), time: Some(t as f64 / 60.0), ..Default::default() };
+                input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(ppp);
+                let mut out = ctx.run_ui(input, |ui| {
+                    let mut cx = Cx { settings: &mut settings, uploaders: &store };
+                    let _ = w.ui(ui, &mut cx);
+                });
+                out.textures_delta.clear();
+            }
+            assert_eq!(w.effective_size(), want, "at {ppp}");
+        }
     }
 
     #[test]

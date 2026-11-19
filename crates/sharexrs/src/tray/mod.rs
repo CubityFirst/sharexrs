@@ -176,6 +176,11 @@ pub fn set_white_icon(white: bool) {
     WHITE_ICON.store(white, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// `ShareXResources.UseWhiteIcon`.
+pub fn is_white_icon() -> bool {
+    WHITE_ICON.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// `ShareXResources.IconBytes`: the white icon with `UseWhiteShareXIcon`,
 /// else the app's, at `size` pixels square.
 pub fn current_icon(size: u32) -> RgbaImage {

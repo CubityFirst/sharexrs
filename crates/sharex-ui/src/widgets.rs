@@ -42,6 +42,14 @@ pub fn galley(ui: &Ui, text: &str, font: FontId, color: Color32, max_width: f32)
     ui.fonts_mut(|f| f.layout_job(job))
 }
 
+/// Avalonia's layout rounding (`LayoutHelper.RoundLayoutValue`): a size or
+/// position to whole device pixels, `Math.Round(value * scale) / scale`
+/// (ties to even). At 125% a 430-wide column is 538 pixels, 430.4 points.
+pub fn layout_round(ctx: &egui::Context, value: f32) -> f32 {
+    let ppp = ctx.pixels_per_point();
+    (value * ppp).round_ties_even() / ppp
+}
+
 /// Where Avalonia puts the top of a line of text of `height` centred
 /// (`VerticalAlignment="Center"`) in `rect`: the line box is rounded up to
 /// whole pixels and its offset rounded half-to-even, as layout rounding does.

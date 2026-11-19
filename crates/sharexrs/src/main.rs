@@ -73,6 +73,7 @@ mod tray_menu;
 mod update;
 mod upload;
 mod watch_folder;
+mod popup_window;
 mod window;
 mod window_geometry_log;
 
@@ -87,7 +88,7 @@ use sharex_settings::paths::is_command_present;
 use sharex_settings::types::{Point, Size};
 use sharex_settings::{AppPaths, HotkeyType, SettingManager, SystemOptions, TaskSettings};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Icon, WindowAttributes, WindowButtons, WindowId, WindowLevel};
+use winit::window::{WindowAttributes, WindowButtons, WindowId, WindowLevel};
 
 use capture::{CaptureError, CaptureJob};
 use hotkeys::HotkeyManager;
@@ -508,7 +509,7 @@ impl App {
             Some(g) => g,
             None => self.gpu.insert(Gpu::new()?),
         };
-        let icon = Icon::from_rgba(app_icon::rgba64(), 64, 64).ok();
+        let icon = app_icon::window_icon();
         let attrs = main_window_attributes()
             .with_title(&self.state.title)
             .with_inner_size(LogicalSize::new(main_window::WIDTH, main_window::HEIGHT))
@@ -1214,9 +1215,17 @@ impl App {
         if let Some(tray) = &mut self.tray {
             tray.set_icon(&tray::current_icon(tray::Tray::icon_size()));
         }
+        // `Resources["ShareX.WindowIcon"]`: every window's icon follows it.
         if let Some(w) = &self.main {
-            let icon = tray::current_icon(64);
-            w.window.set_window_icon(winit::window::Icon::from_rgba(icon.into_raw(), 64, 64).ok());
+            w.window.set_window_icon(app_icon::window_icon());
+            // The title bar's logo (`TitleBarIcon`).
+            w.window.request_redraw();
+        }
+        for d in &self.dialogs {
+            d.window.window.set_window_icon(app_icon::window_icon());
+        }
+        for w in [self.settings_window.as_ref().map(|w| &w.window), self.hotkey_window.as_ref().map(|w| &w.window), self.task_window.as_ref().map(|w| &w.window)].into_iter().flatten() {
+            w.window.set_window_icon(app_icon::window_icon());
         }
         // `TaskManager.UpdateTrayIcon`'s `lastIconStatus` is the app's icon now.
         self.tray_progress = -1;
@@ -1331,7 +1340,7 @@ impl App {
             Some(g) => g,
             None => self.gpu.insert(Gpu::new()?),
         };
-        let icon = Icon::from_rgba(app_icon::rgba64(), 64, 64).ok();
+        let icon = app_icon::window_icon();
         let attrs = dialog_attributes()
             .with_title(&message.caption)
             .with_inner_size(LogicalSize::new(message_box::WIDTH, 240.0))
@@ -1754,6 +1763,7 @@ fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
 
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let _popups = popup_window::enter(event_loop);
         if !self.started {
             self.started = true;
             self.start(event_loop);
@@ -1761,6 +1771,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        let _popups = popup_window::enter(event_loop);
         match event {
             UserEvent::Hotkey(id) => {
                 let s = &self.settings.settings;
@@ -1822,6 +1833,14 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        let _popups = popup_window::enter(event_loop);
+        // A popup window's input is its owner's (`popup_window`).
+        if let Some((owner, event)) = popup_window::route_event(id, &event) {
+            if let Some(event) = event {
+                self.window_event(event_loop, owner, event);
+            }
+            return;
+        }
         // The OS switched light/dark mode: `PlatformSettings.ColorValuesChanged`.
         if let WindowEvent::ThemeChanged(t) = event
             && self.system_theme != Some(t)
@@ -1969,6 +1988,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let _popups = popup_window::enter(event_loop);
         // `-AutoClose`: `ApplicationLifecycle.Exit()` once the last task is done.
         if self.exit_requested {
             self.exit_requested = false;

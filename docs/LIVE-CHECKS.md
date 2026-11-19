@@ -195,3 +195,40 @@ The startup used `AutoCheckUpdate=false`, then the exact original
 `ApplicationConfig.json` bytes were restored and reverified. The test
 pattern stopped and the backup and temporary portable profiles were
 removed.
+
+## Fixes for the FAILs (branch `fix/live-check-failures`)
+
+Fixed headlessly from the evidence above, with unit tests and `--render`
+checks at 100% and 125%. Each needs a live re-check against ShareX on a
+build of that branch.
+
+| ID | Cause | Fix | Re-check |
+|---|---|---|---|
+| APP-08a | `FileHelpers.GetAbsolutePath` ends in `Path.GetFullPath`; the port didn't normalise, so a path spelled with `/` or `..` didn't match the folder listing and the viewer had one image. | `paths::absolute_path` and the viewer normalise with `std::path::absolute`. | Right advances to pattern-04; status shows `1 / 2`. |
+| APP-13a | winit's `drag_window` posts `WM_NCLBUTTONDOWN` a frame after the press, and the move loop anchors at the cursor when it's posted (`GetMessagePos`), losing the pointer's first movement. Avalonia calls `DefWindowProc` inside the press. | Dialogs' move drag (Actions toolbar, drop window) anchors at the press and follows `GetCursorPos` until the release. | Same drag saves `611, 600`. |
+| APP-26a, HIS-06 | Tested on `72045af`; fixed on `master` by the inert-entries merge. | Verified in code: Ctrl+V opens Clipboard upload with `ShowClipboardContentViewer`; the date flyout has its up/down buttons. | Both as written. |
+| VID-02 | Popups were egui layers inside their window. | `sharex_ui::popup`: popups place against the screen's work area (Avalonia's positioner: flip, slide, resize), and one that overflows its window is drawn in an owned, never-activated OS popup window whose input goes back to the owner. Windows only. `--render … --popup-host L,T,R,B` prints where popups go: the codec list `33,100 326x504`, Hash checker `139,189 101x218`, Capture menu `206,45` and its flipped submenu `-28,365` match the shared-control sidecars exactly. | Codec list 408×630 below the 125% client; the shared-control edge and submenu states. |
+| VID-04 | FFmpeg's `Invalid data found when processing input` was reported as `VideoTrimmer_InvalidVideo`. | Mapped to Media Foundation's `MF_E_END_OF_STREAM` as .NET words it (`<system message> (0xC00D3E84)`); see TOOLS.md. | The modal and inline text. |
+| VID-11 | Frames, layout, shadow and border are pixel-exact (tools harness `vthumbs-plain`); the difference is the video info and timestamp text: Skia rasterises DirectWrite glyph masks, ShareXrs fills the outlines. The byte sizes differ by PNG encoder too. | Not fixed: needs Skia m119's `SkScalerContext_win_dw.cpp` and `SkMaskGamma` ported, which aren't in the local Skia subset. | — |
+| DAT-02 | `data_tools::format` replaced `{0}` only. | Composite formatting (`format_dotnet`) with the current culture's separators; no other resource uses an unformatted specifier. | `22 tags`. |
+| DAT-04a | Avalonia's `IStorageFolder.Path` ends in `/`, so ShareX's title takes `Path.GetFileName` of a path ending in a separator. | Picked and dropped folders keep the trailing separator. | `<title>Index for </title>`. |
+| DAT-05 | At 125% Avalonia rounds the 430 column to 538 px (430.4), leaving the preview 465.6 wide. | The column is layout-rounded (`widgets::layout_round`). | Copy image is 417×417. |
+| REC-02 | ShareX's `FFmpegCLIManager.Run` with `ShowError` blocks the recording thread on the error box, so the bar stays up (`Working`) and ending it there aborts: the output is deleted and no task made. The port posted the error and finished at once. | The worker waits for the error box. | Repeat the exact steps; with the bar ended while the error shows, the file is deleted and History stays at 60. |
+| SCR-02 | The preview drew image pixels as screen pixels. | An image pixel is a DIP (Avalonia's 96 DPI `Bitmap`), as is the image viewer's (its 125% shot: ShareX 1500×375 for 1200×300). | 525×600. |
+| SET-04a | A click whose press and release land in one frame opened the menu and closed it again as a press outside it. | The opening frame's press doesn't dismiss (variable menus, the image effects add menu). | Menu opens on the first click. |
+| SET-05a | The Format box's right click never reached the menu (egui's hit test under the editor's blocker), so Escape closed the editor. | The right click is read from the input; and generally a window or editor ignores Escape while a popup was open (`popup::escape_pressed`). | First Escape closes the menu, the second the editor. |
+| SET-08a | The main window's title bar logo was always the blue one; other windows' icons didn't follow the setting. | The title bar draws the current icon (`TitleBarIcon`), and every window's icon follows (`ShareX.WindowIcon`). | Title bar icon turns white. |
+| ED-01 | ShareX's `Zoom` is image pixels per screen pixel (`EffectiveZoom = Zoom / DpiScale`). | The editor draws at the effective zoom; zoom to fit multiplies by the DPI. | 640×400 physical at 100%. |
+
+Image surfaces at 125%, from ShareX's source and shots: the editor canvas
+and pinned images are screen pixels; the scrolling capture preview, the
+image viewer and every `DownOnly` preview are DIPs (the main window's list
+preview was fitted as screen pixels, fixed too: `thumbnail::fit_at`);
+thumbnails are fitted to DIP boxes.
+
+Also found: Avalonia sizes some windows' clients a pixel smaller than
+ShareXrs at 125% (Video converter 1062×687 vs 1063×688, QR code 1175×762 vs
+1175×763; the 950-wide settings window is 1188 in both). The rule isn't
+clear from these, so it's left for a live check. Offscreen renders at
+`--scale 1.25` laid out their first frame on egui's 8000-point default
+screen (dialog renders panicked); fixed.

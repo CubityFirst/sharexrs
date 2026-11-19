@@ -107,11 +107,42 @@ pub fn save_tools_setting(cx: &mut Cx, task: &mut sharex_settings::TaskSettings,
     }
 }
 
-/// `string.Format(format, args)` for `{0}`, `{1}`… .
+/// `string.Format(format, args)`: `{0}`, `{1:N0}`, `{2:0.##}`… . An
+/// argument that is a whole or decimal number (written as Rust prints it)
+/// formats as that number, so a resource's format specifier applies
+/// (`MetadataViewModel_Tag_count`'s `{0:N0} tags`); other arguments are
+/// strings.
 pub fn format(format: &str, args: &[&str]) -> String {
-    let mut out = format.to_owned();
-    for (i, a) in args.iter().enumerate() {
-        out = out.replace(&format!("{{{i}}}"), a);
+    use sharex_tools::text::Arg;
+    let args: Vec<Arg> = args
+        .iter()
+        .map(|a| match (a.parse::<i64>(), a.parse::<f64>()) {
+            (Ok(n), _) if n.to_string() == *a => Arg::I64(n),
+            (_, Ok(v)) if v.is_finite() && v.to_string() == *a => Arg::F64(v),
+            _ => Arg::Str(a.to_string()),
+        })
+        .collect();
+    sharex_tools::text::format_dotnet(format, &args)
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::format;
+
+    fn culture(s: &str) -> String {
+        let c = sharex_helpers::date_format::CultureFormat::current();
+        sharex_tools::text::with_separators(s, &c.number_group_separator, &c.number_decimal_separator)
     }
-    out
+
+    #[test]
+    fn format_specifiers_apply_to_numbers() {
+        // DAT-02: the Metadata header showed `{0:N0} tags` literally.
+        assert_eq!(format(sharex_strings::tools::MetadataViewModel_Tag_count(), &["22"]), "22 tags");
+        assert_eq!(format("{0:N0} tags", &["12345"]), culture("12,345 tags"));
+        assert_eq!(format(sharex_strings::tools::AnalyzeImageViewModel_Time_ms(), &["1500"]), culture("Time: 1,500 ms"));
+        assert_eq!(format("{0:0.##}%", &["12.345"]), culture("12.35%"));
+        // Strings that aren't plain numbers stay as written.
+        assert_eq!(format("{0} / {1}", &["007", "a.b"]), "007 / a.b");
+        assert_eq!(format("{{{0}}}", &["x"]), "{x}");
+    }
 }

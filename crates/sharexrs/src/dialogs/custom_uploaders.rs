@@ -516,7 +516,7 @@ impl Dialog for CustomUploaderSettingsWindow {
         self.editor(ui, editor, config, &mut out);
         if self.syntax.is_some() {
             self.syntax_overlay(ui, full);
-            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if sharex_ui::popup::escape_pressed(ui.ctx()) {
                 self.syntax = None;
             }
         }

@@ -278,6 +278,7 @@ impl Dialog for BeforeUploadWindow {
         let cancel = compact.show(ui, rects[0], ui.id().with("cancel"), labels[0], false, true).clicked();
         let upload = compact.show(ui, rects[1], ui.id().with("upload"), labels[1], true, true).clicked();
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if preview_clicked && let Some(image) = self.source_image() {
             // `ImageViewerWindowIntegration.ShowImage(_sourceImage)`.
             return vec![Effect::ShowImage((*image).clone())];

@@ -598,9 +598,10 @@ fn drop_overlay(ui: &Ui, area: Rect) {
     ui.painter().galley(pos2(cx, ty + title_h + 12.0), desc, p.text_secondary);
 }
 
-/// The ShareX logo in the title bar (`TitleBarIcon`).
+/// The ShareX logo in the title bar (`TitleBarIcon`, from
+/// `ShareXResources.IconBytes`: white with `UseWhiteShareXIcon`, SET-08a).
 fn paint_app_icon(ui: &Ui, rect: Rect) {
-    crate::app_icon::paint(ui, rect);
+    crate::app_icon::paint_current(ui, rect);
 }
 
 #[cfg(test)]

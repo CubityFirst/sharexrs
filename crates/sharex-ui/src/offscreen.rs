@@ -8,6 +8,24 @@ use crate::gpu::Gpu;
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
+thread_local! {
+    static POPUP_HOST: std::cell::Cell<Option<egui::Rect>> = const { std::cell::Cell::new(None) };
+    static LAST_POPUPS: std::cell::RefCell<Vec<crate::popup::PopupLayer>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Renders from now on place popups as a host with this work area would
+/// (`crate::popup::set_host`, in the window's points), for checking where
+/// a popup past the window's edge goes; [`last_popups`] says where they
+/// went. `None` (the default) keeps them in the window.
+pub fn set_popup_host(work_area: Option<egui::Rect>) {
+    POPUP_HOST.with(|h| h.set(work_area));
+}
+
+/// The popups the last frame drew, when a popup host is set.
+pub fn last_popups() -> Vec<crate::popup::PopupLayer> {
+    LAST_POPUPS.with(|p| p.borrow().clone())
+}
+
 /// An egui context drawn into a texture frame after frame, for scripting
 /// input (clicks, hovers) and saving what a frame showed.
 pub struct Offscreen {
@@ -36,8 +54,19 @@ impl Offscreen {
 
     /// Runs one frame with these input events.
     pub fn run(&mut self, events: Vec<egui::Event>, ui: &mut impl FnMut(&mut egui::Ui)) {
-        let [w, h] = self.size;
+        if self.frame == 0 && self.ppp != 1.0 {
+            // egui applies `set_pixels_per_point` at the next pass by scaling
+            // the previous screen rect (its 10000-point default), so the
+            // first pass at 1.25 would lay out on an 8000x8000 screen. An
+            // empty pass takes that, and leaves its textures uploaded.
+            self.pass(Vec::new(), &mut |_: &mut egui::Ui| {});
+        }
         self.frame += 1;
+        self.pass(events, ui);
+    }
+
+    fn pass(&mut self, events: Vec<egui::Event>, ui: &mut impl FnMut(&mut egui::Ui)) {
+        let [w, h] = self.size;
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
@@ -47,7 +76,17 @@ impl Offscreen {
             events,
             ..Default::default()
         };
-        let mut out = self.ctx.run_ui(input, ui);
+        let host = POPUP_HOST.with(|h| h.get());
+        let mut out = self.ctx.run_ui(input, |root| {
+            if host.is_some() {
+                crate::popup::set_host(root.ctx(), host);
+            }
+            ui(root);
+            if host.is_some() {
+                let popups = crate::popup::take(root.ctx());
+                LAST_POPUPS.with(|p| *p.borrow_mut() = popups);
+            }
+        });
         let mut textures = std::mem::take(&mut out.textures_delta);
         for (id, deltas) in &textures.set {
             for delta in deltas {

@@ -258,6 +258,8 @@ pub struct ImageRequest {
     pub size: [u32; 2],
     /// The box's corner radius, in physical pixels.
     pub radius: f32,
+    /// Physical pixels per point (a `DownOnly` preview's natural size).
+    pub ppp: f32,
     /// `RefreshFromOwnedImage`: the task's image itself (`ImageReady`),
     /// not its file.
     pub image: Option<Arc<image::RgbaImage>>,
@@ -286,7 +288,8 @@ impl ImageRequest {
                 let fit = crate::thumbnail::decode_to_fit(&img, w, h);
                 crate::thumbnail::fit(&fit, w, h, crate::thumbnail::Stretch::Uniform, self.radius)
             }
-            ImageKind::Preview => crate::thumbnail::fit(&img, w, h, crate::thumbnail::Stretch::UniformDownOnly, self.radius),
+            // `Stretch="Uniform" StretchDirection="DownOnly"` on a 96 DPI bitmap.
+            ImageKind::Preview => crate::thumbnail::fit_at(&img, w, h, crate::thumbnail::Stretch::UniformDownOnly, self.radius, self.ppp),
         })
     }
 }
@@ -507,6 +510,7 @@ impl TaskView {
             path: PathBuf::new(),
             size,
             radius: 4.0 * ppp,
+            ppp,
             image: Some(image),
         });
     }
@@ -837,6 +841,7 @@ impl TaskView {
                     path,
                     size,
                     radius: 4.0 * ppp,
+                    ppp,
                     image: None,
                 });
             }
@@ -861,7 +866,7 @@ impl TaskView {
                     let radius = 3.0 * ppp;
                     let prepare: crate::animation::Prepare = Box::new(move |frame| {
                         let img = crate::animation::straight(frame);
-                        crate::thumbnail::fit(&img, w, h, crate::thumbnail::Stretch::UniformDownOnly, radius)
+                        crate::thumbnail::fit_at(&img, w, h, crate::thumbnail::Stretch::UniformDownOnly, radius, ppp)
                     });
                     let player = Player::start(path.clone(), MAX_ANIMATED_PREVIEW_SIZE, prepare);
                     self.preview_animation = Some(PreviewAnimation { key: (path.clone(), size), player, playing: false });
@@ -873,6 +878,7 @@ impl TaskView {
                     path,
                     size,
                     radius: 3.0 * ppp,
+                    ppp,
                     image: None,
                 });
             }

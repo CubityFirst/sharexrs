@@ -62,8 +62,9 @@ pub enum Event {
     Countdown(u32),
     /// `ChangeStateProgress`.
     Progress(i32),
-    /// FFmpeg failed: its output.
-    Error(String),
+    /// FFmpeg failed: its output, and what tells the worker the error box
+    /// closed (dropped with it).
+    Error(String, std::sync::mpsc::Sender<()>),
     /// `PlayNotificationSoundAsync(ActionCompleted)`.
     ActionCompleted,
     /// The worker ended: the recording's file, and the name pattern's
@@ -549,11 +550,12 @@ impl App {
                 self.settings.settings.NameParserAutoIncrementNumber = counter;
                 self.finish_recording(path);
             }
-            Event::Error(output) => {
-                // `OutputBoxWindowIntegration.Show(Output, FFmpegCLIManager_Error_title, true)`.
+            Event::Error(output, closed) => {
+                // `OutputBoxWindowIntegration.Show(Output, FFmpegCLIManager_Error_title, true)`;
+                // the worker waits for it to close.
                 eprintln!("{output}");
                 let title = sharex_strings::helpers_lib::FFmpegCLIManager_Error_title();
-                let window = crate::dialogs::output_box::OutputBoxWindow::new(&output, title, true);
+                let window = crate::dialogs::output_box::OutputBoxWindow::new(&output, title, true).on_closed(closed);
                 self.open_dialog_window(event_loop, Box::new(window));
             }
             Event::NativeError(message) => {
@@ -901,8 +903,14 @@ impl SessionHooks for Hooks {
         (self.send)(Event::ActionCompleted);
     }
 
+    /// `FFmpegCLIManager.Run` with `ShowError`: `OutputBoxWindowIntegration.Show`
+    /// waits on the worker until the box closes, so the bar stays up
+    /// (`Working`) meanwhile, and stopping or aborting it there decides the
+    /// recording (REC-02: aborted, the output is deleted and no task made).
     fn ffmpeg_error(&mut self, output: &str) {
-        (self.send)(Event::Error(output.to_owned()));
+        let (closed, wait) = std::sync::mpsc::channel();
+        (self.send)(Event::Error(output.to_owned(), closed));
+        let _ = wait.recv();
     }
 
     fn native_error(&mut self, message: &str) {
