@@ -132,6 +132,8 @@ pub enum Effect {
     OpenFolderWithFile(PathBuf),
     /// `BeginMoveDrag`.
     DragWindow,
+    /// `DragDrop.DoDragDropAsync` with these files (`DragDropEffects.Copy`).
+    DragFiles(Vec<PathBuf>),
     /// `SizeToContent="Height"` after the content changed.
     SetHeight(f32),
     /// The window restored at this client size (points), centred in its
@@ -636,6 +638,18 @@ impl App {
                 Effect::DragWindow => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let _ = d.window.window.drag_window();
+                    }
+                }
+                Effect::DragFiles(files) => {
+                    let _ = self.drag_source.drag_files(&files, &mut |_| crate::drag_out::Cursor::Default);
+                    // OLE had the mouse: egui never saw the button go up.
+                    if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                        d.window.on_event(&WindowEvent::MouseInput {
+                            device_id: winit::event::DeviceId::dummy(),
+                            state: winit::event::ElementState::Released,
+                            button: winit::event::MouseButton::Left,
+                        });
+                        d.window.window.request_redraw();
                     }
                 }
                 Effect::SetSizeCentered(w, h) => {

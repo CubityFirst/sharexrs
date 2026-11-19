@@ -89,6 +89,8 @@ pub struct ImageHistoryWindow {
     click_armed: bool,
     /// `RememberWindowState`: the saved state and the window's bounds.
     placement: super::window_state::Tracker,
+    /// Dragging the selected files out of the grid.
+    drag: common::ListDrag,
 }
 
 impl ImageHistoryWindow {
@@ -121,6 +123,7 @@ impl ImageHistoryWindow {
             sync: false,
             click_armed: false,
             placement: super::window_state::Tracker::new(&settings.window_state),
+            drag: common::ListDrag::default(),
             settings,
         }
     }
@@ -700,6 +703,9 @@ impl ImageHistoryWindow {
         // `OnThumbnailPointerPressed` / `Released` / `DoubleTapped`.
         if let Some((card, m)) = pressed {
             self.click_armed = !(m.command || m.shift);
+            if let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
+                self.drag.press(pos);
+            }
             if m.shift && self.anchor.is_some() {
                 self.select_range(self.anchor.unwrap(), card);
             } else if m.command {
@@ -711,6 +717,23 @@ impl ImageHistoryWindow {
                 self.anchor = Some(card);
             } else {
                 self.select_only(card);
+            }
+        }
+        if live {
+            let (pos, down, up) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.pointer.primary_released()));
+            if self.drag.moved(pos, down) {
+                // `OnThumbnailPointerMoved`: the selected items' existing files.
+                let mut idx = self.selected_indexes();
+                idx.sort_unstable();
+                let files = common::drag_files(idx.into_iter().map(|i| &self.items[i]));
+                self.drag.start(!files.is_empty());
+                if !files.is_empty() {
+                    self.effects.push(Effect::DragFiles(files));
+                }
+            }
+            // `OnThumbnailPointerReleased`: no click after a drag.
+            if up && self.drag.released() {
+                self.click_armed = false;
             }
         }
         if released && self.click_armed {

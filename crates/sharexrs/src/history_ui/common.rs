@@ -34,6 +34,66 @@ pub fn file_exists(path: &str) -> bool {
     !path.is_empty() && std::path::Path::new(path).is_file()
 }
 
+/// The history windows' file drag (`_dragPointerPressed`, `_dragStart`,
+/// `_dragStarted`): armed by a left press on an item, started once the
+/// pointer is 5 px away either way.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ListDrag {
+    start: Option<egui::Pos2>,
+    started: bool,
+}
+
+impl ListDrag {
+    /// A left press on an item.
+    pub fn press(&mut self, pos: egui::Pos2) {
+        *self = Self { start: Some(pos), started: false };
+    }
+
+    /// `OnHistoryPointerMoved`: whether the drag starts now.
+    pub fn moved(&self, pos: Option<egui::Pos2>, primary_down: bool) -> bool {
+        match (self.start, pos) {
+            (Some(s), Some(p)) if !self.started && primary_down => (p.x - s.x).abs() >= 5.0 || (p.y - s.y).abs() >= 5.0,
+            _ => false,
+        }
+    }
+
+    /// The drag started with these files, or there were none to drag.
+    pub fn start(&mut self, has_files: bool) {
+        if has_files {
+            self.started = true;
+        } else {
+            self.start = None;
+        }
+    }
+
+    pub fn started(&self) -> bool {
+        self.started
+    }
+
+    /// The button's release: the drag is over; whether it was dragging.
+    pub fn released(&mut self) -> bool {
+        let was = self.started;
+        *self = Self::default();
+        was
+    }
+}
+
+/// The selected items' files to drag: those that exist, each once
+/// (`Distinct(StringComparer.OrdinalIgnoreCase)`).
+pub fn drag_files<'a>(items: impl IntoIterator<Item = &'a sharex_history::HistoryItem>) -> Vec<std::path::PathBuf> {
+    let mut seen: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    for item in items {
+        let Some(path) = item.file_path.as_deref().filter(|p| !p.trim().is_empty() && file_exists(p)) else { continue };
+        let key = path.to_lowercase();
+        if !seen.contains(&key) {
+            seen.push(key);
+            out.push(std::path::PathBuf::from(path));
+        }
+    }
+    out
+}
+
 /// Which services the app gives the windows (`TaskHelpers.OpenHistory`
 /// fills in all of them; the ones not ported yet log when used).
 pub fn services() -> Services {
@@ -826,4 +886,41 @@ pub fn import(folder: &str, images_only: bool, skip_duplicates: bool, items: &[H
 /// focus too, but keeps the window's shortcuts).
 pub fn text_box_focused(ctx: &egui::Context) -> bool {
     ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_drag_starts_five_pixels_away_and_only_while_pressed() {
+        let mut d = ListDrag::default();
+        assert!(!d.moved(Some(egui::pos2(10.0, 10.0)), true));
+        d.press(egui::pos2(10.0, 10.0));
+        assert!(!d.moved(Some(egui::pos2(14.0, 14.0)), true));
+        assert!(!d.moved(Some(egui::pos2(15.0, 10.0)), false));
+        assert!(d.moved(Some(egui::pos2(15.0, 10.0)), true));
+        d.start(true);
+        assert!(!d.moved(Some(egui::pos2(30.0, 10.0)), true));
+        assert!(d.released());
+        assert!(!d.released());
+        // Nothing to drag: disarmed.
+        d.press(egui::pos2(0.0, 0.0));
+        d.start(false);
+        assert!(!d.moved(Some(egui::pos2(9.0, 0.0)), true));
+    }
+
+    #[test]
+    fn dragged_files_exist_and_come_once() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-hdrag-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.png");
+        std::fs::write(&a, b"x").unwrap();
+        let item = |p: &str| sharex_history::HistoryItem { file_path: Some(p.to_owned()), ..Default::default() };
+        let a_str = a.to_string_lossy().into_owned();
+        let items = [item(&a_str), item(&a_str.to_uppercase()), item(&dir.join("gone.png").to_string_lossy()), item("")];
+        let files = drag_files(items.iter());
+        assert_eq!(files, vec![a.clone()]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

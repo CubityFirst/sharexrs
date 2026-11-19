@@ -118,6 +118,8 @@ pub struct HistoryWindow {
     scroll_into_view: Option<usize>,
     /// `RememberWindowState`: the saved state and the window's bounds.
     placement: super::window_state::Tracker,
+    /// Dragging the selected files out of the list.
+    drag: common::ListDrag,
 }
 
 impl HistoryWindow {
@@ -158,6 +160,7 @@ impl HistoryWindow {
             settings_changed: false,
             scroll_into_view: None,
             placement: super::window_state::Tracker::new(&settings.window_state),
+            drag: common::ListDrag::default(),
             settings,
         }
     }
@@ -682,6 +685,7 @@ impl HistoryWindow {
         let mut clicked: Option<(usize, Modifiers, bool)> = None;
         let mut double = false;
         let mut right: Option<(usize, egui::Pos2)> = None;
+        let mut pressed: Option<(usize, egui::Pos2)> = None;
         for row in first..self.filtered.len() {
             let y = list.min.y + row as f32 * ROW_HEIGHT - self.scroll;
             if y > list.max.y {
@@ -716,7 +720,11 @@ impl HistoryWindow {
                 painter.with_clip_rect(cell.intersect(list)).galley(pos2(cell.min.x, center_y(cell, cl)), g, color);
             }
             if let Some(r) = resp {
-                if r.clicked() {
+                // `OnHistoryPointerPressed`: a left press on an item arms the drag.
+                if r.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed()) {
+                    pressed = ui.input(|i| i.pointer.press_origin()).map(|p| (row, p));
+                }
+                if r.clicked() && !self.drag.started() {
                     clicked = Some((row, ui.input(|i| i.modifiers), true));
                 }
                 if r.double_clicked() {
@@ -729,6 +737,28 @@ impl HistoryWindow {
         }
         // Fluent's collapsed scroll bar, its track 16px short of each end.
         crate::dialogs::layout::scroll_bar(ui, list, content_h, self.scroll, 16.0);
+        if let Some((row, pos)) = pressed {
+            self.drag.press(pos);
+            // The `ListBox` selects on the press.
+            let id = self.items[self.filtered[row]].id;
+            if !self.selected.contains(&id) && !ui.input(|i| i.modifiers.command || i.modifiers.shift) {
+                self.select_only(row);
+            }
+        }
+        if live {
+            let (pos, down, released) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.pointer.primary_released()));
+            if self.drag.moved(pos, down) {
+                // `OnHistoryPointerMoved`: the selected items' existing files.
+                let files = common::drag_files(self.selected_indexes().into_iter().map(|i| &self.items[i]));
+                self.drag.start(!files.is_empty());
+                if !files.is_empty() {
+                    self.effects.push(Effect::DragFiles(files));
+                }
+            }
+            if released && self.drag.released() {
+                clicked = None;
+            }
+        }
         if let Some((row, m, _)) = clicked {
             let id = self.items[self.filtered[row]].id;
             if m.command {
