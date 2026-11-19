@@ -394,7 +394,12 @@ state):
   `DatePickerPresenter` from `--control-dump datepicker-presenter`:
   296x398, 40 px items, the accent highlight at 0.6/0.4, the accept and
   dismiss glyphs, opened 193.5 px up from the picker's bottom); day and
-  month loop. `--render history --state date-flyout`.
+  month loop. The hovered column shows its up and down `RepeatButton`s
+  (`--control-dump datepicker-presenter-hover`: 22 px across the column,
+  the presenter's background with `#19`/`#33` white or black over it, a
+  10x5 chevron; held, they scroll after 300 ms and every 100 ms, and the
+  release scrolls once more). `--render history --state date-flyout`
+  (`--hover X,Y` over a column).
 - Stats: `UpdateHover` on the split bar (peak colour), calendar (the day
   ringed) and hour chart (the column filled), each opening its
   `HitTest` tooltip at once at the pointer (`TallyToolTip`,

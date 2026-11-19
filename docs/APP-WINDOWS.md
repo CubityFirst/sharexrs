@@ -27,8 +27,9 @@ shots (`G:/scripts/sharexrs-ref/shots/sharex/app/`, listed in
 | Actions toolbar | `Presentation/ActionsToolbar` | `dialogs/actions_toolbar.rs`, `main_commands.rs` | Tray › Actions toolbar, its hotkey, `ActionsToolbarRunAtStartup`; title drag (unless locked), middle click closes, right click opens its menu (a popup), files dropped are uploaded |
 | Actions toolbar editor | `ActionsToolbarEditorWindow` | `dialogs/actions_toolbar.rs` | The toolbar's menu › Edit… |
 | Output box | `HelpersLib/Presentation/OutputBox` | `dialogs/output_box.rs` | A failed FFmpeg run (`FFmpegCLIManager.ShowError`), scrolled to the end |
-| Missing file | `TaskHelpers.AnnotateImageFromFile` | `image_editor/mod.rs` | Editing a task's or history item's image file that's gone |
-| Update message, downloader | `HelpersLib/Presentation/UpdateChecker` | `dialogs/update.rs` | (Ported earlier.) About's link opens the update message |
+| Missing file | `TaskHelpers.AnnotateImageFromFile`, `FileHelpers.OpenFile`/`OpenFolderWithFile` | `image_editor/mod.rs`, `shell.rs` | Editing a task's or history item's image file that's gone; opening a task's missing file or its folder (the title's click, Open, the click actions): `Helpers_OpenFile_File_not_exist_` and the path, through `shell::set_file_not_exist_hook` from any thread |
+| Update message, downloader | `HelpersLib/Presentation/UpdateChecker`, `Media/FFmpegGitHubDownloader` | `dialogs/update.rs`, `recording/ffmpeg_options.rs` | About's link opens the update message. The downloader also gets FFmpeg: "FFmpeg is missing" › Yes looks up the latest ShareX/FFmpeg release on a thread, then opens the window on `ffmpeg.zip` with `InstallType.Event`; `InstallRequested` (1 s after the download, in the background) extracts `ffmpeg.exe` where FFmpeg was looked for, and a message box says how it went |
+| Delete remotely | `MainWindow.DeleteSelectedItemRemotelyAsync`, `CanDeleteAmazonS3Object`, `AmazonS3.TryGetObjectKey` | `task_actions.rs`, `task_view.rs` | The task list's menu, for one finished file upload to Amazon S3 with a valid S3 config: Yes/No, then the object deleted on a thread and the tip (`RemoteDeleteSucceeded`/`Failed`) |
 
 ## Rendering
 
@@ -46,6 +47,7 @@ shots (`G:/scripts/sharexrs-ref/shots/sharex/app/`, listed in
 - `quick-task` (the popup, `--hover`), `quick-task-editor` (`--state add-overlay|edit-overlay|reset-confirm`)
 - `actions-toolbar` (`--text` title, `--content hover:<n>`), `actions-toolbar-menu`, `actions-toolbar-editor` (`--state add-menu`)
 - `output-box` (`--files <log>`), `task-missing-file` (`--text <path>`)
+- `update-downloader` (`--content waiting|getting-size|downloading|completed|...`, `ffmpeg-<state>` for FFmpeg's)
 
 ShareX's popups are their own windows: their shots are the popup alone; a
 render of the whole window is cropped to it by searching for the shot.
@@ -79,7 +81,8 @@ About's update states and clicker, the debug log's other states, display
 diagnostics, the toast's other states (text only, placement, fade), the
 after capture window's other states, the image viewer, the tray's Recent
 items, the Workflows menu's other states, the output box, the missing-file
-message, the update message and downloader.
+message, the update message and downloader (FFmpeg's too), the
+file-not-found message box, the Delete remotely question and tip.
 
 Unit tests cover the logic: file names and answers, About's panel states,
 the logger's lines and the URL under the debug log's caret, the toast's
@@ -116,7 +119,19 @@ Side by side with ShareX, same profile settings:
 22. Combine drop zones: drag an image card over another image card: "Combine images" with Horizontal/Vertical, the zone under the pointer lit in the accent; drop on each: the combiner's result as ShareX's (source first); none over itself, a non-image or the list view.
 23. Task list playback and thumbnails: hover an animated GIF/WebP card (plays, stops on leave), select one in the list view (plays in the preview pane), a capture with only Upload/Copy (its thumbnail from the image while it works), an MP4/MKV task (the shell's thumbnail with the play badge).
 24. Tooltips: a thumbnail title (the URL or file path, wrapped), the list's file name and URL cells, the theme toggle, a hotkey description; 400 ms, at once after another within 100 ms, closed by a press.
-25. History windows: drag selected rows/cards into Explorer (the release after it doesn't open or reselect), a URL-only image row's preview (ShareX downloads it; use a local test server), close/reopen both windows after moving/resizing/maximizing (and with Remember window off), type in both search boxes (suggestions, Up/Down/Enter/Escape, a click), the date pickers' flyouts (wheel, click, accept, dismiss, Escape, a press outside; the filter follows), Stats hover tooltips on the split bar/calendar/hour chart and rows, Stats › Share (an image task with the whole page).
+25. History windows: drag selected rows/cards into Explorer (the release after it doesn't open or reselect), a URL-only image row's preview (ShareX downloads it; use a local test server), close/reopen both windows after moving/resizing/maximizing (and with Remember window off), type in both search boxes (suggestions, Up/Down/Enter/Escape, a click), the date pickers' flyouts (wheel, click, accept, dismiss, Escape, a press outside; the filter follows; a column's up/down buttons on hover, one click and held), Stats hover tooltips on the split bar/calendar/hour chart and rows, Stats › Share (an image task with the whole page).
+26. Task list keys and clicks: Ctrl+V (the clipboard content viewer or the
+    upload), Ctrl+U on a file task, Ctrl+D on a URL task, the Open URL click
+    action and a card title's click (the URL in the browser, or a custom
+    `BrowserPath`), Open › File on a deleted file (the message box).
+27. Delete remotely: an image uploaded to a 127.0.0.1 S3-compatible mock
+    (MinIO or similar) with a valid S3 config; the entry shows for that one
+    task only, Yes deletes the object, the tip says so; No does nothing.
+28. FFmpeg downloader: with FFmpeg missing, Yes to the message: the window's
+    progress, Cancel, and the extracted `ffmpeg.exe` (needs the internet
+    and ShareX/FFmpeg's release; or a local server and the URL rewriter).
+29. Tray › Restart as administrator: the UAC prompt, ShareXrs closing and
+    coming back elevated in the tray (`-silent`).
 
 ## Untested elsewhere
 

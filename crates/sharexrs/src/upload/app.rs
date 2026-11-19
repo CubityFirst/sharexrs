@@ -63,6 +63,11 @@ pub fn set_dialog_hooks(proxy: winit::event_loop::EventLoopProxy<UserEvent>) {
         }),
         ui_thread: std::thread::current().id(),
     })));
+    // `FileHelpers.OpenFile`/`OpenFolderWithFile`'s message box.
+    let message_proxy = Mutex::new(proxy.clone());
+    crate::shell::set_file_not_exist_hook(Some(Arc::new(move |text: String| {
+        let _ = message_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Information(text)));
+    })));
     let youtube_proxy = Mutex::new(proxy);
     oauth_services::set_youtube_options_ui(Some(Arc::new(move |title: &str, description: &str, privacy: &sharex_uploaders::enums::YouTubeVideoPrivacy| {
         let (tx, rx) = std::sync::mpsc::channel();
@@ -183,6 +188,11 @@ impl App {
     pub(crate) fn ui_request(&mut self, event_loop: &ActiveEventLoop, request: super::UiRequest) {
         use dialogs::confirm::{Confirm, ConfirmWindow};
         let dialog: Box<dyn dialogs::Dialog> = match request {
+            super::UiRequest::Information(text) => {
+                let message = crate::message_box::MessageBox::ok("ShareXrs", text, crate::message_box::MessageBoxIcon::Information);
+                self.queue_dialog(event_loop, message, crate::DialogPurpose::Information);
+                return;
+            }
             super::UiRequest::LargeFileWarning(reply) => Box::new(ConfirmWindow::new(Confirm::LargeFile { reply: Some(reply) })),
             super::UiRequest::BeforeUpload(request, reply) => {
                 let w = self.uploads.config.with(|c| dialogs::before_upload::BeforeUploadWindow::new(*request, c, reply));

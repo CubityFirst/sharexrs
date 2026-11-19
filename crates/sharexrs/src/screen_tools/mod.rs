@@ -10,6 +10,7 @@
 pub mod classic_ruler;
 pub mod color_picker;
 pub mod highlighter;
+pub mod highlighter_settings;
 pub mod overlay;
 pub mod pin;
 pub mod render;

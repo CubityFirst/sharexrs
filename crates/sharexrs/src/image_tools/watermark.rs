@@ -369,17 +369,14 @@ impl Dialog for ImageWatermarkWindow {
         let path = self.preview_file();
         let loading = self.job.busy.then(|| self.job.busy_since.elapsed().as_secs_f64());
         let size = self.preview_size.clone();
-        let pressed = super::preview_pane(ui, right, &path, &size, self.preview.as_mut(), loading, !self.list.items.is_empty());
+        let viewer = super::preview_pane(ui, right, &path, &size, self.preview.as_mut(), loading, !self.list.items.is_empty());
         let text = s::ImageWatermarkWindow_Apply_watermark();
         let bw = super::icon_text_button_width(ui, text);
         let br = Rect::from_min_size(pos2(bottom.max.x - bw, bottom.min.y), vec2(bw, super::BUTTON_HEIGHT));
         if super::icon_text_button(ui, br, Id::new("watermark-apply"), icon::Stamp, text, self.can_apply()).clicked() {
             return self.apply();
         }
-        if pressed {
-            return super::show_preview(self.preview.as_ref(), &path);
-        }
-        Vec::new()
+        viewer.into_iter().collect()
     }
 
     fn dropped(&mut self, files: Vec<std::path::PathBuf>, _cx: &mut Cx) -> Vec<Effect> {

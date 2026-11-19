@@ -388,9 +388,10 @@ windows: in light their translucent border and corners come out over
 black. Built from source, no shot: busy, saved (the resx's literal `\n`
 shows as ShareX shows it), the divider held, the device menu.
 
-Not ported in these windows: the preview's click (`ImageViewerWindowIntegration`,
-the image viewer isn't ported), Avalonia's `ColorView` flyout (the shared
-HSV popup stands in, opaque), tooltips are egui's, a drop of several files
+Pressing the converter's, resizer's and watermark's preview (and Image
+effects') opens it in the image viewer (`OnPreviewPointerPressed`, named
+after the file). Not ported in these windows: Avalonia's `ColorView` flyout
+(the shared HSV popup stands in, opaque), tooltips are egui's, a drop of several files
 on the splitter or icon converter takes the last one winit reports (ShareX
 the first), focus rings and keyboard navigation of the lists.
 
@@ -547,9 +548,10 @@ Behaviour, side by side over the same pattern:
 - Mouse highlighter: the held circles are identical pixels (both draw with
   Skia's rasteriser into a layered window).
 
-Not ported or not checked: the colour flyouts (`ColorView`) of the
-highlighter's and pin options' colour buttons (logged; the pin options use
-the shared HSV popup), the colour picker's selection mode (`PickColor`,
+The highlighter's colour buttons (window and recorder bar,
+`screen_tools/highlighter_settings.rs`) open the shared colour popup with
+an alpha slider, as the pin options' do (opaque). Not ported or not
+checked: Avalonia's `ColorView` itself (egui's HSV picker stands in), the colour picker's selection mode (`PickColor`,
 used by no ported caller) and its Copy menu as an OS popup (drawn inside
 the window), the highlighter on macOS/Linux (hook and overlays), the
 highlighter while recording and the ripple animation checked live, the
@@ -667,7 +669,7 @@ window encodes and scans with `sharex_tools::qr` (ZXing's mask choice
 differed from the `qrcode` crate's on the reference text).
 
 Not ported or not checked: `ColorView` flyouts (the shared HSV popup),
-tooltips (egui's), the image viewer from the previews (logged), Avalonia's
+tooltips (egui's), Avalonia's
 state-dependent `PNG`/`image/png` clipboard formats after its first image
 read (ShareXrs always lists them as bytes), the Network monitor's ICMP on
 macOS/Linux beyond the system `ping`, window lists, picking and

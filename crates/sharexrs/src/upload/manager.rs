@@ -100,26 +100,21 @@ pub fn create_file_uploader_task(path: &Path, task: TaskSettings, ctx: &mut NewT
         let ext = get_file_name_extension(&path_str);
         file_name = name_pattern_file_name(&task, ctx, &ext);
     }
+    // `ProcessImagesDuringFileUpload`: an image goes through the after
+    // capture tasks (`TaskJob.Job`, `SkiaImageHelpers.LoadImage`), keeping
+    // its path and name.
     if task.AdvancedSettings.as_ref().is_some_and(|a| a.ProcessImagesDuringFileUpload) && data_type == EDataType::Image {
-        // `task.Info.Job = TaskJob.Job; task.Image = SkiaImageHelpers.LoadImage(...)`:
-        // the image goes through the after capture tasks like a capture,
-        // under the file's name (or the name pattern's), its path the
-        // file's until the image is saved elsewhere.
-        let Some(bmp) = sharex_tools::imaging::load_image(path) else {
-            // ShareX's task has no image then, and nothing to upload.
-            eprintln!("{}: not an image ShareXrs can load.", path.display());
-            return None;
-        };
-        let image = RgbaImage::from_raw(bmp.width(), bmp.height(), bmp.to_straight()).unwrap_or_default();
-        let metadata = Metadata { image, window_title: None, process_name: None };
-        // No name from the pattern here (the counter stays as it is).
-        let counter = ctx.app.NameParserAutoIncrementNumber;
-        let mut image_task = ImageTask::new(metadata, task, ctx.app, &ctx.screenshots_parent.clone(), ctx.image_effects_folder.clone());
-        ctx.app.NameParserAutoIncrementNumber = counter;
-        image_task.file_name = file_name;
-        let mut upload = create_image_uploader_task(image_task);
-        upload.file_path = Some(path.to_path_buf());
-        return Some(upload);
+        match crate::thumbnail::load(path) {
+            Some(image) => {
+                let metadata = Metadata { image, window_title: None, process_name: None };
+                let mut image_task = ImageTask::new(metadata, task, ctx.app, &ctx.screenshots_parent.clone(), ctx.image_effects_folder.clone());
+                image_task.file_name = file_name;
+                let mut t = create_image_uploader_task(image_task);
+                t.file_path = Some(path.to_path_buf());
+                return Some(t);
+            }
+            None => eprintln!("{}: couldn't load the image; uploading the file.", path.display()),
+        }
     }
     // `LoadFileStream`.
     let file = match std::fs::File::open(path) {
@@ -445,6 +440,34 @@ mod tests {
         assert_eq!(find_data_type("a.PNG", &task), EDataType::Image);
         assert_eq!(find_data_type("a.txt", &task), EDataType::Text);
         assert_eq!(find_data_type("a.zip", &task), EDataType::File);
+    }
+
+    #[test]
+    fn images_go_through_the_after_capture_tasks_when_processed_during_file_upload() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-process-upload-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("photo.png");
+        image::RgbaImage::from_pixel(3, 2, image::Rgba([1, 2, 3, 255])).save(&file).unwrap();
+        let mut app = ApplicationConfig::default();
+        let mut ctx = NewTaskContext::new(&mut app, dir.clone(), dir.join("ImageEffects"));
+        // Off: the file uploads as it is.
+        let t = create_file_uploader_task(&file, TaskSettings::default(), &mut ctx).unwrap();
+        assert_eq!(t.job, TaskJob::FileUpload);
+        assert!(matches!(t.source, Source::File(_)));
+        // On: `TaskJob.Job` with the image, its path and name kept.
+        let mut task = TaskSettings::default();
+        task.AdvancedSettings.get_or_insert_default().ProcessImagesDuringFileUpload = true;
+        let t = create_file_uploader_task(&file, task.clone(), &mut ctx).unwrap();
+        assert_eq!((t.job, t.data_type, t.file_name.as_str()), (TaskJob::Job, EDataType::Image, "photo.png"));
+        assert_eq!(t.file_path.as_deref(), Some(file.as_path()));
+        let Source::Image(image) = &t.source else { panic!("not an image task") };
+        assert_eq!(image.metadata.image.dimensions(), (3, 2));
+        assert_eq!(image.file_name, "photo.png");
+        // Not an image: still a file upload.
+        let text = dir.join("notes.txt");
+        std::fs::write(&text, b"text").unwrap();
+        assert_eq!(create_file_uploader_task(&text, task, &mut ctx).unwrap().job, TaskJob::FileUpload);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

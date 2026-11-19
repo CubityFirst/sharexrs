@@ -115,6 +115,9 @@ pub struct TaskInfo {
     pub job: TaskJob,
     /// `Progress`: the last report of an upload.
     pub progress: Option<UploadProgress>,
+    /// `IsUploadJob`, uploaded as a file (`UploadDestination`) to Amazon S3
+    /// (`GetFileDestinationByDataType`): `CanDeleteAmazonS3Object`'s task half.
+    pub amazon_s3_file: bool,
 }
 
 impl TaskInfo {
@@ -284,6 +287,8 @@ pub struct TaskReport {
     pub stop_requested: bool,
     /// `IsUploadJob`.
     pub is_upload_job: bool,
+    /// [`TaskInfo::amazon_s3_file`].
+    pub amazon_s3_file: bool,
     /// The task's `TaskSettings` as `Task_TaskCompleted` reads them.
     pub play_sound: bool,
     /// `AfterUploadJob` has `ShowAfterUploadWindow`.
@@ -476,6 +481,7 @@ impl TaskManager {
         task.info.file_path = report.file_path.clone();
         task.info.thumbnail_file_path = report.thumbnail_file_path.clone();
         task.info.result = report.result.clone();
+        task.info.amazon_s3_file = report.amazon_s3_file;
         task.stop_requested |= report.stop_requested;
         self.complete(id, None, None, max_recent)
     }

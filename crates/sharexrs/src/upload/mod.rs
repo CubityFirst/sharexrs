@@ -118,6 +118,9 @@ pub struct BeforeUpload {
 
 /// What a task's thread asks the event loop to show.
 pub enum UiRequest {
+    /// A message box with only OK, from another thread or module
+    /// (`MessageBox.Show(text, "ShareX", OK, Information)`).
+    Information(String),
     LargeFileWarning(mpsc::Sender<(bool, bool)>),
     BeforeUpload(Box<BeforeUpload>, mpsc::Sender<Option<TaskSettings>>),
     QrCode(String),
@@ -165,6 +168,7 @@ pub enum UiRequest {
 impl std::fmt::Debug for UiRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Information(t) => write!(f, "Information({t})"),
             Self::LargeFileWarning(_) => f.write_str("LargeFileWarning"),
             Self::BeforeUpload(r, _) => write!(f, "BeforeUpload({})", r.file_name),
             Self::QrCode(t) => write!(f, "QrCode({t})"),

@@ -593,16 +593,21 @@ impl<'a> Worker<'a> {
     /// `UploadFile` pick for it (none for URL tasks).
     fn upload_destination_service(&self) -> Option<Service> {
         let t = &self.task;
-        let destination = match self.data_type {
-            EDataType::Image if t.ImageDestination == ImageDestination::FileUploader => EDataType::File,
-            EDataType::Text if t.TextDestination == TextDestination::FileUploader => EDataType::File,
-            d => d,
-        };
-        match destination {
+        match self.upload_destination() {
             EDataType::Image => Some(Service::Image(t.ImageDestination.clone())),
             EDataType::Text => Some(Service::Text(t.TextDestination.clone())),
             EDataType::File => Some(Service::File(self.file_destination_by_data_type())),
             _ => None,
+        }
+    }
+
+    /// `Info.UploadDestination`: the data type, or File for a file uploader.
+    fn upload_destination(&self) -> EDataType {
+        let t = &self.task;
+        match self.data_type {
+            EDataType::Image if t.ImageDestination == ImageDestination::FileUploader => EDataType::File,
+            EDataType::Text if t.TextDestination == TextDestination::FileUploader => EDataType::File,
+            d => d,
         }
     }
 
@@ -726,6 +731,9 @@ impl<'a> Worker<'a> {
             },
             stop_requested: self.stop_requested(),
             is_upload_job: self.is_upload_job(),
+            amazon_s3_file: self.is_upload_job()
+                && self.upload_destination() == EDataType::File
+                && self.file_destination_by_data_type() == FileDestination::AmazonS3,
             play_sound: general.PlaySoundAfterUpload,
             show_after_upload_window: self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow),
             data_type: self.data_type,
