@@ -16,6 +16,9 @@ mod synthetic;
 #[path = "harness_compare/mod.rs"]
 mod compare;
 
+#[path = "harness_hardware/mod.rs"]
+mod hardware;
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -52,6 +55,34 @@ fn main() {
         let name = case["name"].as_str().unwrap();
         std::fs::write(out.join(format!("{name}.pcm")), mixer_case(case)).expect("write");
         println!("{name}: ok");
+    }
+    for case in cases["drain"].as_array().into_iter().flatten() {
+        if only.as_ref().is_some_and(|o| case["name"] != o.as_str()) {
+            continue;
+        }
+        let name = case["name"].as_str().unwrap();
+        let (pcm, info) = hardware::drain(case);
+        std::fs::write(out.join(format!("{name}.pcm")), pcm).expect("write");
+        std::fs::write(out.join(format!("{name}.json")), serde_json::to_string_pretty(&info).unwrap()).expect("write");
+        println!("{name}: ok");
+    }
+    #[cfg(windows)]
+    for case in cases["hdr"].as_array().into_iter().flatten() {
+        if only.as_ref().is_some_and(|o| case["name"] != o.as_str()) {
+            continue;
+        }
+        let name = case["name"].as_str().unwrap();
+        match hardware::hdr(case) {
+            Ok(bgra) => {
+                std::fs::write(out.join(format!("{name}.bgra")), bgra).expect("write");
+                println!("{name}: ok");
+            }
+            Err(e) => println!("{name}: ERROR {e}"),
+        }
+    }
+    if only.as_deref().is_none_or(|o| o == "devices") {
+        std::fs::write(out.join("devices.json"), serde_json::to_string_pretty(&hardware::devices()).unwrap()).expect("write");
+        println!("devices: ok");
     }
     #[cfg(windows)]
     for kind in ["gif", "mp4"] {
