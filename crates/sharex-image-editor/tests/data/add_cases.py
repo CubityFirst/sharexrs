@@ -191,9 +191,6 @@ CASES += [
 ]
 
 
-ROTATED_SHADOW_PENDING = ("Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer "
-                          "space) and draws the layer back rotated, resampled; ShareXrs blurs in device space")
-
 # Drop shadows on steps and balloons (no visible text: glyph masks are pending).
 CASES += [
     {"name": "shadow-step", "fonts": ["Segoe UI"], "annotations": [
@@ -208,11 +205,35 @@ CASES += [
     {"name": "shadow-balloon-tail", "annotations": [
         ann("SpeechBalloon", (60, 40), (260, 140), Text="", ShadowEnabled=True, ShadowColor="#C0000080",
             TailPointInitialized=True, TailPoint=p(120, 240))]},
-    {"name": "shadow-balloon-rotated", "pending": ROTATED_SHADOW_PENDING, "annotations": [
+    {"name": "shadow-balloon-rotated", "annotations": [
         ann("SpeechBalloon", (120, 60), (300, 150), Text="", ShadowEnabled=True, RotationAngle=20,
             TailPointInitialized=True, TailPoint=p(150, 250))]},
-    {"name": "shadow-rect-rotated", "pending": ROTATED_SHADOW_PENDING, "annotations": [
+    {"name": "shadow-rect-rotated", "annotations": [
         ann("Rectangle", (120, 80), (280, 180), ShadowEnabled=True, RotationAngle=30, FillColor="#80FFFFFF")]},
+    # Drop shadows under a rotation: filtered in the unrotated layer space and
+    # drawn back resampled. 45, 100, 170 and 28 degrees decompose to a layer
+    # scale of 0.99999994 in float.
+    {"name": "shadow-rect-rotated-45", "annotations": [
+        ann("Rectangle", (100, 80), (260, 170), ShadowEnabled=True, RotationAngle=45, FillColor="#C0FF8000",
+            StrokeWidth=4)]},
+    {"name": "shadow-ellipse-rotated", "annotations": [
+        ann("Ellipse", (60, 60), (220, 140), ShadowEnabled=True, RotationAngle=-30, ShadowBlurRadius=12,
+            ShadowOffsetX=-6, ShadowOffsetY=8, ShadowColor="#A0004080")]},
+    {"name": "shadow-rect-rotated-sharp", "annotations": [
+        ann("Rectangle", (140, 90), (260, 200), ShadowEnabled=True, RotationAngle=100, ShadowBlurRadius=0,
+            ShadowOffsetX=7, ShadowOffsetY=3, ShadowOpacity=0.5, FillColor="#FF20A0F0")]},
+    {"name": "shadow-rect-rotated-edge", "annotations": [
+        ann("Rectangle", (300, 200), (440, 330), ShadowEnabled=True, RotationAngle=15, FillColor="#80FF0000")]},
+    {"name": "shadow-image-rotated", "annotations": [
+        ann("Image", (150, 100), (214, 148), ImagePath=STICKER, RotationAngle=28, ShadowEnabled=True)]},
+    {"name": "shadow-text-rotated", "fonts": ["Segoe UI"], "annotations": [
+        ann("Text", (60, 120), (300, 190), Text="Shadow", TextColor="#FF0000FF", FontSize=36, StrokeWidth=0,
+            RotationAngle=21, ShadowEnabled=True)]},
+    {"name": "shadow-balloon-rotated-170",
+     "tolerance": {"maxDelta": 1, "maxPixels": 1, "why": "one level on one pixel of the shadow under a 170 degree rotation"},
+     "annotations": [
+        ann("SpeechBalloon", (140, 80), (300, 170), Text="", ShadowEnabled=True, RotationAngle=170,
+            TailPointInitialized=True, TailPoint=p(120, 230))]},
 ]
 
 

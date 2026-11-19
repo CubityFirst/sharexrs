@@ -7,6 +7,26 @@ use sharex_skia::Matrix;
 
 thread_local! {
     static DEVICE_OFFSET: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) };
+    static LAYER_SPACE: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
+}
+
+/// Runs `f` drawing visuals in their own local space (each visual's
+/// transform the identity), scaled by `scale`, then translated by
+/// [`with_device_offset`]: an image filter layer under a rotated transform,
+/// which Skia sets up in the transform's unrotated "layer space"
+/// (`skif::Mapping::decomposeCTM`: the layer matrix is the transform's
+/// scale, the layer device's local-to-device that scale, then the layer's
+/// origin).
+pub fn with_layer_space<R>(scale: (f32, f32), f: impl FnOnce() -> R) -> R {
+    let previous = LAYER_SPACE.with(|c| c.replace(Some(scale)));
+    let r = f();
+    LAYER_SPACE.with(|c| c.set(previous));
+    r
+}
+
+/// Whether visuals draw in their local space ([`with_layer_space`]).
+pub fn in_layer_space() -> bool {
+    LAYER_SPACE.with(|c| c.get()).is_some()
 }
 
 /// Runs `f` with every visual's transform followed by a translation of
@@ -97,6 +117,18 @@ impl AMatrix {
     /// [`with_device_offset`] translation).
     pub fn to_sk(self) -> Matrix {
         let (ox, oy) = device_offset();
+        if let Some((lsx, lsy)) = LAYER_SPACE.with(|c| c.get()) {
+            // The visual's transform (the identity here), the layer
+            // matrix's scale, the layer's origin.
+            return Matrix {
+                sx: self.m11 as f32 * lsx,
+                kx: self.m21 as f32 * lsx,
+                tx: self.m31 as f32 * lsx + ox as f32,
+                ky: self.m12 as f32 * lsy,
+                sy: self.m22 as f32 * lsy,
+                ty: self.m32 as f32 * lsy + oy as f32,
+            };
+        }
         Matrix {
             sx: self.m11 as f32,
             kx: self.m21 as f32,
@@ -117,6 +149,9 @@ pub fn to_radians(degrees: f64) -> f64 {
 /// `a`, with a `RotateTransform(angle)` about its centre when the
 /// annotation is rotated (`ApplyRotationTransform`).
 pub fn visual_transform(a: &Arranged, rotation_degrees: f32) -> AMatrix {
+    if in_layer_space() {
+        return AMatrix::translation(0.0, 0.0);
+    }
     let pos = AMatrix::translation(a.x, a.y);
     if rotation_degrees == 0.0 {
         return pos;
@@ -132,6 +167,9 @@ pub fn visual_transform(a: &Arranged, rotation_degrees: f32) -> AMatrix {
 /// arranged size (`RelativePoint(x, y, Relative)`), as the speech balloon
 /// rotates about its body's centre when it has a tail.
 pub fn visual_transform_origin(a: &Arranged, rotation_degrees: f32, origin: (f64, f64)) -> AMatrix {
+    if in_layer_space() {
+        return AMatrix::translation(0.0, 0.0);
+    }
     let pos = AMatrix::translation(a.x, a.y);
     if rotation_degrees == 0.0 {
         return pos;

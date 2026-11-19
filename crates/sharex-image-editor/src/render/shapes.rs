@@ -763,6 +763,7 @@ pub(super) fn visual_frame(a: &crate::model::Annotation) -> Option<((f64, f64), 
     match &a.kind {
         Kind::Number(p) => Some(super::text::step_frame(&a.common, p)),
         Kind::SpeechBalloon(p) => Some(super::text::balloon_frame(&a.common, p)),
+        Kind::Text(p) if !p.text.is_empty() => Some(super::text::text_frame(&a.common)),
         Kind::Rectangle(_) | Kind::Ellipse(_) | Kind::SmartEraser(_) => {
             let (ar, ctm) = arranged(&a.common);
             Some(((ar.width, ar.height), ctm))

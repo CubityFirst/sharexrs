@@ -5615,7 +5615,6 @@
   },
   {
    "name": "shadow-balloon-rotated",
-   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
    "annotations": [
     {
      "$type": "SpeechBalloon",
@@ -5640,7 +5639,6 @@
   },
   {
    "name": "shadow-rect-rotated",
-   "pending": "Skia applies a drop shadow under a rotated transform in an unrotated layer (skif layer space) and draws the layer back rotated, resampled; ShareXrs blurs in device space",
    "annotations": [
     {
      "$type": "Rectangle",
@@ -5655,6 +5653,163 @@
      "ShadowEnabled": true,
      "RotationAngle": 30,
      "FillColor": "#80FFFFFF"
+    }
+   ]
+  },
+  {
+   "name": "shadow-rect-rotated-45",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 100,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 170
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": 45,
+     "FillColor": "#C0FF8000",
+     "StrokeWidth": 4
+    }
+   ]
+  },
+  {
+   "name": "shadow-ellipse-rotated",
+   "annotations": [
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 60,
+      "Y": 60
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 140
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": -30,
+     "ShadowBlurRadius": 12,
+     "ShadowOffsetX": -6,
+     "ShadowOffsetY": 8,
+     "ShadowColor": "#A0004080"
+    }
+   ]
+  },
+  {
+   "name": "shadow-rect-rotated-sharp",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 140,
+      "Y": 90
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 200
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": 100,
+     "ShadowBlurRadius": 0,
+     "ShadowOffsetX": 7,
+     "ShadowOffsetY": 3,
+     "ShadowOpacity": 0.5,
+     "FillColor": "#FF20A0F0"
+    }
+   ]
+  },
+  {
+   "name": "shadow-rect-rotated-edge",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 440,
+      "Y": 330
+     },
+     "ShadowEnabled": true,
+     "RotationAngle": 15,
+     "FillColor": "#80FF0000"
+    }
+   ]
+  },
+  {
+   "name": "shadow-image-rotated",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 150,
+      "Y": 100
+     },
+     "EndPoint": {
+      "X": 214,
+      "Y": 148
+     },
+     "ImagePath": "images/sticker.png",
+     "RotationAngle": 28,
+     "ShadowEnabled": true
+    }
+   ]
+  },
+  {
+   "name": "shadow-text-rotated",
+   "fonts": [
+    "Segoe UI"
+   ],
+   "annotations": [
+    {
+     "$type": "Text",
+     "StartPoint": {
+      "X": 60,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 190
+     },
+     "Text": "Shadow",
+     "TextColor": "#FF0000FF",
+     "FontSize": 36,
+     "StrokeWidth": 0,
+     "RotationAngle": 21,
+     "ShadowEnabled": true
+    }
+   ]
+  },
+  {
+   "name": "shadow-balloon-rotated-170",
+   "tolerance": {
+    "maxDelta": 1,
+    "maxPixels": 1,
+    "why": "one level on one pixel of the shadow under a 170 degree rotation"
+   },
+   "annotations": [
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 140,
+      "Y": 80
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 170
+     },
+     "Text": "",
+     "ShadowEnabled": true,
+     "RotationAngle": 170,
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 120,
+      "Y": 230
+     }
     }
    ]
   },
