@@ -27,13 +27,16 @@ namespace EditorHarness;
 
 internal static class ControlDump
 {
-    public static int Run(string kind)
+    public static int Run(string kind, string? outDir = null)
     {
         foreach (Avalonia.Styling.ThemeVariant variant in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
         {
             Console.WriteLine($"=== {variant}");
             switch (kind)
             {
+                case "colorview":
+                    ColorViewDump.Run(variant, outDir);
+                    break;
                 case "autocomplete":
                     AutoComplete(variant);
                     break;

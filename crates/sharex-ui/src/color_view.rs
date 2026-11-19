@@ -813,10 +813,16 @@ impl ColorView {
         let p = palette(ui.ctx());
         let painter = ui.painter().clone();
         let h32 = px.up(32.0);
+        // The hex `TextBox` and the `NumericUpDown`s ask `Height="32"`, but
+        // ShareX's `TextBox` and `NumericUpDown` styles set `MinHeight="40"`,
+        // which wins: they're 40 tall (`--control-dump colorview`: 127x40,
+        // 80x40), and what binds to their height follows (the toggles, the
+        // component labels).
+        let h_in = px.up(40.0);
         // Row 0: the colour model toggles (`1*`) and the hex input (`1*`), 12 apart.
         let gap = px.rd(12.0);
         let half = px.rd((grid.width() - gap) / 2.0);
-        let model = Rect::from_min_size(grid.min, vec2(half, h32));
+        let model = Rect::from_min_size(grid.min, vec2(half, h_in));
         let rgb_w = px.rd(half / 2.0);
         let rgb = Rect::from_min_max(model.min, pos2(model.min.x + rgb_w, model.max.y));
         let hsvr = Rect::from_min_max(pos2(rgb.max.x, model.min.y), model.max);
@@ -830,8 +836,9 @@ impl ColorView {
             // Fluent's `ToggleButton` brushes.
             let (bg, fg) = match (checked, pressed, over) {
                 (true, true, _) => (f.base_medium_low, Color32::WHITE),
-                (true, false, true) => (p.accent_fill_light[0], Color32::WHITE),
-                (true, false, false) => (p.accent_start, Color32::WHITE),
+                // ShareX's accent foreground on the accent (`#FF111111` in the dump).
+                (true, false, true) => (p.accent_fill_light[0], p.accent_foreground),
+                (true, false, false) => (p.accent_start, p.accent_foreground),
                 (false, true, _) => (f.base_medium_low, f.base_high),
                 (false, false, true) => (f.base_high.gamma_multiply(0.1), f.base_high),
                 (false, false, false) => (f.base_low, f.base_high),
@@ -849,10 +856,11 @@ impl ColorView {
             }
         }
         // `HexInputGrid`: the "#" label (30) and the text box.
-        let hex = Rect::from_min_max(pos2(grid.min.x + half + gap, grid.min.y), pos2(grid.max.x, grid.min.y + h32));
-        let hash = Rect::from_min_size(hex.min, vec2(px.up(30.0), h32));
+        let hex = Rect::from_min_max(pos2(grid.min.x + half + gap, grid.min.y), pos2(grid.max.x, grid.min.y + h_in));
+        // The "#" `Border` keeps its own `Height="32"`, centred in the row.
+        let hash = Rect::from_min_size(pos2(hex.min.x, hex.min.y + px.rd((h_in - h32) / 2.0)), vec2(px.up(30.0), h32));
         label_box(ui, px, &painter, hash, "#", true);
-        let tb = Rect::from_min_max(pos2(hash.max.x, hex.min.y), hex.max);
+        let tb = Rect::from_min_max(pos2(hex.min.x + px.up(30.0), hex.min.y), hex.max);
         let hex_id = id.with("hex");
         let mut text = st.hex.clone();
         let (committed, _) = edit_box(ui, px, tb, hex_id, &mut text, false, true);
@@ -866,7 +874,7 @@ impl ColorView {
             st.hex = self.hex_of(edit.rgba.unwrap_or(st.rgba));
         }
         // Rows 2..5 (`1*` each) after the 24px gap, 12 under them.
-        let fixed = h32 + px.up(24.0);
+        let fixed = h_in + px.up(24.0);
         let star = (grid.height() - fixed - px.up(12.0)) / 4.0;
         let names: [&str; 4] = if st.hsv_model { ["H", "S", "V", "A"] } else { ["R", "G", "B", "A"] };
         let components = [Component::C1, Component::C2, Component::C3, Component::Alpha];
@@ -880,13 +888,13 @@ impl ColorView {
             let top = grid.min.y + fixed + px.rd(star * i as f32);
             let row_h = px.rd(star * (i + 1) as f32) - px.rd(star * i as f32);
             let row = Rect::from_min_size(pos2(grid.min.x, top), vec2(grid.width(), row_h));
-            let by = row.min.y + px.rd((row_h - h32) / 2.0);
-            let lr = Rect::from_min_size(pos2(row.min.x, by), vec2(px.up(30.0), h32));
+            let by = row.min.y + px.rd((row_h - h_in) / 2.0);
+            let lr = Rect::from_min_size(pos2(row.min.x, by), vec2(px.up(30.0), h_in));
             label_box(ui, px, &painter, lr, names[i], enabled);
             let spec = SliderSpec { component: *comp, hsv: st.hsv_model, vertical: false, alpha_visible: false, perceptive: true, rounding: true, snap: true, enabled };
             let hsv = edit.hsv.unwrap_or(st.hsv);
             let (min, max, value) = spec.values(hsv);
-            let nr = Rect::from_min_size(pos2(lr.max.x, by), vec2(px.up(80.0), h32));
+            let nr = Rect::from_min_size(pos2(lr.max.x, by), vec2(px.up(80.0), h_in));
             if let Some(v) = number_box(ui, px, nr, id.with(("number", i)), value, min, max, enabled) {
                 edit.hsv = Some(spec.color_at(v, hsv));
             }
