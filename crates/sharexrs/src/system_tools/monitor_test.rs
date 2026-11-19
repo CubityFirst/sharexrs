@@ -218,6 +218,7 @@ impl MonitorTestWindow {
         let inner = panel.shrink(17.0);
         let r0 = Rect::from_min_size(inner.min, vec2(inner.width(), row0));
         let close = Rect::from_min_size(pos2(r0.max.x - tools::ICON_BUTTON_WIDTH, center_y(r0, 40.0)), vec2(tools::ICON_BUTTON_WIDTH, 40.0));
+        sharex_ui::tooltip::show(ui, close, Id::new("monitor-close-tip"), s::MonitorTestWindow_Close());
         let closed = tools::icon_button(ui, close, Id::new("monitor-close"), icon::Close, true).clicked();
         let ty = center_y(r0, line_height(ui, &hf) + 2.0 + line_height(ui, &nf));
         tools::text_at(ui, pos2(r0.min.x, ty), s::MonitorTestWindow_Monitor_test(), hf.clone(), p.text);
