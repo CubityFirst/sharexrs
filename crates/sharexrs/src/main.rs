@@ -1969,6 +1969,10 @@ impl ApplicationHandler<UserEvent> for App {
                 self.cursor = Some(egui::pos2((position.x / scale) as f32, (position.y / scale) as f32));
                 w.on_event(&event);
             }
+            // Onto a menu level in its own popup window: the pointer is still
+            // the window's (its moves come routed here), so a press there
+            // isn't a light dismiss.
+            WindowEvent::CursorLeft { .. } if w.pointer_on_popup() => {}
             WindowEvent::CursorLeft { .. } => {
                 self.cursor = None;
                 w.on_event(&event);

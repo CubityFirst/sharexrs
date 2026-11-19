@@ -104,6 +104,13 @@ impl EguiWindow {
         self.state.egui_ctx()
     }
 
+    /// Whether the pointer is over one of the window's popup windows: a
+    /// `CursorLeft` then isn't the pointer leaving (a menu level past the
+    /// window's edge is still the window's).
+    pub fn pointer_on_popup(&self) -> bool {
+        self.popups.contains_cursor(&self.window)
+    }
+
     /// Passes a window event to egui, except on a borderless window's resize
     /// edge, where a press starts resizing the window instead.
     pub fn on_event(&mut self, event: &WindowEvent) {
@@ -245,10 +252,10 @@ impl EguiWindow {
         let mut result = None;
         let mut ui = Some(ui);
         // Popups may leave the window ([`crate::popup_window`]).
-        let host = crate::popup_window::host_area(&self.window);
+        let (host, screens) = crate::popup_window::host_area(&self.window).unzip();
         let mut moved_out: Vec<crate::popup_window::Wanted> = Vec::new();
         let mut output = ctx.run_ui(input, |root| {
-            sharex_ui::popup::set_host(root.ctx(), host);
+            sharex_ui::popup::set_host_screens(root.ctx(), host, screens.clone());
             if let Some(f) = ui.take() {
                 result = Some(f(root));
                 let popups = sharex_ui::popup::take(root.ctx());

@@ -23,10 +23,14 @@
 //! `MenuFlyoutScrollerMargin` 0,4,0,4; `MenuFlyoutSubItemPopupHorizontalOffset`
 //! -4; `OverlayCornerRadius` 5 for submenus (ShareX sets 6 on `ContextMenu`).
 //!
-//! A [`Flyout`] is drawn inside its window, as egui areas on top of
-//! everything else; Avalonia opens each popup as its own OS window, so a
-//! menu can't extend past the window here (it is kept within `bounds`
-//! instead, with Avalonia's flip/slide/resize rules).
+//! Avalonia opens the `ContextMenu` and each submenu level as a `Popup`:
+//! an OS window of its own, placed by `ManagedPopupPositioner` on the work
+//! area of the screen under its anchor (`crate::popup::position`). A
+//! [`Flyout`] draws each level as an egui area of its owner and registers
+//! it with [`crate::popup`]: a host that can open popup windows moves a
+//! level that doesn't fit inside the window into one (input still goes to
+//! the flyout); without a host the levels are kept within `bounds`, with
+//! the same flip/slide/resize rules.
 
 use egui::{Color32, CornerRadius, FontId, Id, Key, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 
@@ -521,7 +525,9 @@ impl<C: Clone> Flyout<C> {
     /// [`crate::popup`], when it can open popups past the window), and
     /// handles its input.
     pub fn show(&mut self, ui: &Ui, bounds: Rect) -> FlyoutOutput<C> {
-        let bounds = crate::popup::bounds(ui.ctx(), bounds);
+        // Each level is a `Popup` placed on the screen under its anchor
+        // (the host's screens), or kept in `bounds` without a host.
+        let geometry = crate::popup::geometry(ui.ctx(), bounds);
         // An open menu has the keyboard (Avalonia focuses it), so the
         // control that opened it mustn't take arrows and Enter.
         ui.ctx().memory_mut(|m| {
@@ -530,14 +536,14 @@ impl<C: Clone> Flyout<C> {
             }
         });
         match self.content {
-            Content::Menu(_) => self.show_menu(ui, bounds),
-            Content::Grid(_) => self.show_grid(ui, bounds),
+            Content::Menu(_) => self.show_menu(ui, &geometry),
+            Content::Grid(_) => self.show_grid(ui, &geometry),
         }
     }
 
     // ---- compact menu -------------------------------------------------
 
-    fn show_menu(&mut self, ui: &Ui, bounds: Rect) -> FlyoutOutput<C> {
+    fn show_menu(&mut self, ui: &Ui, geometry: &crate::popup::Geometry) -> FlyoutOutput<C> {
         let ctx = ui.ctx().clone();
         let d = density(&ctx);
         let now = ctx.input(|i| i.time);
@@ -571,12 +577,12 @@ impl<C: Clone> Flyout<C> {
                 }
             };
             let rect = if root {
-                place(self.anchor_rect(), self.placement, m.size, 0.0, bounds)
+                place(self.anchor_rect(), self.placement, m.size, 0.0, geometry)
             } else {
                 // `PART_Popup`: RightEdgeAlignedTop of the item, -4px.
                 let (_, _, items) = &placed[depth - 1];
                 let item = items[self.open[depth - 1]];
-                place(item, Placement::RightEdgeAlignedTop, m.size, -4.0, bounds)
+                place(item, Placement::RightEdgeAlignedTop, m.size, SUBMENU_HORIZONTAL_OFFSET, geometry)
             };
             let items = entries.map_or_else(Vec::new, |e| item_rects(e, rect, root, &d, self.style));
             placed.push((rect, m, items));
@@ -872,12 +878,12 @@ impl<C: Clone> Flyout<C> {
 
     // ---- tool grid ----------------------------------------------------
 
-    fn show_grid(&mut self, ui: &Ui, bounds: Rect) -> FlyoutOutput<C> {
+    fn show_grid(&mut self, ui: &Ui, geometry: &crate::popup::Geometry) -> FlyoutOutput<C> {
         let ctx = ui.ctx().clone();
         let mut out = FlyoutOutput { command: None, closed: false };
         let Content::Grid(categories) = &self.content else { unreachable!() };
         let g = GridLayout::new(ui, categories, &self.grid_params());
-        let rect = place(self.anchor_rect(), self.placement, g.size, 0.0, bounds);
+        let rect = place(self.anchor_rect(), self.placement, g.size, 0.0, geometry);
         self.rects = vec![rect];
         let layer = Id::new((self.id, "grid"));
         let mut grid_out = GridOutcome::default();
@@ -906,49 +912,38 @@ impl<C: Clone> Flyout<C> {
     }
 }
 
-/// Avalonia's `ManagedPopupPositioner` for the placements ShareX uses, with
-/// the default constraint adjustment (flip, then slide, then resize).
-fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: Rect) -> Rect {
-    let (mut x, mut y) = match placement {
-        Placement::RightEdgeAlignedTop => (anchor.max.x + offset_x, anchor.min.y),
-        Placement::BottomEdgeAlignedLeft => (anchor.min.x, anchor.max.y),
-        Placement::Pointer(p) | Placement::Slide(p) => (p.x, p.y),
-    };
-    let slide_only = matches!(placement, Placement::Slide(_));
-    let fits_x = |x: f32| x >= bounds.min.x && x + size.x <= bounds.max.x;
-    let fits_y = |y: f32| y >= bounds.min.y && y + size.y <= bounds.max.y;
-    if !fits_x(x) {
-        let flipped = match placement {
-            // Avalonia flips the anchor and gravity but keeps the offset:
-            // a submenu flipped to the left sits 4px clear of its item.
-            Placement::RightEdgeAlignedTop => anchor.min.x + offset_x - size.x,
-            Placement::BottomEdgeAlignedLeft => anchor.max.x - size.x,
-            Placement::Pointer(p) | Placement::Slide(p) => p.x - size.x,
-        };
-        if fits_x(flipped) && !slide_only {
-            x = flipped;
-        }
+/// `MenuFlyoutSubItemPopupHorizontalOffset` (Fluent's `MenuItem.xaml`):
+/// `PART_Popup`'s `HorizontalOffset`.
+const SUBMENU_HORIZONTAL_OFFSET: f32 = -4.0;
+
+/// The positioner's request for a flyout's popup of `size` at
+/// `placement` beside `anchor` (`PopupPositionerExtensions.Update`):
+/// - a `ContextMenu` at the pointer: a 1x1 anchor there, `TopLeft`,
+///   gravity `BottomRight`;
+/// - `RightEdgeAlignedTop` (the sidebar's menus, and every submenu: Fluent's
+///   `MenuItem` `PART_Popup`, `HorizontalOffset` -4): `TopRight`, `BottomRight`;
+/// - `BottomEdgeAlignedLeft`: `BottomLeft`, `BottomRight`;
+/// - the quick task menu: `AnchorAndGravity` `TopLeft`/`BottomRight`,
+///   `SlideX | SlideY` only (`QuickTaskMenu.ShowMenu`).
+///
+/// All but the last take `Popup`'s default constraint adjustment (`All`).
+fn request(anchor: Rect, placement: Placement, size: Vec2, offset: Vec2) -> crate::popup::Request {
+    use crate::popup::{PlacementMode, Request, adjust, edge};
+    match placement {
+        Placement::RightEdgeAlignedTop => Request::placement(PlacementMode::RightEdgeAlignedTop, anchor, offset, size),
+        Placement::BottomEdgeAlignedLeft => Request::placement(PlacementMode::BottomEdgeAlignedLeft, anchor, offset, size),
+        Placement::Pointer(p) => Request::placement(PlacementMode::Pointer(p), anchor, offset, size),
+        Placement::Slide(p) => Request {
+            adjustment: adjust::SLIDE_X | adjust::SLIDE_Y,
+            ..Request::placement(PlacementMode::AnchorAndGravity(edge::TOP_LEFT, edge::BOTTOM_RIGHT), Rect::from_min_size(p, Vec2::ZERO), offset, size)
+        },
     }
-    if x + size.x > bounds.max.x {
-        x = bounds.max.x - size.x;
-    }
-    x = x.max(bounds.min.x);
-    if !fits_y(y) {
-        let flipped = match placement {
-            Placement::RightEdgeAlignedTop => anchor.max.y - size.y,
-            Placement::BottomEdgeAlignedLeft => anchor.min.y - size.y,
-            Placement::Pointer(p) | Placement::Slide(p) => p.y - size.y,
-        };
-        if fits_y(flipped) && !slide_only {
-            y = flipped;
-        }
-    }
-    if y + size.y > bounds.max.y {
-        y = bounds.max.y - size.y;
-    }
-    y = y.max(bounds.min.y);
-    let size = vec2(size.x.min(bounds.width()), size.y.min(bounds.height()));
-    Rect::from_min_size(pos2(x.round(), y.round()), size)
+}
+
+/// Avalonia's `ManagedPopupPositioner` for a flyout level, against `g`
+/// (the screens: see [`crate::popup::geometry`]), in the owner's points.
+fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, g: &crate::popup::Geometry) -> Rect {
+    crate::popup::position_in(g, &request(anchor, placement, size, vec2(offset_x, 0.0)))
 }
 
 /// The header's font. A plain string header is drawn by the item's
@@ -1508,20 +1503,153 @@ pub fn paint_accent_gradient(ui: &Ui, rect: Rect, radius: CornerRadius) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::popup::{Geometry, PxRect, ScreenInfo};
+
+    /// No host: one screen that is `bounds`, the window at its origin.
+    fn window(bounds: Rect) -> Geometry {
+        Geometry::single(bounds, bounds, 1.0)
+    }
+
+    /// A host: the owner's client area at `client` (device pixels) on
+    /// these screens (bounds, work area), at `scaling`.
+    fn screens(client: PxRect, scaling: f64, screens: &[(PxRect, PxRect)]) -> Geometry {
+        Geometry {
+            screens: screens.iter().map(|&(bounds, working_area)| ScreenInfo { bounds, working_area }).collect(),
+            parent: client,
+            scaling,
+        }
+    }
+
+    /// A 1920x1080 screen with a 40px taskbar at the bottom.
+    const SCREEN: (PxRect, PxRect) = (PxRect::new(0.0, 0.0, 1920.0, 1080.0), PxRect::new(0.0, 0.0, 1920.0, 1040.0));
+
+    /// The Capture menu's place beside its sidebar entry (client 7,135 to
+    /// 206,165), and its 278x355 root.
+    const NAV: Rect = Rect { min: pos2(7.0, 135.0), max: pos2(206.0, 165.0) };
+
+    #[test]
+    fn a_submenu_at_the_screens_right_edge_flips_left_past_the_window() {
+        // The main window's 900x703 client at 1500,200 on a 1920 wide
+        // screen: right of its entry the Capture menu would end at
+        // 1500 + 206 + 278 = 1984 > 1920, so it flips to the entry's left
+        // (anchor TopLeft, gravity BottomLeft): 1507 - 278 = 1229, -271
+        // points, left of the window's client area.
+        let g = screens(PxRect::new(1500.0, 200.0, 900.0, 703.0), 1.0, &[SCREEN]);
+        let root = place(NAV, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert_eq!(root.min, pos2(-271.0, 135.0));
+        assert_eq!(root.size(), vec2(278.0, 355.0));
+        // A submenu from an item at client 6..272: right of it, -4, it would
+        // end at 1500 + 268 + 200 = 1968 > 1920, so it flips to the item's
+        // left, keeping the -4 offset: 1506 - 4 - 200 = 1302, -198 points.
+        let item = Rect::from_min_max(pos2(6.0, 300.0), pos2(272.0, 328.0));
+        let sub = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 150.0), SUBMENU_HORIZONTAL_OFFSET, &g);
+        assert_eq!(sub.min, pos2(-198.0, 300.0));
+        // Kept in a 400 wide window (no host) it can't flip (-198 < 0), so it
+        // slides to end at the window's edge.
+        let inside = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 150.0), SUBMENU_HORIZONTAL_OFFSET, &window(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 703.0))));
+        assert_eq!(inside.min, pos2(200.0, 300.0));
+    }
+
+    #[test]
+    fn a_submenu_at_the_screens_bottom_edge_flips_up_then_slides() {
+        // Client at 100,600: an item at client y 400..428 is at 1000..1028.
+        let g = screens(PxRect::new(100.0, 600.0, 900.0, 703.0), 1.0, &[SCREEN]);
+        let item = Rect::from_min_max(pos2(220.0, 400.0), pos2(480.0, 428.0));
+        // 150 tall: 1000 + 150 > 1040, so bottoms aligned with the item:
+        // 1028 - 150 = 878, client 278.
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 150.0), SUBMENU_HORIZONTAL_OFFSET, &g);
+        assert_eq!(r.min, pos2(476.0, 278.0));
+        // 1100 tall: fits neither way, slid to the work area's top, then cut
+        // to its height (ResizeY): screen 0..1040, client -600.
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 1100.0), SUBMENU_HORIZONTAL_OFFSET, &g);
+        assert_eq!(r.min, pos2(476.0, -600.0));
+        assert_eq!(r.height(), 1040.0);
+        // 1035 tall: fits neither way (1028 - 1035 < 0), so it slides up to
+        // end on the work area's bottom: 1040 - 1035 = 5, client -595.
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 1035.0), SUBMENU_HORIZONTAL_OFFSET, &g);
+        assert_eq!(r.min, pos2(476.0, -595.0));
+        assert_eq!(r.height(), 1035.0);
+    }
+
+    #[test]
+    fn a_menu_past_the_windows_edge_stays_where_avalonia_puts_it() {
+        // The main window near the screen's bottom: its client at 300,600
+        // ends at 1303, past the 1040 work area. A menu from an entry at
+        // client 7,380..206,410 (screen 980) would end at 980 + 355 > 1040:
+        // flipped up, bottoms aligned (1010 - 355 = 655, client 55).
+        let g = screens(PxRect::new(300.0, 600.0, 900.0, 703.0), 1.0, &[SCREEN]);
+        let entry = Rect::from_min_max(pos2(7.0, 380.0), pos2(206.0, 410.0));
+        let r = place(entry, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert_eq!(r.min, pos2(206.0, 55.0));
+        // One that fits the screen stays at its anchor, however little of
+        // the window is left below it.
+        let entry = Rect::from_min_max(pos2(7.0, 10.0), pos2(206.0, 40.0));
+        let r = place(entry, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert_eq!(r.min, pos2(206.0, 10.0));
+        // Right of a window whose client ends at 1200: past the window, on
+        // the screen (the window's flip no longer applies).
+        let entry = Rect::from_min_max(pos2(700.0, 10.0), pos2(899.0, 40.0));
+        let r = place(entry, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert_eq!(r.min, pos2(899.0, 10.0));
+        assert!(r.max.x > 900.0);
+    }
+
+    #[test]
+    fn at_125_percent_the_position_is_truncated_to_device_pixels() {
+        // Client at 101,51 at 125%: the Capture menu right of its entry is at
+        // 101 + 206 * 1.25 = 358.5, truncated to 358 (`(int)devicePoint.X`):
+        // 205.6 points from the client; 51 + 135 * 1.25 = 219.75 -> 219.
+        let g = screens(PxRect::new(101.0, 51.0, 1125.0, 879.0), 1.25, &[SCREEN]);
+        let r = place(NAV, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert!((r.min.x - 205.6).abs() < 1e-4, "{r:?}");
+        assert!((r.min.y - 134.4).abs() < 1e-4, "{r:?}");
+        assert_eq!(r.size(), vec2(278.0, 355.0));
+        // On a monitor left of the primary (negative coordinates) truncation
+        // goes towards zero: -1500 + 257.5 = -1242.5 -> -1242.
+        let left = (PxRect::new(-1920.0, 0.0, 1920.0, 1080.0), PxRect::new(-1920.0, 0.0, 1920.0, 1040.0));
+        let g = screens(PxRect::new(-1500.0, 50.0, 1125.0, 879.0), 1.25, &[SCREEN, left]);
+        let r = place(NAV, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &g);
+        assert!((r.min.x - 206.4).abs() < 1e-4, "{r:?}");
+        // A submenu flipped at 125%: the -4 offset is scaled too (-5 px).
+        let g = screens(PxRect::new(1400.0, 100.0, 1125.0, 879.0), 1.25, &[SCREEN]);
+        let item = Rect::from_min_max(pos2(206.0 + 7.0, 150.0), pos2(206.0 + 272.0, 178.0));
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(200.0, 150.0), SUBMENU_HORIZONTAL_OFFSET, &g);
+        // Right: 1400 + 478 * 1.25 - 5 = 1992.5, +250 > 1920: flipped to
+        // 1400 + 213 * 1.25 - 5 - 250 = 1411.25 -> 1411, 8.8 points.
+        assert!((r.min.x - 8.8).abs() < 1e-4, "{r:?}");
+    }
+
+    #[test]
+    fn a_context_menu_at_the_pointer_flips_around_a_one_pixel_anchor() {
+        // `PlacementMode.Pointer`: a 1x1 anchor at the pointer, so a menu
+        // flipped left ends one pixel right of the pointer.
+        let g = window(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 703.0)));
+        let r = place(Rect::NOTHING, Placement::Pointer(pos2(800.0, 100.0)), vec2(200.0, 100.0), 0.0, &g);
+        assert_eq!(r.min, pos2(601.0, 100.0));
+        let r = place(Rect::NOTHING, Placement::Pointer(pos2(100.0, 650.0)), vec2(200.0, 100.0), 0.0, &g);
+        assert_eq!(r.min, pos2(100.0, 551.0));
+    }
+
+    #[test]
+    fn the_quick_task_menu_only_slides() {
+        let g = window(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 720.0)));
+        let r = place(Rect::NOTHING, Placement::Slide(pos2(900.0, 650.0)), vec2(200.0, 100.0), 0.0, &g);
+        assert_eq!(r.min, pos2(824.0, 620.0));
+    }
 
     #[test]
     fn placement_slides_into_bounds() {
-        let bounds = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 700.0));
+        let bounds = window(Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 700.0)));
         let anchor = Rect::from_min_max(pos2(7.0, 135.0), pos2(206.0, 165.0));
         // Fits: right of the anchor, tops aligned.
-        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, bounds);
+        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), 0.0, &bounds);
         assert_eq!(r.min, pos2(206.0, 135.0));
         // Too tall either way: slides up to the bottom edge.
-        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(589.0, 680.0), 0.0, bounds);
+        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(589.0, 680.0), 0.0, &bounds);
         assert_eq!(r.min, pos2(206.0, 20.0));
         // Flips up when that fits: bottoms aligned.
         let anchor = Rect::from_min_max(pos2(7.0, 600.0), pos2(206.0, 630.0));
-        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(200.0, 300.0), 0.0, bounds);
+        let r = place(anchor, Placement::RightEdgeAlignedTop, vec2(200.0, 300.0), 0.0, &bounds);
         assert_eq!(r.min, pos2(206.0, 330.0));
     }
 
@@ -1529,9 +1657,9 @@ mod tests {
     fn a_flipped_submenu_keeps_its_offset() {
         // ShareX's tray menu at 682,126 on a 1024px wide work area: Capture's
         // submenu (278 wide) opens to the left of its item (x 689), at 407.
-        let bounds = Rect::from_min_max(pos2(0.0, 0.0), pos2(1024.0, 720.0));
+        let bounds = window(Rect::from_min_max(pos2(0.0, 0.0), pos2(1024.0, 720.0)));
         let item = Rect::from_min_max(pos2(689.0, 133.0), pos2(944.0, 161.0));
-        let r = place(item, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), -4.0, bounds);
+        let r = place(item, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), -4.0, &bounds);
         assert_eq!(r.min, pos2(407.0, 133.0));
     }
 
