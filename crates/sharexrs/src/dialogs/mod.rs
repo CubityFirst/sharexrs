@@ -727,8 +727,8 @@ impl App {
                     crate::shell::open_folder_with_file(&path);
                 }
                 Effect::DragWindow => {
-                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
-                        let _ = d.window.window.drag_window();
+                    if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                        d.window.begin_move_drag();
                     }
                 }
                 Effect::DragFiles(files) => self.dialog_drag_files(id, &files, false),
