@@ -390,6 +390,12 @@ impl Dialog for VideoPlayerWindow {
         let row = Rect::from_min_size(pos2(inner.min.x, seek.max.y + 2.0), vec2(inner.width(), 36.0));
         let b = |x: f32| Rect::from_min_size(pos2(x, center_y(row, 32.0)), vec2(32.0, 32.0));
         let mut x = row.min.x;
+        // `ToolTip.Tip`s (`PlayActionText`, `MuteActionText`, and the full
+        // screen button's set by `ToggleFullscreen`).
+        let play_text = if self.player.is_playing() { s::AnimatedGifTrimmer_Pause() } else { s::AnimatedGifTrimmer_Play() };
+        for (k, (text, enabled)) in [(s::VideoTrimmer_Open(), true), (s::AnimatedGifTrimmer_PreviousFrame(), has_video), (play_text, has_video), (s::AnimatedGifTrimmer_NextFrame(), has_video)].into_iter().enumerate() {
+            tools::tip(ui, b(x + 34.0 * k as f32), Id::new(("player-tip", k)), text, enabled);
+        }
         if Self::player_button(ui, b(x), Id::new("player-open"), icon::FolderOpen, true).clicked() {
             effects.extend(self.browse());
         }
@@ -420,6 +426,11 @@ impl Dialog for VideoPlayerWindow {
         let col = Rect::from_min_max(pos2(x + 6.0, row.min.y), pos2(mute.min.x - 2.0 - 6.0, row.max.y));
         let tw = text_width(ui, &time, nf.clone());
         tools::text_at(ui, pos2(col.min.x + ((col.width() - tw) / 2.0).round_ties_even(), center_y(row, line_height(ui, &nf))), &time, nf, Color32::WHITE);
+        let mute_text = if self.sound_off() { s::VideoPlayer_Unmute() } else { s::VideoPlayer_Mute() };
+        tools::tip(ui, mute, Id::new("player-mute-tip"), mute_text, true);
+        tools::tip(ui, volume, Id::new("player-volume-tip"), s::VideoPlayer_Volume(), true);
+        let full_text = if self.fullscreen { s::VideoPlayer_ExitFullscreen() } else { s::VideoPlayer_Fullscreen() };
+        tools::tip(ui, full, Id::new("player-fullscreen-tip"), full_text, true);
         let mute_icon = if self.sound_off() { icon::Mute } else { icon::Volume };
         if Self::player_button(ui, mute, Id::new("player-mute"), mute_icon, true).clicked() {
             self.toggle_mute();

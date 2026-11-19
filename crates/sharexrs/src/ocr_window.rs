@@ -108,6 +108,14 @@ pub struct OcrWindow {
     panel_width: f32,
     hovered: Option<usize>,
     copied: Option<usize>,
+    /// The region's tooltip, opened in code (`OCRPreview.SetHoveredRegion`
+    /// and `ShowCopied`: `ToolTip.SetIsOpen`): where the pointer was and
+    /// when (`ui.input().time`).
+    region_tip: Option<(Pos2, f64)>,
+    /// Whether the region tooltip is drawn: a render leaves it out unless
+    /// asked (`--tip`), as ShareX's is a popup window a capture of the
+    /// window doesn't have.
+    region_tips: bool,
     started: bool,
     options_changed: bool,
     effects: Vec<Effect>,
@@ -175,6 +183,8 @@ impl OcrWindow {
             },
             hovered: None,
             copied: None,
+            region_tip: None,
+            region_tips: true,
             started: false,
             options_changed: false,
             effects: Vec::new(),
@@ -214,6 +224,7 @@ impl OcrWindow {
         self.result = None;
         self.hovered = None;
         self.copied = None;
+        self.region_tip = None;
         let bitmap = sharex_ocr::bitmap_from_rgba(self.image.width(), self.image.height(), self.image.as_raw());
         if self.sync {
             let r = sharex_ocr::recognize(&bitmap).map_err(|e| e.to_string());
@@ -395,8 +406,11 @@ impl OcrWindow {
                     result.regions.iter().position(|r| ix >= r.bounds.left && ix < r.bounds.right && iy >= r.bounds.top && iy < r.bounds.bottom)
                 });
                 if live && hit != self.hovered {
+                    // `SetHoveredRegion`: the tip is the region's text, open
+                    // at once while a region is under the pointer.
                     self.hovered = hit;
                     self.copied = None;
+                    self.region_tip = hit.and(pointer).map(|pt| (pt, ui.input(|i| i.time)));
                 }
                 for (i, region) in result.regions.iter().enumerate() {
                     let pts: Vec<Pos2> = region.points.iter().map(|q| pos2(img_rect.min.x + q.x * scale, img_rect.min.y + q.y * scale)).collect();
@@ -433,16 +447,20 @@ impl OcrWindow {
                         }
                         ui.ctx().set_cursor_icon(if self.drag.is_some() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::PointingHand });
                     }
-                    if let Some(h) = hit {
+                    if hit.is_some() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        let tip = if Some(h) == self.copied { s::OCRWindow_Copied_to_clipboard().to_string() } else { result.regions[h].text.clone() };
-                        r.clone().on_hover_text(tip);
                     }
                     if r.clicked()
                         && let Some(i) = hit
                     {
+                        // `ShowCopied`: closed and opened again with `CopiedText`.
                         self.copied = Some(i);
+                        self.region_tip = pointer.map(|pt| (pt, ui.input(|i| i.time)));
                         self.effects.push(Effect::CopyText(result.regions[i].text.clone()));
+                    }
+                    if let (true, Some(h), Some((at, opened))) = (self.region_tips, hit, self.region_tip) {
+                        let tip = if Some(h) == self.copied { s::OCRWindow_Copied_to_clipboard() } else { result.regions[h].text.as_str() };
+                        sharex_ui::tooltip::show_now(ui, Id::new("ocr-region-tip"), at, opened, tip);
                     }
                 }
             }
@@ -569,7 +587,15 @@ impl OcrWindow {
             self.selected_service = Some(i);
             self.save_options();
         }
-        if icon_only_button(ui, open_r, Id::new("ocr-open-service"), icon::ExternalLink, self.can_use_result() && live).on_hover_text(s::OCRWindow_Open_service()).clicked()
+        // `ToolTip.Tip`s: a disabled button gets no pointer events, so no tip.
+        let open_enabled = self.can_use_result() && live;
+        if open_enabled {
+            sharex_ui::tooltip::show(ui, open_r, Id::new("ocr-open-service-tip"), s::OCRWindow_Open_service());
+        }
+        if live {
+            sharex_ui::tooltip::show(ui, settings_r, Id::new("ocr-edit-services-tip"), s::OCRWindow_Edit_services());
+        }
+        if icon_only_button(ui, open_r, Id::new("ocr-open-service"), icon::ExternalLink, open_enabled).clicked()
             && let Some(url) = self.selected_service.and_then(|i| self.services.get(i)).and_then(|(_, u)| generate_link(u, &self.result_text()))
         {
             self.effects.push(Effect::OpenUrl(url));
@@ -577,7 +603,7 @@ impl OcrWindow {
                 self.effects.push(Effect::Close);
             }
         }
-        if icon_only_button(ui, settings_r, Id::new("ocr-edit-services"), icon::Settings, live).on_hover_text(s::OCRWindow_Edit_services()).clicked() {
+        if icon_only_button(ui, settings_r, Id::new("ocr-edit-services"), icon::Settings, live).clicked() {
             self.editor = Some(ServiceEditor { editing: self.selected_service.or((!self.services.is_empty()).then_some(0)) });
         }
         let copy_r = Rect::from_min_size(pos2(bottom.min.x, row.max.y + 16.0), vec2(bottom.width(), 42.0));
@@ -833,13 +859,14 @@ pub fn is_render_screen(name: &str) -> bool {
 
 /// `--render ocr --image <png>`: the window on the image, recognized
 /// (`--state services` with the service editor open, `--state busy` while
-/// recognizing; `--hover` over a region).
+/// recognizing; `--hover` over a region, `--tip` with its tooltip).
 pub fn render_dialog(_name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
     let path = o.image.clone().ok_or("--image <png> is required")?;
     let image = image::open(&path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8();
     let mut w = OcrWindow::new(image, Some(path), &json!({}), OptionsTarget::Task);
     w.sync = true;
     w.started = true;
+    w.region_tips = o.tip;
     match o.state.as_deref() {
         Some("busy") => {
             w.busy = true;

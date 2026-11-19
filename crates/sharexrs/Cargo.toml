@@ -74,8 +74,12 @@ objc2-foundation = "0.3.2"
 # The tray icon: a StatusNotifierItem over D-Bus, as snapr.
 [target."cfg(target_os = \"linux\")".dependencies]
 ksni = { version = "0.3.6", default-features = false, features = ["async-io", "blocking"] }
+# The clipboard viewer's X11 selection (Avalonia.X11's formats).
+x11rb = "0.13.2"
 
 [dev-dependencies]
+# The X11 selection reader, type-checked by the tests on every platform.
+x11rb = "0.13.2"
 # Animated GIFs for the playback tests.
 gif = "0.14.2"
 

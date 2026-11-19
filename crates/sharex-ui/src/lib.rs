@@ -20,6 +20,7 @@
 
 pub mod accent;
 pub mod border;
+pub mod color_view;
 pub mod controls;
 pub mod focus;
 pub mod fonts;

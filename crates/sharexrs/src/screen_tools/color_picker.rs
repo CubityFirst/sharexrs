@@ -591,15 +591,13 @@ impl Dialog for ColorPickerWindow {
         let by = bottom_top + ph.max(40.0) - 40.0;
         let clip = Rect::from_min_size(pos2(c.max.x - 38.0, by), vec2(38.0, 40.0));
         let screen = Rect::from_min_size(pos2(clip.min.x - 8.0 - 38.0, by), vec2(38.0, 40.0));
-        if tools_ui::icon_button_sized(ui, screen, Id::new("color-picker-screen"), icon::ScreenColorPicker, 14.0, true)
-            .on_hover_text(s::ColorPickerWindow_Pick_from_screen())
-            .clicked()
+        sharex_ui::tooltip::show(ui, screen, Id::new("color-picker-screen-tip"), s::ColorPickerWindow_Pick_from_screen());
+        sharex_ui::tooltip::show(ui, clip, Id::new("color-picker-clipboard-tip"), s::ColorPickerWindow_Pick_from_clipboard());
+        if tools_ui::icon_button_sized(ui, screen, Id::new("color-picker-screen"), icon::ScreenColorPicker, 14.0, true).clicked()
         {
             effects.push(Effect::PickScreenColor);
         }
-        if tools_ui::icon_button_sized(ui, clip, Id::new("color-picker-clipboard"), icon::ClipboardPaste, 14.0, true)
-            .on_hover_text(s::ColorPickerWindow_Pick_from_clipboard())
-            .clicked()
+        if tools_ui::icon_button_sized(ui, clip, Id::new("color-picker-clipboard"), icon::ClipboardPaste, 14.0, true).clicked()
             && let Some(c) = sharex_capture::clipboard::get_text().and_then(|t| color::parse_color(&t))
         {
             self.change_to(c);

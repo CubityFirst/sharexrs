@@ -370,6 +370,7 @@ impl Dialog for AnalyzeImageOptionsWindow {
         if let Some(i) = combo.show(ui, Rect::from_min_size(pos2(row.min.x + PROVIDER_LABEL_W + 10.0, row.min.y), vec2(cw, 40.0)), Id::new("ai-provider"), &items, sel) {
             self.provider = AIProvider::ALL[i];
         }
+        sharex_ui::tooltip::show(ui, pr, Id::new("ai-key-page-tip"), s::AnalyzeImageOptionsWindow_Get_API_key());
         if tools::icon_text_button(ui, pr, Id::new("ai-key-page"), icon::Key, page, true).clicked() {
             let mut o = self.create_options();
             o.provider = Some(self.provider);

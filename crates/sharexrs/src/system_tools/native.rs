@@ -3,16 +3,21 @@
 //! windows or the network):
 //!
 //! - [`ClipboardSource`]: `ClipboardHelpers.CaptureData()` as
-//!   `AvaloniaClipboard.Capture` reads it on Windows (the clipboard's OLE
+//!   `AvaloniaClipboard.Capture` reads it: on Windows the clipboard's OLE
 //!   data object, its formats in the order it lists them, named and read as
-//!   Avalonia's Win32 backend does), and `ClipboardHelpers.Clear`;
+//!   Avalonia's Win32 backend does; on macOS the general pasteboard and on
+//!   Linux the X11 `CLIPBOARD` selection as Avalonia.Native and
+//!   Avalonia.X11 do (`sharex_tools::system::clipboard_formats`); and
+//!   `ClipboardHelpers.Clear`;
 //! - [`WindowSource`]: `InspectWindowService` (the window list, a window's
 //!   `WindowInfo`, `WindowFromPoint`/`GetAncestor`, top-most and opacity);
 //! - [`IcmpPinger`]: `Ping.SendPingAsync` (`IcmpSendEcho` on Windows, the
 //!   system `ping` elsewhere);
 //! - [`NativeWindowOps`]: `BorderlessWindowManager`'s calls.
 
-use sharex_tools::system::clipboard_viewer::{self as cv, ClipboardSnapshot, ClipboardValue};
+use sharex_tools::system::clipboard_viewer::ClipboardSnapshot;
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+use sharex_tools::system::clipboard_viewer::{self as cv, ClipboardValue};
 use sharex_tools::system::inspect_window::{Rect, WindowEntry, WindowSnapshot};
 
 /// What reads and clears the clipboard.
@@ -644,8 +649,26 @@ fn set_top_most(_handle: isize, _top_most: bool) {}
 #[cfg(not(windows))]
 fn set_opacity(_handle: isize, _opacity: u8) {}
 
-/// Avalonia's macOS and X11 backends: text, files and an image.
-#[cfg(not(windows))]
+/// `AvaloniaClipboard.Capture` on macOS: the general pasteboard as
+/// Avalonia.Native lists and reads it (`sharex_tools::system::clipboard_formats`).
+#[cfg(target_os = "macos")]
+fn capture_clipboard() -> Result<ClipboardSnapshot, String> {
+    Ok(sharex_tools::system::clipboard_formats::capture_macos(&mac::GeneralPasteboard::new()))
+}
+
+/// `AvaloniaClipboard.Capture` on Linux: the `CLIPBOARD` selection as
+/// Avalonia.X11 lists and reads it; nothing without an X server (Avalonia
+/// has no other backend there).
+#[cfg(target_os = "linux")]
+fn capture_clipboard() -> Result<ClipboardSnapshot, String> {
+    Ok(match super::x11_selection::X11Selection::open() {
+        Some(sel) => sharex_tools::system::clipboard_formats::capture_x11(&sel),
+        None => ClipboardSnapshot::new(),
+    })
+}
+
+/// Elsewhere (the BSDs): text, files and an image, as arboard reads them.
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn capture_clipboard() -> Result<ClipboardSnapshot, String> {
     let mut s = ClipboardSnapshot::new();
     if let Some(t) = sharex_capture::clipboard::get_text() {
@@ -660,6 +683,94 @@ fn capture_clipboard() -> Result<ClipboardSnapshot, String> {
         s.set(cv::FORMAT_BITMAP, ClipboardValue::Bytes(png));
     }
     Ok(s)
+}
+
+/// The general pasteboard as `libAvaloniaNative`'s `Clipboard` reads it.
+#[cfg(target_os = "macos")]
+mod mac {
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject, Bool};
+    use objc2::msg_send;
+    use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSPasteboard, NSPasteboardItem};
+    use objc2_foundation::{NSArray, NSDictionary, NSString, NSURL};
+    use sharex_tools::system::clipboard_formats::{self as cf, Pasteboard};
+
+    pub struct GeneralPasteboard {
+        pasteboard: Retained<NSPasteboard>,
+        items: Vec<Retained<NSPasteboardItem>>,
+    }
+
+    impl GeneralPasteboard {
+        pub fn new() -> Self {
+            let pasteboard = NSPasteboard::generalPasteboard();
+            let items = pasteboard.pasteboardItems().map(|a| a.to_vec()).unwrap_or_default();
+            Self { pasteboard, items }
+        }
+    }
+
+    fn strings(types: &NSArray<NSString>) -> Vec<String> {
+        types.iter().map(|t| t.to_string()).collect()
+    }
+
+    impl Pasteboard for GeneralPasteboard {
+        fn types(&self) -> Vec<String> {
+            self.pasteboard.types().map(|t| strings(&t)).unwrap_or_default()
+        }
+
+        fn item_types(&self) -> Vec<Vec<String>> {
+            self.items.iter().map(|i| strings(&i.types())).collect()
+        }
+
+        fn string(&self, item: usize, ty: &str) -> Option<String> {
+            self.items.get(item)?.stringForType(&NSString::from_str(ty)).map(|s| s.to_string())
+        }
+
+        fn bytes(&self, item: usize, ty: &str) -> Option<Vec<u8>> {
+            let item = self.items.get(item)?;
+            if let Some(data) = item.dataForType(&NSString::from_str(ty)) {
+                return (data.length() > 0).then(|| data.to_vec());
+            }
+            if ty != cf::PASTEBOARD_PNG {
+                return None;
+            }
+            // The TIFF's, else the JPEG's, bitmap representation as PNG.
+            let data = item.dataForType(&NSString::from_str(cf::PASTEBOARD_TIFF)).or_else(|| item.dataForType(&NSString::from_str(cf::PASTEBOARD_JPEG)))?;
+            let rep = NSBitmapImageRep::imageRepWithData(&data)?;
+            let props = NSDictionary::new();
+            // SAFETY: an empty properties dictionary.
+            let png = unsafe { rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &props) }?;
+            Some(png.to_vec())
+        }
+
+        fn is_text_format(&self, ty: &str) -> bool {
+            // `[[UTType typeWithIdentifier:format] conformsToType:UTTypeText]`.
+            let Some(class) = AnyClass::get(c"UTType") else { return false };
+            let id = NSString::from_str(ty);
+            let text = NSString::from_str("public.text");
+            // SAFETY: UTType's class methods, returning autoreleased objects or nil.
+            unsafe {
+                let t: Option<Retained<AnyObject>> = msg_send![class, typeWithIdentifier: &*id];
+                let base: Option<Retained<AnyObject>> = msg_send![class, typeWithIdentifier: &*text];
+                match (t, base) {
+                    (Some(t), Some(base)) => {
+                        let yes: Bool = msg_send![&*t, conformsToType: &*base];
+                        yes.as_bool()
+                    }
+                    _ => false,
+                }
+            }
+        }
+
+        fn file_path(&self, url: &str) -> Option<String> {
+            let mut path = cf::file_uri_local_path(url)?;
+            // `TryResolveFileReferenceUri`.
+            if path.starts_with("/.file/id=") {
+                path = NSURL::URLWithString(&NSString::from_str(url))?.filePathURL()?.path()?.to_string();
+            }
+            let p = std::path::Path::new(&path);
+            (p.is_dir() || p.is_file()).then_some(path)
+        }
+    }
 }
 
 /// ICMP echoes for the network monitor.

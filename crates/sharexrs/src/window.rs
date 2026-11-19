@@ -44,22 +44,11 @@ impl Drop for EguiWindow {
     }
 }
 
-/// Avalonia's `Window.Activate`: on Windows `WindowImpl.Activate` is a bare
-/// `SetForegroundWindow`, which Windows refuses (the taskbar button
-/// flashes) unless this process may take the foreground: it got the last
-/// input, or the copy that forwarded a command line passed its right on.
-/// Not winit's `focus_window`, which fakes an Alt press first to steal the
-/// foreground: a command forwarded to a visible main window would then take
-/// the foreground from the window an active-window job is about to capture
-/// (`ApplicationCommandLine.ExecuteReceivedAsync` activates the main window
-/// before the command runs; LIVE-CHECKS REC2-03a).
+/// `Window.Activate()` for any ShareXrs window: [`crate::activation::activate_window`]
+/// (Avalonia's bare `SetForegroundWindow` on Windows, not winit's
+/// `focus_window`, which fakes an Alt press to steal the foreground).
 pub fn activate(window: &Window) {
-    #[cfg(windows)]
-    if let Some(handle) = sharex_capture::platform::window_handle(window) {
-        sharex_capture::platform::activate_window(handle);
-        return;
-    }
-    window.focus_window();
+    crate::activation::activate_window(window);
 }
 
 /// Where a window dragged from `press` (the pointer on the screen) while
@@ -120,6 +109,13 @@ impl EguiWindow {
 
     pub fn ctx(&self) -> &egui::Context {
         self.state.egui_ctx()
+    }
+
+    /// Whether the pointer is over one of the window's popup windows: a
+    /// `CursorLeft` then isn't the pointer leaving (a menu level past the
+    /// window's edge is still the window's).
+    pub fn pointer_on_popup(&self) -> bool {
+        self.popups.contains_cursor(&self.window)
     }
 
     /// Passes a window event to egui, except on a borderless window's resize
@@ -263,10 +259,10 @@ impl EguiWindow {
         let mut result = None;
         let mut ui = Some(ui);
         // Popups may leave the window ([`crate::popup_window`]).
-        let host = crate::popup_window::host_area(&self.window);
+        let (host, screens) = crate::popup_window::host_area(&self.window).unzip();
         let mut moved_out: Vec<crate::popup_window::Wanted> = Vec::new();
         let mut output = ctx.run_ui(input, |root| {
-            sharex_ui::popup::set_host(root.ctx(), host);
+            sharex_ui::popup::set_host_screens(root.ctx(), host, screens.clone());
             if let Some(f) = ui.take() {
                 result = Some(f(root));
                 let popups = sharex_ui::popup::take(root.ctx());

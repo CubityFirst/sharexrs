@@ -351,22 +351,30 @@ impl BackgroundRemoverWindow {
             Some("device") => ComboBox::set_open(ui.ctx(), device_id, true),
             _ => {}
         }
+        // `ToolTip.Tip`s (a disabled control gets no pointer events, so no tip).
+        let can_open = !self.processing && self.models_folder.as_ref().is_some_and(|f| !f.as_os_str().is_empty());
+        let tip = |rect: Rect, key: &str, text: &str, enabled: bool| {
+            if enabled {
+                sharex_ui::tooltip::show(ui, rect, Id::new(("bgremover-tip", key)), text);
+            }
+        };
+        tip(model_rect, "model", s::BackgroundRemoverWindow_Background_removal_model(), !self.processing);
+        tip(refresh, "refresh", s::BackgroundRemoverWindow_Refresh_models(), !self.processing);
+        tip(folder, "folder", s::BackgroundRemoverWindow_Open_models_folder(), can_open);
+        tip(guide, "guide", s::BackgroundRemoverWindow_Open_guide_page(), true);
+        tip(dr, "device", s::BackgroundRemoverWindow_Processing_device(), !self.processing);
         let model_items: Vec<ComboItem> = self.models.iter().map(|m| ComboItem::text(m.display_name())).collect();
         if let Some(i) = combo.show(ui, model_rect, model_id, &model_items, self.selected_model) {
             self.set_model(Some(i));
         }
-        let mut r = super::icon_button_sized(ui, refresh, Id::new("bgremover-refresh"), icon::Refresh, 17.0, !self.processing);
-        r = r.on_hover_text(s::BackgroundRemoverWindow_Refresh_models());
-        if r.clicked() {
+        if super::icon_button_sized(ui, refresh, Id::new("bgremover-refresh"), icon::Refresh, 17.0, !self.processing).clicked() {
             self.refresh_models();
         }
-        let can_open = !self.processing && self.models_folder.as_ref().is_some_and(|f| !f.as_os_str().is_empty());
-        let r = super::icon_button_sized(ui, folder, Id::new("bgremover-folder"), icon::FolderOpen, 17.0, can_open).on_hover_text(s::BackgroundRemoverWindow_Open_models_folder());
-        if r.clicked() {
+        if super::icon_button_sized(ui, folder, Id::new("bgremover-folder"), icon::FolderOpen, 17.0, can_open).clicked() {
             effects.extend(self.open_models_folder());
         }
         let r = if self.guide_highlighted { self.guide_button(ui, guide) } else { super::icon_button_sized(ui, guide, Id::new("bgremover-guide"), icon::Help, 17.0, true) };
-        if r.on_hover_text(s::BackgroundRemoverWindow_Open_guide_page()).clicked() {
+        if r.clicked() {
             effects.push(Effect::OpenUrl(GUIDE_URL.into()));
         }
         if let Some(i) = combo.show(ui, dr, device_id, &device_items, device_index) {

@@ -216,7 +216,7 @@ with ShareX's Windows results run on Windows only), the region selection.
 | Sound file picker | `SoundPath`, `PickFileAsync(ChooseAudioFile, WaveAudio, "*.wav")` | `pick_sound_file` (rfd) |
 | Device lists | `AudioDeviceCombo`, `CaptureDeviceCombo`, `AudioCaptureDevices`, `CameraCaptureDevices` | the native recorder branch's `recording::bar_sources` (`cached_devices`, `form_choices`), taken at the merge with master: this branch had its own enumeration and dropped it |
 | Tooltips | `Row(label, editor, tooltip)` (Mouse wheel), `CreateClipboardTokenItem` | `row_tooltip`; `MenuEntry::tooltip` in `sharex_ui::menu`; the clipboard format menu's descriptions |
-| Mouse highlighter colours | `MouseHighlighterSettingsControl.ColorRow`, `EnabledColorRow` (`Flyout` with `ColorView`) | `mh_color_row` with `controls::color_popup_with_alpha` (egui's picker stands in for `ColorView`, as elsewhere in ShareXrs); writes `DrawingColor.FromArgb` as `ColorConverter` does |
+| Mouse highlighter colours | `MouseHighlighterSettingsControl.ColorRow`, `EnabledColorRow` (`Flyout` with `ColorView`) | `mh_color_row` with `controls::color_popup_with_alpha` (a `Flyout` with Avalonia's `ColorView`, `sharex_ui::color_view`; at 125% 0.09% from ShareX's live shot); writes `DrawingColor.FromArgb` as `ColorConverter` does |
 | Time zones | `TimeZoneInfo.GetSystemTimeZones()`, `ObjectCombo` (`TimeZoneInfo.Equals`), `TaskSettingsUpload.CustomTimeZone`, `NameParser.CustomTimeZone`, `TaskHelpers.GetFileName` | `sharex_helpers::time_zone`: the registry list read as .NET's `TimeZoneInfo.Win32.cs` reads it, .NET's own UTC zone, the Newtonsoft JSON, .NET 11's `GetOffsetForUtcDate`/`CacheTransitionsForYear` transcribed, `SettingsBase`'s `DateTimeZoneHandling.Local` reload; `NameParser::custom_time_zone`; `time_zone_row` |
 | Dropdowns | Fluent's `ComboBox` (`MaxDropDownHeight="504"`, `ScrollIntoView` on open, a `VirtualizingStackPanel`) | `controls::dropdown`: capped at 504, the selected item scrolled into view (the least scrolling, so one further down ends at the bottom), as wide as the items in view (growing as wider ones scroll in). Short lists are unchanged |
 
@@ -305,7 +305,8 @@ colour flyout, the variable menus' focus behaviour.
 
 - The time zone list on macOS and Linux (ShareX's .NET lists IANA zones
   from tzdata with ICU names there).
-- Avalonia's `ColorView` itself (the colour flyouts use the shared stand-in).
+- The canvas fill colour dropdown's screen colour picker button (it closes
+  the popup; the window has no picker route yet).
 - Shared controls: focus rings and keyboard navigation, Fluent's expanding
   scroll bar, popups past the window's edge. ShareX's capture pass has no
   shots of those states (`shared-controls`, `menu-past-client`), so they

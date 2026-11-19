@@ -105,36 +105,55 @@ pub fn route_event(id: WindowId, event: &WindowEvent) -> Option<(WindowId, Optio
     Some((route.owner, translated))
 }
 
-/// The work area of the monitor showing most of `client` (physical
-/// screen pixels), as `[x, y, w, h]`.
-fn work_area(client: [i32; 4]) -> Option<[i32; 4]> {
+fn with_screens<R>(f: impl FnOnce(&[sharex_capture::Screen]) -> R) -> R {
     SCREENS.with(|s| {
         let mut s = s.borrow_mut();
         if s.as_ref().is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(2)) {
             *s = Some((Instant::now(), sharex_capture::screenshot::screens()));
         }
-        let screens = &s.as_ref()?.1;
-        let centre = (client[0] + client[2] / 2, client[1] + client[3] / 2);
-        let screen = sharex_capture::screenshot::screen_from_point(screens, centre).or_else(|| screens.first())?;
-        let w = screen.work_area;
-        Some([w.x, w.y, w.w, w.h])
+        f(s.as_ref().map(|(_, v)| v.as_slice()).unwrap_or_default())
     })
 }
 
+/// The work area of the monitor showing most of `client` (physical
+/// screen pixels), as `[x, y, w, h]`.
+fn work_area(screens: &[sharex_capture::Screen], client: [i32; 4]) -> Option<[i32; 4]> {
+    let centre = (client[0] + client[2] / 2, client[1] + client[3] / 2);
+    let screen = sharex_capture::screenshot::screen_from_point(screens, centre).or_else(|| screens.first())?;
+    let w = screen.work_area;
+    Some([w.x, w.y, w.w, w.h])
+}
+
+/// What Avalonia's positioner knows about `window`'s screens
+/// (`ManagedPopupPositionerPopupImplHelper`: every screen's bounds and
+/// work area, the client area on the screen, `DesktopScaling`).
+pub fn geometry(screens: &[sharex_capture::Screen], client: [i32; 4], scaling: f64) -> sharex_ui::popup::Geometry {
+    use sharex_ui::popup::{PxRect, ScreenInfo};
+    let px = |r: sharex_capture::Rect| PxRect::new(r.x as f64, r.y as f64, r.w as f64, r.h as f64);
+    sharex_ui::popup::Geometry {
+        screens: screens.iter().map(|s| ScreenInfo { bounds: px(s.bounds), working_area: px(s.work_area) }).collect(),
+        parent: PxRect::new(client[0] as f64, client[1] as f64, client[2] as f64, client[3] as f64),
+        scaling,
+    }
+}
+
 /// The owner's screen's work area in its points (relative to its client
-/// origin), for `sharex_ui::popup::set_host`; `None` when it can't host.
-pub fn host_area(window: &Window) -> Option<egui::Rect> {
+/// origin), and the screens, for `sharex_ui::popup::set_host_screens`;
+/// `None` when it can't host.
+pub fn host_area(window: &Window) -> Option<(egui::Rect, sharex_ui::popup::Geometry)> {
     if !host_enabled() {
         return None;
     }
     let inner = window.inner_position().ok()?;
     let size = window.inner_size();
     let s = window.scale_factor() as f32;
-    let w = work_area([inner.x, inner.y, size.width as i32, size.height as i32])?;
-    Some(egui::Rect::from_min_max(
+    let client = [inner.x, inner.y, size.width as i32, size.height as i32];
+    let (w, g) = with_screens(|screens| Some((work_area(screens, client)?, geometry(screens, client, window.scale_factor()))))?;
+    let area = egui::Rect::from_min_max(
         egui::pos2((w[0] - inner.x) as f32 / s, (w[1] - inner.y) as f32 / s),
         egui::pos2((w[0] + w[2] - inner.x) as f32 / s, (w[1] + w[3] - inner.y) as f32 / s),
-    ))
+    );
+    Some((area, g))
 }
 
 /// A popup layer moved out of the owner's frame.

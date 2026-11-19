@@ -6,9 +6,8 @@
 //! cursor, or Circle's always colour, its help and numbers, then Auto
 //! activate. Rows are `ColumnDefinitions="*,180" ColumnSpacing="12"`.
 //!
-//! The colour buttons' `Flyout` holds a `ColorView` (alpha on); egui's HSV
-//! picker stands in for it (`controls::color_popup_with_alpha`), as in the
-//! other ported colour flyouts.
+//! The colour buttons' `Flyout` holds a `ColorView` (alpha on):
+//! `controls::color_popup_with_alpha` (`sharex_ui::color_view`).
 
 use egui::{Color32, Id, Rect, Ui, pos2, vec2};
 use sharex_strings::tools as t;

@@ -1,5 +1,5 @@
 //! `sharexrs --render <screen> --out <png> [--theme dark|light]
-//! [--width W] [--height H] [--scale S] [--popup-host L,T,R,B] [--hover X,Y] [--unregistered 0,3]
+//! [--width W] [--height H] [--scale S] [--popup-host L,T,R,B [--client-origin X,Y]] [--hover X,Y] [--unregistered 0,3]
 //! [--open 12,0] [--work-area L,T,R,B] [--monitors 1024x768,...]`: draws one screen offscreen, for
 //! comparing with a screenshot of ShareX.
 //!
@@ -17,7 +17,10 @@
 //! pixels (Avalonia keeps popups on the monitor's work area, not in the
 //! window: for ShareX at 62,5 on a 1024x720 work area, `-62,-5,962,715`).
 //! `--hover` moves the pointer there and lets 0.7s pass, so submenus open
-//! as they do after `MenuShowDelay`.
+//! as they do after `MenuShowDelay`. On a window screen, `--tip` with
+//! `--hover` keeps the pointer there past `ToolTip.ShowDelay` and the fade,
+//! so the control's tooltip shows (`sharex_ui::tooltip`; inside the window,
+//! where ShareX's is a popup window of its own).
 //!
 //! `tray-menu` draws the tray menu (`BuildTrayMenu`) as ShareX opens it
 //! with the pointer at `--at X,Y` (default 682,563) on a `--width` x
@@ -103,6 +106,13 @@ fn theme_settings(dark: bool, accent: Option<&str>, legacy: bool, compact: bool)
 /// Runs `ui` for enough frames to settle, with the pointer at `hover` and a
 /// click at each of `clicks` (one every few frames), then draws it.
 pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], ui: &mut dyn FnMut(&mut egui::Ui)) -> image::RgbaImage {
+    render_frames_held(screen, hover, clicks, 0, ui)
+}
+
+/// [`render_frames`] with the pointer resting at `hover` for `hold` more
+/// frames (60 a second) before drawing: `--tip` holds it past
+/// `ToolTip.ShowDelay` and the fade, so the hovered control's tooltip shows.
+pub(crate) fn render_frames_held(screen: &mut Offscreen, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], hold: usize, ui: &mut dyn FnMut(&mut egui::Ui)) -> image::RgbaImage {
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,
@@ -130,11 +140,14 @@ pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, c
     } else {
         run(screen, vec![egui::Event::PointerGone]);
     }
-    for _ in 0..3 {
+    for _ in 0..3 + hold {
         run(screen, Vec::new());
     }
     screen.draw()
 }
+
+/// `--tip`'s hold: `ToolTip.ShowDelay` and the fade in, with a margin.
+pub(crate) const TIP_HOLD_FRAMES: usize = ((sharex_ui::tooltip::SHOW_DELAY + sharex_ui::tooltip::FADE) * 60.0) as usize + 6;
 
 /// ShareX's default hotkeys, registered except those at `failed`.
 /// A context menu on its own, cropped to its popup and put on black as a
@@ -167,6 +180,60 @@ fn render_popup<C: Clone>(entries: Vec<sharex_ui::menu::MenuEntry<C>>, style: sh
         *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
     }
     Ok(crop)
+}
+
+/// `--render color-view`: one colour popup host (`sharex_ui::color_view`)
+/// with its top-left at the image's, its corners on black as a popup
+/// window's transparent corners come out.
+#[allow(clippy::too_many_arguments)]
+fn render_color_view(content: Option<&str>, state: Option<&str>, text: Option<&str>, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], scale: f32, dark: bool) -> Result<image::RgbaImage, String> {
+    use sharex_ui::color_view::{self, ColorPopup};
+    let style = match content.unwrap_or("flyout") {
+        "dropdown" => ColorPopup::Dropdown,
+        "flyout" => ColorPopup::Flyout { alpha: true, size: None },
+        "flyout-opaque" => ColorPopup::Flyout { alpha: false, size: None },
+        "picker" => ColorPopup::Picker { alpha: false },
+        "monitor" => ColorPopup::Flyout { alpha: true, size: Some(egui::vec2(320.0, 320.0)) },
+        other => return Err(format!("no colour popup host {other}")),
+    };
+    // The mouse highlighter's default primary colour unless given.
+    let text = text.unwrap_or("166, 54, 169, 225");
+    let argb: Vec<u8> = if let Some(hex) = text.strip_prefix('#') {
+        let v = u32::from_str_radix(hex, 16).map_err(|_| "--text #AARRGGBB")?;
+        let v = if hex.len() == 6 { v | 0xFF00_0000 } else { v };
+        v.to_be_bytes().to_vec()
+    } else {
+        text.split(',').map(|p| p.trim().parse::<u8>().map_err(|_| "--text A, R, G, B".to_string())).collect::<Result<_, _>>()?
+    };
+    let [a, r, g, b] = argb[..] else { return Err("--text A, R, G, B".into()) };
+    let mut color = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
+    let (tab, hsv_model) = match state.unwrap_or("") {
+        "" => (if style == ColorPopup::Dropdown { 1 } else { 0 }, false),
+        "spectrum" => (0, false),
+        "palette" => (1, false),
+        "components" => (2, false),
+        "components-hsv" => (2, true),
+        other => return Err(format!("no colour view state {other}")),
+    };
+    let size = style.size_at(color_view::Px(scale));
+    let mut screen = Offscreen::new([(size.x * scale).ceil() as u32, (size.y * scale).ceil() as u32], scale, dark)?;
+    screen.transparent = true;
+    let id = egui::Id::new("render-color-view");
+    let mut preset = true;
+    let full = render_frames(&mut screen, hover, clicks, &mut |ui| {
+        if preset {
+            color_view::preset(ui.ctx(), id, style, [r, g, b, a], tab, hsv_model);
+            preset = false;
+        }
+        color_view::popup_at(ui.ctx(), id, egui::Pos2::ZERO, &mut color, style);
+    });
+    let mut out = full;
+    for p in out.pixels_mut() {
+        let a = p[3] as u32;
+        let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+        *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+    }
+    Ok(out)
 }
 
 fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
@@ -273,6 +340,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut maximized = false;
     let mut open: Vec<usize> = Vec::new();
     let mut work_area = None;
+    let mut popup_host: Option<egui::Rect> = None;
+    let mut client_origin: Option<(i32, i32)> = None;
     let mut monitors: Vec<(i32, i32, u32, u32)> = Vec::new();
     let mut rest_args: Vec<(String, String)> = Vec::new();
     let mut at = egui::pos2(682.0, 563.0);
@@ -311,7 +380,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--popup-host" => {
                 let v: Vec<f32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
                 let [l, t, r, b] = v[..] else { return Err("--popup-host L,T,R,B".into()) };
-                sharex_ui::offscreen::set_popup_host(Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b))));
+                popup_host = Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b)));
+                sharex_ui::offscreen::set_popup_host(popup_host);
+            }
+            // With `--popup-host`: where the window's client area is on the
+            // screen (physical pixels), so popups are placed on a screen
+            // whose work area is the host's, in whole device pixels as
+            // Avalonia's positioner does, and printed in screen pixels too.
+            "--client-origin" => {
+                let v: Vec<i32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
+                let [x, y] = v[..] else { return Err("--client-origin X,Y".into()) };
+                client_origin = Some((x, y));
             }
             "--hover" => {
                 let v = val()?;
@@ -390,6 +469,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--viewer-only" => dialog.viewer_only = true,
             "--db" => dialog.db = Some(val()?.into()),
             "--state" => dialog.state = Some(val()?),
+            "--tip" => dialog.tip = true,
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }
@@ -399,6 +479,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     let screen = screen.ok_or("which screen? (main)")?;
     let out = out.ok_or("--out <png> is required")?;
+    if let (Some(host), Some((x, y))) = (popup_host, client_origin) {
+        // One screen whose work area is the host's, the client at `x,y`.
+        let s = scale as f64;
+        let area = sharex_ui::popup::PxRect::new(x as f64 + host.min.x as f64 * s, y as f64 + host.min.y as f64 * s, host.width() as f64 * s, host.height() as f64 * s);
+        sharex_ui::offscreen::set_popup_screens(Some(sharex_ui::popup::Geometry {
+            screens: vec![sharex_ui::popup::ScreenInfo { bounds: area, working_area: area }],
+            parent: sharex_ui::popup::PxRect::new(x as f64, y as f64, width.unwrap_or(0) as f64, height.unwrap_or(0) as f64),
+            scaling: s,
+        }));
+    }
 
     let menu = screen.strip_prefix("main-").and_then(|m| m.strip_suffix("-menu"));
     let image = match screen.as_str() {
@@ -705,6 +795,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
             })
         }
         "controls-gallery" => crate::controls_gallery::render(dark)?,
+        // A colour popup on its own, as a capture of its popup window:
+        // `--content dropdown|flyout|flyout-opaque|picker|monitor` (the
+        // host), `--state spectrum|palette|components|components-hsv`,
+        // `--text` the colour ("A, R, G, B" or #AARRGGBB).
+        "color-view" => render_color_view(dialog.content.as_deref(), dialog.state.as_deref(), dialog.text.as_deref(), hover, &click, scale, dark)?,
         "ffmpeg-options" | "recording-toolbar" | "recorder-bar" => {
             crate::appearance::apply(&theme_settings(dark, accent.as_deref(), legacy, compact), None);
             let o = crate::recording::RenderOptions {
@@ -888,9 +983,25 @@ pub fn run(args: &[String]) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     image.save(&out).map_err(|e| e.to_string())?;
+    // Where each popup went: inside the window, or (past its edge) in a
+    // popup window of its own, as `EguiWindow::paint` decides.
+    let client = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(image.width() as f32, image.height() as f32) / scale);
     for p in sharex_ui::offscreen::last_popups() {
         let (o, size) = crate::popup_window::physical_rect(p.rect, scale);
-        println!("popup {:?}: points {},{} {}x{}; pixels {},{} {}x{}", p.layer.id, p.rect.min.x, p.rect.min.y, p.rect.width(), p.rect.height(), o.0, o.1, size.0, size.1);
+        let on_screen = client_origin.map(|(x, y)| format!("; screen {},{}", x + o.0, y + o.1)).unwrap_or_default();
+        let place = if crate::popup_window::fits(client, p.rect) { "in the window" } else { "popup window" };
+        println!(
+            "popup {:?}: points {},{} {}x{}; pixels {},{} {}x{}{on_screen}; {place}",
+            p.layer.id,
+            p.rect.min.x,
+            p.rect.min.y,
+            p.rect.width(),
+            p.rect.height(),
+            o.0,
+            o.1,
+            size.0,
+            size.1
+        );
     }
     println!("{screen}: {}x{} -> {out}", image.width(), image.height());
     Ok(())

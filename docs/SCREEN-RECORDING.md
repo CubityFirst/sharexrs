@@ -616,6 +616,24 @@ Run ShareX's reference build and `sharexrs` side by side with the same
     by hand (it follows), cancel the bar: the changes are in the task's
     `ToolsSettings.MouseHighlighterOptions` either way.
 
+**REC2-03a: fixed, live re-check pending.** In this check, a forwarded
+`-ScreenRecorderActiveWindow` ran with ShareXrs's main window visible and
+the test window in front. ShareXrs recorded its own main window (1125x879,
+1124x878 once made even); ShareX recorded the test window. Both apps
+activate a visible main window when a later launch's command line arrives
+(`ApplicationCommandLine.ExecuteReceivedAsync`). Avalonia's
+`Window.Activate()` is a plain `SetForegroundWindow` (Avalonia.Win32
+`WindowImpl.Activate`), which Windows' foreground lock refuses here, so
+the test window stays in front. `show_main_window` used winit's
+`focus_window` instead, which synthesizes an Alt press (`SendInput`)
+first, gets past the lock, and so took the foreground before
+`GetForegroundWindow` was read. The main window is now activated with the
+plain call (`crate::activation`). The fix covers every job forwarded with
+the main window visible: the FFmpeg and native recorders, the GIF variant,
+and the `-ActiveWindow` screenshot. Re-check REC2-03a (and the
+`-ScreenRecorderGIFActiveWindow` and `-ActiveWindow` variants) on a
+desktop.
+
 ### Untested
 
 Everything that needs a device or the desktop (the live checks above:

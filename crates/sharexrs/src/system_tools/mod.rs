@@ -13,6 +13,8 @@ pub mod native;
 pub mod network_monitor;
 pub mod open;
 pub mod render;
+#[cfg(any(target_os = "linux", test))]
+pub mod x11_selection;
 
 use sharex_ui::controls::ComboItem;
 use sharex_ui::keys::app_icons as icon;

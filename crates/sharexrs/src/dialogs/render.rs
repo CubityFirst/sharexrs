@@ -64,6 +64,9 @@ pub struct Options {
     pub open: Vec<usize>,
     /// `--scroll`: a scroll offset.
     pub scroll: f32,
+    /// `--tip`: the pointer rests at `--hover` until the control's
+    /// tooltip has opened and faded in.
+    pub tip: bool,
 }
 
 fn load_image(path: &Option<PathBuf>) -> Result<image::RgbaImage, String> {
@@ -660,7 +663,8 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         screen.transparent = true;
     }
     let opacity = d.opacity();
-    let mut image = crate::render::render_frames(&mut screen, o.hover, &o.clicks, &mut |ui: &mut egui::Ui| {
+    let hold = if o.tip { crate::render::TIP_HOLD_FRAMES } else { 0 };
+    let mut image = crate::render::render_frames_held(&mut screen, o.hover, &o.clicks, hold, &mut |ui: &mut egui::Ui| {
         let mut cx = Cx { settings: &mut settings, uploaders: &store };
         ui.multiply_opacity(opacity);
         let _ = d.ui(ui, &mut cx);

@@ -226,15 +226,16 @@ impl PinWindow {
                 let mut x = r.min.x + 5.0;
                 let y = r.min.y + 5.0;
                 let picker = crate::image_effects::picker_button;
+                sharex_ui::tooltip::show(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-copy-tip"), s::PinToScreenWindow_Copy_image());
                 if picker(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-copy"), icon::Copy, true)
-                    .on_hover_text(s::PinToScreenWindow_Copy_image())
                     .clicked()
                 {
                     action = Some(PinAction::Copy(image.clone()));
                 }
                 x += 36.0;
                 let sr = Rect::from_min_size(pos2(x, y), vec2(scale_w, 32.0));
-                let resp = ui.interact(sr, Id::new("pin-scale"), egui::Sense::click()).on_hover_text(s::PinToScreenWindow_Reset_scale_and_opacity());
+                sharex_ui::tooltip::show(ui, sr, Id::new("pin-scale-tip"), s::PinToScreenWindow_Reset_scale_and_opacity());
+                let resp = ui.interact(sr, Id::new("pin-scale"), egui::Sense::click());
                 if resp.hovered() || resp.is_pointer_button_down_on() {
                     sharex_ui::border::border(&painter, sr, 4.0, 0.0, Some(p.control_background_disabled.into()), None);
                 }
@@ -244,15 +245,15 @@ impl PinWindow {
                     reset = true;
                 }
                 x += scale_w + 2.0;
+                sharex_ui::tooltip::show(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-options-tip"), s::PinToScreenWindow_Options());
                 if picker(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-options"), icon::Settings, true)
-                    .on_hover_text(s::PinToScreenWindow_Options())
                     .clicked()
                 {
                     action = Some(PinAction::Options);
                 }
                 x += 36.0;
+                sharex_ui::tooltip::show(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-close-tip"), s::PinToScreenWindow_Close());
                 if picker(ui, Rect::from_min_size(pos2(x, y), vec2(34.0, 32.0)), Id::new("pin-close"), icon::Close, true)
-                    .on_hover_text(s::PinToScreenWindow_Close())
                     .clicked()
                 {
                     action = Some(PinAction::Close);
@@ -631,13 +632,19 @@ impl Dialog for PinOptionsWindow {
         tools_ui::row_label(ui, Rect::from_min_size(rr.min, vec2(label_w, 40.0)), s::PinToScreenOptionsWindow_Border_size());
         let num = Rect::from_min_max(pos2(rr.min.x + label_w + 10.0, rr.min.y), pos2(rr.max.x - 50.0, rr.max.y));
         number(ui, num, "border", &mut self.o.border_size, 1, 30, " px", true);
-        if color_button(ui, Rect::from_min_size(pos2(rr.max.x - 40.0, rr.min.y), vec2(40.0, 40.0)), "pin-border-color", &self.o.border_color, self.o.border) {
+        let border_anchor = Rect::from_min_size(pos2(rr.max.x - 40.0, rr.min.y), vec2(40.0, 40.0));
+        // `ToolTip.Tip` (the row is disabled without a border: no tip).
+        if self.o.border {
+            sharex_ui::tooltip::show(ui, border_anchor, Id::new("pin-border-color-tip"), s::PinToScreenOptionsWindow_Border_color());
+        }
+        if color_button(ui, border_anchor, "pin-border-color", &self.o.border_color, self.o.border) {
             self.picking = Some(0);
         }
         y += 50.0;
         let rr = Rect::from_min_size(pos2(right + 13.0, y), vec2(rw - 26.0, 40.0));
         tools_ui::row_label(ui, Rect::from_min_size(rr.min, vec2(label_w, 40.0)), s::PinToScreenOptionsWindow_Background_color());
         let bg_anchor = Rect::from_min_size(pos2(rr.max.x - 40.0, rr.min.y), vec2(40.0, 40.0));
+        sharex_ui::tooltip::show(ui, bg_anchor, Id::new("pin-bg-color-tip"), s::PinToScreenOptionsWindow_Background_color());
         if color_button(ui, bg_anchor, "pin-bg-color", &self.o.background_color, true) {
             self.picking = Some(1);
         }
@@ -689,7 +696,8 @@ impl Dialog for PinOptionsWindow {
             let target = if which == 0 { &mut self.o.border_color } else { &mut self.o.background_color };
             let mut c32 = Color32::from_rgba_unmultiplied(target.r, target.g, target.b, target.a);
             let anchor = if which == 0 { Rect::from_min_size(pos2(c.max.x - 53.0, c.min.y + 13.0 + lh + 10.0 + 126.0), vec2(40.0, 40.0)) } else { bg_anchor };
-            let (changed, keep) = controls::color_popup(ui, Id::new(("pin-color", which)), anchor, &mut c32, false);
+            // `<Flyout><cp:ColorView/></Flyout>`: the view's defaults (alpha on).
+            let (changed, keep) = controls::color_popup_styled(ui, Id::new(("pin-color", which)), anchor, &mut c32, false, controls::ColorPopup::Flyout { alpha: true, size: None });
             if changed {
                 let [r, g, b, a] = c32.to_srgba_unmultiplied();
                 *target = sharex_tools::color::Color::argb(a, r, g, b);

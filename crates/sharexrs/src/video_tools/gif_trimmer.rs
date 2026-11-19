@@ -756,7 +756,9 @@ impl Dialog for AnimatedGifTrimmerWindow {
         let ow = tools::icon_text_button_width(ui, open);
         let orect = Rect::from_min_size(pos2(q.max.x - ow, q.min.y), vec2(ow, tools::BUTTON_HEIGHT));
         let display = if self.input_file_path.is_empty() { s::AnimatedGifTrimmer_ChooseGif() } else { &self.input_file_path };
-        tools::path_text(ui, Rect::from_min_max(pos2(q.min.x + hw + 12.0, q.min.y), pos2(orect.min.x - 12.0, q.max.y)), display);
+        let path_rect = Rect::from_min_max(pos2(q.min.x + hw + 12.0, q.min.y), pos2(orect.min.x - 12.0, q.max.y));
+        tools::path_tip(ui, path_rect, Id::new("gif-trimmer-path-tip"), &self.input_file_path);
+        tools::path_text(ui, path_rect, display);
         if tools::icon_text_button(ui, orect, Id::new("gif-trimmer-open"), icon::FolderOpen, open, self.can_browse()).clicked()
             && let Some(f) = rfd::FileDialog::new()
                 .set_title(open)
@@ -805,6 +807,7 @@ impl Dialog for AnimatedGifTrimmerWindow {
                 effects.extend(self.export());
             }
         }
+        tools::tip(ui, folder, Id::new("gif-trimmer-show-output-tip"), s::VideoTrimmer_ShowOutput(), !self.output_file_path.is_empty());
         if tools::icon_button(ui, folder, Id::new("gif-trimmer-show-output"), icon::FolderOpen, !self.output_file_path.is_empty()).clicked() {
             effects.push(Effect::OpenFolderWithFile(self.output_file_path.clone().into()));
         }
@@ -836,7 +839,10 @@ impl Dialog for AnimatedGifTrimmerWindow {
         let mut x = q.min.x + ((q.width() - total) / 2.0).round_ties_even();
         let can_play = self.can_play();
         let play_icon = if self.playing { icon::Pause } else { icon::Play };
+        let play_text = if self.playing { s::AnimatedGifTrimmer_Pause() } else { s::AnimatedGifTrimmer_Play() };
+        let transport_tips = [s::AnimatedGifTrimmer_PreviousFrame(), play_text, s::AnimatedGifTrimmer_NextFrame()];
         for (k, (key, enabled)) in [(icon::StepBack, can_edit), (play_icon, can_play), (icon::StepForward, can_edit)].into_iter().enumerate() {
+            tools::tip(ui, Rect::from_min_size(pos2(x, y), vec2(40.0, 40.0)), Id::new(("gif-trimmer-transport-tip", k)), transport_tips[k], enabled);
             if tools::icon_button(ui, Rect::from_min_size(pos2(x, y), vec2(40.0, 40.0)), Id::new(("gif-trimmer-transport", k)), key, enabled).clicked() {
                 match k {
                     0 => self.step(-1),
@@ -933,6 +939,7 @@ impl Dialog for AnimatedGifTrimmerWindow {
                     self.edit(|s, d| s.set_end_time(d, &text));
                 }
             }
+            tools::tip(ui, br, Id::new(("gif-trimmer-set-tip", k)), if k == 0 { s::VideoTrimmer_SetStart() } else { s::VideoTrimmer_SetEnd() }, can_edit);
             if tools::icon_button(ui, br, Id::new(("gif-trimmer-set", k)), key, can_edit).clicked() {
                 if k == 0 {
                     self.set_start_here();
@@ -947,6 +954,7 @@ impl Dialog for AnimatedGifTrimmerWindow {
         tools::row_label(ui, Rect::from_min_size(row.min, vec2(lw, 40.0)), dur_label);
         tools::text_at(ui, pos2(x + lw + 6.0, center_y(row, line_height(ui, &nf))), &dur_text, nf.clone(), p.text);
         let br = Rect::from_min_size(pos2(q.max.x - 40.0, y), vec2(40.0, 40.0));
+        tools::tip(ui, br, Id::new("gif-trimmer-reset-tip"), s::VideoTrimmer_Reset(), can_edit);
         if tools::icon_button(ui, br, Id::new("gif-trimmer-reset"), icon::Reset, can_edit).clicked() {
             self.reset();
         }
@@ -975,6 +983,7 @@ impl Dialog for AnimatedGifTrimmerWindow {
             }
         }
         let br = Rect::from_min_size(pos2(x, y), vec2(40.0, 40.0));
+        tools::tip(ui, br, Id::new("gif-trimmer-reset-crop-tip"), s::AnimatedGifTrimmer_ResetCrop(), can_edit && self.is_transformed());
         if tools::icon_button(ui, br, Id::new("gif-trimmer-reset-crop"), icon::Reset, can_edit && self.is_transformed()).clicked() {
             self.edit(|s, _| s.reset_crop());
         }

@@ -10,6 +10,7 @@ const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 thread_local! {
     static POPUP_HOST: std::cell::Cell<Option<egui::Rect>> = const { std::cell::Cell::new(None) };
+    static POPUP_SCREENS: std::cell::RefCell<Option<crate::popup::Geometry>> = const { std::cell::RefCell::new(None) };
     static LAST_POPUPS: std::cell::RefCell<Vec<crate::popup::PopupLayer>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
@@ -19,6 +20,18 @@ thread_local! {
 /// went. `None` (the default) keeps them in the window.
 pub fn set_popup_host(work_area: Option<egui::Rect>) {
     POPUP_HOST.with(|h| h.set(work_area));
+}
+
+/// The screens a popup host has, for `crate::popup::position` (Avalonia
+/// places each popup on the screen under its anchor, in whole device
+/// pixels): with [`set_popup_host`], as `crate::popup::set_host_screens`.
+pub fn set_popup_screens(geometry: Option<crate::popup::Geometry>) {
+    POPUP_SCREENS.with(|g| *g.borrow_mut() = geometry);
+}
+
+/// The screens set with [`set_popup_screens`].
+pub fn popup_screens() -> Option<crate::popup::Geometry> {
+    POPUP_SCREENS.with(|g| g.borrow().clone())
 }
 
 /// The popups the last frame drew, when a popup host is set.
@@ -77,9 +90,10 @@ impl Offscreen {
             ..Default::default()
         };
         let host = POPUP_HOST.with(|h| h.get());
+        let screens = popup_screens();
         let mut out = self.ctx.run_ui(input, |root| {
             if host.is_some() {
-                crate::popup::set_host(root.ctx(), host);
+                crate::popup::set_host_screens(root.ctx(), host, screens.clone());
             }
             ui(root);
             if host.is_some() {

@@ -646,4 +646,46 @@ mod tests {
         assert_eq!(actions, vec![Action::Menu(MenuCommand::CaptureRegion)]);
         assert!(state.flyout.is_none(), "a command closes the menu");
     }
+
+    /// The Capture menu and Screenshot delay of a main window placed as
+    /// ShareX's `edge-submenu` reference shots (shared controls, 96 DPI):
+    /// client at 467,31 (900x703) on a 1024x720 work area. ShareX's popup
+    /// windows: Capture at 673,76 (278x355), the submenu flipped to the
+    /// left at 439,396 (237x215), past the main window's left edge. Segoe
+    /// UI's widths: Windows only.
+    #[cfg(windows)]
+    #[test]
+    fn menu_levels_past_the_window_go_where_sharexs_popups_do() {
+        use sharex_ui::popup::{Geometry, PxRect, ScreenInfo};
+        let (x, y) = (467.0, 31.0);
+        let work = PxRect::new(0.0, 0.0, 1024.0, 720.0);
+        sharex_ui::offscreen::set_popup_host(Some(egui::Rect::from_min_max(egui::pos2(-x as f32, -y as f32), egui::pos2(1024.0 - x as f32, 720.0 - y as f32))));
+        sharex_ui::offscreen::set_popup_screens(Some(Geometry {
+            screens: vec![ScreenInfo { bounds: PxRect::new(0.0, 0.0, 1024.0, 768.0), working_area: work }],
+            parent: PxRect::new(x, y, 900.0, 703.0),
+            scaling: 1.0,
+        }));
+        let mut screen = Offscreen::new([900, 703], 1.0, true).unwrap();
+        let mut state = MainWindow::new();
+        frame(&mut screen, &mut state, vec![]);
+        frame(&mut screen, &mut state, vec![]);
+        let anchor = state.nav_rects.iter().find(|(i, _)| *i == 0).map(|(_, r)| *r).unwrap();
+        assert!(state.open_nav(0, anchor));
+        // Capture › Screenshot delay (12, separators counted).
+        state.flyout.as_mut().unwrap().open_path(&[12]);
+        frame(&mut screen, &mut state, vec![]);
+        frame(&mut screen, &mut state, vec![]);
+        let popups = sharex_ui::offscreen::last_popups();
+        sharex_ui::offscreen::set_popup_host(None);
+        sharex_ui::offscreen::set_popup_screens(None);
+        let client = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 703.0));
+        let at = |r: egui::Rect| (r.min.x + x as f32, r.min.y + y as f32, r.width(), r.height());
+        assert_eq!(popups.len(), 2, "{popups:?}");
+        assert_eq!(at(popups[0].rect), (673.0, 76.0, 278.0, 355.0));
+        assert!(crate::popup_window::fits(client, popups[0].rect), "Capture stays in the window");
+        assert_eq!(at(popups[1].rect), (439.0, 396.0, 237.0, 215.0));
+        assert!(!crate::popup_window::fits(client, popups[1].rect), "the submenu leaves it");
+        // Its own window, at ShareX's offset from the Capture popup.
+        assert_eq!(popups[1].rect.min - popups[0].rect.min, egui::vec2(-234.0, 320.0));
+    }
 }
