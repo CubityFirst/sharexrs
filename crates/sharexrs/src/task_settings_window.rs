@@ -859,7 +859,9 @@ fn page_task(f: &mut Form) {
         let text = format!("{}...", s::TaskSettingsWindow_Destinations());
         if let Some(anchor) = f.menu_button(None, "destinations", icon::Destinations, &text, 300.0, true, o) {
             let entries = crate::main_menu::destinations_menu(&crate::main_menu::MenuState::default());
-            let entries = map_entries(entries, &|_| MenuCmd::Destination);
+            // `CreateDestinationMenuItem` takes the entry's `Header` alone:
+            // no accent on the selected service's name, as the main menu has.
+            let entries = destination_items(map_entries(entries, &|_| MenuCmd::Destination));
             f.w.menu = Some(Flyout::menu(Id::new("destinations-flyout"), entries, anchor, Placement::BottomEdgeAlignedLeft));
         }
     });
@@ -890,6 +892,22 @@ fn page_task(f: &mut Form) {
 }
 
 /// Menu entries with their commands mapped.
+fn destination_items<C: Clone>(entries: Vec<MenuEntry<C>>) -> Vec<MenuEntry<C>> {
+    entries
+        .into_iter()
+        .map(|mut e| {
+            e.accent = None;
+            // `CreateAccentMenuIcon`: 16px in an 18-wide box, in Fluent's
+            // 16x16 icon `Viewbox`.
+            if let sharex_ui::menu::MenuIcon::Key(k) = e.icon {
+                e.icon = sharex_ui::menu::MenuIcon::Accent(k, 16.0 * 16.0 / 18.0);
+            }
+            e.children = e.children.map(destination_items);
+            e
+        })
+        .collect()
+}
+
 fn map_entries<A: Clone, B: Clone>(entries: Vec<MenuEntry<A>>, map: &dyn Fn(A) -> B) -> Vec<MenuEntry<B>> {
     entries
         .into_iter()
