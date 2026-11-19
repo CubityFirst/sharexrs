@@ -679,6 +679,11 @@ impl Dialog for ImageEffectsWindow {
             }
         }
         self.poll_preview(ui.ctx());
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window, after
+        // the menus and flyouts that take it.
+        if self.add_menu.is_none() && !self.options.flyout_open() && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.pending_effects.push(Effect::Close);
+        }
         let live = self.add_menu.is_none();
         let text_focused = crate::history_ui::common::text_box_focused(ui.ctx());
         if live && !text_focused {

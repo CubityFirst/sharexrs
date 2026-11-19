@@ -51,6 +51,8 @@ const RECORDER_DEVICES_URL: &str = "https://github.com/ShareX/RecorderDevices/re
 pub enum Effect {
     Browse,
     OpenUrl(&'static str),
+    /// `Close()`: Escape (`OnWindowKeyDown`, ShareX #9304).
+    Close,
 }
 
 /// `FFmpegOptionsWindow`'s state.
@@ -220,6 +222,15 @@ impl FFmpegOptionsWindow {
         let mut effects = Vec::new();
         if self.poll_refresh() {
             ui.ctx().request_repaint_after(Duration::from_millis(100));
+        }
+        // `OnWindowKeyDown` (ShareX #9304): Escape hides the reset
+        // confirmation when it shows, else closes the window.
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
+            if self.confirm_reset {
+                self.confirm_reset = false;
+            } else {
+                effects.push(Effect::Close);
+            }
         }
         let p = palette(ui.ctx());
         let full = ui.max_rect();
@@ -1029,8 +1040,13 @@ impl App {
             WindowEvent::RedrawRequested => {
                 let state = &mut h.state;
                 let effects = h.window.paint(|ui| state.ui(ui));
+                if effects.iter().any(|e| matches!(e, Effect::Close)) {
+                    self.close_ffmpeg_options();
+                    return true;
+                }
                 for e in effects {
                     match e {
+                        Effect::Close => {}
                         Effect::Browse => {
                             // `BrowseForFFmpegAsync`: from the current FFmpeg's folder,
                             // else Program Files.

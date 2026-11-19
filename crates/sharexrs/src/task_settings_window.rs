@@ -51,6 +51,8 @@ pub enum Effect {
     WatchFoldersChanged,
     /// Image effects configuration... (`TaskHelpers.OpenImageEffectsSingleton`).
     ImageEffects,
+    /// `Close()`: Escape (`OnWindowKeyDown`, ShareX #9304).
+    Close,
 }
 
 /// A page: `SettingsNavigationItem` (id, title, icon) and its parent.
@@ -298,6 +300,13 @@ impl TaskSettingsWindow {
 
     /// Draws the window over all of `ui`, changing the task settings.
     pub fn ui(&mut self, ui: &mut Ui, ctx: &mut TaskCtx) -> Vec<Effect> {
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // one of its editors open it closes that instead.
+        let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
+        let popup = self.menu.is_some() || self.variables.is_open() || self.color_open || self.mh_color_open.is_some();
+        if !editing && !popup && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.effects.push(Effect::Close);
+        }
         let p = palette(ui.ctx());
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);

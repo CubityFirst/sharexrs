@@ -248,6 +248,7 @@ impl App {
                     }
                 }
                 Effect::ResetSettings => self.ask_reset_settings(event_loop),
+                Effect::Close => self.close_application_settings(),
                 Effect::PrintSettings => {
                     // `ShowImagePrintSettings`: the active monitor, preview only.
                     let screens = sharex_capture::screenshot::screens();
@@ -486,6 +487,7 @@ impl App {
                         _ => {}
                     }
                 }
+                E::Close => self.close_hotkey_settings(),
                 E::Moved(from, to) => {
                     if let Some(t) = self.task_window.as_mut()
                         && let TaskTarget::Hotkey(j) = t.target
@@ -589,8 +591,10 @@ impl App {
                 let mut watch = false;
                 let mut image_effects = false;
                 let mut select_region = false;
+                let mut close = false;
                 for e in effects {
                     match e {
+                        task_settings_window::Effect::Close => close = true,
                         task_settings_window::Effect::SelectRegion => select_region = true,
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                         task_settings_window::Effect::WatchFoldersChanged => watch = true,
@@ -599,6 +603,10 @@ impl App {
                 }
                 if watch {
                     self.update_watch_folders();
+                }
+                if close {
+                    self.close_task_settings();
+                    return;
                 }
                 if select_region {
                     self.select_region_for_task(event_loop, target);

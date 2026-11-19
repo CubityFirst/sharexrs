@@ -69,6 +69,11 @@ fn color32(c: &Color) -> Color32 {
 }
 
 impl OptionsPanel {
+    /// A colour or gradient flyout is open (it takes Escape).
+    pub fn flyout_open(&self) -> bool {
+        self.flyout.is_some()
+    }
+
     /// `SetEffect`: the editors made again for another effect (`key`).
     pub fn set_effect(&mut self, key: Option<usize>) {
         if self.built_for != key {

@@ -62,6 +62,8 @@ pub enum Effect {
     ImportSettings,
     /// `ResetAsync`: the question, then the reset.
     ResetSettings,
+    /// `Close()`: Escape (`OnWindowKeyDown`, ShareX #9304).
+    Close,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -319,6 +321,11 @@ impl ApplicationSettings {
     /// Draws the window over all of `ui`, changing `settings`; returns what
     /// the app should do.
     pub fn ui(&mut self, ui: &mut Ui, settings: &mut ApplicationConfig) -> Vec<Effect> {
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // the clipboard format editor open it closes that instead.
+        if self.editor.is_none() && self.code_menu.is_none() && !self.color_open && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.effects.push(Effect::Close);
+        }
         let p = palette(ui.ctx());
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);
@@ -1716,6 +1723,12 @@ mod variable_menu_click_tests {
     /// Application settings on `page` at `ppp` (with the clipboard format
     /// editor open for `clipboard-formats`), after these frames of input.
     fn after(page: &str, seq: &[Vec<egui::Event>], ppp: f32) -> ApplicationSettings {
+        run(page, seq, ppp).0
+    }
+
+    /// [`after`], with how many times the window asked to close.
+    fn run(page: &str, seq: &[Vec<egui::Event>], ppp: f32) -> (ApplicationSettings, usize) {
+        let mut closes = 0;
         let ctx = egui::Context::default();
         sharex_ui::install(&ctx);
         let mut settings = ApplicationConfig::default();
@@ -1730,14 +1743,14 @@ mod variable_menu_click_tests {
             let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(950.4, 720.0))), time: Some(t), events, ..Default::default() };
             input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(ppp);
             let mut out = ctx.run_ui(input, |ui| {
-                state.ui(ui, &mut settings);
+                closes += state.ui(ui, &mut settings).iter().filter(|e| matches!(e, Effect::Close)).count();
             });
             out.textures_delta.clear();
         };
         for ev in std::iter::repeat_n(vec![], 3).chain(seq.iter().cloned()).chain(std::iter::repeat_n(vec![], 3)) {
             frame(ev);
         }
-        state
+        (state, closes)
     }
 
     /// Whether the Sub folder pattern menu is open after these frames.
@@ -1761,8 +1774,22 @@ mod variable_menu_click_tests {
         let once = after("clipboard-formats", &[click.clone(), vec![escape.clone()]], 1.25);
         assert!(once.code_menu.is_none());
         assert!(once.editor.is_some());
-        let twice = after("clipboard-formats", &[click, vec![escape.clone()], vec![escape]], 1.25);
+        let (twice, closes) = run("clipboard-formats", &[click, vec![escape.clone()], vec![escape]], 1.25);
         assert!(twice.editor.is_none());
+        // Neither Escape closed the window.
+        assert_eq!(closes, 0);
+    }
+
+    #[test]
+    fn escape_closes_the_window_once_nothing_else_takes_it() {
+        // ShareX #9304: `OnWindowKeyDown` closes the window on Escape, after
+        // the clipboard format editor.
+        let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
+        assert_eq!(run("general", &[vec![escape.clone()]], 1.0).1, 1);
+        let (editor_closed, closes) = run("clipboard-formats", &[vec![escape.clone()]], 1.0);
+        assert!(editor_closed.editor.is_none());
+        assert_eq!(closes, 0);
+        assert_eq!(run("clipboard-formats", &[vec![escape.clone()], vec![escape]], 1.0).1, 1);
     }
 
     #[test]
