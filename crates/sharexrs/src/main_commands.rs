@@ -88,8 +88,41 @@ impl App {
         self.open_dialog_window(event_loop, Box::new(window));
     }
 
-    /// `ImageViewerWindowIntegration.ShowImage(image)`.
-    pub(crate) fn show_image(&mut self, _event_loop: &ActiveEventLoop, image: image::RgbaImage) {
-        eprintln!("Image viewer: {}x{}", image.width(), image.height());
+    /// `ImageViewerWindowIntegration.ShowImage(image)` (encoded, with an
+    /// optional display name).
+    pub(crate) fn show_image(&mut self, event_loop: &ActiveEventLoop, image: image::RgbaImage, name: Option<String>) {
+        let mut images = crate::dialogs::image_viewer::Images::default();
+        images.load_image(image, name);
+        self.open_dialog_window(event_loop, Box::new(crate::dialogs::image_viewer::ImageViewerWindow::new(images)));
+    }
+
+    /// `ImageViewerWindowIntegration.ShowImage(filePath)`: the image and its
+    /// folder's others.
+    pub(crate) fn show_image_file(&mut self, event_loop: &ActiveEventLoop, path: &std::path::Path) {
+        let mut images = crate::dialogs::image_viewer::Images::default();
+        if images.load_file(path) {
+            self.open_dialog_window(event_loop, Box::new(crate::dialogs::image_viewer::ImageViewerWindow::new(images)));
+        }
+    }
+
+    /// `ImageViewerWindowIntegration.ShowImage(filePaths, selectedIndex)`.
+    pub(crate) fn show_image_files(&mut self, event_loop: &ActiveEventLoop, files: &[std::path::PathBuf], selected: usize) {
+        let mut images = crate::dialogs::image_viewer::Images::default();
+        if images.load_files(files, selected) {
+            self.open_dialog_window(event_loop, Box::new(crate::dialogs::image_viewer::ImageViewerWindow::new(images)));
+        }
+    }
+
+    /// `TaskHelpers.OpenImageViewer()`: an image picked first
+    /// (`SelectImageAsync`); nothing picked, nothing shown.
+    pub(crate) fn open_image_viewer(&mut self, event_loop: &ActiveEventLoop) {
+        let exts = sharex_helpers::file_helpers::IMAGE_FILE_EXTENSIONS;
+        let picked = rfd::FileDialog::new()
+            .set_title(sharex_strings::helpers_lib::ImageViewerWindow_Open_image())
+            .add_filter("Images", exts)
+            .pick_file();
+        if let Some(path) = picked {
+            self.show_image_file(event_loop, &path);
+        }
     }
 }

@@ -400,13 +400,14 @@ impl App {
             HotkeyType::PinToScreen | HotkeyType::PinToScreenFromFile => self.pin_file(event_loop, std::path::Path::new(&file), Some(task)),
             // `AnnotateImageFromFile(filePath, safeTaskSettings)`.
             HotkeyType::ImageEditor => self.annotate_file(event_loop, std::path::Path::new(&file), Some(task)),
+            // `TaskHelpers.OpenImageViewer(filePath)`.
+            HotkeyType::ImageViewer => self.show_image_file(event_loop, std::path::Path::new(&file)),
             // The image and video tools on a file: their windows aren't
             // ported.
             HotkeyType::PhotoEditor
             | HotkeyType::PixelEditor
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects
-            | HotkeyType::ImageViewer
             | HotkeyType::VideoConverter
             | HotkeyType::VideoTrimmer
             | HotkeyType::AnimatedGifTrimmer

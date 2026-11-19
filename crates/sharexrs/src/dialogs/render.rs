@@ -236,6 +236,20 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(w)
         }
+        // `--image` (or `--files a,b` with `--count` the one shown);
+        // `--width`/`--height`: the screen.
+        "image-viewer" => {
+            use super::image_viewer::{ImageViewerWindow, Images};
+            let mut images = Images::default();
+            if o.files.is_empty() {
+                let path = o.image.clone().ok_or("--image or --files")?;
+                images.load_image(load_image(&o.image)?, path.file_name().map(|n| n.to_string_lossy().into_owned()));
+            } else if !images.load_files(&o.files, o.count) {
+                return Err("no image among --files".into());
+            }
+            let (w, h) = (o.width.unwrap_or(1024) as i32, o.height.unwrap_or(720) as i32);
+            Box::new(ImageViewerWindow::new(images).with_size(w, h))
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -408,6 +422,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "debug-log"
             | "notification"
             | "after-capture"
+            | "image-viewer"
             | "before-upload"
             | "after-upload"
             | "qr-code"

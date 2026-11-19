@@ -22,6 +22,7 @@ pub mod destination_settings;
 pub mod drop_window;
 pub mod file_exist;
 pub mod icon_pack_prompt;
+pub mod image_viewer;
 pub mod layout;
 pub mod notification;
 pub mod print_window;
@@ -217,6 +218,8 @@ pub enum Effect {
     AfterCaptureAccepted(Box<after_capture::Accepted>),
     /// `ImageViewerWindowIntegration.ShowImage(image)`.
     ShowImage(RgbaImage),
+    /// `ImageViewerWindowIntegration.ShowImage(imageData, displayName)`.
+    ShowImageNamed(RgbaImage, String),
     /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
     /// (the notification's Delete file).
     DeleteFile(PathBuf),
@@ -376,6 +379,11 @@ pub trait Dialog {
         Vec::new()
     }
 
+    /// `Deactivated`.
+    fn deactivated(&mut self) -> Vec<Effect> {
+        Vec::new()
+    }
+
     /// The scrolling capture window, for the app to report to.
     fn as_scrolling(&mut self) -> Option<&mut crate::scrolling_capture::window::ScrollingCaptureWindow> {
         None
@@ -491,6 +499,10 @@ impl App {
                 d.window.on_event(event);
                 d.window.window.request_redraw();
                 d.dialog.activated()
+            }
+            WindowEvent::Focused(false) => {
+                d.window.on_event(event);
+                d.dialog.deactivated()
             }
             WindowEvent::RedrawRequested => {
                 let dialog = &mut d.dialog;
@@ -680,7 +692,8 @@ impl App {
                 Effect::ApplyAppearance => self.apply_appearance(),
                 Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
                 Effect::AfterCaptureAccepted(accepted) => self.after_capture_accepted(*accepted),
-                Effect::ShowImage(image) => self.show_image(event_loop, image),
+                Effect::ShowImage(image) => self.show_image(event_loop, image, None),
+                Effect::ShowImageNamed(image, name) => self.show_image(event_loop, image, Some(name)),
                 Effect::AnnotateImage(image) => {
                     let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                     self.open_image_editor(event_loop, Some(image), None, task, None);
@@ -714,7 +727,7 @@ impl App {
             FileService::TrimAnimatedGif => eprintln!("Animated GIF trimmer: not ported yet"),
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
             FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
-            FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
+            FileService::ShowImage => self.show_image_file(event_loop, &path),
         }
     }
 

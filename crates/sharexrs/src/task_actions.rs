@@ -217,7 +217,21 @@ impl App {
     pub(super) fn task_action(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, action: TaskAction) {
         match action {
             TaskAction::Command(command, ids) => self.task_command(event_loop, command, ids),
-            TaskAction::OpenImageViewer(path) => eprintln!("image viewer: not ported yet ({})", path.display()),
+            TaskAction::OpenImageViewer(path) => {
+                // `ShowImagesInViewer`: the task list's image files, from this one.
+                let images: Vec<std::path::PathBuf> = self
+                    .state
+                    .tasks
+                    .manager
+                    .tasks
+                    .iter()
+                    .rev()
+                    .filter_map(|t| t.info.file_path.clone())
+                    .filter(|p| p.is_file() && sharex_helpers::file_helpers::is_image_file(&p.to_string_lossy()))
+                    .collect();
+                let index = images.iter().position(|p| *p == path).unwrap_or(0);
+                self.show_image_files(event_loop, &images, index);
+            }
             TaskAction::OpenFile(path) => {
                 shell::open_file(&path);
             }

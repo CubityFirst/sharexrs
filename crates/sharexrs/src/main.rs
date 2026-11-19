@@ -582,6 +582,10 @@ impl App {
             self.ocr_capture(task, auto_hide);
             return;
         }
+        if command == MenuCommand::Tool("MainMenuBuilder_ImageViewer") {
+            self.open_image_viewer(event_loop);
+            return;
+        }
         if let MenuCommand::Tool(key) = command
             && (self.open_image_tool(event_loop, key, None) || self.open_screen_tool(event_loop, key))
         {
@@ -1373,6 +1377,10 @@ impl App {
             return;
         }
         if self.run_screen_job(event_loop, &job, &task, None) {
+            return;
+        }
+        if job == HotkeyType::ImageViewer {
+            self.open_image_viewer(event_loop);
             return;
         }
         if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
