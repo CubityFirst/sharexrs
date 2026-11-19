@@ -18,11 +18,19 @@ pub struct OutputBoxWindow {
     /// `scrollToEnd`: the caret at the end, else at the start.
     scroll_to_end: bool,
     scrolled: bool,
+    /// Dropped when the window closes: `Show` returns to its caller then.
+    closed: Option<std::sync::mpsc::Sender<()>>,
 }
 
 impl OutputBoxWindow {
     pub fn new(text: &str, title: &str, scroll_to_end: bool) -> Self {
-        Self { text: text.replace("\r\n", "\n"), title: title.to_owned(), scroll_to_end, scrolled: false }
+        Self { text: text.replace("\r\n", "\n"), title: title.to_owned(), scroll_to_end, scrolled: false, closed: None }
+    }
+
+    /// A caller waiting for the window to close (`window.Closed += completed`).
+    pub fn on_closed(mut self, closed: std::sync::mpsc::Sender<()>) -> Self {
+        self.closed = Some(closed);
+        self
     }
 }
 
@@ -76,5 +84,18 @@ impl Dialog for OutputBoxWindow {
         });
         super::debug_log::overlay_scroll_bars(ui, view, content, shown.state.offset);
         out
+    }
+}
+
+#[cfg(test)]
+mod closed_tests {
+    #[test]
+    fn closing_the_box_lets_its_caller_go_on() {
+        // REC-02: the recording's worker waits on the FFmpeg error box.
+        let (closed, wait) = std::sync::mpsc::channel();
+        let window = super::OutputBoxWindow::new("error", "FFmpeg error", true).on_closed(closed);
+        assert_eq!(wait.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty));
+        drop(window);
+        assert_eq!(wait.recv(), Err(std::sync::mpsc::RecvError));
     }
 }
