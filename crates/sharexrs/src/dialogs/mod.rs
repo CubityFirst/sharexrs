@@ -16,6 +16,7 @@ pub mod before_upload;
 pub mod clipboard_upload;
 pub mod confirm;
 pub mod custom_uploaders;
+pub mod debug_log;
 pub mod destination_settings;
 pub mod drop_window;
 pub mod file_exist;

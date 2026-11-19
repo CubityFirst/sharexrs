@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn sections_list_shareX_links() {
+    fn sections_list_the_links() {
         let s = sections();
         assert_eq!(s.len(), 2);
         assert_eq!(s[0].items.len(), 2);

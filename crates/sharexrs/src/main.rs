@@ -9,6 +9,7 @@
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod logger;
 mod main_commands;
 mod appearance;
 mod auto_capture;
@@ -152,6 +153,8 @@ fn main() {
     if instance.is_single_instance && !instance.is_first_instance {
         return;
     }
+    // `DebugHelper.Init(AppPaths.LogsFilePath)`.
+    logger::init(logger::log_file_path(&paths.logs_folder(), system.disable_logging));
     // What an earlier update left behind (the replaced app or files).
     sharex_update::install::init();
     // `Program.Run`: the settings (`SettingManager.LoadInitialSettings`),
@@ -643,6 +646,8 @@ impl App {
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
+            // `TaskHelpers.OpenDebugLog`.
+            MenuCommand::DebugLog => self.open_dialog_window(event_loop, Box::new(dialogs::debug_log::DebugLogWindow::new())),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
         self.refresh_menus();

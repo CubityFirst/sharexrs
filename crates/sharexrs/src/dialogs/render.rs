@@ -157,6 +157,23 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(w)
         }
+        // A generated log; `--state upload-confirm` shows the confirmation.
+        "debug-log" => {
+            let lines = [
+                "ShareXrs starting.",
+                "Version: 22.4.0",
+                "Operating system: Windows 11 Pro",
+                r"Personal path: C:\ShareXrs",
+                "Startup time: 812 ms",
+                "Task status: Preparing",
+                r"Image saved to file: C:\ShareXrs\Screenshots\2026-11\ShareX_test.png",
+                "URL opened: https://example.invalid/",
+            ];
+            let text: String = lines.iter().enumerate().map(|(i, l)| format!("2026-11-19 09:00:{:02}.{:03} - {l}\r\n", i * 3, i * 37)).collect();
+            let mut w = super::debug_log::DebugLogWindow::with_text(text, Some(r"C:\ShareXrs\Logs\ShareX-Log-2026-11.txt".into()), r"C:\ShareXrs\".into());
+            w.confirm_upload = o.state.as_deref() == Some("upload-confirm");
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -326,6 +343,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "file-exists"
             | "icon-pack-prompt"
             | "about"
+            | "debug-log"
             | "before-upload"
             | "after-upload"
             | "qr-code"

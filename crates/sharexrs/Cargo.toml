@@ -52,11 +52,13 @@ notify = "8"
 [target."cfg(windows)".dependencies]
 # The Startup folder shortcut (`ShortcutHelpers`): IShellLinkW.
 windows = { version = "0.62.2", features = ["Win32_Globalization", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging", "Win32_Storage_Xps", "Win32_Graphics_Printing", "Win32_UI_Controls_Dialogs"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging", "Win32_Storage_Xps", "Win32_Graphics_Printing", "Win32_UI_Controls_Dialogs", "Win32_System_Console", "Win32_System_Pipes", "Win32_Storage_FileSystem", "Win32_System_ProcessStatus", "Win32_Security"] }
 
 # Global hotkeys outside Windows, as snapr has them (docs/MACOS-LEARNINGS.md 3.2).
 [target."cfg(not(windows))".dependencies]
 livesplit-hotkey = "0.8.1"
+# stderr into the debug log (`dup2`).
+libc = "0.2"
 
 # The menu bar item and the Dock icon (docs/MACOS-LEARNINGS.md 3.5, 3.13).
 [target."cfg(target_os = \"macos\")".dependencies]
