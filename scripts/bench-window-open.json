@@ -1,0 +1,28 @@
+{
+  "apps": {
+    "sharex": {
+      "exe": "G:/scripts/sharexrs-ref/ShareX-build/ShareX.exe",
+      "logs": "G:/scripts/sharexrs-ref/ShareX-build/ShareX/Logs",
+      "args": ["-NoHotkeys"],
+      "main_title": "^ShareX(rs)? \\d",
+      "dismiss": "Hotkey registration failed",
+      "items": {
+        "appsettings": {"at": [133, 354], "title": "Application settings"},
+        "tasksettings": {"at": [133, 391], "title": "Task settings"}
+      },
+      "editor_title": "(?i)image editor"
+    },
+    "sharexrs": {
+      "exe": "%TEMP%/sharex-window-open/sharexrs/sharexrs.exe",
+      "logs": "%TEMP%/sharex-window-open/sharexrs/ShareXrs/Logs",
+      "args": ["-NoHotkeys"],
+      "main_title": "^ShareX(rs)? \\d",
+      "dismiss": "Hotkey registration failed",
+      "items": {
+        "appsettings": {"at": [133, 354], "title": "Application settings"},
+        "tasksettings": {"at": [133, 391], "title": "Task settings"}
+      },
+      "editor_title": "(?i)image editor"
+    }
+  }
+}
