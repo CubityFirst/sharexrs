@@ -6,6 +6,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod activation;
 mod animation;
 mod app_icon;
 mod app_settings;
@@ -1048,7 +1049,10 @@ impl App {
         if w.window.is_minimized() == Some(true) {
             w.window.set_minimized(false);
         }
-        w.window.focus_window();
+        // `Activate()`: Avalonia's plain `SetForegroundWindow`, not winit's
+        // `focus_window`, which forces the foreground past Windows' lock
+        // (a forwarded active-window job then read the main window).
+        activation::activate_window(&w.window);
         w.window.request_redraw();
         #[cfg(target_os = "macos")]
         tray::set_dock_icon(true);

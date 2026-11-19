@@ -313,10 +313,12 @@ impl App {
     }
 
     /// `ApplicationCommandLine.ExecuteReceivedAsync`: no arguments bring the
-    /// main window up; with some, a visible main window comes to the front.
+    /// main window up; with some, a visible main window is activated, as
+    /// Avalonia activates (which the foreground lock may refuse, leaving
+    /// the active window for an active-window job: `crate::activation`).
     fn execute_received(&mut self, event_loop: &ActiveEventLoop, arguments: Vec<String>) {
         let visible = self.main.as_ref().is_some_and(|w| w.window.is_visible() != Some(false));
-        if arguments.is_empty() || visible {
+        if crate::activation::activates_on_receive(arguments.is_empty(), visible) {
             // ShareX also hides and shows the tray icon first, for a Windows
             // startup bug; ShareXrs's icon doesn't have it.
             self.show_main_window(event_loop);
