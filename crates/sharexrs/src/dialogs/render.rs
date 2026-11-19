@@ -303,7 +303,16 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
                 Screen { bounds: R::new(960, -1440, 2560, 1440), work_area: R::new(960, -1440, 2560, 1440), scale: 1.5, primary: false },
             ];
             let at = chrono::Local::now();
-            let data = super::display_diagnostics::collect(&screens, Some((640, 480)), Some((R::new(510, 170, 900, 740), 1.0)), &ApplicationConfig::default(), at);
+            let native = super::display_diagnostics::sample_snapshot(&screens);
+            let config = ApplicationConfig::default();
+            let data = super::display_diagnostics::collect(&super::display_diagnostics::Inputs {
+                screens: &screens,
+                window: Some((R::new(510, 170, 900, 740), 1.0)),
+                settings: &config,
+                now: at,
+                native: Some(&native),
+                geometry: &[],
+            });
             Box::new(super::display_diagnostics::DisplayDiagnosticsWindow::with_data(data))
         }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),

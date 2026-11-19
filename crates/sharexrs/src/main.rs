@@ -69,6 +69,7 @@ mod update;
 mod upload;
 mod watch_folder;
 mod window;
+mod window_geometry_log;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
