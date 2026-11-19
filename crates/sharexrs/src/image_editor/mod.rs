@@ -43,7 +43,7 @@ pub(crate) mod emoji_picker;
 mod insert_image;
 pub(crate) mod modal;
 mod new_image;
-mod notify;
+pub(crate) mod notify;
 mod start_screen;
 
 use sharex_ui::keys::app_icons as icon;
@@ -710,27 +710,19 @@ impl EditorWindow {
             let name = crate::capture_job::file_name(&self.task, &mut counter, ext, &meta);
             path = Some(self.folder.join(name));
         }
-        if ask {
-            let mut d = rfd::FileDialog::new().add_filter("PNG", &["png"]).add_filter("JPEG", &["jpg", "jpeg"]).add_filter("BMP", &["bmp"]);
-            if let Some(p) = &path {
-                if let Some(dir) = p.parent() {
-                    d = d.set_directory(dir);
-                }
-                if let Some(n) = p.file_name().and_then(|n| n.to_str()) {
-                    d = d.set_file_name(n);
-                }
-            }
-            match d.save_file() {
-                Some(p) => path = Some(p),
+        let Some(path) = path else { return };
+        // `SaveImageAsRequested`: `SkiaImageHelpers.SaveImageFileDialog`;
+        // `SaveImageRequested`: `SkiaImageHelpers.SaveImage`.
+        let saved = if ask {
+            match crate::image_tools::save_image_file_dialog(&img, &path) {
+                Some(p) => Ok(p),
                 None => return,
             }
-        }
-        let Some(path) = path else { return };
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        match img.save(&path) {
-            Ok(()) => {
+        } else {
+            crate::image_tools::save_image(&img, &path).map(|()| path.clone())
+        };
+        match saved {
+            Ok(path) => {
                 eprintln!("Image editor: saved {}", path.display());
                 let message = Self::file_message(ie::MainViewModel_ImageSavedToFile(), &path);
                 self.file_path = Some(path);
@@ -1380,7 +1372,9 @@ impl EditorWindow {
         let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
         self.scroll = self.scroll.clamp(Vec2::ZERO, max_scroll);
         let min = self.image_origin(self.room, self.scroll);
-        let min = pos2((min.x * ppp).round() / ppp, (min.y * ppp).round() / ppp);
+        // Avalonia's layout rounding: `Math.Round`, ties to even (a centred
+        // frame half a pixel off lands on the even side).
+        let min = pos2((min.x * ppp).round_ties_even() / ppp, (min.y * ppp).round_ties_even() / ppp);
         let z = self.zoom as f32;
         let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
         let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
@@ -2320,15 +2314,8 @@ fn disabled_button(ui: &Ui, painter: &egui::Painter, p: &Palette, r: Rect, icon:
 
 /// The task's image format's extension (`ImageFormat.GetFileExtension`).
 fn image_extension(task: &TaskSettings) -> &'static str {
-    let format = task.ImageSettings.as_ref().map(|s| format!("{:?}", s.ImageFormat)).unwrap_or_default();
-    match format.as_str() {
-        "JPEG" => "jpg",
-        "BMP" => "bmp",
-        "GIF" => "gif",
-        "TIFF" => "tif",
-        "WebP" => "webp",
-        _ => "png",
-    }
+    let format = task.ImageSettings.as_ref().map_or(sharex_settings::EImageFormat::PNG, |s| s.ImageFormat.clone());
+    sharex_tools::capture_image::extension(&format)
 }
 
 impl Dialog for EditorWindow {
@@ -2665,6 +2652,15 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
         Some("canvas-size") => w.canvas_resize_on_open = true,
+        Some(st) if st.starts_with("beautifier") => {
+            // `--state beautifier[:<ratio>]`: the Image beautifier as it opens
+            // (`openBackgroundPanel`: the panel open, the toolbar where it
+            // was), with an output ratio picked (`16:9`).
+            w.bg_panel.open = true;
+            if let Some(r) = st.strip_prefix("beautifier:") {
+                w.bg_panel.ratio = background::ratio_index(r).ok_or_else(|| format!("no ratio {r}"))?;
+            }
+        }
         Some(st) if st.starts_with("background") => {
             // `--state background[-gradient|-color|-image][-scrolled]`:
             // the panel open (the toolbar scrolled to show its button, as
@@ -2760,6 +2756,21 @@ impl crate::App {
         task: TaskSettings,
         reply: Option<mpsc::Sender<Option<RgbaImage>>>,
     ) {
+        self.open_editor_window(event_loop, image, file_path, task, reply, false);
+    }
+
+    /// `ShowEditorDialog(..., openBackgroundPanel)`: with it, the editor
+    /// opens with its Background panel (`IsSettingsPanelOpen`), which is
+    /// the Image beautifier.
+    fn open_editor_window(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        image: Option<RgbaImage>,
+        file_path: Option<PathBuf>,
+        task: TaskSettings,
+        reply: Option<mpsc::Sender<Option<RgbaImage>>>,
+        background_panel: bool,
+    ) {
         let task_mode = reply.is_some();
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let meta = crate::capture_job::Metadata {
@@ -2770,7 +2781,40 @@ impl crate::App {
         let folder = crate::capture_job::screenshots_folder(&task, &self.settings.settings, &parent, &meta);
         let mut w = EditorWindow::new(image, file_path, task, task_mode, folder);
         w.reply = reply;
+        w.bg_panel.open = background_panel;
         self.open_dialog_window(event_loop, Box::new(w));
+    }
+
+    /// `TaskHelpers.OpenImageBeautifier(filePath, taskSettings)` (the Tools
+    /// menu, its hotkey, `-ImageBeautifier`, the task list's Beautify
+    /// image): an image file picked first when there's none; a file that
+    /// doesn't exist or doesn't load does nothing. The editor (taskMode
+    /// off) opens with the Background panel, and what it gives back when
+    /// it closes (Continue) goes through `RunImageTask`.
+    pub(crate) fn open_image_beautifier(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, file: Option<PathBuf>, task: Option<TaskSettings>) {
+        let path = match file {
+            Some(f) => f,
+            // `SkiaImageHelpers.OpenImageFileDialog()`.
+            None => match crate::image_tools::open_image_file_dialog() {
+                Some(f) => PathBuf::from(f),
+                None => return,
+            },
+        };
+        if !path.is_file() {
+            return;
+        }
+        let task = task.unwrap_or_else(|| TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings));
+        let Some(img) = crate::thumbnail::load(&path) else { return };
+        // Not in task mode: Continue's image runs the task when the window
+        // closes (`worker.Completed`), as the editor's own close does.
+        self.open_editor_window(event_loop, Some(img), Some(path), task, None, true);
+    }
+
+    /// `TaskHelpers.BeautifyImage(bmp, taskSettings)` (the Beautify image
+    /// after capture task): the editor in task mode with the Background
+    /// panel; the task waits for the result (`None`: the task stops).
+    pub(crate) fn beautify_capture(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, image: RgbaImage, task: TaskSettings, reply: mpsc::Sender<Option<RgbaImage>>) {
+        self.open_editor_window(event_loop, Some(image), None, task, Some(reply), true);
     }
 
     /// `TaskHelpers.AnnotateImageFromFile(filePath, taskSettings)`.

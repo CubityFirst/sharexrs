@@ -531,8 +531,11 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     // Below the combo box, else above it, else wherever it fits best.
     let below = screen.max.y - anchor.max.y;
     let above = anchor.min.y - screen.min.y;
+    // With no items the popup is just its padding (the background remover's
+    // empty model list: 14 px).
+    let least = if items.is_empty() { full } else { row_h + 14.0 };
     let (top, height) = if full <= below || below >= above {
-        (anchor.max.y, full.min(below).max(row_h + 14.0))
+        (anchor.max.y, full.min(below).max(least))
     } else {
         let h = full.min(above);
         (anchor.min.y - h, h)

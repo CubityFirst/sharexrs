@@ -89,6 +89,13 @@ pub trait TaskUi: Send + Sync {
         let _ = task;
         Some(image.clone())
     }
+    /// `TaskHelpers.BeautifyImage(image, taskSettings)`: the image editor
+    /// in task mode with its Background panel open; the task's thread
+    /// waits for the image (`None`: cancelled, the task stops).
+    fn beautify_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let _ = task;
+        Some(image.clone())
+    }
 }
 
 /// What the before upload window shows of a task (`TaskInfo`).
@@ -116,6 +123,9 @@ pub enum UiRequest {
     /// The image editor on a capture (the Annotate image after capture
     /// task); answered with the edited image when it closes.
     Annotate(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
+    /// The Image beautifier on a capture (the Beautify image after capture
+    /// task); answered with the image when it closes.
+    Beautify(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
@@ -142,6 +152,7 @@ impl std::fmt::Debug for UiRequest {
             Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
             Self::Annotate(..) => f.write_str("Annotate"),
+            Self::Beautify(..) => f.write_str("Beautify"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
             Self::Email(..) => f.write_str("Email"),
@@ -236,6 +247,13 @@ impl TaskUi for SystemUi {
         let Some(r) = &self.requests else { return Some(image.clone()) };
         let (tx, rx) = mpsc::channel();
         r(UiRequest::Annotate(Box::new(image.clone()), Box::new(task.clone()), tx));
+        rx.recv().ok().flatten()
+    }
+
+    fn beautify_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let Some(r) = &self.requests else { return Some(image.clone()) };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::Beautify(Box::new(image.clone()), Box::new(task.clone()), tx));
         rx.recv().ok().flatten()
     }
 

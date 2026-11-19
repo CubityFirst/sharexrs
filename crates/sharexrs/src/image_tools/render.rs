@@ -7,18 +7,23 @@
 //! - `image-converter` (`--state png|jpeg|webp|gif|bmp`),
 //! - `image-watermark` (`--state image --image <watermark>`),
 //! - `image-comparer` (`--files a,b`, `--state diff`),
-//! - `icon-converter` (`--image <file>`).
+//! - `icon-converter` (`--image <file>`),
+//! - `background-remover` (`--text <models folder>`, `--image <file>`,
+//!   `--content Auto|GPU|CPU` the device, `--count` the guide button's
+//!   opacity in percent (its animation's phase in the shot), `--state
+//!   compared[:<ms>]` (the model run, the toast with that time),
+//!   `model-menu`, `device-menu`, `busy`, `saved`, `splitter-held[:<pct>]`).
 //!
 //! Previews are made at once, on the drawing thread.
 
 use sharex_settings::TaskSettings;
 
-use super::{combiner, comparer, converter, icon_converter, resizer, splitter, thumbnailer, watermark};
+use super::{background_remover, combiner, comparer, converter, icon_converter, resizer, splitter, thumbnailer, watermark};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "image-combiner" | "image-splitter" | "image-thumbnailer" | "image-resizer" | "image-converter" | "image-watermark" | "image-comparer" | "icon-converter")
+    matches!(name, "image-combiner" | "image-splitter" | "image-thumbnailer" | "image-resizer" | "image-converter" | "image-watermark" | "image-comparer" | "icon-converter" | "background-remover")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -106,6 +111,53 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             let mut w = icon_converter::IconConverterWindow::default();
             if let Some(p) = &o.image {
                 w.load_image(&p.to_string_lossy());
+            }
+            Box::new(w)
+        }
+        "background-remover" => {
+            let defaults = TaskSettings::default();
+            let task = TaskSettings::default_task_settings(&defaults);
+            let mut w = background_remover::BackgroundRemoverWindow::new(o.text.as_ref().map(std::path::PathBuf::from), task, &defaults);
+            w.sync = true;
+            if o.count > 0 {
+                w.guide_opacity = Some(o.count as f32 / 100.0);
+            }
+            if let Some(d) = o.content.as_deref() {
+                let i = sharex_tools::background_remover::Device::ALL.iter().position(|x| x.name().eq_ignore_ascii_case(d)).ok_or("--content Auto|GPU|CPU")?;
+                w.device = sharex_tools::background_remover::Device::ALL[i];
+            }
+            if let Some(p) = &o.image {
+                w.load_image(&p.to_string_lossy());
+            }
+            let (state, arg) = state.split_once(':').unwrap_or((state, ""));
+            match state {
+                "" | "empty" | "ready" | "input-no-model" => {}
+                "compared" => {
+                    if !arg.is_empty() {
+                        w.elapsed_ms = Some(arg.parse().map_err(|_| "--state compared:<ms>")?);
+                    }
+                    w.remove_background(&egui::Context::default());
+                    w.notify.settle();
+                }
+                "model-menu" | "model-empty-menu" => w.open_combo = Some("model"),
+                "device-menu" => w.open_combo = Some("device"),
+                // Built from source (no ShareX shot): Remove Background
+                // running (`IsProcessing`), the result saved (Save's toast
+                // over the source's path), the divider held at `<pct>`.
+                "busy" => w.processing = true,
+                "saved" | "splitter-held" => {
+                    w.remove_background(&egui::Context::default());
+                    w.notify.dismiss();
+                    if state == "saved" {
+                        let path = w.image_path.clone().unwrap_or_default();
+                        let text = sharex_strings::tools::BackgroundRemoverViewModel_Image_saved_file_path().replace("{0}", &path);
+                        w.notify.show(true, text, Some(sharex_ui::keys::app_icons::Save));
+                        w.notify.settle();
+                    } else {
+                        w.slider.position = arg.parse::<f64>().unwrap_or(50.0) / 100.0;
+                    }
+                }
+                other => return Err(format!("no background-remover state {other}")),
             }
             Box::new(w)
         }

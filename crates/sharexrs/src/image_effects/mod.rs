@@ -584,27 +584,8 @@ impl ImageEffectsWindow {
     /// `SaveAsync` → `SkiaImageHelpers.SaveImageFileDialog(image, path)`.
     fn save_image(&mut self) {
         let Some(img) = self.apply_selected() else { return };
-        let path = std::path::Path::new(&self.file_path);
-        let mut d = rfd::FileDialog::new()
-            .add_filter("PNG", &["png"])
-            .add_filter("JPEG", &["jpg", "jpeg"])
-            .add_filter("BMP", &["bmp"])
-            .add_filter("GIF", &["gif"])
-            .add_filter("TIFF", &["tif", "tiff"]);
-        if let Some(dir) = path.parent().filter(|d| d.is_dir()) {
-            d = d.set_directory(dir);
-        }
-        if let Some(name) = path.file_name() {
-            d = d.set_file_name(name.to_string_lossy());
-        }
-        if let Some(out) = d.save_file() {
-            let out = out.to_string_lossy().into_owned();
-            let bmp = bitmap(&img);
-            let format = sharex_tools::imaging::image_format_for(&out);
-            match std::fs::write(&out, sharex_tools::imaging::encode(&bmp, format, 100)) {
-                Ok(()) => self.file_path = out,
-                Err(e) => self.error = e.to_string(),
-            }
+        if let Some(out) = crate::image_tools::save_image_file_dialog(&img, std::path::Path::new(&self.file_path)) {
+            self.file_path = out.to_string_lossy().into_owned();
         }
     }
 

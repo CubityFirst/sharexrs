@@ -48,6 +48,13 @@ EXPECTED = [
     "meta-full_png.json",
     "vargs-nofolder.json",
     "vtrim-1.5-4.25-precise-mp4.json",
+    "capture-jpeg-premul-q90-Downsample422.jpg",
+    "capture-gif-premul-Bit4.gif",
+    "capture-bmp-premul-Automatic.bmp",
+    "capture-webp-premul-lossless-e75.webp",
+    "capture-webp-premul-lossy-q50.webp",
+    "capture-auto-premul-alpha.jpg",
+    "capture-png-premul-Default.png",
 ]
 
 for f in INPUTS:

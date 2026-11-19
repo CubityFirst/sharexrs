@@ -204,6 +204,10 @@ impl App {
                 self.open_image_editor(event_loop, Some(*image), None, *task, Some(reply));
                 return;
             }
+            super::UiRequest::Beautify(image, task, reply) => {
+                self.beautify_capture(event_loop, *image, *task, reply);
+                return;
+            }
             super::UiRequest::ImageEffects(image, task, reply) => {
                 self.open_image_effects_editor(event_loop, *image, *task, reply);
                 return;

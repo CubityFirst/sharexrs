@@ -260,10 +260,16 @@ the default preset and a named, disabled effect). Effect labels
 
 ### Not ported
 
-- `.sxie` import from the command line (`-ImageEffect`) and the file
-  association, with `WouldYouLikeToEnableImageEffects`; dropping a `.sxie` on
-  the window imports it.
 - Text watermark's DirectWrite glyph rasteriser (see above).
+
+`.sxie` import: `-ImageEffect <file.sxie>` (`cli.rs`, `ImportImageEffect`)
+extracts the package into the ImageEffects folder and hands its preset to
+the Presets window singleton (`OpenImageEffectsSingleton`: opened, or the
+open one, which imports and selects it), then asks
+`WouldYouLikeToEnableImageEffects`; the `.sxie` association (registered when
+missing at startup, as `FileTypeRegistration`; `integration.rs`, behind its
+`Registry` trait, tests on an in-memory one) runs `-ImageEffect "%1"`; a `.sxie` dropped on the window
+imports it.
 
 ## The window in ShareXrs
 

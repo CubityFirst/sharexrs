@@ -10,6 +10,8 @@ mod cases;
 mod compare;
 #[path = "tools_validate/cases_data.rs"]
 mod cases_data;
+#[path = "tools_validate/cases_capture.rs"]
+mod cases_capture;
 
 use std::collections::BTreeMap;
 

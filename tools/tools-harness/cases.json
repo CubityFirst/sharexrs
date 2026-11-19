@@ -17869,5 +17869,1372 @@
    "opaque_97x61.png",
    "odd_33x77.png"
   ]
+ },
+ {
+  "name": "capture-png-capture-Default",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Default"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-capture-Automatic",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Automatic"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-capture-Bit32",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Bit32"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-capture-Bit24",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Bit24"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-premul-Default",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Default"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-premul-Automatic",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Automatic"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-premul-Bit32",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Bit32"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-premul-Bit24",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGBitDepth": "Bit24"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-AllFilters",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "AllFilters"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-None",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "None"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-Sub",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "Sub"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-Up",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "Up"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-Avg",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "Avg"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level0-Paeth",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 0,
+   "ImagePNGFilter": "Paeth"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-AllFilters",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "AllFilters"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-None",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "None"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-Sub",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "Sub"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-Up",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "Up"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-Avg",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "Avg"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level1-Paeth",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 1,
+   "ImagePNGFilter": "Paeth"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-AllFilters",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "AllFilters"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-None",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "None"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-Sub",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "Sub"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-Up",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "Up"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-Avg",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "Avg"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level6-Paeth",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 6,
+   "ImagePNGFilter": "Paeth"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-AllFilters",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "AllFilters"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-None",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "None"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-Sub",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "Sub"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-Up",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "Up"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-Avg",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "Avg"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-level9-Paeth",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG",
+   "ImagePNGCompressionLevel": 9,
+   "ImagePNGFilter": "Paeth"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-png-capture-strip",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG"
+  },
+  "strip": true
+ },
+ {
+  "name": "capture-png-premul-strip",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "PNG"
+  },
+  "strip": true
+ },
+ {
+  "name": "capture-jpeg-capture-q90-Downsample420",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q90-Downsample422",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q90-Downsample444",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q40-Downsample420",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q40-Downsample422",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q40-Downsample444",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q100-Downsample420",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q100-Downsample422",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q100-Downsample444",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q0-Downsample420",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q0-Downsample422",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-capture-q0-Downsample444",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q90-Downsample420",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q90-Downsample422",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q90-Downsample444",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 90,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q40-Downsample420",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q40-Downsample422",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q40-Downsample444",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 40,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q100-Downsample420",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q100-Downsample422",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q100-Downsample444",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 100,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q0-Downsample420",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample420"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q0-Downsample422",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample422"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-jpeg-premul-q0-Downsample444",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageJPEGQuality": 0,
+   "ImageJPEGSubsampling": "Downsample444"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-capture-Default",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Default"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-capture-Bit8",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Bit8"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-capture-Bit4",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Bit4"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-capture-Grayscale",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Grayscale"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-capture-Adaptive",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Adaptive"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-premul-Default",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Default"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-premul-Bit8",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Bit8"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-premul-Bit4",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Bit4"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-premul-Grayscale",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Grayscale"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-gif-premul-Adaptive",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "GIF",
+   "ImageGIFQuality": "Adaptive"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-capture-Automatic",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Automatic"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-capture-Bit32",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Bit32"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-capture-Bit24",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Bit24"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-premul-Automatic",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Automatic"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-premul-Bit32",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Bit32"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-bmp-premul-Bit24",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "BMP",
+   "ImageBMPBitDepth": "Bit24"
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossless-e100",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 100
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossless-e75",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 75
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossless-e50",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 50
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossless-e0",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 0
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossless-e100",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 100
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossless-e75",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 75
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossless-e50",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 50
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossless-e0",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": true,
+   "ImageWebPCompressionEffort": 0
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossy-q90",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 90
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossy-q50",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 50
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossy-q100",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 100
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-capture-lossy-q0",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 0
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossy-q90",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 90
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossy-q50",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 50
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossy-q100",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 100
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-webp-premul-lossy-q0",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": "WEBP",
+   "ImageWebPLossless": false,
+   "ImageWebPQuality": 0
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-default-capture-big_420x300",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {},
+  "strip": false
+ },
+ {
+  "name": "capture-default-premul-alpha_64x48",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {},
+  "strip": false
+ },
+ {
+  "name": "capture-default-capture-huge_1900x1100",
+  "tool": "capture",
+  "file": "huge_1900x1100.png",
+  "kind": "capture",
+  "settings": {},
+  "strip": false
+ },
+ {
+  "name": "capture-undefined-format",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageAutoUseJPEG": false,
+   "ImageFormat": 99
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-PNG-q90",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "PNG",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": false
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-PNG-autoq",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "PNG",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-WEBP-q90",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "WEBP",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": false
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-WEBP-autoq",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "WEBP",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-GIF-q90",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "GIF",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": false
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-GIF-autoq",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "GIF",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-BMP-q90",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": false
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-BMP-autoq",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 20,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-jpeg-task",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "JPEG",
+   "ImageAutoUseJPEGSize": 1
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-premul-alpha",
+  "tool": "capture",
+  "file": "alpha_64x48.png",
+  "kind": "premul",
+  "settings": {
+   "ImageFormat": "PNG",
+   "ImageAutoUseJPEGSize": 1
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-1",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 1,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-5",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 5,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-10",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 10,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-40",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 40,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-80",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 80,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-120",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 120,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-200",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 200,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
+ },
+ {
+  "name": "capture-auto-size-400",
+  "tool": "capture",
+  "file": "big_420x300.png",
+  "kind": "capture",
+  "settings": {
+   "ImageFormat": "BMP",
+   "ImageAutoUseJPEGSize": 400,
+   "ImageAutoJPEGQuality": true
+  },
+  "strip": false
  }
 ]

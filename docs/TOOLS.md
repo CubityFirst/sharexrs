@@ -91,6 +91,7 @@ tolerance.
 | Clipboard viewer previews | 1 | 0 | 1 | 0 | 0 | 0 |
 | Inspect window texts | 1 | 1 | 0 | 0 | 0 | 0 |
 | Background remover | 4 | 4 | 0 | 0 | 0 | 0 |
+| Capture encoding (`PrepareImage`) | 112 | 72 | 40 | 0 | 0 | 0 |
 | Analyze image (requests and answers) | 141 | 107 | 34 | 0 | 0 | 0 |
 
 What the cases cover, per tool:
@@ -166,6 +167,24 @@ What the cases cover, per tool:
   ShareXrs's with the same `onnxruntime.dll` (`ORT_DYLIB_PATH`): 12/12
   results byte-identical; display names, session caching and device texts
   equal.
+- **Capture encoding** (`CaptureCases.cs`, `sharex_tools::capture_image`):
+  `TaskHelpers.PrepareImage` over a capture (420x300, unpremultiplied and
+  opaque as `WindowsImageInterop` makes it) and a tool's image (64x48,
+  premultiplied, with alpha), as ShareXrs holds them (straight RGBA): PNG at
+  each bit depth, levels 0/1/6/9 with each filter, colour space chunks
+  stripped; JPEG at q0/40/90/100 with each subsampling; each GIF quantizer;
+  BMP at each depth; WebP lossless effort 0–100 and lossy q0–100; the
+  defaults (also on 1900x1100), an undefined format; the switch to JPEG
+  from each format, with `ImageAutoJPEGQuality`, a JPEG task, and limits
+  from 1 to 400 KB around a BMP's size. Every case picks ShareX's format;
+  JPEG 37/37, GIF 10/10, BMP 7/7, WebP 18/18 byte for byte; PNG 40/40
+  pixel-identical with the same colour type. PNG sizes: zlib-rs isn't
+  Skia's zlib, and zlib-rs's level 1 is zlib-ng's `deflate_quick` (+25–36%
+  on these images), so zlib's levels 1–3 (`deflate_fast`) run zlib-rs's
+  level 2 (`deflate_fast` with zlib's level-1 parameters): −1 to −5% at
+  ShareX's default level 1, within 8% at 0/6/9 (filters alone up to −16%).
+  The switch to JPEG compares that size, so a PNG within a few percent of
+  `ImageAutoUseJPEGSize` can go the other way.
 - **Monitor test**: gray levels incl. out of range, RGB, eight gradients, the
   three patterns at four sizes, moving bars at four offsets both ways,
   rendered by ShareX's own control through Avalonia.Headless.
@@ -195,7 +214,7 @@ What the cases cover, per tool:
   the recorded requests and answers (`tests/analyze_image.rs`, fixtures in
   `tests/fixtures/analyze`).
 
-CI runs `crates/sharex-tools/tests/sharex.rs`: thirteen checks against a small
+CI runs `crates/sharex-tools/tests/sharex.rs`: seventeen checks against a small
 set of ShareX's outputs (`tests/fixtures`, made by the harness's
 `make_fixtures.py`) that need no fonts, FFmpeg or Windows.
 
@@ -288,8 +307,10 @@ lacks; since clippy never links, the script points `cc` at a stub
 
 ## The Images windows in ShareXrs
 
-`crates/sharexrs/src/image_tools/` ports the eight Images tool windows on
-the engines above; the Image effects window is in docs/IMAGE-EFFECTS.md.
+`crates/sharexrs/src/image_tools/` ports the nine Images tool windows on
+the engines above; the Image effects window is in docs/IMAGE-EFFECTS.md, the
+Image beautifier (the image editor with its Background panel) in
+docs/IMAGE-EDITOR.md.
 
 | File | ShareX source | What's there |
 |---|---|---|
@@ -303,8 +324,9 @@ the engines above; the Image effects window is in docs/IMAGE-EFFECTS.md.
 | `watermark.rs` | `ImageWatermarkWindow`, `ImageWatermarkViewModel`, `ImageWatermarkService` | list, text (text, size, colour) or image (file, scale) watermark, position, margin, opacity, rotation, PNG/JPEG, template, folder, preview, Apply watermark |
 | `comparer.rs` | `ImageComparerWindow`, `ImageComparerViewModel`, `ImageComparisonService` | two pickers (`No image selected`), Slider / Diff view, the similarity (white, green when identical, in both themes as ShareX) |
 | `icon_converter.rs` | `IconConverterWindow`, `IconConverterViewModel`, `IconConverterService` | Browse or drop, sizes, bit depth, preview and dimensions, Convert... → save dialog → `.ico`, the status line |
+| `background_remover.rs` | `BackgroundRemoverWindow`, `BackgroundRemoverViewModel` (+ `.Notifications`), `TaskHelpers.OpenBackgroundRemover` | the image row (path or `No image selected`, Browse...), the models row (the models folder's `*.onnx` by name with the saved one kept, Refresh, Open models folder, the guide button pulsing in the accent while there's no model, `Device` with `LocalizedDisplayConverter`'s names, both combos off while busy), Remove Background (the file decoded again, the model run on a thread with the wait cursor, the divider moved to the left edge, `Background removed in {0} ms.`), the comparison slider, Save (over a `.png`/`.webp` source, otherwise Save as) and Save as... (`<name>-output.png`, PNG or WebP through `SKImage.Encode(format, 100)`), the toast (2.4 s, longer under the pointer, a click dismisses it), drop (the first file), `BackgroundRemoverOptions` written into the task's `ToolsSettingsReference` as they change; failures are logged (`ReportWarning`) |
 | `open.rs` | `TaskHelpers.Open*`, `ToolsIntegration.Show*`, `UploadInfoManager.ResizeImages/CombineImages` | the Tools menu entries, the hotkeys (`ExecuteJob`), the task list's Resize image and Combine images › Horizontally/Vertically (`TaskHelpers.CombineImages` with the default task settings' options) |
-| `render.rs` | | `--render image-combiner|image-splitter|image-thumbnailer|image-resizer|image-converter|image-watermark|image-comparer|icon-converter` (`--files`, `--image`, `--select`, `--state`) |
+| `render.rs` | | `--render image-combiner|image-splitter|image-thumbnailer|image-resizer|image-converter|image-watermark|image-comparer|icon-converter|background-remover` (`--files`, `--image`, `--select`, `--state`; the remover's `--text` models folder, `--content` device, `--count` the guide button's opacity) |
 
 Dialog windows (`crate::dialogs`) are now held to Windows' maximum tracking
 size (screen plus frame) as Avalonia's are: on a 1024x768 screen ShareX's
@@ -343,6 +365,29 @@ icon's six entries pixel-identical, the 256px PNG entry's zlib stream
 differing as in the harness. Saved settings: after the same edits
 (Horizontal, spacing 2, auto fill off) both apps wrote the same
 `ImageCombinerOptions`.
+
+The background remover and the Image beautifier against the `tools-images`
+shots (`scripts/images-finish-compare.sh`: ShareX's synthetic ONNX models
+copied under `target/`, ShareX's `onnxruntime.dll` through `ORT_DYLIB_PATH`,
+`photo.png` read in place), dark / light:
+
+| State | Dark | Light |
+|---|---|---|
+| Remover empty | 0.08% | 0.06% |
+| Image, no model | 0.07% | 0.05% |
+| Ready (model, CPU) | 0.08% | 0.06% |
+| Compared (result, toast) | 0.26% | 0.24% |
+| Model menu (the popup alone) | 0.79% (0.82% inside its 2px edge) | 2.02% (0.25% inside) |
+| Empty model menu | 0.00% | 14.86% (0.00% inside) |
+| Beautifier opened | 0.16% | 0.12% |
+| Beautifier, 16:9 | 0.15% | 0.12% |
+
+The guide button pulses (opacity 0.4–1 over 1.2 s): each render takes the
+phase ShareX's shot caught (from its fill). The compared shot caught the
+toast still scaling in. ShareX's menus were captured as their own popup
+windows: in light their translucent border and corners come out over
+black. Built from source, no shot: busy, saved (the resx's literal `\n`
+shows as ShareX shows it), the divider held, the device menu.
 
 Not ported in these windows: the preview's click (`ImageViewerWindowIntegration`,
 the image viewer isn't ported), Avalonia's `ColorView` flyout (the shared
