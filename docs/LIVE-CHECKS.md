@@ -371,3 +371,134 @@ or exited. The generated Notepad tabs were closed and the clipboard
 offered zero formats again. New PNGs and sidecars are in the pass 2
 evidence set under SX and RS. The offline build and macOS Clippy check
 completed.
+
+
+## Pass 3 · Windows desktop checks
+
+ShareX reference `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+built from local master `11f9e78` at the start of the run. Master advanced
+during the session. The codec, shared-control popup and settings popup
+repeats marked below also use `81fab7e`. Both builds completed with
+`cargo build` offline. The apps used generated portable profiles, and
+the reference test executable was a SHA-256-identical copy of
+`ShareX-build/ShareX.exe`. The test display measured 2560×1600 with a
+2560×1540 work area at 120 DPI (125%). The existing display settings
+were used throughout.
+
+Evidence uses the same `SX` and `RS` directories as earlier passes.
+Every Pass 3 screenshot has a `pass3-` prefix and a JSON sidecar with
+its client rectangle, DPI, process, build and SHA-256. The original
+Pass 1 and Pass 2 tables remain historical results.
+
+### App windows and History
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| APP-08a | 120 (125%) | Open `-ImageViewer` on the generated `viewer/../viewer/pattern-03.png` with `pattern-04.png` as its only sibling. Confirm fullscreen, press Right once, then Escape. | Fullscreen at 2560×1600. Right changes the image to pattern-04. Escape closes the viewer. | Same fullscreen, image change and dismissal. | PASS | `pass3-app-viewer-{initial,next}-dark.png` in SX and RS. In both, the centre changes from RGB `53,149,109` to `117,87,167`. |
+| APP-13a | 120 (125%) | With the toolbar position unset, run `-ToggleActionsToolbar`. Drag from client `26,19` by `-160,-80` in 12 steps via `scripts/input.ps1`. Middle-click the title. | Moves the exact delta and closes. Saves `2082, 1411`. | Moves the exact delta and closes. Saves `2071, 1410`. | PASS | `pass3-app-toolbar-{first,dragged}-dark.png` in SX and RS. Both started flush with the work area. Toolbar clients were 318×49 and 329×50 respectively. The original absolute `611, 600` position requires the former 96 DPI work area. |
+| APP-26a | 120 (125%) | Enable `ShowClipboardContentViewer`, put `Generated clipboard viewer test text` on the clipboard, focus the main window and press Ctrl+V. Dismiss with Escape. | Opens Clipboard upload containing the generated text. Escape closes it. | Same viewer, text and dismissal. | PASS | `pass3-app-clipboard-shortcut-dark.png` in SX and RS. Clipboard cleared after the pair. |
+| HIS-06 | 120 (125%) | History › Advanced › Date range. Click the day column of the first date and leave the pointer there. | Day column shows up and down controls. | The same two controls appear. | PASS | `SX/pass3-history-date-flyout-popup0-dark.png` and `RS/pass3-history-date-flyout-owner-dark.png`. |
+
+
+### Video and data tools
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| VID-02 | 120 (125%) | Open Video converter with a generated silent H.264 clip. Open the encoder list without resizing the default 850×550 logical client. | An owned 408×630 popup contains MPEG-4 / Xvid, GIF and WebP in its first viewport. Its bottom is 196 px below the client. | Same viewport and popup size. Its bottom is 197 px below the client. Repeated on `81fab7e`. | PASS | `SX/pass3-video-converter-codecs-popup-dark.png` and `RS/pass3-video-converter-codecs-popup-latest-dark.png`. Client heights are 687 and 688 px. |
+| VID-04 | 120 (125%) | Launch `-VideoTrimmer invalid.mp4` with the exact ASCII bytes `not a video`. Wait for the modal and inspect the inline error. | Both surfaces show that the stream has no more samples, with `0xC00D3E84`, on the configured repeat. | Same Media Foundation detail and code on both surfaces. | PASS | `SX/pass3-video-invalid-{modal,underlying}-repeat-dark.png` and `RS/pass3-video-invalid-{modal,underlying}-dark.png`. |
+| DAT-02 | 120 (125%) | Launch `-Metadata metadata.jpg` on the generated JPEG from `phase2-32616/inputs`. Read the total beside Metadata. | `22 tags`. | `22 tags`. | PASS | `pass3-data-metadata-dark.png` in SX and RS. |
+| DAT-04a | 120 (125%), setup only | Stage `index-fixture/alpha.txt` and `index-fixture/sub/beta.txt`. Tools › Index folder. Enter the fixture's absolute path in the picker address bar, select the folder, generate the default HTML and Save as. | Fixture staged. The native folder picker has no suggested initial folder. | Fixture staged. The native folder picker has no specified initial folder. | BLOCKED | The picker starts with an unverified shell location. The exact selection and HTML title are still unverified. See [the safe picker prerequisites](REFERENCE-SHOTS.md#phase-2-prerequisites-and-fixtures). |
+| DAT-05 | 120 (125%) | In QR code, enter `ShareX local QR fixture`, leave Size at 0 and click Copy image. | Copies a 417×417 bitmap. | Copies a 417×417 bitmap with identical decoded pixels. | PASS | `pass3-data-qr-generated-dark.png` in SX and RS. Both clipboard PNGs decode to RGB SHA-256 `affbdf91e441f4a9251622872552d2e6a8d1c184febbc1dafd93c0a42b5e9a20`. |
+
+### Shared-control popups
+
+Comparison uses the [shared-control references](REFERENCE-SHOTS.md#shared-controls-shared-controls).
+The source shots use 96 DPI on a 1024×768 display. These comparisons
+exercise the same control states with the current, larger work area.
+ShareXrs uses `81fab7e` for this group.
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| CTL3-01 | 120 (125%) | Open the Video converter codec combo at its centered default position, then reopen with the converter client at `750,785` to constrain the downward placement. | The owned codec HWND extends below the centered client. At the low position it flips above the combo and beyond the client top. | Same overflow and flip in an owned HWND. At the low position the popup starts at `791,360` versus `791,358` in ShareX. | PASS | `pass3-controls-edge-video-{owner,popup}-dark.png` in SX and RS, plus VID-02 evidence. The smaller 96 DPI reference work area uses a slide instead. |
+| CTL3-02 | 120 (125%) | Open Hash Checker with the generated `alpha.txt`, place the client at `845,835`, and open Hash type. | The algorithm list occupies an owned 126×270 HWND from `1019,1070` and extends below the owner. | The same algorithm list extends below the owner in an owned 126×273 HWND from `1019,1071`. | PASS | `pass3-controls-edge-hash-positioned-{owner,popup}-dark.png` in SX and RS. |
+| CTL3-03 | 120 (125%) | Place the main client at `1864,39`, the scaled equivalent of the reference Capture menu's right-edge position. Open Capture and hover Screenshot delay. | The submenu flips left of Capture and starts at `1828,495` in a separate HWND. | The submenu flips left of Capture and starts at `1829,495` in a separate HWND. The Capture root fits inside the main client and is drawn there. | PASS | `SX/pass3-controls-edge-menu-sub-latest-popup{0,1}-dark.png`, `RS/pass3-controls-edge-menu-open-latest-dark.png` and `RS/pass3-controls-edge-menu-sub-latest-popup0-dark.png`. |
+
+
+### Capture, recording and Image Editor
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| REC-02 | 120 (125%) | Leave the old `record-test.mp4` from a local REC-01 setup. Seed 60 History rows. With File exists set to Overwrite, run `-ScreenRecorderCustomRegion` for `320,260,320,240` using silent gdigrab and the custom command `-nostdin -sharex-live-invalid-ffmpeg-option`. Forward `-AbortScreenRecording` while the FFmpeg error is still open, then dismiss it. | Error and working frame coexist. After abort and dismiss, the old MP4 is gone and History has 60 rows. | Same working frame, error, file removal and 60 rows. | PASS | `pass3-recording-invalid-error-dark.png` and `pass3-recording-working-frame-dark.png` in SX and RS. File existence and SQLite counts were checked before and after. The screen guard matched 0.9966 overall and 1.0000 inside the recording region. |
+| SCR-02 | 120 (125%) | Use the SCR-01 setup on `--test-pattern --scroll 300,120,420,480`, with PageDown, 375 ms delay and AutoUpload off. Click the generated window at `500,300` in the verified selection overlay. Measure the unzoomed preview. | Capture failed with a 420×480 result. The preview occupies `300,120,525,600` in client pixels. | Same status, result dimensions and preview rectangle. | PASS | `pass3-scrolling-page-down-dark.png` in SX and RS. The retained images show different offsets of the same generated page because it was reused. The tested viewport and scale are identical. |
+| ED-01 | 120 (125%) | Run `-ImageEditor pattern-01.png` with the generated 640×400 PNG. At initial 100% zoom, measure the image inside the maximized window. | Image bounds `960,556,640,400` in client pixels. | Same physical image bounds at 100%. | PASS | `pass3-editor-100pct-dark.png` in SX and RS. Colour samples from the generated checker and accents were used to measure the image boundary. |
+| CAP3-01 | 120 (125%) | Enable the save-with-dialog task, leave uploads disabled and run `-CustomRegion` for the verified `900,540,640,480` pattern crop. Save PNG into the generated output tree. | Opens the native save dialog. Accepting the default name writes a 640×480 PNG. | Opens the native save dialog. Entering `chosen-pass3.png` writes an identical decoded 640×480 PNG. | PASS | Both saved files passed the exact crop guard at 1.0000 and decoded to RGB SHA-256 `62235e3f9ece771f005a22d4d8abf2c97945dc1f9ca2eb685b5038bdf285e75f`. The custom name in the reference picker remains unverified. |
+| CAP3-02 | 120 (125%) | Run CAP3-01 with Save thumbnail image to file also enabled. Set width 200, height 0 and suffix `-thumbnail`. | Writes a 200×150 JPEG alongside the PNG, with the saved basename and suffix. | Same placement, dimensions and filename rule. | PASS | The decoded JPEGs differ by less than 0.09 RGB levels per channel on average. The PNGs were verified against the pattern before inspecting the thumbnail output. |
+| CAP3-03 | 120 (125%), setup only | Send image to printer after capture. | Skipped. | Skipped. | BLOCKED | The system print dialog stayed closed. |
+
+
+### Application and Hotkey settings
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| SET-04a | 120 (125%) | Application settings › Paths. Click once inside the first Sub folder pattern field showing `%y-%mo`. | A variable menu opens alongside the field on the first click. | The first click opens the menu, including on `81fab7e`. | PASS | `SX/pass3-settings-path-focus-popup0-dark.png` and `RS/pass3-settings-path-focus-latest-popup0-dark.png`. |
+| SET-05a | 120 (125%) | Application settings › Clipboard formats › Add. Right-click inside Format, press Escape once, then press it again. | The right click opens the variable menu. The first Escape dismisses the menu, and the second closes the editor. | Same sequence, including on `81fab7e`. | PASS | SX `pass3-settings-clipboard-variable-popup0-dark.png` and `pass3-settings-clipboard-format-escape{,-twice}-dark.png`. RS `pass3-settings-clipboard-variable-menu-latest-dark.png` and `pass3-settings-clipboard-format-escape{,-twice}-latest-dark.png`. |
+| SET-08a | 120 (125%) | Enable Use white ShareX icon in Application settings › General and inspect the main title bar immediately. | Title-bar icon turns white. The flag saves as true. | Title-bar icon turns white immediately. The flag saves as true. | PASS | `pass3-settings-white-window-icon-dark.png` in SX and RS. The dominant icon pixels were RGB `251,251,251` and `255,255,255` respectively. |
+| HOT3-01 | 120 (125%) | In English Hotkey settings, add two unbound rows. With a row selected, hover Move up, Move down and the row pencil long enough for a tooltip. | Shows Move up, Move down and Edit task settings… in tooltip windows. | Shows the same three labels inside the client. | PASS | `pass3-hotkeys-{move-up,move-down-repeat,row-edit}-popup0-dark.png` in SX and the corresponding `-owner-dark.png` shots in RS. |
+| HOT3-02 | 120 (125%) | Seed two unbound Hash checker rows. Give the first `UseDefaultAfterCaptureJob=false` and `AfterCaptureJob=None`. At the stock 850×750 client, hover the first row's custom pencil at client `594,139` and dashed status icon at `801,139` for 1.1 s each. | The custom marker and dashed status icon appear. Neither hover shows tooltip text or creates a tooltip HWND. | Shows `This task has custom settings` and `Not configured` respectively. | FAIL | `pass3-hotkeys-custom-owner-dark.png` and `pass3-hotkeys-status-exact-owner-dark.png` in SX and RS. The reference status hover was also attempted with the two freshly added unbound rows. |
+| HOT3-03 | 120 (125%) | Drag the stock English Hotkey settings window's right resize border toward the left by more than the available shrink distance. Inspect the toolbar at its minimum. | Stops at a 775×750 client, with the toolbar and Reset button visible. | Stops at the same client size with all toolbar controls visible. | PASS | `pass3-hotkeys-min-width-repeat-dark.png` in SX and RS. The measured English minimum is 620 logical pixels. |
+
+
+### Drag and drop and custom uploader
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| DROP3-01 | 120 (125%) | With `DisableUpload=true`, drag the generated `alpha.txt` from the scratch OLE source onto the main client. Hold the drag over the client before releasing. | Dims the client and shows the centered Release to upload files card with the upload icon and file description. | Same card, text, icon and dimming. | PASS | `pass3-drop-file-hover-dark.png` in SX and RS. Both drops returned OLE Copy. |
+| DROP3-02 | 120 (125%) | With `DisableUpload=true`, repeat with the scratch source's Unicode text `Pass 3 generated drop text`. | Dims the client and shows the Release to upload text card and text description. | Same card, text, icon and dimming. | PASS | `pass3-drop-text-hover-dark.png` in SX and RS. Both drops returned OLE Copy. |
+| DROP3-03 | 120 (125%) | Complete DROP3-01 and DROP3-02 by releasing the generated file and text on the main client with `DisableUpload=true`. | Opens an upload-disabled modal after each release. | Shows a task toast and logs the upload-disabled warning after each release. No modal appears. | FAIL | `SX/pass3-drop-disabled-modal-{991798,5579242}-dark.png`. ShareXrs logged the warning twice and showed a separate toast HWND each time. The drag runs used disabled uploads before the loopback mock started. |
+| UPL3-01 | 120 (125%) | Custom uploader settings › Test › Text uploader. Use the sole generated uploader, with a form POST to `http://127.0.0.1:38353/pass3`. Configure `{select}` with Alpha and Beta, `{inputbox}` with a title and default, and `{outputbox}` plus `{response}` as the result expression. Submit the test sample, select Beta, enter `generated parser input` and dismiss the output box. | Shows the two choices, the selected default input and the generated output text. Response shows `http://127.0.0.1:38353/result`. | Same choices, prompts, request and response. The Select client is 250×123 versus 250×128 px. | PASS | `pass3-uploader-{select-initial,inputbox,outputbox,response}-dark.png` in SX and RS. The mock received two identical bodies, `choice=Beta&input=generated+parser+input`. |
+
+
+### Pass 3 coverage and teardown
+
+Pass 3 recorded **24 PASS, 2 FAIL and 2 BLOCKED**. Fourteen of the
+fifteen requested Pass 1 re-checks passed. DAT-04a remains blocked by
+the picker startup location. The two failures came from the new
+drop and hotkey tooltip checks. VID-11 retains its accepted status.
+The eight Pass 2 failures under separate repair were excluded.
+
+One recording preflight and two scrolling startup grabs failed their
+pattern thresholds and were deleted unviewed. Successful recording
+and save regions passed at 1.0000. The valid FFmpeg baseline was
+repeated after the initial fixture interpreted `None` as a nonexistent
+DirectShow device name. It produced no media on that attempt. The
+corrected fixture used an empty audio source and both old output files
+contained only video. The first ShareX invalid-trimmer attempt showed
+`oldValue has incorrect type for this property`. The configured repeat
+produced the Media Foundation code recorded above.
+
+ShareXrs Scrolling capture initially stayed minimized after forwarding
+the CLI job with the pattern in front. Forwarding the job again reached
+the verified overlay on the completed run. A subsequent reset attempt
+did not present a safe selection target in time. Its test window and
+pending overlay were closed by HWND. The reference save task completed
+with its default filename. The optional custom-name repeat was canceled
+when focus could not be verified. The loopback File test rejected
+`FormURLEncoded` before sending a request, so the reported parser check
+uses the Text test. The fixture's startup icon prompt and app dialogs
+omitted by the input window list were handled with the verified window
+identity.
+
+The original ShareX PID 36232 and the portable test instances exited
+through `-ExitShareX`. All 13 original portable profile files matched
+their SHA-256 backup before restart. The reference restarted without
+arguments as **PID 53424**. A temporary `AutoCheckUpdate=false` value
+suppressed its startup check, then the exact original config bytes
+were restored. The startup hotkey warning was dismissed and the main
+window was the only remaining reference window. The final verification
+found 12 unchanged hashes and the original monthly log bytes followed
+by 2,663 bytes from startup.
+
+The scratch profiles, backup, pattern, drag source and loopback server
+were removed or exited. The clipboard offered zero formats. The 97
+new PrintWindow PNGs and their DPI sidecars passed hash verification.
+Both offline builds and the macOS Clippy check completed.
