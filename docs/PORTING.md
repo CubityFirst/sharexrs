@@ -274,9 +274,10 @@ pointer annotation's composite through whole-image conversions), present
   rest over as a new window would, and a kept window is put back on top
   of the topmost windows before it's shown. `MainWindow.WarmUpRegionCapture`
   makes them 2 s after startup once idle (~100 ms of the event loop,
-  logged as ShareX does). Each kept overlay holds ~49 MB of GPU memory
-  and ~14 MB of the process's; `SHAREXRS_NO_OVERLAY_REUSE=1` closes them
-  after each capture as before. macOS and Linux still make and close
+  logged as ShareX does). A second after they're hidden their swap chain
+  goes down to 1x1 and the frozen screen texture is freed; both are made
+  again while the next capture grabs the screen (see "Memory" below).
+  `SHAREXRS_NO_OVERLAY_REUSE=1` closes them after each capture as before. macOS and Linux still make and close
   them per capture: hiding and showing them again is untested there.
 - **Memory** (MB, `Get-Process` working set / private / peak working set,
   GPU dedicated from `GPU Process Memory`; ShareX's read from the running
@@ -291,6 +292,7 @@ pointer annotation's composite through whole-image conversions), present
 
   The kept overlay is the +49 MB of GPU memory and +14 MB of the
   process's; the peak is lower, with fewer screen-sized copies at a time.
+  (These were before the memory work: see "Memory" below.)
 - **The first frame only draws.** The frozen screen is uploaded before it
   (into the kept texture) straight from the screenshot or the composite;
   image annotations and drop shadows convert and blur only what they
@@ -305,6 +307,144 @@ pointer annotation's composite through whole-image conversions), present
   bytes (10 cases); the new conversions, the bounded shadow and image
   drawing have tests against the code they replace (hundreds of random
   cases each).
+
+### Memory
+
+Windows, 125% on one 2560x1600 monitor (NVIDIA RTX 4080 driving it, an
+AMD iGPU beside it), release builds, portable copies saving to a folder
+only, `ShowIconPackPrompt` off (the reference ShareX answered it long
+ago). MB: `Get-Process` working set / private bytes / peak working set,
+and `GPU Process Memory` dedicated. Each figure is the mean of two runs;
+after a capture the app waits 10 s first (the driver frees a destroyed
+screen-sized resource some seconds later).
+
+| | before (master at 9153502) | after | ShareX |
+|---|---|---|---|
+| idle, main window shown | 354 / 416 / 369, GPU 249 | 281 / 200 / 310, GPU 56 | 231 / 189 / 232, GPU 59 |
+| idle, closed to the tray | 354 / 416 / 369, GPU 249 | 280 / 200 / 310, GPU 56 | |
+| after the first capture | 365 / 425 / 441, GPU 249 | 290 / 208 / 396, GPU 56 | |
+| after 15 captures | 370 / 430 / 448, GPU 249 | 296 / 214 / 417, GPU 56 | |
+| after 50 Application settings + image editor open/close cycles (its own start) | 379 / 439 / 428, GPU 249 | 295 / 214 / 362, GPU 56 | |
+
+Over the cycles (sampled every 10) the private bytes go 432, 430, 439,
+439, 439 before and 214, 213, 213, 213, 214 after: nothing grows with
+windows opened and closed.
+
+The same builds renamed (`sharexrs-b.exe`, `sharexrs-n.exe`), so NVIDIA's
+shader disk cache for them is new (see below), as on a new install:
+
+| | before | after |
+|---|---|---|
+| idle, main window shown | 240 / 397 / 254, GPU 249 | 169 / 183 / 198, GPU 56 |
+| after the first capture | 251 / 406 / 327, GPU 249 | 177 / 190 / 284, GPU 56 |
+| after 15 captures | 255 / 410 / 333, GPU 249 | 182 / 196 / 304, GPU 56 |
+
+Renamed, ShareXrs is below ShareX in every column at idle; as
+`sharexrs.exe` on this machine only the private bytes aren't (200 to 189),
+for the shader cache's index.
+
+**What held it** (before, idle, as `sharexrs.exe`):
+
+- **wgpu's allocator blocks: 192 MB of GPU memory and private bytes.**
+  wgpu's default `MemoryHints::Performance` makes gpu-allocator reserve
+  128 MB blocks of video memory and 64 MB of upload memory (DX12 and
+  Vulkan), all mapped into the process (write-combined), for the ~50 MB
+  of textures ShareXrs had.
+- **The shader-visible descriptor heap: ~30 MB of each.** On DX12
+  `max_non_sampler_bindings` sizes the one CBV/SRV/UAV heap wgpu makes up
+  front: 1,000,000 descriptors from `adapter.limits()`.
+- **The kept overlay: ~48 MB of each.** Its swap chain (two 2560x1600
+  buffers) and the frozen screen texture, kept while hidden.
+- **Fonts: ~20-30 MB of the Rust heap.** Every window's egui context read
+  each system font (Segoe UI x3, Cascadia Mono twice, Consolas) into its
+  own copy, and egui copies an owned font into its context again.
+- **A leftover 16 MB upload buffer**: wgpu frees a frame's upload buffers
+  when the device is next polled, i.e. at the next frame, so a window's
+  last frame before idling (the warm-up's frozen screen texture) kept it.
+- **NVIDIA's driver**, in any D3D12 process (the test pattern too):
+  ~62 MB of write-combined memory in two rings and a ~24 MB heap of
+  private bytes, and about half of the 56 MB of GPU memory left (wgpu
+  has ~12 MB of textures and buffers in 20 MB of blocks, the main
+  window's swap chain is ~8 MB). Not ours to change.
+- **NVIDIA's shader disk cache for `sharexrs.exe`**
+  (`%LOCALAPPDATA%\NVIDIA\DXCache\*.nvph`): the driver maps the app's
+  cache file, 256 MB on this machine after months of builds, with 96 MB
+  of it resident (working set, shared and file-backed) and ~18 MB of
+  private bytes for its index. A new exe name gets a 64 KB cache: the
+  renamed rows above. Not ours to change; it depends on the machine's
+  history, not the app's.
+
+**What changed** (idle with the main window, each change measured on its
+own, in order, with the icon pack prompt still open in those runs):
+
+| change | working set / private / GPU |
+|---|---|
+| (start) | 368 / 430 / 253 |
+| 4 MB allocator blocks (`MemoryHints::Manual { 4 MB..4 MB }`, gpu-allocator's least: larger resources get their own block, freed with them) | 332 / 303 / 157 |
+| a 65,536-descriptor heap (2 MB; VRAM runs out long before 65,536 textures do) | 332 / 274 / 129 |
+| one copy of each font file for every window, mapped read-only (`'static`, which egui borrows), the definitions built once | 309 / 252 / 129 |
+| a non-blocking device poll half a second after frames are painted | 290 / 232 / 129 |
+| the kept overlays slimmed a second after they're hidden: swap chain to 1x1, frozen texture freed, both made again during the next capture's grab (the selections of screen recording, scrolling and auto capture ready their overlays during their grab too now) | 286 / 211 / 64 |
+| (the icon pack prompt off: the measurement setup) | 281 / 200 / 56 |
+
+On macOS and Linux: the allocator blocks apply to Vulkan as to DX12
+(Metal ignores the hint), the fonts are read once for every window (not
+mapped), and the poll is everywhere; the descriptor heap is DX12's, and
+overlays are only kept (so slimmed) on Windows.
+
+**What's left and why** (after, idle, renamed: 169 / 183 / 56):
+
+- NVIDIA's driver, as above: ~86 MB of the private bytes.
+- The process heap (Rust's allocations and the C runtime's), ~34 MB: two
+  egui font atlases (2 MB each, kept CPU-side by egui to update them),
+  glyph and layout caches, settings, history, and blocks the heap walk
+  couldn't name (a 4 MB table, a zeroed 1 MB buffer: tracing heap
+  allocations to their callers needs a registry setting).
+- The AMD iGPU's driver (`amdxc64.dll`, 6.4 MB of working set): wgpu
+  creates a D3D12 device on every adapter to choose one, so a second GPU's
+  driver loads. Avoiding it needs a change in wgpu-hal.
+- Two egui contexts (main window, kept overlay): each has its own font
+  atlas texture (2 MB of GPU memory) and renderer.
+- After captures: the main window's task list keeps each task's
+  thumbnail (188 KB at this size) queued while the window is hidden, as
+  ShareX keeps its thumbnails; GDI's grab leaves a screen-sized surface
+  the OS reuses; the heap keeps some of what it committed. A
+  `PrintWindow(PW_RENDERFULLCONTENT)` of the overlay by another process
+  (the benchmarks' paint detection) leaves 15-30 MB of screen-sized
+  allocations in ShareXrs: `scripts/memory-session.py` doesn't grab it.
+
+**Speed.** `scripts/bench-region-capture.py`, 8 starts each, medians (ms),
+before / after: first capture trigger to visible 139 / 135, painted by
+234 / 228; repeat captures trigger to visible 133 / 106, painted by
+226 / 205; release to file saved 10 / 11; app start to main window
+visible 723 / 715. `scripts/bench-window-open.py`, 10 starts each, 2 opens
+of each window per start, medians (ms) before / after: start to main
+window visible 686 / 667 (painted by 770 / 750); Application settings
+visible 120 / 117 (painted by 194 / 196); Task settings 136 / 133
+(194 / 194); image editor 45 / 42, image shown by 151 / 143. Release to
+file saved is within its noise (p90 15 / 15 on first captures).
+
+**Nothing visible changed.** Saved captures: 204 from the build before
+and 348 from the builds after (each change), all 552 byte-identical.
+Renders: the ten `scripts/*compare*.sh` run with both
+builds (outputs and inputs in temp folders) give 680 PNGs, 677
+byte-identical; the other 3 (`analyze-image-analyzing`,
+`index-folder-generated`, `metadata-stripped`) differ between two runs
+of the same build too.
+
+**Tools.** A `memory-profile` build (`cargo build --release --features
+memory-profile`) started with `SHAREXRS_MEMPROF=<file>` appends a JSON
+line a second: every heap (`HeapSummary`; with `SHAREXRS_MEMPROF_WALK`
+their large blocks and first bytes, which name fonts and images) and
+wgpu's allocator report (blocks, largest allocations by label).
+`scripts/memory.ps1` reads a process's counters, `scripts/vmmap.ps1` its
+committed memory by kind (mapped files named; `-Csv` to diff),
+`scripts/wsmap.ps1` its working set by module and file, and
+`scripts/memory-session.py` takes the table's points (`--phase cycles`
+for the open/close cycles, without the test pattern). A counting
+`#[global_allocator]` in the binary made rustc 1.96 crash
+(`STATUS_HEAP_CORRUPTION`) building it with thin LTO, hence the heap
+APIs.
 
 ## Working on a tool (for agents)
 

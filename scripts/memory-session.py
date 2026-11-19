@@ -16,11 +16,17 @@ Each point is `scripts/memory.ps1` (working set / private / peak, GPU
 dedicated and shared) plus, when the copy is a `memory-profile` build
 started with `--memprof`, its last report line (heaps, wgpu allocator).
 
-Region captures go through `bench-region-capture.py`'s `one_capture`: the
-test pattern must cover the screen (`sharexrs --test-pattern`, a separate
-copy given as `--pattern-exe`), every overlay is checked against it, and the
-saved files stay in the copy's screenshots folder for the caller to compare
-and delete. Only the app's own windows are captured or clicked.
+Region captures: the test pattern must cover the screen (`sharexrs
+--test-pattern`, a separate copy given as `--pattern-exe`) and is checked
+before every trigger; the overlay is dragged (400,300 -> 800,600) once
+shown, and the saved file is checked with `pattern-check.py` (deleted
+unviewed and the run stopped if it isn't the pattern). The overlay isn't
+grabbed: a `PrintWindow(PW_RENDERFULLCONTENT)` of it, as
+`bench-region-capture.py`'s `one_capture` takes to time the paint, leaves
+screen-sized allocations of its own in the app (~15-30 MB of private
+bytes); `--printwindow` uses `one_capture` anyway. Saved files stay in the
+copy's screenshots folder for the caller to compare and delete. Only the
+app's own windows are clicked.
 
   python scripts/memory-session.py --exe %TEMP%/m/base/sharexrs.exe --pattern-exe %TEMP%/m/pattern/p.exe \
       --saved %TEMP%/m/saved-base --png %TEMP%/m/editor.png --out base.jsonl --label base
@@ -30,6 +36,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -52,6 +59,46 @@ def memory(pid, label):
     out = subprocess.run(["powershell", "-NoProfile", "-File", os.path.join(_here, "memory.ps1"), "-Id", str(pid),
                           "-Label", label], capture_output=True, text=True).stdout.strip()
     return json.loads(out.splitlines()[-1])
+
+
+def capture(app, pid, pattern_pid):
+    """One region capture without grabbing the overlay; returns the saved file."""
+    rc.check_pattern(pattern_pid)
+    title = app["overlay_title"]
+    if any(re.search(title, bw.window_info(h)["title"]) and bw.shown(bw.window_info(h)) for h, _ in bw.windows_of({pid})):
+        raise RuntimeError("an overlay is already open")
+    saved = app["saved"]
+    before = set(os.listdir(saved))
+    bw.GUARD.check()
+    t0 = time.perf_counter()
+    trigger = subprocess.Popen([app["exe"], "-RectangleRegion"], cwd=os.path.dirname(app["exe"]))
+    hwnd = None
+    while not hwnd and time.perf_counter() - t0 < 15:
+        for h, _ in bw.windows_of({pid}):
+            info = bw.window_info(h)
+            if re.search(title, info["title"]) and bw.shown(info):
+                hwnd = h
+        time.sleep(0.002)
+    if not hwnd:
+        raise RuntimeError("no overlay")
+    trigger.wait(timeout=10)
+    time.sleep(0.4)
+    rc.drag(hwnd, (400, 300), (800, 600))
+    end = time.perf_counter() + 15
+    path = None
+    while time.perf_counter() < end:
+        new = [f for f in os.listdir(saved) if f not in before]
+        if new and rc.png_info(os.path.join(saved, new[0]))[2]:
+            path = os.path.join(saved, new[0])
+            break
+        time.sleep(0.01)
+    if not path:
+        raise RuntimeError("no saved file")
+    check = subprocess.run([sys.executable, os.path.join(_here, "pattern-check.py"), path, "--origin", "400,300", "--min",
+                            "0.9", "--delete"], capture_output=True, text=True)
+    if check.returncode != 0:
+        raise SystemExit(f"stopping: a saved capture wasn't the test pattern (deleted): {check.stdout.strip()}")
+    return path
 
 
 def memprof_last(path):
@@ -79,6 +126,7 @@ def main():
     ap.add_argument("--memprof", help="SHAREXRS_MEMPROF for a memory-profile build")
     ap.add_argument("--env", action="append", default=[], help="NAME=VALUE for the app")
     ap.add_argument("--keep", action="store_true", help="leave the app running at the end (prints its PID)")
+    ap.add_argument("--printwindow", action="store_true", help="capture through one_capture (grabs the overlay)")
     a = ap.parse_args()
 
     exe = os.path.normpath(os.path.expandvars(a.exe))
@@ -152,24 +200,27 @@ def main():
         sample(proc, "idle-tray")
         matcher = rc.PatternMatcher()
         for n in range(1, a.captures + 1):
-            r = rc.one_capture(app, proc, pattern_pid, matcher, log)
-            if r.get("error"):
-                raise SystemExit(f"capture {n}: {r['error']}")
+            if a.printwindow:
+                r = rc.one_capture(app, proc, pattern_pid, matcher, log)
+                if r.get("error"):
+                    raise SystemExit(f"capture {n}: {r['error']}")
+            else:
+                capture(app, proc.pid, pattern_pid)
             time.sleep(0.5)
             if n == 1:
                 time.sleep(a.settle)
-                sample(proc, "capture-1", visible=r.get("visible"), file_done=r.get("file_done"))
+                sample(proc, "capture-1")
         time.sleep(a.settle)
         sample(proc, f"capture-{a.captures}")
     finally:
         if a.keep:
             print("left running: PID", proc.pid)
-            return
-        for h, i in rc.overlay_candidates({proc.pid}, app["overlay_title"]).items():
-            if bw.shown(i):
-                bw.user32.PostMessageW(h, bw.WM_CLOSE, 0, 0)
-        time.sleep(0.3)
-        print("exit:", bw.do_exit(app, proc))
+        else:
+            for h, i in rc.overlay_candidates({proc.pid}, app["overlay_title"]).items():
+                if bw.shown(i):
+                    bw.user32.PostMessageW(h, bw.WM_CLOSE, 0, 0)
+            time.sleep(0.3)
+            print("exit:", bw.do_exit(app, proc))
 
 
 if __name__ == "__main__":
