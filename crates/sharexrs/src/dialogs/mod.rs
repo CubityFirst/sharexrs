@@ -342,6 +342,9 @@ pub trait Dialog {
     /// The window moved (`PositionChanged`), to this outer position.
     fn moved(&mut self, _x: i32, _y: i32, _cx: &mut Cx) {}
 
+    /// The window was resized (`Resized`), maximized or not.
+    fn resized(&mut self, _maximized: bool, _cx: &mut Cx) {}
+
     /// The height of the content for [`Spec::size_to_content`].
     fn content_height(&mut self, ui: &mut egui::Ui) -> f32 {
         let _ = ui;
@@ -559,6 +562,11 @@ impl App {
             }
             WindowEvent::Moved(p) => {
                 d.dialog.moved(p.x, p.y, &mut cx);
+                Vec::new()
+            }
+            WindowEvent::Resized(_) => {
+                d.dialog.resized(d.window.window.is_maximized(), &mut cx);
+                d.window.on_event(event);
                 Vec::new()
             }
             WindowEvent::RedrawRequested => {

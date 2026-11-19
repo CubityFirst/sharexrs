@@ -87,6 +87,8 @@ pub struct ImageHistoryWindow {
     sync: bool,
     /// A press on a card that may be a click (not with Ctrl or Shift).
     click_armed: bool,
+    /// `RememberWindowState`: the saved state and the window's bounds.
+    placement: super::window_state::Tracker,
 }
 
 impl ImageHistoryWindow {
@@ -118,6 +120,7 @@ impl ImageHistoryWindow {
             scroll_to: None,
             sync: false,
             click_armed: false,
+            placement: super::window_state::Tracker::new(&settings.window_state),
             settings,
         }
     }
@@ -811,8 +814,34 @@ impl ImageHistoryWindow {
 }
 
 impl Dialog for ImageHistoryWindow {
+    /// `ApplySavedWindowState`: the saved size and maximized state.
     fn spec(&self) -> Spec {
-        Spec::sized(crate::rs_title(s::HistoryWindows_ShareX_Image_History()), WIDTH, HEIGHT, MIN_WIDTH, MIN_HEIGHT)
+        let remember = self.settings.remember_window_state;
+        let (w, h) = if remember { self.placement.saved.size_or(WIDTH, HEIGHT) } else { (WIDTH, HEIGHT) };
+        Spec {
+            maximized: remember && self.placement.saved.maximized,
+            ..Spec::sized(crate::rs_title(s::HistoryWindows_ShareX_Image_History()), w, h, MIN_WIDTH, MIN_HEIGHT)
+        }
+    }
+
+    /// The saved position, when a screen contains it.
+    fn position(&self, _work_area: sharex_capture::Rect, _size: (u32, u32)) -> Option<(i32, i32)> {
+        if !self.settings.remember_window_state || self.sync {
+            return None;
+        }
+        self.placement.saved.position(&super::window_state::screens())
+    }
+
+    fn moved(&mut self, x: i32, y: i32, _cx: &mut Cx) {
+        if let Some(size) = self.placement.size {
+            self.placement.normal_bounds(size, Some((x, y)));
+        } else if !self.placement.maximized {
+            self.placement.location = Some((x, y));
+        }
+    }
+
+    fn resized(&mut self, maximized: bool, _cx: &mut Cx) {
+        self.placement.maximized = maximized;
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -836,6 +865,8 @@ impl Dialog for ImageHistoryWindow {
         self.keys(ui);
         let p = palette(ui.ctx());
         let full = ui.max_rect();
+        // `SaveNormalWindowSize` on `Resized`.
+        self.placement.normal_bounds((full.width(), full.height()), None);
         ui.painter().rect_filled(full, 0.0, p.background_main);
         let live = self.modal.is_none() && self.menu.is_none();
         let had_menu = self.menu.is_some();
@@ -946,7 +977,11 @@ impl Dialog for ImageHistoryWindow {
         std::mem::take(&mut self.effects)
     }
 
+    /// `OnClosing` → `SaveWindowState`.
     fn closed(&mut self, cx: &mut Cx) -> Vec<Effect> {
+        if self.settings.remember_window_state {
+            self.settings.window_state = self.placement.save();
+        }
         self.save_settings(cx);
         Vec::new()
     }

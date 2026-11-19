@@ -7,6 +7,7 @@ pub mod common;
 pub mod history_window;
 pub mod image_history_window;
 pub mod stats_window;
+pub mod window_state;
 
 use winit::event_loop::ActiveEventLoop;
 
