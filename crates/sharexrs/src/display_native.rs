@@ -595,10 +595,9 @@ mod tests {
     fn the_probe_answers_whatever_the_hardware() {
         // Read-only queries: on any machine (CI's included) they answer
         // without failing; a headless one may have no monitor at all.
-        let Some(s) = snapshot(None) else {
-            assert!(!cfg!(windows));
-            return;
-        };
+        let snap = snapshot(None);
+        assert_eq!(snap.is_some(), cfg!(windows));
+        let Some(s) = snap else { return };
         assert!(s.monitors.iter().all(|m| !m.device_name.is_empty()));
         assert!(s.monitors.len() <= 64);
         assert!(!s.dpi_awareness.is_empty());
