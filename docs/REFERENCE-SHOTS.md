@@ -233,3 +233,17 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/tools-data/`. Each P
 | `metadata` | `metadata-empty-dark.png`, `metadata-empty-light.png`, `metadata-filtered-dark.png`, `metadata-filtered-light.png`, `metadata-grouped-dark.png`, `metadata-grouped-light.png`, `metadata-no-match-dark.png`, `metadata-no-match-light.png`, `metadata-strip-confirm-dark.png`, `metadata-strip-confirm-light.png` | Generated JPEG only. The strip confirmation is cancel-only, and a destructive strip or unsupported file state remains. |
 | `remote-storage` | `remote-storage-not-configured-dark.png`, `remote-storage-not-configured-light.png` | Unconfigured guard only. A populated browser queries its remote service on open. |
 | `ocr-gaps` | — | No OCR capture with a newly provisioned model. Existing references remain usable. |
+
+### Tools · System · tools-system
+
+4 of 5 rows have new references. 32 PNGs and 32 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/tools-system/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `clipboard-viewer` | `clipboard-viewer-cleared-dark.png`, `clipboard-viewer-cleared-light.png`, `clipboard-viewer-empty-dark.png`, `clipboard-viewer-empty-light.png`, `clipboard-viewer-file-drop-dark.png`, `clipboard-viewer-file-drop-light.png`, `clipboard-viewer-image-dark.png`, `clipboard-viewer-image-light.png`, `clipboard-viewer-raw-format-dark.png`, `clipboard-viewer-raw-format-light.png`, `clipboard-viewer-unicode-dark.png`, `clipboard-viewer-unicode-light.png` | Only generated clipboard formats are eligible. Existing clipboard contents were left untouched if present. |
+| `inspect-window` | `inspect-window-empty-dark.png`, `inspect-window-empty-light.png` | Unselected window only. Expanded lists and picker results can expose live desktop or unrelated process details. |
+| `monitor-test` | `monitor-test-gradient-dark.png`, `monitor-test-gradient-direction-dark.png`, `monitor-test-gradient-direction-light.png`, `monitor-test-gradient-light.png`, `monitor-test-grayscale-dark.png`, `monitor-test-grayscale-light.png`, `monitor-test-motion-dark.png`, `monitor-test-motion-direction-dark.png`, `monitor-test-motion-direction-light.png`, `monitor-test-motion-light.png`, `monitor-test-pattern-dark.png`, `monitor-test-pattern-light.png`, `monitor-test-pattern-menu-dark.png`, `monitor-test-pattern-menu-light.png`, `monitor-test-rgb-dark.png`, `monitor-test-rgb-light.png` | Own fullscreen client over the guarded pattern. Remaining selector, hidden-controls and motion variants are not all represented. |
+| `network-monitor` | — | Skipped. It starts ICMP automatically on window open. |
+| `borderless-window` | `borderless-window-empty-dark.png`, `borderless-window-empty-light.png` | Unselected window only. Live window enumeration and changing real window styles were excluded. |
