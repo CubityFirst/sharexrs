@@ -80,6 +80,11 @@ pub struct Popups {
     pub open: Option<OptionItem>,
     /// Opened this frame: the press that opened it isn't a light dismiss.
     just_opened: bool,
+    /// The text box to focus on opening (`Dispatcher.UIThread.Post(...,
+    /// Loaded)`): done on the popup's first frame that isn't egui's
+    /// sizing pass (an area shown for the first time is drawn once
+    /// invisible and disabled, and a focus asked then is dropped).
+    focus_pending: bool,
     color_when_opened: Option<Rgba8>,
     font_size_text: String,
     font_search: String,
@@ -106,6 +111,32 @@ fn color_of(hex: &str) -> Rgba8 {
     [c.r, c.g, c.b, c.a]
 }
 
+/// `FontSizePickerDropdown.TryParseFontSize`: a number, optionally ending
+/// in `pt` (any case), positive and finite, clamped to 1..1000 and rounded
+/// to one decimal (`MathF.Round`: half to even). The current culture's
+/// separator isn't ported; the invariant one is.
+fn parse_font_size(text: &str) -> Option<f32> {
+    let mut value = text.trim();
+    let n = value.len().saturating_sub(2);
+    if value.get(n..).is_some_and(|t| t.eq_ignore_ascii_case("pt")) {
+        value = value[..n].trim_end();
+    }
+    let v: f32 = value.parse().ok()?;
+    if !v.is_finite() || v <= 0.0 {
+        return None;
+    }
+    // `MinimumFontSize`, `MaximumFontSize`.
+    Some((v.clamp(1.0, 1000.0) * 10.0).round_ties_even() / 10.0)
+}
+
+/// `TextBox.SelectAll()` of the box `id` holding `text`.
+fn select_all(ctx: &egui::Context, id: Id, text: &str) {
+    use egui::text::{CCursor, CCursorRange};
+    let mut state = egui::text_edit::TextEditState::load(ctx, id).unwrap_or_default();
+    state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(text.chars().count()))));
+    state.store(ctx, id);
+}
+
 /// `#AARRGGBB` of a colour (the options' format).
 fn hex_of(c: Rgba8) -> String {
     let [r, g, b, a] = c;
@@ -127,6 +158,7 @@ impl Popups {
         self.close();
         self.open = Some(item);
         self.just_opened = true;
+        self.focus_pending = true;
         self.color_when_opened = self.current_color(item, tools);
         self.font_size_text = format!("{}", tools.font_size);
         self.font_search.clear();
@@ -425,20 +457,35 @@ impl Popups {
     fn font_size_panel(&mut self, ui: &mut egui::Ui, p: &Palette, r: Rect, id: Id, s: &ToolState) -> Option<f32> {
         let box_rect = Rect::from_min_size(pos2(r.center().x - 35.0, r.min.y), vec2(70.0, 32.0));
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(box_rect));
+        // `HorizontalContentAlignment="Center"`: the size centred in the box.
         let tb = sharex_ui::controls::TextBox {
             padding: sharex_ui::theme::Thickness::new(8.0, 0.0, 8.0, 0.0),
             font: Some(text_font(12.0)),
+            centered: true,
             ..Default::default()
         };
-        let resp = tb.show(&mut child, box_rect, id.with("custom-size"), &mut self.font_size_text);
-        if self.just_opened {
-            resp.request_focus();
+        let box_id = id.with("custom-size");
+        if self.focus_pending && !ui.is_sizing_pass() {
+            // `OnPopupOpened`: the size's text, then (posted) `Focus()` and
+            // `SelectAll()` (REG4-02f). Focused before it's drawn: egui's
+            // edit keeps a selection only while it has the focus.
+            self.focus_pending = false;
+            ui.ctx().memory_mut(|m| m.request_focus(box_id));
+            select_all(ui.ctx(), box_id, &self.font_size_text);
         }
-        if resp.has_focus() && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter))
-            && let Ok(v) = self.font_size_text.trim().parse::<f32>()
-            && v > 0.0
-        {
-            return Some(v);
+        let resp = tb.show(&mut child, box_rect, box_id, &mut self.font_size_text);
+        // `OnPopupKeyDown`'s Enter with the box focused (egui's single-line
+        // edit lets the focus go on Enter: that frame it has just lost it).
+        if (resp.has_focus() || resp.lost_focus()) && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)) {
+            match parse_font_size(&self.font_size_text) {
+                Some(v) => return Some(v),
+                None => {
+                    // The size back, selected; the box keeps the focus.
+                    self.font_size_text = format!("{}", s.font_size);
+                    select_all(ui.ctx(), box_id, &self.font_size_text);
+                    resp.request_focus();
+                }
+            }
         }
         let items = Rect::from_min_max(pos2(r.min.x, box_rect.max.y + 4.0), r.max);
         let cur = s.font_size;
@@ -459,7 +506,8 @@ impl Popups {
             ..Default::default()
         };
         let resp = tb.show(&mut child, box_rect, id.with("search"), &mut self.font_search);
-        if self.just_opened {
+        if self.focus_pending && !ui.is_sizing_pass() {
+            self.focus_pending = false;
             resp.request_focus();
         }
         let q = self.font_search.trim().to_lowercase();
@@ -826,5 +874,58 @@ mod tests {
             }
         }
         assert_eq!(hex_of([54, 169, 225, 166]), "#A636A9E1");
+    }
+
+    /// `TryParseFontSize`.
+    #[test]
+    fn font_sizes_parse_as_sharex() {
+        assert_eq!(parse_font_size("48"), Some(48.0));
+        assert_eq!(parse_font_size(" 36.5 "), Some(36.5));
+        assert_eq!(parse_font_size("36 pt"), Some(36.0));
+        assert_eq!(parse_font_size("36PT"), Some(36.0));
+        assert_eq!(parse_font_size("0.2"), Some(1.0), "clamped to 1");
+        assert_eq!(parse_font_size("5000"), Some(1000.0), "and 1000");
+        assert_eq!(parse_font_size("12.25"), Some(12.2), "one decimal, half to even");
+        for bad in ["", "pt", "0", "-3", "abc", "inf", "NaN", "\u{e9}pt"] {
+            assert_eq!(parse_font_size(bad), None, "{bad:?}");
+        }
+    }
+
+    fn workspace() -> Workspace {
+        Workspace::new(sharex_skia::Pixmap::new(400, 300), sharex_image_editor::ImageEditorOptions::default())
+    }
+
+    fn frame(ctx: &egui::Context, t: usize, popups: &mut Popups, anchor: Rect, ws: &mut Workspace) {
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 720.0))), time: Some(t as f64 / 60.0), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            let p = sharex_ui::palette(ui.ctx());
+            let full = ui.max_rect();
+            popups.show(ui, &p, anchor, full, ws);
+        });
+        out.textures_delta.clear();
+    }
+
+    /// REG4-02f: the font size dropdown opens with the size in its box
+    /// selected (`Focus()`, `SelectAll()`), and it stays selected.
+    #[test]
+    fn font_size_box_opens_selected() {
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut ws = workspace();
+        ws.tools.font_size = 48.0;
+        let mut popups = Popups::default();
+        popups.toggle(OptionItem::FontSize, &ws.tools);
+        let anchor = Rect::from_min_size(pos2(600.0, 60.0), vec2(80.0, 40.0));
+        let id = Id::new(("editor-popup", OptionItem::FontSize as u8)).with("custom-size");
+        // Frame 0 is the area's sizing pass (its first showing): the focus
+        // waits for frame 1, as ShareX posts it for after the layout.
+        frame(&ctx, 0, &mut popups, anchor, &mut ws);
+        for t in 1..4 {
+            frame(&ctx, t, &mut popups, anchor, &mut ws);
+            assert!(ctx.memory(|m| m.has_focus(id)), "focused, frame {t}");
+            let range = egui::text_edit::TextEditState::load(&ctx, id).and_then(|s| s.cursor.char_range()).expect("a selection");
+            let (a, b) = (range.primary.index.0.min(range.secondary.index.0), range.primary.index.0.max(range.secondary.index.0));
+            assert_eq!((a, b), (0, 2), "\"48\" selected, frame {t}");
+        }
     }
 }
