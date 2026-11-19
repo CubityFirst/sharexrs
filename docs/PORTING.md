@@ -34,7 +34,12 @@ taught us about shipping on macOS.
    text line boxes are the font's line height rounded *up*, centring offsets
    are rounded half-to-even, `Border` padding sits inside its border. Use
    `widgets::line_height`, `widgets::center_y` and `widgets::text_width`
-   instead of egui galley sizes (which round down).
+   instead of egui galley sizes (which round down). A wrapping
+   `TextBlock` is its lines at the exact line height, rounded up once (two
+   Segoe UI 13 lines are 35 px, not 36). A `Grid` of only `Auto` rows that
+   is stretched taller than it needs gets a pixel more per non-empty row
+   (`SetFinalSize`'s rounding pass; the video thumbnailer's panels), and a
+   hidden row keeps the `RowSpacing` around it.
    Check fonts by measuring text widths, not by eye: a control's plain string
    content (a `MenuItem` header, a `Button`'s text) is drawn by its
    `ContentPresenter` in Avalonia's default family, which ShareX's
