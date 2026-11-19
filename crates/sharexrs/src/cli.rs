@@ -429,7 +429,6 @@ impl App {
     /// there, the file read and the question asked (`custom_uploader_answered`).
     fn import_custom_uploader(&mut self, event_loop: &ActiveEventLoop, path: &std::path::Path) {
         use sharex_uploaders::custom::CustomUploaderItem;
-        use sharex_uploaders::enums::CustomUploaderDestinationType as D;
         // `JsonHelpers.DeserializeFromFile`: no file, or an empty one, is
         // `null`, and nothing happens.
         if std::fs::metadata(path).map_or(true, |m| !m.is_file() || m.len() == 0) {
@@ -447,32 +446,7 @@ impl App {
                 return;
             }
         };
-        let s = sharex_strings::sharex::TaskHelpers_CustomUploaderConfirmationTitle();
-        let title = crate::rs_title(s);
-        let name = item.display_name();
-        let (message, activate) = if item.destination_type == D::None {
-            let text = sharex_strings::sharex::TaskHelpers_AddCustomUploaderConfirmation().replace("{0}", &name);
-            (MessageBox::yes_no(title, text, MessageBoxIcon::Question), false)
-        } else {
-            let t = item.destination_type;
-            let mut destinations = Vec::new();
-            if t.contains(D::ImageUploader) {
-                destinations.push("images");
-            }
-            if t.contains(D::TextUploader) {
-                destinations.push("texts");
-            }
-            if t.contains(D::FileUploader) {
-                destinations.push("files");
-            }
-            if t.contains(D::URLShortener) || t.contains(D::URLSharingService) {
-                destinations.push("urls");
-            }
-            let text = sharex_strings::sharex::TaskHelpers_SetActiveCustomUploaderConfirmation()
-                .replace("{0}", &name)
-                .replace("{1}", &destinations.join("/"));
-            (MessageBox::yes_no_cancel(title, text, MessageBoxIcon::Question), true)
-        };
+        let (message, activate) = custom_uploader_question(&item.display_name(), item.destination_type);
         self.ask(event_loop, message, CliQuestion::CustomUploader { item: Box::new(item), activate });
     }
 
@@ -688,6 +662,34 @@ impl App {
         let tasks = crate::upload::manager::upload_text(text, task, false, &mut self.new_task_context());
         self.start_upload_tasks(tasks.into_iter().collect());
     }
+}
+
+/// `ImportCustomUploader`'s question for an uploader named `name`: add it
+/// (no destination type), or add it and make it active for its kinds of
+/// destination (Yes, No, Cancel). Returns the message and whether it asks
+/// to activate.
+pub(crate) fn custom_uploader_question(name: &str, t: sharex_uploaders::enums::CustomUploaderDestinationType) -> (MessageBox, bool) {
+    use sharex_uploaders::enums::CustomUploaderDestinationType as D;
+    let title = crate::rs_title(sharex_strings::sharex::TaskHelpers_CustomUploaderConfirmationTitle());
+    if t == D::None {
+        let text = sharex_strings::sharex::TaskHelpers_AddCustomUploaderConfirmation().replace("{0}", name);
+        return (MessageBox::yes_no(title, text, MessageBoxIcon::Question), false);
+    }
+    let mut destinations = Vec::new();
+    if t.contains(D::ImageUploader) {
+        destinations.push("images");
+    }
+    if t.contains(D::TextUploader) {
+        destinations.push("texts");
+    }
+    if t.contains(D::FileUploader) {
+        destinations.push("files");
+    }
+    if t.contains(D::URLShortener) || t.contains(D::URLSharingService) {
+        destinations.push("urls");
+    }
+    let text = sharex_strings::sharex::TaskHelpers_SetActiveCustomUploaderConfirmation().replace("{0}", name).replace("{1}", &destinations.join("/"));
+    (MessageBox::yes_no_cancel(title, text, MessageBoxIcon::Question), true)
 }
 
 #[cfg(test)]

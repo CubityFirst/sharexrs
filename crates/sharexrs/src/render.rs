@@ -534,6 +534,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 dialog.ui(ui);
             })
         }
+        // `-CustomUploader <file>`'s question for an image uploader named
+        // `--text` (ShareX's shot: "Generated reference dark").
+        "custom-uploader-import-prompt" => {
+            let name = dialog.text.clone().unwrap_or_else(|| "Custom uploader".into());
+            let (mut dialog, _) = crate::cli::custom_uploader_question(&name, sharex_uploaders::enums::CustomUploaderDestinationType::ImageUploader);
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
         "settings-reset-confirm" | "settings-import-error" => {
             // `ResetAsync`'s question; `SettingManager.Import`'s error box
             // for a file that isn't a zip (the zip crate's message).
