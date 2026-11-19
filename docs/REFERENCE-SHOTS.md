@@ -287,3 +287,26 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/destination/`. Each 
 | `destination-search` | `destination-search-matches-dark.png`, `destination-search-matches-light.png`, `destination-search-no-match-dark.png`, `destination-search-no-match-light.png` | Offline search states. Later scroll viewports may still be missing. |
 | `email-dialog` | — | Skipped. Stock dialog is reached through a send or upload workflow. |
 | `youtube-options` | — | Skipped. Normal route starts a configured upload workflow. |
+
+### Settings · settings
+
+12 of 14 rows have new references. 32 PNGs and 32 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/settings/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `settings-export` | `settings-export-none-selected-dark.png`, `settings-export-none-selected-light.png`, `settings-export-options-dark.png`, `settings-export-options-light.png` | Fixture settings/history only. Native OS picker images were excluded. |
+| `settings-import` | `settings-import-invalid-archive-dark.png`, `settings-import-invalid-archive-light.png` | Invalid fixture archive only where available. Import success, if absent, would reload the active fixture profile. |
+| `settings-reset` | `settings-reset-confirm-dark.png`, `settings-reset-confirm-light.png` | Confirmation and cancel only. Applying defaults would replace the active fixture config. |
+| `path-variables` | `path-variables-capture-menu-dark.png`, `path-variables-capture-menu-light.png`, `path-variables-window-menu-dark.png`, `path-variables-window-menu-light.png` | Local popup states. Insertion and some submenus remain. |
+| `clipboard-format` | `clipboard-format-add-dark.png`, `clipboard-format-add-light.png`, `clipboard-format-variable-menu-dark.png`, `clipboard-format-variable-menu-light.png` | Local editor and menus. Clipboard contents were not used. |
+| `task-variables` | — | Local field menus only. Remaining popup and insertion states not covered. |
+| `notification-buttons` | `notification-buttons-default-dark.png`, `notification-buttons-default-light.png` | Local editor. Reordered or custom variant may still be missing. |
+| `task-actions-editor` | `task-actions-editor-add-dark.png`, `task-actions-editor-add-light.png` | Inert editor state. No external action executed. |
+| `watch-folder-editor` | `watch-folder-editor-add-dark.png`, `watch-folder-editor-add-light.png` | Local editor state. No watcher was started. |
+| `task-overrides` | `task-overrides-destinations-menu-dark.png`, `task-overrides-destinations-menu-light.png` | Not covered. Uses a hotkey-specific generated task and its account/destination menus. |
+| `task-capture-settings` | `task-capture-settings-region-picker-dark.png`, `task-capture-settings-region-picker-light.png`, `task-capture-settings-region-values-dark.png`, `task-capture-settings-region-values-light.png` | Not covered. Overlay and real-source device enumeration were excluded. |
+| `task-option-menus` | `task-option-menus-time-zone-dark.png`, `task-option-menus-time-zone-light.png` | Not covered. The optional device/sound and variable branches were left unopened. |
+| `custom-uploader-dialogs` | — | Not covered. No custom uploader test request was started. |
+| `custom-uploader-import` | `custom-uploader-import-cli-prompt-dark.png`, `custom-uploader-import-cli-prompt-light.png` | Not covered. No custom uploader was activated. |
