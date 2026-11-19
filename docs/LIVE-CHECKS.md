@@ -135,3 +135,16 @@ case mentioned in `e4df0e5`.
 | IMG-03 | Image tools | — | Exercise Photo editor and Pixel editor. | Skipped as requested. | Skipped as requested. | BLOCKED | [TOOLS.md](TOOLS.md) |
 | ED-01 | Image editor | 120 (125%) | Run `-ImageEditor pattern-01.png` with the 640×400 generated image. At the initial 100% zoom, measure the canvas in physical pixels. | Opens maximized with the image at 640×400 physical pixels. | Opens maximized with the image at 800×500 physical pixels at the same 100% zoom. | FAIL | `images-editor-dark.png` under both directories. Client image bounds in ShareX `960,556,640,400` and ShareXrs `880,506,800,500`. |
 | ED-02 | Image editor | — | Open the system print dialog. | Skipped as requested. | Skipped as requested. | BLOCKED | [IMAGE-EDITOR.md](IMAGE-EDITOR.md#print-printrs-dialogsprint_windowrs) |
+
+## Uploaders
+
+Checks from [UPLOADERS.md](UPLOADERS.md#the-destination-settings-windows-services)
+and the live upload work referenced by commit `79b3bcc`.
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| UPL-01 | Uploaders | 120 (125%) | Open Destination settings and Custom uploader settings against the empty generated uploaders profile. | Imgur shows Not connected, Anonymous and No albums loaded. The custom uploader library is empty. | Same profile state and initial pages. | PASS | `uploader-destinations-dark.png` and `uploader-custom-empty-dark.png` under both directories. |
+| UPL-02 | Uploaders | 120 (125%) | Open Tools › Remote storage browser without usable providers. | Shows the message to configure S3, FTP, FTPS or SFTP before opening the browser. | Same message and dismissal. | PASS | `uploader-remote-unconfigured-dark.png` under both directories. |
+| UPL-03 | Uploaders | — | OAuth authorization, token refresh, loopback listener, account and device retrieval, 2FA and connected album or folder browsing. | Skipped. Requires accounts and network. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#the-destination-settings-windows-services) |
+| UPL-04 | Uploaders | — | Connected remote-storage listing, refresh, filtering, folder navigation, download, rename, deletion, upload and remote image preview. | Skipped. Requires a live provider. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#remote-storage-browser) |
+| UPL-05 | Uploaders | — | Live custom uploader tests, Email, YouTube options from upload, upload progress, errors, URL shortening and sharing. | Skipped. Requires sending data or reaching a provider. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#upload-tasks) |
