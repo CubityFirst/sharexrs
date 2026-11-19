@@ -534,8 +534,12 @@ impl HotkeySettingsWindow {
         if customized {
             let mark = Rect::from_min_size(pos2(chevron.min.x - 7.0 - 14.0, center_y(c, 14.0)), Vec2::splat(14.0));
             icons::paint(ui.painter(), mark, icon::Edit, p.accent_icon);
+            // `ToolTip.Tip` on the `IconPresenter`, which has no background:
+            // it's under the pointer only on the pencil's strokes (LIVE-CHECKS
+            // HOT3-02: no tooltip at the icon's centre).
             if live {
-                sharex_ui::tooltip::show(ui, mark, Id::new(("hk-custom-tip", i)), s::HotkeySettingsWindow_ThisTaskHasCustomSettings());
+                let over = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| icons::painted_at(ui.ctx(), icon::Edit, mark, p));
+                sharex_ui::tooltip::show(ui, if over { mark } else { Rect::NOTHING }, Id::new(("hk-custom-tip", i)), s::HotkeySettingsWindow_ThisTaskHasCustomSettings());
             }
         }
         let name_rect = Rect::from_min_max(pos2(c.min.x + 18.0 + 7.0, c.min.y), pos2(chevron.min.x - 7.0 - mark_w - 7.0, c.max.y));
@@ -571,14 +575,17 @@ impl HotkeySettingsWindow {
         // its stretched height.
         let st = Rect::from_min_size(pos2(status_rect.min.x + ((32.0f32 - 19.0) / 2.0).round_ties_even(), status_rect.min.y + (ROW_BUTTON - 19.0) / 2.0), Vec2::splat(19.0));
         icons::paint(ui.painter(), st, key, color);
-        // `ToolTip.Tip="{Binding StatusText}"` on the 32x34 status cell.
+        // `ToolTip.Tip="{Binding StatusText}"` on the 32x34 status cell, a
+        // `Grid` with no `Background`: only its visible icon's strokes are
+        // under the pointer (LIVE-CHECKS HOT3-02).
         if live {
+            let over = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| icons::painted_at(ui.ctx(), key, st, p));
             let status = match h.HotkeyInfo.status {
                 HotkeyStatus::Registered => s::HotkeySettingsWindow_Registered(),
                 HotkeyStatus::Failed => s::HotkeySettingsWindow_RegistrationFailed(),
                 HotkeyStatus::NotConfigured => s::HotkeySettingsWindow_NotConfigured(),
             };
-            sharex_ui::tooltip::show(ui, status_rect, Id::new(("hk-status-tip", i)), status);
+            sharex_ui::tooltip::show(ui, if over { status_rect } else { Rect::NOTHING }, Id::new(("hk-status-tip", i)), status);
         }
         if action.is_none() && live && resp.clicked() {
             action = Some(RowAction::Select);

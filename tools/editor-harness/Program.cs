@@ -225,7 +225,7 @@ internal static class Program
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
                 .WithInterFont()
                 .SetupWithoutStarting();
-            return ControlDump.Run(args[1]);
+            return ControlDump.Run(args[1], args.Length > 2 ? args[2] : null);
         }
 
         if (args[0] == "--tooltip-theme")

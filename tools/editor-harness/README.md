@@ -52,6 +52,13 @@ for the DatePicker, its popup's placement), the source of the History
 window's search suggestions and date picker flyout; `-hover` sets each
 column host's `:pointerover`, showing the up/down `RepeatButton`s (their
 brushes, delay and interval).
+`--control-dump colorview [out dir]` lays out Avalonia's `ColorView` in
+ShareX's three hosts (the mouse highlighter's `Flyout`, the image effects'
+`Flyout` with `MinWidth` 320, `ColorPickerDropdown`'s popup) on each tab
+(Components in RGB and HSV), prints the tree and the theme resources its
+templates use, and with an output folder saves each state as a PNG
+(`<host>-tab<n>-<theme>-window.png`, the view at the top left) to compare
+`sharexrs --render color-view` with.
 
 `--tooltip-theme x` prints what FluentTheme gives ShareX's `ToolTip`
 (resources, control theme setters, default delays and offsets, a laid-out

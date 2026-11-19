@@ -71,6 +71,28 @@ pub struct MessageBox {
     pub default_button: usize,
 }
 
+/// Shows a message box from code that has no window to own it (the app's
+/// event loop, set at startup).
+pub type MessageHook = std::sync::Arc<dyn Fn(MessageBox) + Send + Sync>;
+
+static HOOK: std::sync::Mutex<Option<MessageHook>> = std::sync::Mutex::new(None);
+
+/// Where [`show`] sends its message boxes (none: they're only logged).
+pub fn set_hook(hook: Option<MessageHook>) {
+    *HOOK.lock().unwrap_or_else(|e| e.into_inner()) = hook;
+}
+
+/// `MessageBox.Show(text, caption, OK, icon)` from a helper with no window
+/// (`FileHelpers`, `ApplicationLifecycle`): logged, then shown by the app
+/// without waiting for it.
+pub fn show(message: MessageBox) {
+    eprintln!("{}", message.text);
+    let hook = HOOK.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some(hook) = hook {
+        hook(message);
+    }
+}
+
 impl MessageBox {
     /// `MessageBox.Show(text, caption, MessageBoxButtons.OK, icon)`.
     pub fn ok(caption: impl Into<String>, text: impl Into<String>, icon: MessageBoxIcon) -> Self {

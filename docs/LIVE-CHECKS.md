@@ -502,3 +502,46 @@ The scratch profiles, backup, pattern, drag source and loopback server
 were removed or exited. The clipboard offered zero formats. The 97
 new PrintWindow PNGs and their DPI sidecars passed hash verification.
 Both offline builds and the macOS Clippy check completed.
+
+## Fixes for pass 2 (branch `fix/live-checks-2`)
+
+Fixed headlessly with unit tests, `--render` at 100% and 125%,
+`--render --popup-host` and the new `tools/editor-harness --control-dump
+colorview`. Pass 3 ran on `11f9e78`/`81fab7e`, before this branch, so
+every row still needs a live re-check on a build of it. The two Pass 3
+FAILs are at the end.
+
+| ID | Cause | Fix | Re-check |
+|---|---|---|---|
+| REC2-03a | winit's `focus_window` fakes an Alt press before `SetForegroundWindow`, so a command line forwarded to a visible main window took the foreground from the test window before the recording read it. Avalonia's `Window.Activate` is a bare `SetForegroundWindow`, which Windows refuses without foreground rights. | Master's `activation` module fixed the main window; this branch routes every window's activation through it (`window::activate`, 32 call sites: dialogs, tool windows, overlays, tray menu). | Same repro with the main window visible: 800×600 of the alternate pattern. Also: hotkey and tray-launched windows still come to the front. |
+| APP2-02b | `IsUploadAllowed`'s message boxes were only logged. | A task's thread asks for a message box and waits for it (`TaskUi::message_box`, `UiRequest::Message`), as `MessageBox.Show` off the UI thread does. | Ctrl+U on the file card: the "will not work while DisableUpload" box; the toast comes after it closes. |
+| APP2-02c | `DownloadFromURL`'s failure was only logged. | The same waiting box, with `Exception.ToString()`'s type for the errors whose .NET type is known (`System.NotSupportedException`, `System.UriFormatException`). .NET's stack trace lines aren't ported. | Ctrl+D on the `file:///` task: `Download failed:` / `System.NotSupportedException: The 'file' scheme is not supported.` |
+| APP2-02e | `CreateHistoryTask` sets `Info.FileName = RecentTask.FileName` (`GetFileNameSafe` of the path, else the URL); the port left it empty. | `RecentTask::file_name`, `file_helpers::get_file_name_safe`. | Cards titled `download-source.txt` and `fixture-open.txt`. |
+| HIL2-02 | The egui stand-in. | Master's ColorView port (`79a1330`, 0.09% against this shot at 125%). This branch compared every tab with Avalonia's own headless renders (`--control-dump colorview`) and fixed the Components tab: ShareX's `TextBox`/`NumericUpDown` `MinHeight="40"` beats the template's `Height="32"` (6.8–7.8% → 1.4–1.6%; the rest is the harness's unthemed text boxes). Spectrum 0.11%/0.13%, palette 0.10%/0.68% (dark/light). | The flyout's three tabs, alpha change saves alpha 128 with RGB 54,169,225; the Components tab's box heights. |
+| TOAST2-02 (and TOAST2-03's click) | The toast registered its card's click interaction after the action buttons; egui's hit test gives the pointer to the last widget sensing clicks, so the buttons were never hovered or clicked. | The card is sensed first. A headless test rests on Copy image past 400 ms (tooltip asked) and clicks it (image copied); it fails without the fix. | The 108×39 tooltip above Copy image; a click copies the image (TOAST2-03). |
+| SET2-03 | The Pass 2 build (`832b1ef`) predates the popup windows (`a95e526`), so the list stopped at the client top. Also: Fluent's `PART_Popup` sets no `Placement`, so it's `Popup`'s default `Bottom` (centred, not left-aligned); opening scrolled the list's bottom margin into view too; items weren't layout-rounded (34 pt rows are 42 px at 125%). | Centred placement, `ScrollIntoView` of the item only, layout-rounded rows. `--popup-host` puts the list at client `570,-61` 370×630, ShareX's place and size; the list's pixels compare at 0.94% with ShareX's popup (8.93% before). | 15 rows, Araguaina to UTC, the popup above the client. |
+| SET2-04 | The Pass 2 build had no popup host, so the menu was bounded by the window and flipped left. | Nothing new: on master the menu opens right of the field (`--popup-host`: client `1135,138`, 210×230). At 125% ShareX's is 226 tall: Avalonia rounds each part to pixels (border, padding, margin, 42 px items); left for the 125% layout work. | Opens to the right of the field. |
+| DROP3-03 | Same cause as APP2-02b: a drop makes a file or text task whose `ThreadDoWork` calls `IsUploadAllowed`. | Covered by the APP2-02b fix; a test pins the text drop. As in ShareX, a dropped file's task toasts its file after the box closes. | Both drops show the modal. |
+| HOT3-02 | ShareX sets the two tooltips on an `IconPresenter` and on a `Grid` with no `Background`. Avalonia hit-tests those only where they draw, so the outline icons are under the pointer on their strokes only; at the icons' centres nothing opens. | The tooltips open only over the icon's painted pixels (`icons::painted_at`); the pencil's centre is 2.3 units from its outline. | No tooltip at either icon's centre; on a stroke pixel, both show. |
+
+Sweep of ShareX's other `MessageBox.Show` calls that ShareXrs reached but
+only logged or skipped (same commit as APP2-02b/c): `ImageData.Write`'s
+write error (the capture task goes on, and `WriteToFile` now makes the
+folder first, as ShareX), `FileHelpers.OpenFolder`'s missing folder
+(Application settings' two Open buttons, Open screenshots folder, the
+image effect packager, and the debug log's startup path, which opened
+the folder as a file), `CreateDirectory`'s and `RenameFile`'s errors
+(History/Image history rename, the recording's custom file name) and
+`ApplicationLifecycle.ForceClose`'s question while a recording is on
+(menu and tray Exit, the Exit hotkey, closing the main window without
+the tray). Not ported: the clipboard upload retry question
+(`ExternalException`; ShareXrs's clipboard layer reports no error),
+`PersonalPathManager`'s and `HistoryManager`'s file errors, and the dev
+build's "up to date" box (dev builds aren't ported).
+
+Regression: every compare script (menus, data, image, image-finish,
+screen, system and video tools, editor dialogs; dark and light) was run
+with a baseline binary that has master's `controls.rs` and `color_view.rs`
+and with this branch's: 240 compared states, none changed (the dropdown
+change alone against the pre-merge controls: also 240 unchanged). The
+mouse highlighter flyout stays at 0.09% against ShareX's 125% shot.

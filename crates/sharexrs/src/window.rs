@@ -44,6 +44,13 @@ impl Drop for EguiWindow {
     }
 }
 
+/// `Window.Activate()` for any ShareXrs window: [`crate::activation::activate_window`]
+/// (Avalonia's bare `SetForegroundWindow` on Windows, not winit's
+/// `focus_window`, which fakes an Alt press to steal the foreground).
+pub fn activate(window: &Window) {
+    crate::activation::activate_window(window);
+}
+
 /// Where a window dragged from `press` (the pointer on the screen) while
 /// at `origin` goes with the pointer at `cursor`: by the pointer's whole
 /// movement since the press, so it ends exactly where the pointer does.

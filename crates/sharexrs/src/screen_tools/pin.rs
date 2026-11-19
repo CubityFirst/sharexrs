@@ -126,7 +126,7 @@ impl PinWindow {
         me.set_cursor(event_loop, false);
         me.paint();
         me.window.window.set_visible(true);
-        me.window.window.focus_window();
+        crate::window::activate(&me.window.window);
         Ok(me)
     }
 

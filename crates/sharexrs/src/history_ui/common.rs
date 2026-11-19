@@ -987,14 +987,10 @@ pub fn apply_prompt(action: PromptAction, input: &str, items: &mut [HistoryItem]
                 let path = it.file_path.clone().unwrap_or_default();
                 if let Some(new_name) = actions::rename_target(&path, input) {
                     // `FileHelpers.RenameFile`: the new path, or the old one
-                    // when the rename fails.
-                    let dir = std::path::Path::new(&path).parent().map(|d| d.to_path_buf()).unwrap_or_default();
-                    let new_path = dir.join(&new_name);
-                    let renamed = std::fs::rename(&path, &new_path).is_ok();
+                    // (after its error box) when the rename fails.
+                    let new_path = crate::shell::rename_file(std::path::Path::new(&path), &new_name);
                     it.file_name = Some(new_name);
-                    if renamed {
-                        it.file_path = Some(new_path.to_string_lossy().into_owned());
-                    }
+                    it.file_path = Some(new_path.to_string_lossy().into_owned());
                     crate::history::edit(it);
                     return (Applied::Edited, Vec::new());
                 }

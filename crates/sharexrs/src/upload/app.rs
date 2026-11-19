@@ -63,10 +63,10 @@ pub fn set_dialog_hooks(proxy: winit::event_loop::EventLoopProxy<UserEvent>) {
         }),
         ui_thread: std::thread::current().id(),
     })));
-    // `FileHelpers.OpenFile`/`OpenFolderWithFile`'s message box.
+    // Message boxes from helpers with no window (`FileHelpers`' ones).
     let message_proxy = Mutex::new(proxy.clone());
-    crate::shell::set_file_not_exist_hook(Some(Arc::new(move |text: String| {
-        let _ = message_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Information(text)));
+    crate::message_box::set_hook(Some(Arc::new(move |message: crate::message_box::MessageBox| {
+        let _ = message_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Show(Box::new(message))));
     })));
     let youtube_proxy = Mutex::new(proxy);
     oauth_services::set_youtube_options_ui(Some(Arc::new(move |title: &str, description: &str, privacy: &sharex_uploaders::enums::YouTubeVideoPrivacy| {
@@ -191,6 +191,14 @@ impl App {
             super::UiRequest::Information(text) => {
                 let message = crate::message_box::MessageBox::ok("ShareXrs", text, crate::message_box::MessageBoxIcon::Information);
                 self.queue_dialog(event_loop, message, crate::DialogPurpose::Information);
+                return;
+            }
+            super::UiRequest::Show(message) => {
+                self.queue_dialog(event_loop, *message, crate::DialogPurpose::Information);
+                return;
+            }
+            super::UiRequest::Message(message, reply) => {
+                self.queue_dialog(event_loop, *message, crate::DialogPurpose::Reply(reply));
                 return;
             }
             super::UiRequest::LargeFileWarning(reply) => Box::new(ConfirmWindow::new(Confirm::LargeFile { reply: Some(reply) })),
@@ -407,7 +415,7 @@ impl App {
             HotkeyType::DragDropUpload => {
                 if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("drop-window")) {
                     d.dialog.set_task(task);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                 } else {
                     let w = dialogs::drop_window::DropWindow::new(&self.settings.settings, task);
                     self.open_dialog_window(event_loop, Box::new(w));

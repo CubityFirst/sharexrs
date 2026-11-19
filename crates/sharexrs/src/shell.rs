@@ -3,32 +3,80 @@
 //! (`OpenFolderWithFile`) and deleting it to the recycle bin (`DeleteFile`).
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-/// Shows a message box with this text (the app's, set at startup).
-pub type MessageHook = Arc<dyn Fn(String) + Send + Sync>;
+use crate::message_box::{MessageBox, MessageBoxIcon};
 
-static FILE_NOT_EXIST: Mutex<Option<MessageHook>> = Mutex::new(None);
-
-/// Where `OpenFile` and `OpenFolderWithFile` show their "File does not
-/// exist" message box (none: it's only logged).
-pub fn set_file_not_exist_hook(hook: Option<MessageHook>) {
-    *FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()) = hook;
-}
+/// `Environment.NewLine`.
+const NEWLINE: &str = if cfg!(windows) { "\r\n" } else { "\n" };
 
 /// `Helpers_OpenFile_File_not_exist_ + Environment.NewLine + filePath`.
 pub fn file_not_exist_text(path: &Path) -> String {
-    let newline = if cfg!(windows) { "\r\n" } else { "\n" };
-    format!("{}{newline}{}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display())
+    format!("{}{NEWLINE}{}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display())
 }
 
 /// `MessageBox.Show(…File_not_exist_…, "ShareX", OK, Information)`.
 fn file_not_exist(path: &Path) {
-    let text = file_not_exist_text(path);
-    eprintln!("{text}");
-    let hook = FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    if let Some(hook) = hook {
-        hook(text);
+    crate::message_box::show(MessageBox::ok("ShareXrs", file_not_exist_text(path), MessageBoxIcon::Information));
+}
+
+/// `FileHelpers.OpenFolder(folderPath)`: the folder with its program, or
+/// `MessageBox.Show(Helpers_OpenFolder_Folder_not_exist_ + NewLine +
+/// folderPath, "ShareX", OK, Information)` when it isn't there.
+pub fn open_folder(path: &Path) -> bool {
+    if path.as_os_str().is_empty() || !path.is_dir() {
+        let text = format!("{}{NEWLINE}{}", sharex_strings::helpers_lib::Helpers_OpenFolder_Folder_not_exist_(), path.display());
+        crate::message_box::show(MessageBox::ok("ShareXrs", text, MessageBoxIcon::Information));
+        return false;
+    }
+    match shell_open(path) {
+        Ok(()) => {
+            eprintln!("Folder opened: {}", path.display());
+            true
+        }
+        Err(e) => {
+            eprintln!("OpenFolder({}) failed: {e}", path.display());
+            false
+        }
+    }
+}
+
+/// `FileHelpers.CreateDirectory(directoryPath)`: on failure,
+/// `MessageBox.Show(Helpers_CreateDirectoryIfNotExist_Create_failed_ +
+/// "\r\n\r\n" + e, "ShareX - Error", OK, Error)`, on the task's thread when
+/// a task asks.
+pub fn create_directory(path: &Path, ui: Option<&dyn crate::upload::TaskUi>) {
+    if path.as_os_str().is_empty() || path.is_dir() {
+        return;
+    }
+    if let Err(e) = std::fs::create_dir_all(path) {
+        let text = format!("{}\r\n\r\n{e}", sharex_strings::helpers_lib::Helpers_CreateDirectoryIfNotExist_Create_failed_());
+        let message = MessageBox::ok(format!("ShareXrs - {}", sharex_strings::helpers_lib::Error()), text, MessageBoxIcon::Error);
+        match ui {
+            Some(ui) => {
+                eprintln!("{}", message.text);
+                ui.message_box(message);
+            }
+            None => crate::message_box::show(message),
+        }
+    }
+}
+
+/// `FileHelpers.RenameFile(filePath, newFileName)`: the new path, or the
+/// old one after `MessageBox.Show(FileHelpers_Rename_file_error + "\r\n" +
+/// e, "ShareX - Error", OK, Error)` when the move fails.
+pub fn rename_file(path: &Path, new_file_name: &str) -> std::path::PathBuf {
+    if path.as_os_str().is_empty() || !path.is_file() {
+        return path.to_path_buf();
+    }
+    let new_path = path.parent().map_or_else(|| Path::new(new_file_name).to_path_buf(), |d| d.join(new_file_name));
+    match std::fs::rename(path, &new_path) {
+        Ok(()) => new_path,
+        Err(e) => {
+            let text = format!("{}\r\n{e}", sharex_strings::helpers_lib::FileHelpers_Rename_file_error());
+            crate::message_box::show(MessageBox::ok(format!("ShareXrs - {}", sharex_strings::helpers_lib::Error()), text, MessageBoxIcon::Error));
+            path.to_path_buf()
+        }
     }
 }
 
@@ -355,20 +403,25 @@ mod tests {
 #[cfg(test)]
 mod not_exist_tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn a_missing_file_shows_the_message_box() {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let s = seen.clone();
-        set_file_not_exist_hook(Some(Arc::new(move |t: String| s.lock().unwrap().push(t))));
+        crate::message_box::set_hook(Some(Arc::new(move |m: MessageBox| s.lock().unwrap().push(m.text))));
         let missing = std::env::temp_dir().join("sharexrs-no-such-file-4f2a.png");
         assert!(!open_file(&missing));
         assert!(!open_folder_with_file(&missing));
-        set_file_not_exist_hook(None);
+        let missing_folder = std::env::temp_dir().join("sharexrs-no-such-folder-4f2a");
+        assert!(!open_folder(&missing_folder));
+        crate::message_box::set_hook(None);
         let seen = seen.lock().unwrap();
         let expected = file_not_exist_text(&missing);
         assert!(expected.starts_with(sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_()));
         assert!(expected.ends_with(&missing.display().to_string()));
         assert_eq!(seen.iter().filter(|t| **t == expected).count(), 2);
+        let folder = format!("{}{NEWLINE}{}", sharex_strings::helpers_lib::Helpers_OpenFolder_Folder_not_exist_(), missing_folder.display());
+        assert_eq!(seen.iter().filter(|t| **t == folder).count(), 1);
     }
 }

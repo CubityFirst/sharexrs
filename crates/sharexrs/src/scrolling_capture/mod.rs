@@ -330,7 +330,7 @@ impl App {
         if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
             d.window.window.set_minimized(false);
             d.window.window.set_visible(true);
-            d.window.window.focus_window();
+            crate::window::activate(&d.window.window);
             d.window.window.request_redraw();
         }
     }

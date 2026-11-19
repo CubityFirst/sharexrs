@@ -812,7 +812,7 @@ impl crate::App {
                 d.dialog.import(json);
             }
             d.window.window.set_minimized(false);
-            d.window.window.focus_window();
+            crate::window::activate(&d.window.window);
             d.window.window.request_redraw();
             return;
         }

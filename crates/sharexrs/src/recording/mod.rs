@@ -224,8 +224,14 @@ impl App {
         }
     }
 
+    /// `ScreenRecordManager.IsRecording`: from the area chosen until the
+    /// recording ends (the bar, then the frame).
+    pub(crate) fn is_recording(&self) -> bool {
+        matches!(self.recording.as_ref().map(|r| &r.phase), Some(Phase::Bar(_) | Phase::Recording(_)))
+    }
+
     /// `ScreenRecordManager.AbortRecording`: no confirmation.
-    fn abort_screen_recording(&mut self) {
+    pub(crate) fn abort_screen_recording(&mut self) {
         match self.recording.as_ref().map(|r| &r.phase) {
             Some(Phase::Bar(_)) => {
                 self.close_bar(false);
@@ -1012,7 +1018,7 @@ impl FrameWindow {
         me.paint();
         me.window.window.set_visible(true);
         if activate {
-            me.window.window.focus_window();
+            crate::window::activate(&me.window.window);
         }
         me.window.window.request_redraw();
         Ok(me)
@@ -1181,7 +1187,7 @@ impl BarWindow {
         me.paint();
         me.paint();
         me.window.window.set_visible(true);
-        me.window.window.focus_window();
+        crate::window::activate(&me.window.window);
         me.window.window.request_redraw();
         Ok(me)
     }

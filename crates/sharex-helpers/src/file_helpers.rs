@@ -101,6 +101,15 @@ pub const VIDEO_FILE_EXTENSIONS: &[&str] = &[
     "mpv", "m2v", "m4v", "flv", "f4v",
 ];
 
+/// `FileHelpers.GetFileNameSafe`: what follows the last `\`, or the last
+/// `/` when there's no `\` (a URL's last segment too).
+pub fn get_file_name_safe(path: &str) -> &str {
+    match path.rfind('\\').or_else(|| path.rfind('/')) {
+        Some(pos) => &path[pos + 1..],
+        None => path,
+    }
+}
+
 /// `FileHelpers.GetFileNameExtension`: what follows the last dot (no dot),
 /// with `tar.` kept in front of a second extension (`tar.gz`).
 pub fn get_file_name_extension(path: &str) -> String {

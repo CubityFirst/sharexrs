@@ -110,7 +110,7 @@ impl Overlay {
             w.window.window.set_visible(true);
         }
         let focus = pointer.and_then(|(x, y)| self.windows.iter().position(|w| w.bounds.contains(x, y))).unwrap_or(0);
-        self.windows[focus].window.window.focus_window();
+        crate::window::activate(&self.windows[focus].window.window);
         for w in &self.windows {
             platform::overlay_presented(&w.window.window);
         }

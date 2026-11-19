@@ -182,7 +182,7 @@ impl TransparentRegion {
             .pointer
             .and_then(|(x, y)| me.surfaces.iter().position(|s| s.bounds.contains(x, y)))
             .unwrap_or(0);
-        me.surfaces[focus].window().focus_window();
+        crate::window::activate(me.surfaces[focus].window());
         Ok(me)
     }
 

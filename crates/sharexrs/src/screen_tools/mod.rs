@@ -261,7 +261,7 @@ impl App {
                 let mut cx = crate::dialogs::Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
                 if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
                     d.window.window.set_minimized(false);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                     d.dialog.screen_color(result.map(|r| r.color), &mut cx);
                     d.window.window.request_redraw();
                 }
@@ -344,7 +344,7 @@ impl App {
                 if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
                     d.dialog.pin_failed(pin::Source::Region);
                     d.window.window.set_visible(true);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                     d.window.window.request_redraw();
                 }
             }

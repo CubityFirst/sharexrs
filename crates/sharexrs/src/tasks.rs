@@ -195,6 +195,13 @@ impl RecentTask {
         })
     }
 
+    /// `FileName`: the file path's name, else the URL's last segment
+    /// (`FileHelpers.GetFileNameSafe`).
+    pub fn file_name(&self) -> String {
+        let text = if !self.file_path.is_empty() { &self.file_path } else { &self.url };
+        sharex_helpers::file_helpers::get_file_name_safe(text).to_owned()
+    }
+
     /// `ToString()`: the shortened URL, the URL or the file path.
     pub fn text(&self) -> &str {
         [&self.shortened_url, &self.url, &self.file_path].into_iter().find(|s| !s.is_empty()).map_or("", |s| s.as_str())
@@ -492,6 +499,9 @@ impl TaskManager {
         let id = self.next_id;
         let mut info = TaskInfo::default();
         info.set_file_path((!recent.file_path.is_empty()).then(|| PathBuf::from(&recent.file_path)));
+        // `Info.FileName = recentTask.FileName`: a URL-only task is titled
+        // by its URL's last segment (LIVE-CHECKS APP2-02e).
+        info.file_name = recent.file_name();
         info.result = UploadResult {
             url: recent.url.clone(),
             thumbnail_url: recent.thumbnail_url.clone(),
@@ -675,6 +685,20 @@ mod tests {
             m.complete(id, Some(PathBuf::from(format!("{i}.png"))), None, 2);
         }
         assert_eq!(m.recent.iter().map(|r| r.file_path.as_str()).collect::<Vec<_>>(), ["2.png", "3.png"]);
+    }
+
+    /// `RecentTask.FileName` and `CreateHistoryTask`: URL-only recent tasks
+    /// are titled by the URL's last segment (LIVE-CHECKS APP2-02e).
+    #[test]
+    fn history_tasks_take_the_recent_tasks_file_name() {
+        let mut m = TaskManager::default();
+        let url = |u: &str| RecentTask { url: u.into(), ..Default::default() };
+        let a = m.start_history_task(&url("file:///C:/made-up/download-source.txt"));
+        let b = m.start_history_task(&url("https://example.invalid/fixture-open.txt"));
+        let c = m.start_history_task(&RecentTask { file_path: r"C:\made-up\recent-local.txt".into(), url: "https://example.invalid/x.png".into(), ..Default::default() });
+        let d = m.start_history_task(&RecentTask::default());
+        let names: Vec<&str> = [a, b, c, d].iter().map(|id| m.get(*id).unwrap().info.file_name.as_str()).collect();
+        assert_eq!(names, ["download-source.txt", "fixture-open.txt", "recent-local.txt", ""]);
     }
 
     #[test]
