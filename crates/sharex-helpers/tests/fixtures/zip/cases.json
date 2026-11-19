@@ -1,0 +1,67 @@
+{
+  "cases": [
+    {
+      "name": "backup-import",
+      "archive": "backup.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 1000000000
+    },
+    {
+      "name": "backup-all",
+      "archive": "backup.sxb",
+      "retain": true,
+      "filter": null,
+      "max": 0
+    },
+    {
+      "name": "hostile-import",
+      "archive": "hostile.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 1000000000
+    },
+    {
+      "name": "hostile-all",
+      "archive": "hostile.sxb",
+      "retain": true,
+      "filter": null,
+      "max": 0
+    },
+    {
+      "name": "hostile-flat",
+      "archive": "hostile.sxb",
+      "retain": false,
+      "filter": "json-xml",
+      "max": 0
+    },
+    {
+      "name": "sizes-at-limit",
+      "archive": "sizes.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 20
+    },
+    {
+      "name": "sizes-over-limit",
+      "archive": "sizes.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 19
+    },
+    {
+      "name": "not-a-zip",
+      "archive": "not-a-zip.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 1000000000
+    },
+    {
+      "name": "sharexrs-export-import",
+      "archive": "sharexrs-export.sxb",
+      "retain": true,
+      "filter": "json-xml",
+      "max": 1000000000
+    }
+  ]
+}

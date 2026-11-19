@@ -11,6 +11,8 @@
 //!   later launches pass their arguments to.
 //! - [`culture`]: the .NET string comparisons (current culture through NLS,
 //!   ordinal ignoring case) that sorting and matching depend on.
+//! - [`zip_manager`]: `ZipManager`, the archives of settings backups and
+//!   image effect packages.
 
 pub mod cli;
 pub mod culture;
@@ -22,5 +24,6 @@ pub mod mime_types;
 pub mod name_parser;
 pub mod random;
 pub mod single_instance;
+pub mod zip_manager;
 
 pub use name_parser::{NameParser, NameParserType};

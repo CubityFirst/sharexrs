@@ -4887,7 +4887,9 @@ dependencies = [
  "chrono",
  "getrandom 0.3.4",
  "serde_json",
+ "sharex-strings",
  "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
