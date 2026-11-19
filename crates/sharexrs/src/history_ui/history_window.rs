@@ -1109,54 +1109,6 @@ fn download_preview(url: &str, cancel: sharex_uploaders::http::CancellationToken
     }
 }
 
-#[cfg(test)]
-mod preview_tests {
-    use super::*;
-
-    /// A 127.0.0.1 server answering one request with `status` and `body`.
-    fn serve_once(status: &str, body: Vec<u8>) -> String {
-        use std::io::{Read, Write};
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let status = status.to_owned();
-        std::thread::spawn(move || {
-            if let Ok((mut s, _)) = listener.accept() {
-                let mut buf = [0u8; 4096];
-                let _ = s.read(&mut buf);
-                let head = format!("HTTP/1.1 {status}\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
-                let _ = s.write_all(head.as_bytes());
-                let _ = s.write_all(&body);
-            }
-        });
-        format!("http://127.0.0.1:{port}/shot.png")
-    }
-
-    fn png() -> Vec<u8> {
-        let mut out = std::io::Cursor::new(Vec::new());
-        image::RgbaImage::from_pixel(3, 2, image::Rgba([9, 8, 7, 255])).write_to(&mut out, image::ImageFormat::Png).unwrap();
-        out.into_inner()
-    }
-
-    #[test]
-    fn a_url_only_image_is_downloaded_for_the_preview() {
-        let url = serve_once("200 OK", png());
-        let item = HistoryItem { url: Some(url.clone()), file_path: Some(String::new()), ..Default::default() };
-        assert_eq!(preview_url(&item).as_deref(), Some(url.as_str()));
-        let img = download_preview(&url, sharex_uploaders::http::CancellationToken::new()).unwrap();
-        assert_eq!(img.dimensions(), (3, 2));
-        assert_eq!(img.get_pixel(1, 1).0, [9, 8, 7, 255]);
-    }
-
-    #[test]
-    fn a_failed_download_shows_no_preview() {
-        let url = serve_once("404 Not Found", Vec::new());
-        assert!(download_preview(&url, sharex_uploaders::http::CancellationToken::new()).is_none());
-        // Not an image URL: nothing is downloaded.
-        let item = HistoryItem { url: Some("http://127.0.0.1:1/page.html".into()), ..Default::default() };
-        assert_eq!(preview_url(&item), None);
-    }
-}
-
 impl Dialog for HistoryWindow {
     /// `ApplySavedWindowState`: the saved size and maximized state.
     fn spec(&self) -> Spec {
@@ -1398,4 +1350,52 @@ pub fn render_dialog(_name: &str, o: &Options) -> Result<Box<dyn Dialog>, String
     let mut w = HistoryWindow::new(&ApplicationConfig::default());
     w.render_state(&egui::Context::default(), o);
     Ok(Box::new(w))
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+
+    /// A 127.0.0.1 server answering one request with `status` and `body`.
+    fn serve_once(status: &str, body: Vec<u8>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let status = status.to_owned();
+        std::thread::spawn(move || {
+            if let Ok((mut s, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let _ = s.read(&mut buf);
+                let head = format!("HTTP/1.1 {status}\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = s.write_all(head.as_bytes());
+                let _ = s.write_all(&body);
+            }
+        });
+        format!("http://127.0.0.1:{port}/shot.png")
+    }
+
+    fn png() -> Vec<u8> {
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(3, 2, image::Rgba([9, 8, 7, 255])).write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn a_url_only_image_is_downloaded_for_the_preview() {
+        let url = serve_once("200 OK", png());
+        let item = HistoryItem { url: Some(url.clone()), file_path: Some(String::new()), ..Default::default() };
+        assert_eq!(preview_url(&item).as_deref(), Some(url.as_str()));
+        let img = download_preview(&url, sharex_uploaders::http::CancellationToken::new()).unwrap();
+        assert_eq!(img.dimensions(), (3, 2));
+        assert_eq!(img.get_pixel(1, 1).0, [9, 8, 7, 255]);
+    }
+
+    #[test]
+    fn a_failed_download_shows_no_preview() {
+        let url = serve_once("404 Not Found", Vec::new());
+        assert!(download_preview(&url, sharex_uploaders::http::CancellationToken::new()).is_none());
+        // Not an image URL: nothing is downloaded.
+        let item = HistoryItem { url: Some("http://127.0.0.1:1/page.html".into()), ..Default::default() };
+        assert_eq!(preview_url(&item), None);
+    }
 }
