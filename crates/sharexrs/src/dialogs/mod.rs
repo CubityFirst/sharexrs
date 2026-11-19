@@ -18,6 +18,7 @@ pub mod custom_uploaders;
 pub mod destination_settings;
 pub mod drop_window;
 pub mod file_exist;
+pub mod icon_pack_prompt;
 pub mod layout;
 pub mod print_window;
 pub mod qr_code;
@@ -207,6 +208,11 @@ pub enum Effect {
     /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
     /// flashing in the taskbar (`FlashWindowEx`).
     MinimizeAndFlash,
+    /// `ThemeManager.ApplyConfiguredSettings` after the settings' theme
+    /// options changed (the icon pack prompt).
+    ApplyAppearance,
+    /// `SettingManager.SaveApplicationConfigAsync`.
+    SaveSettings,
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -647,6 +653,12 @@ impl App {
                     message.default_button = 1;
                     if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::UpdateSignature) {
                         eprintln!("couldn't open the message box: {e}");
+                    }
+                }
+                Effect::ApplyAppearance => self.apply_appearance(),
+                Effect::SaveSettings => {
+                    if let Err(e) = self.settings.save_application_config(false) {
+                        eprintln!("couldn't save the settings: {e}");
                     }
                 }
                 Effect::MinimizeAndFlash => {

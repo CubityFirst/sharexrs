@@ -98,8 +98,9 @@ impl FileExistWindow {
         font(13.0, 600)
     }
 
+    /// `TextBlock.action-file` sets no weight: `Button TextBlock`'s Normal.
     fn file_font() -> egui::FontId {
-        font(12.0, 600)
+        font(12.0, 400)
     }
 
     fn path_font() -> egui::FontId {

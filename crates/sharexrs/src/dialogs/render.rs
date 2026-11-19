@@ -137,6 +137,8 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(w)
         }
+        // The selected pack comes from `--state legacy` (see `render`).
+        "icon-pack-prompt" => Box::new(super::icon_pack_prompt::IconPackPromptWindow),
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -304,6 +306,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "multi-upload"
             | "large-file"
             | "file-exists"
+            | "icon-pack-prompt"
             | "before-upload"
             | "after-upload"
             | "qr-code"
@@ -333,7 +336,11 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         let d = crate::auto_capture::render::render_dialog(name, o, &mut settings)?;
         (d, settings)
     } else {
-        (dialog(name, o)?, ApplicationConfig::default())
+        let mut settings = ApplicationConfig::default();
+        if name == "icon-pack-prompt" && o.state.as_deref() == Some("legacy") {
+            settings.theme_options().IconPack = sharex_settings::IconPack::Legacy;
+        }
+        (dialog(name, o)?, settings)
     };
     let spec = d.spec();
     let store = UploadersConfigStore::loaded(mock_config());

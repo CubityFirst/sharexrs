@@ -262,6 +262,7 @@ fn main() {
         scrolling: Default::default(),
         auto_capture: Default::default(),
         desktop_icons: None,
+        icon_pack_prompt: false,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -387,6 +388,9 @@ struct App {
     /// `CaptureAutoHideDesktopIcons`: the icons hidden for the capture
     /// running, shown again when it ends (or when this is dropped).
     desktop_icons: Option<sharex_capture::screenshot::DesktopIconsHidden>,
+    /// `IconPackPromptWindow.ShowOnceWithMainWindow`: shown when the main
+    /// window first opens.
+    icon_pack_prompt: bool,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -451,6 +455,9 @@ impl App {
         self.main = Some(w);
         #[cfg(target_os = "macos")]
         tray::set_dock_icon(true);
+        if std::mem::take(&mut self.icon_pack_prompt) && self.settings.settings.ShowIconPackPrompt {
+            self.open_dialog_window(event_loop, Box::new(dialogs::icon_pack_prompt::IconPackPromptWindow));
+        }
         Ok(())
     }
 
@@ -1089,6 +1096,8 @@ impl App {
         self.update_watch_folders();
         self.highlighter_activate_on_startup(event_loop);
         eprintln!("WatchFolderManager started.");
+        // `IconPackPromptWindow.ShowOnceWithMainWindow` (not in a sandbox).
+        self.icon_pack_prompt = self.settings.settings.ShowIconPackPrompt && !self.settings.paths.sandbox;
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
             match self.open_dialog(event_loop, message, DialogPurpose::HotkeysFailed) {
