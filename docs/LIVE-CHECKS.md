@@ -36,3 +36,16 @@ Checks from [TOOLS.md](TOOLS.md#the-video-windows-in-sharexrs) and the Video row
 | VID-04 | Video tools | Start `-VideoTrimmer invalid.mp4` with a file containing the ASCII bytes `not a video`. | Displays an inline error beneath the time controls, ending “oldValue has incorrect type for this property.” The controls stay in the tool window. | Opens a separate OK modal ending “Select a video with a known, finite duration.” The extra dismissal changes the flow. | FAIL | `SX/video-trimmer-invalid-dark.png`, `RS/video-trimmer-invalid-dark.png`, `RS/video-trimmer-invalid-underlying-dark.png`. |
 | VID-05 | Video tools | Open `-VideoTrimmer silent.mp4` using VID-01's clip. | Loads a paused first frame and sets Start to 0 and End to 8 s. | Same first frame and times. | PASS | `video-trimmer-loaded-dark.png` under `SX` and `RS`. The ShareXrs shot was taken while timeline thumbnails were being generated. |
 | VID-06 | Video tools | Upload generated thumbnails. | Skipped. Upload requires network. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-video-windows-in-sharexrs) |
+
+## Data and system tools
+
+Checks from [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) and the Data and System rows of [PORTING.md](PORTING.md).
+
+| ID | Area | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|
+| DAT-01 | Data tools | Write `ShareXrs live-check fixture` plus a single LF as UTF-8. Run `-HashCheck hash.txt`, choose default SHA-256 and press Check. | Displayed the expected uppercase SHA-256. | Same value. | PASS | `data-hash-ready-repeat-dark.png` and `data-hash-result-repeat-dark.png` under `SX` and `RS`. SHA-256 `D1CDDE2CABE05501325828167FC6A70DC2B6D1A6CEB417DDA69797F7021F24E0`. Earlier `data-hash-*-dark.png` without `repeat` is superseded. |
+| DAT-02 | Data tools | Open `-Metadata metadata.jpg` on the generated JPEG from `phase2-32616/inputs`. Read the total beside Metadata. | Header says `22 tags`. | Header shows the literal placeholder `{0:N0} tags`. The visible category headers and rows still populate. | FAIL | `SX/data-metadata-repeat-dark.png`, `RS/data-metadata-repeat-dark.png`. Earlier `data-metadata-dark.png` is superseded. |
+| DAT-03 | Data tools | Run `-StripMetadata` on two separate copies of the DAT-02 input. | Reduced the file from 13,470 to 13,354 bytes. | Wrote exactly the same 13,354 bytes. | PASS | Post-interruption repeat output SHA-256 `234ce2b417ec4f85f0318ffca26ed637849956367b9ce4cf6681316de557f48` in both apps. Earlier strip output hashes are superseded by this repeat. |
+| DAT-04b | Data tools | Upload the generated folder index. | Skipped. The upload route needs a provider or loopback network. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
+| DAT-06b | Data tools | Analyze image, Load models and Test connection against a provider or mock. | Skipped. Requires network and a configured endpoint. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
+| SYS-04 | System tools | Network monitor pings, samples, events and log. | Skipped. Opening the window starts network probes. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
