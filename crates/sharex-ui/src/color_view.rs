@@ -647,6 +647,12 @@ impl ColorView {
             // `Color` changed: the palette's `SelectedItem` binding.
             st.palette = self.palette_selection(st.rgba);
         }
+        if let Some(i) = edit.palette {
+            // The pressed cell is the `ListBox`'s selection, also when it
+            // holds the colour already (the fill's `Transparent`, HIL2-02b)
+            // and when an equal colour sits earlier in the palette.
+            st.palette = Some(i);
+        }
         ui.set_clip_rect(saved_clip);
         let after = st.rgba;
         ctx.data_mut(|d| d.insert_temp(state_id(id), st));
@@ -812,13 +818,26 @@ impl ColorView {
         let (cw, ch) = (area.width() / PALETTE_COLUMNS as f32, area.height() / rows as f32);
         let painter = ui.painter().clone();
         let current = edit.rgba.unwrap_or(st.rgba);
-        let selected = match edit.rgba {
-            Some(c) => self.palette_selection(c),
-            None => st.palette,
+        // `ListBoxItem` selects on a mouse button's press
+        // (`ItemSelectionEventTriggers`: left or right, `PointerPressed`
+        // for a mouse), and the selection binds `Color`. It stays until
+        // another cell or colour is chosen, not following the pointer.
+        let pressed = ui.input(|i| i.pointer.any_pressed());
+        let cell_at = |i: usize| Rect::from_min_size(pos2(area.min.x + cw * (i % PALETTE_COLUMNS) as f32, area.min.y + ch * (i / PALETTE_COLUMNS) as f32), vec2(cw, ch));
+        let responses: Vec<_> = (0..colors.len()).map(|i| ui.interact(cell_at(i), id.with(("palette", i)), Sense::click())).collect();
+        if pressed && let Some(i) = responses.iter().position(|r| r.is_pointer_button_down_on()) {
+            edit.palette = Some(i);
+            if current != colors[i] {
+                edit.rgba = Some(colors[i]);
+            }
+        }
+        let selected = match (edit.palette, edit.rgba) {
+            (Some(i), _) => Some(i),
+            (None, Some(c)) => self.palette_selection(c),
+            (None, None) => st.palette,
         };
-        for (i, c) in colors.iter().enumerate() {
-            let cell = Rect::from_min_size(pos2(area.min.x + cw * (i % PALETTE_COLUMNS) as f32, area.min.y + ch * (i / PALETTE_COLUMNS) as f32), vec2(cw, ch));
-            let r = ui.interact(cell, id.with(("palette", i)), Sense::click());
+        for (i, (c, r)) in colors.iter().zip(&responses).enumerate() {
+            let cell = cell_at(i);
             if c[3] < 255 {
                 border::border(&painter, cell, 0.0, 0.0, Some(checkered()), None);
             }
@@ -829,9 +848,6 @@ impl ColorView {
             if is_selected || r.hovered() {
                 let opacity = if is_selected { 1.0 } else { 0.5 };
                 border::paint(&painter, &[Part::Stroke { rect: cell.shrink(1.5), radius: 0.0, thickness: 3.0, brush: Brush::Solid(contrast(*c)) }], opacity);
-            }
-            if r.clicked() && current != *c {
-                edit.rgba = Some(*c);
             }
         }
     }
@@ -983,6 +999,9 @@ impl ColorView {
 struct Edit {
     hsv: Option<Hsv>,
     rgba: Option<[u8; 4]>,
+    /// A palette cell pressed: the `ListBox` selects it whether or not the
+    /// colour changes.
+    palette: Option<usize>,
 }
 
 /// `ColorControlCheckeredBackgroundBrush`: 4px squares of #19808080 at the
@@ -1675,6 +1694,51 @@ mod tests {
         }
         // Fluent's own palette (a flyout's view) has no replacements.
         assert_eq!(ColorView::default().opened_palette_selection([0x7E, 0x73, 0x5F, 255]), Some(47));
+    }
+
+    /// HIL2-02b: the fill colour's dropdown opens on its default
+    /// `#00FFFFFF` with no selection; a press on the `Transparent` cell
+    /// (bottom right) selects it although the colour doesn't change, and
+    /// it stays selected once the pointer leaves the cell.
+    #[test]
+    fn a_pressed_palette_cell_stays_selected() {
+        let view = ColorPopup::Dropdown.view();
+        let store = |c: Rgba8| c;
+        let transparent = [255, 255, 255, 0];
+        let mut color = transparent;
+        let ctx = drive(view, &mut color, &[(None, None), (None, None)], &store);
+        let st = || ctx.data(|d| d.get_temp::<State>(state_id(Id::new("test-view")))).unwrap();
+        assert_eq!((st().tab, st().palette), (1, None), "the palette tab, nothing selected");
+        let cell = ctx.read_response(Id::new("test-view").with(("palette", 47))).expect("the Transparent cell").rect;
+        let away = pos2(cell.max.x + 40.0, cell.max.y + 40.0);
+        // `drive` again on the same context: its state carries over.
+        let clock = std::cell::Cell::new(1.0);
+        let run = |frames: &[(Option<Pos2>, Option<bool>)], color: &mut Rgba8| {
+            let id = Id::new("test-view");
+            for (at, press) in frames {
+                clock.set(clock.get() + 1.0 / 60.0);
+                let mut input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 600.0))), time: Some(clock.get()), ..Default::default() };
+                if let Some(p) = at {
+                    input.events.push(egui::Event::PointerMoved(*p));
+                    if let Some(pressed) = press {
+                        input.events.push(egui::Event::PointerButton { pos: *p, button: egui::PointerButton::Primary, pressed: *pressed, modifiers: Default::default() });
+                    }
+                }
+                let mut out = ctx.run_ui(input, |ui| {
+                    view.show(ui, pos2(10.0, 10.0), id, color);
+                });
+                out.textures_delta.clear();
+            }
+        };
+        run(&[(Some(cell.center()), None), (Some(cell.center()), Some(true))], &mut color);
+        assert_eq!(st().palette, Some(47), "selected on the press");
+        run(&[(Some(cell.center()), Some(false)), (Some(away), None), (Some(away), None)], &mut color);
+        assert_eq!(st().palette, Some(47), "still selected with the pointer away");
+        assert_eq!(color, transparent);
+        // Another cell's press moves the selection and the colour.
+        let red = ctx.read_response(Id::new("test-view").with(("palette", 0))).unwrap().rect.center();
+        run(&[(Some(red), None), (Some(red), Some(true)), (Some(red), Some(false))], &mut color);
+        assert_eq!((st().palette, color), (Some(0), palette_colors(true)[0]));
     }
 
     #[test]
