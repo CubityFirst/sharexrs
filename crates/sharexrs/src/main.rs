@@ -16,6 +16,8 @@ mod display_native;
 mod drag_out;
 mod drop_target;
 mod logger;
+#[cfg(feature = "memory-profile")]
+mod memprof;
 mod main_commands;
 mod quick_task;
 mod appearance;
@@ -141,6 +143,8 @@ pub enum UserEvent {
 
 fn main() {
     cli::START.get_or_init(Instant::now);
+    #[cfg(feature = "memory-profile")]
+    memprof::start();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("--render") {
         if let Err(e) = render::run(&args[1..]) {
@@ -257,6 +261,7 @@ fn main() {
         ignore_hotkey_warning: is_command_present(&args, &["NoHotkeys"]),
         region: None,
         region_warm_up_at: None,
+        gpu_poll_at: None,
         pending_capture: None,
         ocr_region: None,
         last_regions: Vec::new(),
@@ -405,6 +410,8 @@ struct App {
     /// When the region capture warms up (`MainWindow.WarmUpRegionCapture`,
     /// 2 s after startup, once idle).
     region_warm_up_at: Option<Instant>,
+    /// When the graphics device is next polled ([`window::take_painted`]).
+    gpu_poll_at: Option<Instant>,
     /// A capture waiting for its screenshot delay or for the main window to
     /// hide.
     pending_capture: Option<PendingCapture>,
@@ -1032,6 +1039,24 @@ impl App {
                 if hidden {
                     self.show_main_window(event_loop);
                 }
+            }
+        }
+    }
+
+    /// Frees what the GPU is done with: wgpu releases a frame's upload
+    /// buffers (a frozen screen's is 16 MB) and freed textures when the
+    /// device is polled, which only the next frame's submission does, so a
+    /// window's last frame before going idle would hold them. Half a second
+    /// after frames were painted, the device is polled once (not blocking).
+    fn poll_gpu(&mut self) {
+        let now = Instant::now();
+        if window::take_painted() {
+            self.gpu_poll_at = Some(now + Duration::from_millis(500));
+        }
+        if self.gpu_poll_at.is_some_and(|at| at <= now) {
+            self.gpu_poll_at = None;
+            if let Some(gpu) = &self.gpu {
+                let _ = gpu.device.poll(egui_wgpu::wgpu::PollType::Poll);
             }
         }
     }
@@ -2099,6 +2124,10 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         self.tray_click_timer(event_loop);
+        if self.region.is_none() {
+            region_session::slim_pool_if_due(Instant::now());
+        }
+        self.poll_gpu();
         // A due repaint is asked for once: a hidden window gets no redraw,
         // and waiting on it would stall every timer below.
         let now = Instant::now();
@@ -2133,6 +2162,8 @@ impl ApplicationHandler<UserEvent> for App {
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),
             self.region_warm_up_at,
+            self.gpu_poll_at,
+            self.region.is_none().then(region_session::slim_at).flatten(),
             self.tray_click_at,
             app_windows,
             dialogs,

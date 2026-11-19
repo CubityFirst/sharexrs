@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# The device kept for the memory profile (sharexrs's `memory-profile`).
+memory-profile = []
+
 [dependencies]
 egui.workspace = true
 egui-wgpu.workspace = true
@@ -15,3 +19,5 @@ resvg.workspace = true
 
 [target."cfg(windows)".dependencies]
 dwrote = "0.11.5"
+# Font files mapped rather than read (`fonts::font_file`).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Memory"] }

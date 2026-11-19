@@ -2,6 +2,10 @@
 
 use egui_wgpu::wgpu;
 
+/// The first device, for the `memory-profile` report.
+#[cfg(feature = "memory-profile")]
+pub static PROFILED_DEVICE: std::sync::OnceLock<wgpu::Device> = std::sync::OnceLock::new();
+
 pub struct Gpu {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
@@ -47,11 +51,31 @@ impl Gpu {
             .ok_or("no usable graphics adapter")?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("sharexrs"),
-            // As large as the hardware allows, for very wide monitors.
-            required_limits: adapter.limits(),
+            // As large as the hardware allows, for very wide monitors, but
+            // for the bindings: on DX12 that's the size of the one
+            // shader-visible descriptor heap, made up front in video memory
+            // and mapped into the process (1,000,000 descriptors, 32 MB on
+            // NVIDIA). egui binds one per texture, and 65,536 textures (2 MB
+            // of descriptors) would be gigabytes of thumbnails.
+            required_limits: wgpu::Limits {
+                max_non_sampler_bindings: adapter.limits().max_non_sampler_bindings.min(65_536),
+                ..adapter.limits()
+            },
+            // wgpu's default (`Performance`) reserves its memory in blocks of
+            // 128 MB of video memory and 64 MB of upload memory (DX12 and
+            // Vulkan), both mapped into the process: 192 MB of GPU memory
+            // and private bytes for the ~50 MB of textures a ShareXrs window
+            // set uses. `MemoryUsage` starts at 8 and 4 MB and doubles each
+            // new block (8, 16, 32...: ~2x what's used). Blocks of 4 MB
+            // (gpu-allocator's least) hold the small textures and buffers;
+            // anything larger (a frozen screen, its upload) gets a block of
+            // its own size, freed with it.
+            memory_hints: wgpu::MemoryHints::Manual { suballocated_device_memory_block_size: 4 << 20..4 << 20 },
             ..Default::default()
         }))
         .map_err(|e| format!("failed to open graphics device: {e}"))?;
+        #[cfg(feature = "memory-profile")]
+        let _ = PROFILED_DEVICE.set(device.clone());
         Ok(Self { instance, adapter, device, queue })
     }
 

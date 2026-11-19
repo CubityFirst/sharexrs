@@ -4995,6 +4995,7 @@ dependencies = [
  "include_dir",
  "pollster 1.0.1",
  "resvg",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

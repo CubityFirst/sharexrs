@@ -291,8 +291,13 @@ impl App {
                 // `RegionCaptureTasks.GetRectangleRegionAsync`: the overlay,
                 // no annotations, no pointer drawn in.
                 let dark = self.theme() == egui::Theme::Dark;
-                let opened = capture_job::prepare_selection(&recording.task, self.last_regions.clone())
-                    .and_then(|request| RegionSession::open(event_loop, gpu(&mut self.gpu)?, request, dark));
+                let last_regions = self.last_regions.clone();
+                let opened = gpu(&mut self.gpu).and_then(|gpu| {
+                    capture_job::prepare_selection_with(&recording.task, last_regions, |screens| {
+                        crate::region_session::ready_overlays(event_loop, gpu, screens)
+                    })
+                    .and_then(|request| RegionSession::open(event_loop, gpu, request, dark))
+                });
                 match opened {
                     Ok(session) => {
                         recording.phase = Phase::Selecting(Some(Box::new(session)));

@@ -61,7 +61,7 @@ pub fn weight(w: u16) -> FontFamily {
     }
 }
 
-fn system_font(names: &[&str]) -> Option<Vec<u8>> {
+fn system_font(names: &[&str]) -> Option<&'static [u8]> {
     let dirs: &[&str] = if cfg!(windows) {
         &["C:\\Windows\\Fonts"]
     } else if cfg!(target_os = "macos") {
@@ -74,11 +74,64 @@ fn system_font(names: &[&str]) -> Option<Vec<u8>> {
     let all = windir.iter().chain(local.iter()).map(String::as_str).chain(dirs.iter().copied());
     for dir in all {
         for name in names {
-            if let Ok(data) = std::fs::read(std::path::Path::new(dir).join(name)) {
+            if let Some(data) = font_file(&std::path::Path::new(dir).join(name)) {
                 return Some(data);
             }
         }
     }
+    None
+}
+
+/// A font file's bytes, once per process however many windows (egui
+/// contexts) and faces use it: egui copies a font it owns into every
+/// context, and borrows a `'static` one. On Windows the file is mapped
+/// read-only, so its pages are the file's (shared, and only those read
+/// are resident) rather than a private copy.
+fn font_file(path: &std::path::Path) -> Option<&'static [u8]> {
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+    type Files = BTreeMap<std::path::PathBuf, Option<&'static [u8]>>;
+    static FILES: Mutex<Files> = Mutex::new(BTreeMap::new());
+    let mut files = FILES.lock().unwrap_or_else(|e| e.into_inner());
+    *files.entry(path.to_path_buf()).or_insert_with(|| {
+        map_file(path).or_else(|| std::fs::read(path).ok().map(|d| &*Box::leak(d.into_boxed_slice())))
+    })
+}
+
+/// `path` mapped read-only for the rest of the process (never unmapped).
+#[cfg(windows)]
+fn map_file(path: &std::path::Path) -> Option<&'static [u8]> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_READ, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, GetFileSizeEx, OPEN_EXISTING};
+    use windows_sys::Win32::System::Memory::{CreateFileMappingW, FILE_MAP_READ, MapViewOfFile, PAGE_READONLY};
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: a NUL-terminated path; every handle is checked and closed (the
+    // view keeps the mapping alive), and the view is never unmapped, so the
+    // slice stays valid for the process.
+    unsafe {
+        let file = CreateFileW(wide.as_ptr(), GENERIC_READ, FILE_SHARE_READ, std::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, std::ptr::null_mut());
+        if file == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let mut size = 0i64;
+        let ok = GetFileSizeEx(file, &mut size) != 0;
+        let mapping = if ok && size > 0 { CreateFileMappingW(file, std::ptr::null(), PAGE_READONLY, 0, 0, std::ptr::null()) } else { std::ptr::null_mut() };
+        CloseHandle(file);
+        if mapping.is_null() {
+            return None;
+        }
+        let view = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+        CloseHandle(mapping);
+        if view.Value.is_null() {
+            return None;
+        }
+        Some(std::slice::from_raw_parts(view.Value as *const u8, size as usize))
+    }
+}
+
+#[cfg(not(windows))]
+fn map_file(_path: &std::path::Path) -> Option<&'static [u8]> {
     None
 }
 
@@ -94,7 +147,12 @@ fn directwrite(family: &str, weight: u16) -> Option<FontData> {
         .ok()?;
     let face = font.create_font_face();
     let file = face.files().ok()?.into_iter().next()?;
-    let mut data = FontData::from_owned(file.font_file_bytes().ok()?);
+    let bytes = match file.font_file_path().ok().and_then(|p| font_file(&p)) {
+        Some(b) => b,
+        // Not a file (a font in memory): its bytes, once.
+        None => Box::leak(file.font_file_bytes().ok()?.into_boxed_slice()),
+    };
+    let mut data = FontData::from_static(bytes);
     data.index = face.get_index();
     if face.has_variations() {
         // A variable font: pick the weight asked for.
@@ -114,7 +172,7 @@ fn first_of(families: &[&str], files: &[&str], weight: u16) -> Option<FontData> 
     families
         .iter()
         .find_map(|f| directwrite(f, weight))
-        .or_else(|| system_font(files).map(FontData::from_owned))
+        .or_else(|| system_font(files).map(FontData::from_static))
 }
 
 /// The fonts ShareX would pick on this system: `(regular, semibold, bold,
@@ -147,7 +205,15 @@ pub fn install(ctx: &egui::Context) {
     ctx.set_fonts(definitions());
 }
 
+/// ShareX's fonts for an egui context: found once per process (a window
+/// opening doesn't ask DirectWrite again), their data shared by every
+/// context.
 pub fn definitions() -> FontDefinitions {
+    static DEFS: std::sync::OnceLock<FontDefinitions> = std::sync::OnceLock::new();
+    DEFS.get_or_init(build_definitions).clone()
+}
+
+fn build_definitions() -> FontDefinitions {
     let mut defs = FontDefinitions::default();
     let (regular, semibold_face, bold_face, mono, mono_semibold_face) = faces();
     let fallbacks = defs.families[&FontFamily::Proportional].clone();
