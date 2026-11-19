@@ -3,14 +3,21 @@
 //! monitor, which Windows then gives a single DPI), all feeding one
 //! [`RegionCapture`] session. Each window is painted before it's shown, so
 //! it never flashes empty.
+//!
+//! On Windows the windows outlive the session: hidden when it ends, they
+//! wait in a pool for the next capture with their swap chain, renderer,
+//! fonts and frozen screen texture (as ShareX warms its window up), and
+//! are got ready while the screen is grabbed. The rest of a window's state
+//! starts over each time ([`EguiWindow::reset_for_reuse`]).
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Instant;
 
 use sharex_capture::region::{
     Button, CursorKind, Key, Modifiers, Outcome, OverlayView, RegionCapture, Request, cursors::CustomCursor,
 };
-use sharex_capture::{PointF, Screen, platform};
+use sharex_capture::{PointF, Rect, Screen, platform, trace};
 use sharex_ui::gpu::Gpu;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -19,6 +26,132 @@ use winit::keyboard::{KeyCode, NamedKey, PhysicalKey};
 use winit::window::{CursorIcon, WindowAttributes, WindowId, WindowLevel};
 
 use crate::window::EguiWindow;
+
+/// Overlay windows are kept between captures (Windows only: elsewhere
+/// hiding and showing them again is untested), unless
+/// `SHAREXRS_NO_OVERLAY_REUSE` is set.
+fn reuse() -> bool {
+    cfg!(windows) && std::env::var_os("SHAREXRS_NO_OVERLAY_REUSE").is_none()
+}
+
+/// A hidden overlay window waiting for the next capture.
+struct Pooled {
+    window: EguiWindow,
+    /// The monitor it covers and its scaling.
+    monitor: Rect,
+    scale: f64,
+    /// The frozen screen's texture, the monitor's size.
+    frozen: Option<egui::TextureHandle>,
+}
+
+impl Pooled {
+    /// Still right for `screen`: the same place, size and scaling.
+    fn fits(&self, screen: &Screen) -> bool {
+        let b = screen.bounds;
+        let w = &self.window.window;
+        self.monitor == b
+            && self.scale == screen.scale
+            && w.inner_size() == PhysicalSize::new(b.w as u32, b.h as u32)
+            && w.inner_position().is_ok_and(|p| (p.x, p.y) == (b.x, b.y))
+    }
+}
+
+thread_local! {
+    static POOL: RefCell<Vec<Pooled>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A new overlay window for `screen`, hidden.
+fn new_overlay(event_loop: &ActiveEventLoop, gpu: &Gpu, screen: &Screen) -> Result<Pooled, String> {
+    let window = open_window(event_loop, screen)?;
+    trace::mark("window created");
+    let window = EguiWindow::new(window, gpu, None)?;
+    trace::mark("egui window (surface, renderer)");
+    Ok(Pooled { window, monitor: screen.bounds, scale: screen.scale, frozen: None })
+}
+
+/// The kept window for `screen`, else a new one.
+fn take_overlay(event_loop: &ActiveEventLoop, gpu: &Gpu, screen: &Screen) -> Result<Pooled, String> {
+    let kept = POOL.with(|p| {
+        let mut pool = p.borrow_mut();
+        let i = pool.iter().position(|o| o.fits(screen))?;
+        Some(pool.swap_remove(i))
+    });
+    match kept {
+        Some(mut o) => {
+            o.window.reset_for_reuse();
+            trace::mark("kept window");
+            Ok(o)
+        }
+        None => new_overlay(event_loop, gpu, screen),
+    }
+}
+
+/// Gets an overlay window ready, hidden, for each of `screens` (while the
+/// screen is grabbed, and at the warm-up); windows for monitors that
+/// changed go.
+pub fn ready_overlays(event_loop: &ActiveEventLoop, gpu: &Gpu, screens: &[Screen]) {
+    if !reuse() {
+        return;
+    }
+    POOL.with(|p| p.borrow_mut().retain(|o| screens.iter().any(|s| o.fits(s))));
+    for screen in screens {
+        if POOL.with(|p| p.borrow().iter().any(|o| o.fits(screen))) {
+            continue;
+        }
+        match new_overlay(event_loop, gpu, screen) {
+            Ok(o) => POOL.with(|p| p.borrow_mut().push(o)),
+            Err(e) => eprintln!("region capture: {e}"),
+        }
+    }
+}
+
+/// `RegionCaptureIntegration.WarmUp`: the overlay windows made, hidden, and
+/// each painted once over a 64x64 screenshot (the renderer, fonts and
+/// glyphs, the toolbar's icons), with a frozen screen texture of its
+/// monitor's size.
+pub fn warm_up(event_loop: &ActiveEventLoop, gpu: &Gpu, dark: bool) {
+    if !reuse() {
+        return;
+    }
+    let screens = sharex_capture::screenshot::screens();
+    ready_overlays(event_loop, gpu, &screens);
+    const SIZE: u32 = 64;
+    let request = Request {
+        screenshot: image::RgbaImage::new(SIZE, SIZE),
+        screen_bounds: Rect::new(0, 0, SIZE as i32, SIZE as i32),
+        screens: screens.clone(),
+        options: Default::default(),
+        windows: Vec::new(),
+        cursor: None,
+        last_regions: Vec::new(),
+        enable_annotations: true,
+        editor_options: Default::default(),
+        cursor_image: None,
+        allow_multiple_regions: true,
+        pixel_info: None,
+    };
+    let mut capture = RegionCapture::new(request);
+    let now = Instant::now();
+    POOL.with(|p| {
+        for o in p.borrow_mut().iter_mut() {
+            o.window.ctx().set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
+            let mut view = OverlayView::new(o.monitor);
+            o.window.paint(|ui| capture.paint(ui, &mut view, now));
+            if o.frozen.is_none() {
+                let size = [o.monitor.w.max(1) as usize, o.monitor.h.max(1) as usize];
+                let image = egui::ColorImage::filled(size, egui::Color32::BLACK);
+                o.frozen = Some(o.window.ctx().load_texture("frozen screen", image, egui::TextureOptions::NEAREST));
+            }
+            // Uploads the texture (the window stays hidden).
+            o.window.paint(|_| ());
+        }
+    });
+}
+
+/// Closes the kept windows (before the event loop ends).
+pub fn clear_pool() {
+    POOL.with(|p| p.borrow_mut().clear());
+}
 
 struct Overlay {
     window: EguiWindow,
@@ -155,18 +288,20 @@ impl RegionSession {
         let screen_bounds = request.screen_bounds;
         let active_monitor = request.options.ActiveMonitorMode;
         use sharex_capture::trace;
-        let capture = RegionCapture::new(request);
+        let mut capture = RegionCapture::new(request);
         trace::mark("session (editor workspace)");
         let mut overlays = Vec::new();
         // The monitors the screenshot covers (only the active one in
         // active monitor mode, as ShareX's window spans `ScreenBounds`).
         for screen in screens.iter().filter(|s| s.bounds.intersect(&screen_bounds).is_valid()) {
-            let window = open_window(event_loop, screen)?;
-            trace::mark("window created");
-            let w = EguiWindow::new(window, gpu, None)?;
+            let Pooled { window: w, frozen, .. } = take_overlay(event_loop, gpu, screen)?;
             w.ctx().set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
-            trace::mark("egui window (surface, renderer)");
-            overlays.push(Overlay { window: w, view: OverlayView::new(screen.bounds), scale: screen.scale, pointer: None });
+            let mut view = OverlayView::new(screen.bounds);
+            // The frozen screen uploads before the first frame, into the
+            // texture the window kept.
+            view.keep_texture(frozen);
+            capture.update_frozen(w.ctx(), &mut view);
+            overlays.push(Overlay { window: w, view, scale: screen.scale, pointer: None });
         }
         let mut me = Self {
             capture,
@@ -188,6 +323,9 @@ impl RegionSession {
             let view = &mut o.view;
             o.window.paint(|ui| capture.paint(ui, view, now));
             trace::mark("first frame painted");
+            // A kept window goes back on top of the topmost windows (a new
+            // one starts there).
+            platform::raise_overlay(&o.window.window);
             o.window.window.set_visible(true);
             trace::mark("shown");
         }
@@ -207,6 +345,20 @@ impl RegionSession {
         me.update_cursor(event_loop);
         trace::end("overlay open");
         Ok(me)
+    }
+
+    /// Hides the windows and keeps them for the next capture (closes them
+    /// without [`reuse`]).
+    fn release(&mut self) {
+        // In the order the fields drop: the windows, then the pointer lock.
+        for mut o in self.overlays.drain(..) {
+            if reuse() {
+                o.window.window.set_visible(false);
+                let frozen = o.view.take_frozen_texture();
+                POOL.with(|p| p.borrow_mut().push(Pooled { window: o.window, monitor: o.view.monitor, scale: o.scale, frozen }));
+            }
+        }
+        self.cursor_lock = None;
     }
 
     /// The workspace's emoji picker requests: the picker opens on the
@@ -505,6 +657,12 @@ impl RegionSession {
         self.update_cursor(event_loop);
         self.redraw();
         outcome
+    }
+}
+
+impl Drop for RegionSession {
+    fn drop(&mut self) {
+        self.release();
     }
 }
 

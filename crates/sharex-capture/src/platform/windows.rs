@@ -851,6 +851,16 @@ pub fn prepare_overlay(window: &winit::window::Window) {
 /// Called once an overlay's first frame is on screen (macOS fades it in).
 pub fn overlay_presented(_window: &winit::window::Window) {}
 
+/// A kept overlay, still hidden, back on top of the topmost windows before
+/// it's shown again, as a new one starts (`HWND_TOPMOST`, not activated:
+/// the overlay is activated once shown, as before).
+pub fn raise_overlay(window: &winit::window::Window) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos};
+    let Some(h) = hwnd(window) else { return };
+    // SAFETY: our own window; no pointers.
+    unsafe { SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE) };
+}
+
 /// `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`: the window doesn't
 /// show in screen captures (the recording frame with the native recorder).
 pub fn exclude_from_capture(window: &winit::window::Window) -> bool {

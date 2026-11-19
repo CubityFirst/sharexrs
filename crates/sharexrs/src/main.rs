@@ -256,6 +256,7 @@ fn main() {
         // `-NoHotkeys`: `StartupOptions.IgnoreHotkeyWarning`.
         ignore_hotkey_warning: is_command_present(&args, &["NoHotkeys"]),
         region: None,
+        region_warm_up_at: None,
         pending_capture: None,
         ocr_region: None,
         last_regions: Vec::new(),
@@ -401,6 +402,9 @@ struct App {
     ignore_hotkey_warning: bool,
     /// The region capture overlay, while it's open.
     region: Option<Region>,
+    /// When the region capture warms up (`MainWindow.WarmUpRegionCapture`,
+    /// 2 s after startup, once idle).
+    region_warm_up_at: Option<Instant>,
     /// A capture waiting for its screenshot delay or for the main window to
     /// hide.
     pending_capture: Option<PendingCapture>,
@@ -1008,13 +1012,17 @@ impl App {
     /// screen and opens the overlay.
     fn start_region_capture(&mut self, event_loop: &ActiveEventLoop, task: TaskSettings, hidden: bool) {
         sharex_capture::trace::mark("start region capture");
+        self.region_warm_up_at = None;
         let dark = self.theme() == egui::Theme::Dark;
-        let opened = capture_job::prepare(&task, self.last_regions.clone()).and_then(|request| {
-            let gpu = match &self.gpu {
-                Some(g) => g,
-                None => self.gpu.insert(Gpu::new()?),
-            };
-            RegionSession::open(event_loop, gpu, request, dark)
+        let last_regions = self.last_regions.clone();
+        let gpu = match &self.gpu {
+            Some(g) => Ok(g),
+            None => Gpu::new().map(|g| &*self.gpu.insert(g)),
+        };
+        // The overlay windows get ready while the screen is grabbed.
+        let opened = gpu.and_then(|gpu| {
+            capture_job::prepare_with(&task, last_regions, |screens| region_session::ready_overlays(event_loop, gpu, screens))
+                .and_then(|request| RegionSession::open(event_loop, gpu, request, dark))
         });
         match opened {
             Ok(session) => self.region = Some(Region { session, task, hidden }),
@@ -1026,6 +1034,26 @@ impl App {
                 }
             }
         }
+    }
+
+    /// `MainWindow.WarmUpRegionCapture`: what the first region capture
+    /// would make, made while the app is idle (a 1x1 grab, the overlay
+    /// windows, hidden, painted once), and its time logged.
+    fn warm_up_region_capture(&mut self, event_loop: &ActiveEventLoop) {
+        let start = Instant::now();
+        let screens = sharex_capture::screenshot::screens();
+        let _ = sharex_capture::screenshot::Screenshot { remove_outside_screen_area: false, ..Default::default() }
+            .capture_rectangle(&screens, sharex_capture::Rect::new(0, 0, 1, 1));
+        let dark = self.theme() == egui::Theme::Dark;
+        let gpu = match &self.gpu {
+            Some(g) => Ok(g),
+            None => Gpu::new().map(|g| &*self.gpu.insert(g)),
+        };
+        match gpu {
+            Ok(gpu) => region_session::warm_up(event_loop, gpu, dark),
+            Err(e) => eprintln!("Region capture warm-up failed. {e}"),
+        }
+        eprintln!("Region capture warm-up: {} ms", start.elapsed().as_millis());
     }
 
     /// `MainWindowIntegration.Activate` (`MainWindow.ShowAndActivate`):
@@ -1854,6 +1882,9 @@ impl ApplicationHandler<UserEvent> for App {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // `DisposeWindowResources`: the tray icon goes.
         self.tray_menu = None;
+        let _popups = popup_window::enter(_event_loop);
+        self.region = None;
+        region_session::clear_pool();
         self.watch_folders.clear();
         self.recording = None;
         self.ffmpeg_options = None;
@@ -2061,6 +2092,12 @@ impl ApplicationHandler<UserEvent> for App {
             d.window.window.request_redraw();
         }
         self.advance_pending_capture(event_loop);
+        if self.region_warm_up_at.is_some_and(|at| at <= Instant::now()) {
+            self.region_warm_up_at = None;
+            if self.region.is_none() && self.pending_capture.is_none() {
+                self.warm_up_region_capture(event_loop);
+            }
+        }
         self.tray_click_timer(event_loop);
         // A due repaint is asked for once: a hidden window gets no redraw,
         // and waiting on it would stall every timer below.
@@ -2095,6 +2132,7 @@ impl ApplicationHandler<UserEvent> for App {
             region,
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),
+            self.region_warm_up_at,
             self.tray_click_at,
             app_windows,
             dialogs,

@@ -297,6 +297,9 @@ impl App {
         }
         self.router.ready = true;
         eprintln!("Startup time: {} ms", START.get().map_or(0, |s| s.elapsed().as_millis()));
+        // `DispatcherTimer.RunOnce(WarmUpRegionCapture, 2 s)` from the main
+        // window's constructor.
+        self.region_warm_up_at = Some(Instant::now() + std::time::Duration::from_secs(2));
         if let Some(args) = self.router.initial.take() {
             self.use_command_line_args(event_loop, &args);
         }

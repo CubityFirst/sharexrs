@@ -165,6 +165,10 @@ pub fn overlay_presented(_window: &winit::window::Window) {
     super::macos::fade_in(_window);
 }
 
+/// Puts a kept overlay back on top before it's shown again (Windows only;
+/// overlays aren't kept elsewhere).
+pub fn raise_overlay(_window: &winit::window::Window) {}
+
 // ---- windows for Capture › Window and the other capture jobs -------------
 
 /// The focused window, where the platform tells (xcap's `is_focused`).
