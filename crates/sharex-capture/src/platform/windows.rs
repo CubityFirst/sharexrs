@@ -127,7 +127,6 @@ fn draw_native(w: i32, h: i32, background: Option<[u8; 3]>, draw: impl FnOnce(HD
         }
         draw(dc);
         GdiFlush();
-        crate::trace::mark("grab: BitBlt");
         let mut out = vec![0u8; len];
         for (o, i) in out.chunks_exact_mut(4).zip(pixels.chunks_exact(4)) {
             o.copy_from_slice(&[i[2], i[1], i[0], i[3]]);
@@ -141,27 +140,81 @@ fn draw_native(w: i32, h: i32, background: Option<[u8; 3]>, draw: impl FnOnce(HD
 
 /// `WindowsImageInterop.Capture`: the screen's pixels in `r` (desktop
 /// pixels), `BitBlt` with `CAPTUREBLT`, opaque.
+///
+/// ShareX blits into a DIB section; here it's a bitmap compatible with the
+/// screen read with `GetDIBits`, the same pixels (the same `BitBlt` from
+/// the same DC) about 20 ms sooner for a 2560x1600 screen, most of the
+/// rest being DWM's wait, whatever the size (docs/PORTING.md, "Region
+/// capture performance"). The BGRA rows are swapped to RGBA and made
+/// opaque in one pass, in place.
 pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
-    // SAFETY: the desktop window's DC, released below.
-    let desktop = unsafe { GetDesktopWindow() };
-    let source = unsafe { GetWindowDC(desktop) };
-    if source.is_null() {
+    use windows_sys::Win32::Graphics::Gdi::{CreateCompatibleBitmap, GetDIBits};
+    if r.w <= 0 || r.h <= 0 {
         return None;
     }
-    let mut image = draw_native(r.w, r.h, None, |dc| {
-        // SAFETY: both DCs are live for the call.
-        unsafe { BitBlt(dc, 0, 0, r.w, r.h, source, r.x, r.y, SRCCOPY | CAPTUREBLT) };
-    });
-    // SAFETY: as above.
-    unsafe { ReleaseDC(desktop, source) };
-    // `SetOpaque`
-    if let Some(img) = &mut image {
-        for p in img.pixels_mut() {
-            p[3] = 255;
+    let len = r.w as usize * r.h as usize * 4;
+    // SAFETY: the desktop window's DC, a memory DC and bitmap created here,
+    // all released below; `GetDIBits` writes `r.h` rows of `r.w` 32-bit
+    // pixels into a buffer of that size.
+    let mut pixels = unsafe {
+        let desktop = GetDesktopWindow();
+        let source = GetWindowDC(desktop);
+        if source.is_null() {
+            return None;
         }
-    }
+        let dc = CreateCompatibleDC(source);
+        let bmp = if dc.is_null() { std::ptr::null_mut() } else { CreateCompatibleBitmap(source, r.w, r.h) };
+        let mut out = None;
+        if !bmp.is_null() {
+            let previous = SelectObject(dc, bmp);
+            let blitted = BitBlt(dc, 0, 0, r.w, r.h, source, r.x, r.y, SRCCOPY | CAPTUREBLT) != 0;
+            SelectObject(dc, previous);
+            crate::trace::mark("grab: BitBlt");
+            // A failed blit (the secure desktop) leaves black, as ShareXrs's
+            // zeroed DIB section did.
+            if !blitted {
+                out = Some(vec![0u8; len]);
+            } else {
+                let mut bi: BITMAPINFO = std::mem::zeroed();
+                bi.bmiHeader = BITMAPINFOHEADER {
+                    biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: r.w,
+                    biHeight: -r.h,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB,
+                    biSizeImage: len as u32,
+                    ..std::mem::zeroed()
+                };
+                let mut buf: Vec<u8> = Vec::with_capacity(len);
+                let lines = GetDIBits(dc, bmp, 0, r.h as u32, buf.as_mut_ptr().cast(), &mut bi, DIB_RGB_COLORS);
+                if lines == r.h {
+                    buf.set_len(len);
+                    out = Some(buf);
+                }
+                crate::trace::mark("grab: GetDIBits");
+            }
+            DeleteObject(bmp);
+        }
+        if !dc.is_null() {
+            DeleteDC(dc);
+        }
+        ReleaseDC(desktop, source);
+        out?
+    };
+    // `SetOpaque`, with BGRA to RGBA.
+    bgra_to_opaque_rgba(&mut pixels);
     crate::trace::mark("grab: BGRA to opaque RGBA");
-    image
+    RgbaImage::from_raw(r.w as u32, r.h as u32, pixels)
+}
+
+/// BGRA pixels to RGBA with alpha 255, in place.
+fn bgra_to_opaque_rgba(pixels: &mut [u8]) {
+    for p in pixels.chunks_exact_mut(4) {
+        let v = u32::from_le_bytes([p[0], p[1], p[2], p[3]]);
+        let rgba = (v & 0x0000_ff00) | ((v >> 16) & 0xff) | ((v & 0xff) << 16) | 0xff00_0000;
+        p.copy_from_slice(&rgba.to_le_bytes());
+    }
 }
 
 /// `ScreenColorPickerWindow.TryUpdateMagnifier`: the screen DC's pixels in
@@ -1305,4 +1358,16 @@ pub fn is_active_window_fullscreen(screens: &[Screen]) -> bool {
     }
     let r = window_rect(h);
     crate::screenshot::screen_from_rectangle(screens, r).is_some_and(|s| r.contains_rect(&s.bounds))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bgra_becomes_opaque_rgba_as_the_dib_copy_and_set_opaque_made_it() {
+        let bgra: Vec<u8> = (0..=255u8).cycle().take(4 * 300).collect();
+        let mut got = bgra.clone();
+        super::bgra_to_opaque_rgba(&mut got);
+        let expected: Vec<u8> = bgra.chunks_exact(4).flat_map(|i| [i[2], i[1], i[0], 255]).collect();
+        assert_eq!(got, expected);
+    }
 }
