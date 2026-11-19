@@ -11,6 +11,16 @@
 //! - `multi-upload` (`--count N`), `large-file`,
 //! - `before-upload`, `after-upload`, `qr-code` (see their modules),
 //! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...),
+//!   `--state` a state of its cards from made-up data
+//!   ([`super::destination_settings::render_config`] and
+//!   `seed_render_state`: `connected-display`, `code-entered`, `listed`...),
+//!   `--scroll` its page scrolled,
+//! - `oauth-listener` (waiting for the browser), `input-box` (MEGA's
+//!   two-factor question, `--text` typed in), `email-window` (`--state
+//!   empty|prefilled|edited`), `youtube-options` (`--state
+//!   default|edited`; `--clicks` on the combo box opens it),
+//!   `remote-storage-not-configured` (the message box), `remote-storage`
+//!   (see [`crate::remote_storage_browser::render_dialog`]),
 //! - `update-message` (`--content installed|portable|prerelease|dev`: the
 //!   setup flow, the portable one, a pre-release, a dev build without the
 //!   changelog link), `update-downloader` (`--content
@@ -429,6 +439,54 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(d)
         }
+        "oauth-listener" => {
+            let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            Box::new(super::oauth_listener::OAuthListenerWindow::new(sharex_uploaders::http::CancellationToken::new(), done))
+        }
+        "input-box" => {
+            let title = sharex_strings::uploaders_lib::DestinationSettings_Enter_current_two_factor_authentication_code();
+            Box::new(super::input_box::InputBoxWindow::new(title, o.text.as_deref(), None, None, None))
+        }
+        "email-window" => {
+            // As an email upload opens it: `EmailLastTo` (remembered), the
+            // default subject and body; "edited": typed over.
+            let d = sharex_uploaders::UploadersConfig::default();
+            let (subject, body) = (d.EmailDefaultSubject.unwrap_or_default(), d.EmailDefaultBody.unwrap_or_default());
+            match o.state.as_deref().unwrap_or("prefilled") {
+                "empty" => Box::new(super::email_window::EmailWindow::new("", "", "", None)),
+                "prefilled" => Box::new(super::email_window::EmailWindow::new("", &subject, &body, None)),
+                "edited" => Box::new(super::email_window::EmailWindow::new(
+                    "someone@example.com",
+                    "Screenshot of the build",
+                    "Here is the screenshot.
+It shows the dialog.",
+                    None,
+                )),
+                other => return Err(format!("no email window state {other}")),
+            }
+        }
+        "youtube-options" => {
+            use sharex_uploaders::enums::YouTubeVideoPrivacy;
+            // The file name and the account's privacy, as the upload opens it.
+            match o.state.as_deref().unwrap_or("default") {
+                "default" => Box::new(super::youtube_options::YouTubeOptionsWindow::new("Recording_01.mp4", "", &YouTubeVideoPrivacy::Private, None)),
+                "edited" => Box::new(super::youtube_options::YouTubeOptionsWindow::new(
+                    "A screen recording",
+                    "Recorded with ShareXrs.",
+                    &YouTubeVideoPrivacy::Unlisted,
+                    None,
+                )),
+                other => return Err(format!("no YouTube options state {other}")),
+            }
+        }
+        "remote-storage-not-configured" => {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            // `TaskHelpers.OpenRemoteStorageBrowser` without a provider.
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(super::message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        }
+        s if crate::remote_storage_browser::is_render_screen(s) => crate::remote_storage_browser::render_dialog(s, o)?,
         page if page.starts_with("destination-") => {
             // `destination-<page id>`: Destination settings on that page.
             let id = page.trim_start_matches("destination-").trim_start_matches("settings-");
@@ -436,6 +494,8 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             if !w.select_page(id) {
                 return Err(format!("no destination settings page {id}"));
             }
+            w.seed_render_state(id, o.state.as_deref().unwrap_or(""))?;
+            w.set_scroll(o.scroll);
             Box::new(w)
         }
         s if crate::history_ui::is_render_screen(s) => crate::history_ui::render_dialog(s, o)?,
@@ -482,7 +542,13 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "custom-uploader"
             | "update-message"
             | "update-downloader"
+            | "oauth-listener"
+            | "input-box"
+            | "email-window"
+            | "youtube-options"
+            | "remote-storage-not-configured"
     ) || screen.starts_with("destination-")
+        || crate::remote_storage_browser::is_render_screen(screen)
         || crate::history_ui::is_render_screen(screen)
         || crate::ocr_window::is_render_screen(screen)
         || crate::image_editor::is_render_screen(screen)
@@ -512,7 +578,10 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         (dialog(name, o)?, settings)
     };
     let spec = d.spec();
-    let store = UploadersConfigStore::loaded(mock_config());
+    let store = UploadersConfigStore::loaded(match name.strip_prefix("destination-") {
+        Some(page) => super::destination_settings::render_config(page, o.state.as_deref()),
+        None => mock_config(),
+    });
     let mut height = spec.height;
     let mut width = spec.width;
     if spec.size_to_content {

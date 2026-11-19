@@ -22,11 +22,16 @@ pub mod debug_log;
 pub mod display_diagnostics;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod email_window;
 pub mod file_exist;
+pub mod forms;
 pub mod icon_pack_prompt;
 pub mod image_viewer;
+pub mod input_box;
 pub mod layout;
+pub mod message_dialog;
 pub mod notification;
+pub mod oauth_listener;
 pub mod output_box;
 pub mod print_window;
 pub mod qr_code;
@@ -36,6 +41,7 @@ pub mod response;
 pub mod text_upload;
 pub mod update;
 pub mod url_input;
+pub mod youtube_options;
 
 use std::path::PathBuf;
 
@@ -75,6 +81,9 @@ pub struct Spec {
     pub borderless: bool,
     /// `WindowState="Maximized"`.
     pub maximized: bool,
+    /// `MaxWidth` / `MaxHeight` (0: none).
+    pub max_width: f32,
+    pub max_height: f32,
 }
 
 impl Spec {
@@ -94,6 +103,8 @@ impl Spec {
             activate: true,
             borderless: false,
             maximized: false,
+            max_width: 0.0,
+            max_height: 0.0,
         }
     }
 
@@ -162,6 +173,8 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// `TaskHelpers.OpenRemoteStorageBrowser` (Destination settings' button).
+    OpenRemoteStorageBrowser,
     /// The image editor's colour popups' screen colour picker
     /// (`ScreenColorPickerWindow.PickAsync(owner)`): over the window, its
     /// colour handed back through [`Dialog::screen_color`].
@@ -696,6 +709,7 @@ impl App {
                 Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
                 Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::OpenRemoteStorageBrowser => self.open_remote_storage_browser(event_loop),
                 Effect::PickScreenColorOverWindow => self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id)),
                 Effect::EditorCapture { fullscreen, task } => self.editor_capture(id, fullscreen, *task),
                 Effect::PickScreenColor => {
@@ -840,6 +854,22 @@ impl App {
         self.open_dialog_window(event_loop, Box::new(destination_settings::DestinationSettingsWindow::new(service)));
     }
 
+    /// `TaskHelpers.OpenRemoteStorageBrowser`: Amazon S3 and each usable
+    /// FTP/SFTP account; without any, the message saying how to set one up.
+    pub(crate) fn open_remote_storage_browser(&mut self, event_loop: &ActiveEventLoop) {
+        let allow_upload = !self.settings.system.disable_upload;
+        let providers = self.uploads.config.with(|c| sharex_uploaders::remote_storage::providers(c, allow_upload));
+        let dialog: Box<dyn Dialog> = if providers.is_empty() {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        } else {
+            Box::new(crate::remote_storage_browser::RemoteStorageBrowserWindow::new(providers, std::sync::Arc::new(crate::upload::SystemBrowser)))
+        };
+        self.open_dialog_window(event_loop, dialog);
+    }
+
     /// A window of ours to own the clipboard's data.
     pub(crate) fn clipboard_owner(&self) -> Option<isize> {
         self.main
@@ -882,6 +912,11 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
         .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
+    }
+    if spec.max_width > 0.0 || spec.max_height > 0.0 {
+        let w = if spec.max_width > 0.0 { spec.max_width } else { f32::MAX };
+        let h = if spec.max_height > 0.0 { spec.max_height } else { f32::MAX };
+        attrs = attrs.with_max_inner_size(LogicalSize::new(w, h));
     }
     if !spec.maximizable {
         attrs = attrs.with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE);

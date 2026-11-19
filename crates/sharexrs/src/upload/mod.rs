@@ -121,6 +121,15 @@ pub enum UiRequest {
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
     /// to write (`None`: cancelled).
     FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
+    /// `EmailWindowIntegration.Show(to, subject, body)`: answered with what
+    /// Send sends, or nothing.
+    Email(Box<sharex_uploaders::destinations::email::EmailFields>, mpsc::Sender<Option<sharex_uploaders::destinations::email::EmailFields>>),
+    /// `YouTubeVideoOptionsWindowIntegration.Show(title, description,
+    /// visibility)`: answered with what OK confirms, or nothing.
+    YouTubeOptions(
+        Box<sharex_uploaders::destinations::oauth_services::YouTubeOptions>,
+        mpsc::Sender<Option<sharex_uploaders::destinations::oauth_services::YouTubeOptions>>,
+    ),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -135,6 +144,8 @@ impl std::fmt::Debug for UiRequest {
             Self::Annotate(..) => f.write_str("Annotate"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
+            Self::Email(..) => f.write_str("Email"),
+            Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
         }
     }
 }
@@ -238,6 +249,21 @@ impl TaskUi for SystemUi {
 
 /// `URLHelpers.OpenURL`: a valid URL in the browser; anything else is
 /// "Invalid URL" (ShareX says so in a message box).
+/// Opens a URL (`URLHelpers.OpenURL`). Windows that open pages hold one,
+/// so tests record the pages instead of opening a browser.
+pub trait UrlOpener: Send + Sync {
+    fn open(&self, url: &str);
+}
+
+/// The system's browser ([`open_url`]).
+pub struct SystemBrowser;
+
+impl UrlOpener for SystemBrowser {
+    fn open(&self, url: &str) {
+        open_url(url);
+    }
+}
+
 pub fn open_url(url: &str) {
     if url.is_empty() {
         return;

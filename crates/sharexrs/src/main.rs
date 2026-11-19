@@ -35,6 +35,7 @@ mod image_tools;
 mod image_effects;
 mod recording;
 mod region_render;
+mod remote_storage_browser;
 mod region_session;
 mod render;
 mod screen_tools;
@@ -52,6 +53,8 @@ mod task_editors;
 mod task_settings_window;
 mod task_view;
 mod tasks;
+#[cfg(test)]
+mod test_mock;
 mod test_pattern;
 mod print;
 mod thumbnail;
@@ -215,6 +218,7 @@ fn main() {
             rx.recv().unwrap_or_else(|_| Some(path.to_path_buf()))
         })));
     }
+    upload::app::set_dialog_hooks(proxy.clone());
     let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,
@@ -605,6 +609,10 @@ impl App {
         }
         if command == MenuCommand::Tool("MainMenuBuilder_ImageViewer") {
             self.open_image_viewer(event_loop);
+            return;
+        }
+        if command == MenuCommand::Tool("MainMenuBuilder_RemoteStorageBrowser") {
+            self.open_remote_storage_browser(event_loop);
             return;
         }
         if let MenuCommand::Tool(key) = command
