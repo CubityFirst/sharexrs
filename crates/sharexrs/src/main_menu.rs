@@ -38,7 +38,13 @@ pub enum MenuCommand {
     DragAndDropUpload,
     ShortenUrl,
     // Workflows
+    /// `TaskHelpers.ExecuteJob(workflow.TaskSettings)`: a hotkey's task, by
+    /// its index in `HotkeysConfig.Hotkeys`.
     RunWorkflow(usize),
+    /// The tray's Recent items › Copy / Open (`RecentTask.Copy`, `Open`), by
+    /// the recent task's index in `TaskManager.RecentManager.Tasks`.
+    RecentCopy(usize),
+    RecentOpen(usize),
     /// `MainFormCommand.HotkeySettings`.
     HotkeySettings,
     // Tools (`BuildToolCategories`, by `nameof(Strings.MainMenuBuilder_*)`)
@@ -95,22 +101,62 @@ pub struct Workflow {
     pub icon: &'static str,
     /// `TaskSettings.IsUsingDefaultSettings`.
     pub uses_default_settings: bool,
+    /// Its index in `HotkeysConfig.Hotkeys`.
+    pub hotkey_index: usize,
+}
+
+/// `BuildWorkflowsMenu`'s hotkeys: every one with a job, as the menu shows it.
+pub fn workflows_from_hotkeys(hotkeys: &[sharex_settings::HotkeySettings]) -> Vec<Workflow> {
+    hotkeys
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.TaskSettings.Job != sharex_settings::HotkeyType::None)
+        .map(|(i, h)| Workflow {
+            name: h.TaskSettings.display_name(),
+            hotkey: h.HotkeyInfo.is_valid_hotkey().then(|| h.HotkeyInfo.to_string()),
+            icon: find_menu_icon(&h.TaskSettings.Job),
+            uses_default_settings: h.TaskSettings.is_using_default_settings(),
+            hotkey_index: i,
+        })
+        .collect()
+}
+
+/// A recent task as the tray's Recent items lists it.
+#[derive(Clone, Debug)]
+pub struct RecentItem {
+    /// `RecentTask.TrayMenuText`.
+    pub text: String,
+    /// `GetRecentTaskIcon`.
+    pub icon: &'static str,
+    /// Its index in `TaskManager.RecentManager.Tasks`.
+    pub index: usize,
+}
+
+/// `BuildRecentItemsMenu`'s items, most recent first when
+/// `RecentTasksTrayMenuMostRecentFirst`.
+pub fn recent_items(tasks: &[crate::tasks::RecentTask], most_recent_first: bool) -> Vec<RecentItem> {
+    let mut items: Vec<RecentItem> = tasks.iter().enumerate().map(|(i, t)| RecentItem { text: t.tray_menu_text(), icon: t.icon(), index: i }).collect();
+    if most_recent_first {
+        items.reverse();
+    }
+    items
 }
 
 /// `HotkeyManager.GetDefaultHotkeyList`, until hotkeys are ported.
 pub fn default_workflows() -> Vec<Workflow> {
-    let w = |name: &str, hotkey: &str, icon| Workflow {
+    let w = |i: usize, name: &str, hotkey: &str, icon| Workflow {
         name: name.into(),
         hotkey: Some(hotkey.into()),
         icon,
         uses_default_settings: true,
+        hotkey_index: i,
     };
     vec![
-        w(hs::HotkeyType_RectangleRegion(), "Ctrl + Print Screen", icon::Region),
-        w(hs::HotkeyType_PrintScreen(), "Print Screen", icon::Fullscreen),
-        w(hs::HotkeyType_ActiveWindow(), "Alt + Print Screen", icon::Window),
-        w(hs::HotkeyType_ScreenRecorder(), "Shift + Print Screen", icon::ScreenRecording),
-        w(hs::HotkeyType_ScreenRecorderGIF(), "Ctrl + Shift + Print Screen", icon::Film),
+        w(0, hs::HotkeyType_RectangleRegion(), "Ctrl + Print Screen", icon::Region),
+        w(1, hs::HotkeyType_PrintScreen(), "Print Screen", icon::Fullscreen),
+        w(2, hs::HotkeyType_ActiveWindow(), "Alt + Print Screen", icon::Window),
+        w(3, hs::HotkeyType_ScreenRecorder(), "Shift + Print Screen", icon::ScreenRecording),
+        w(4, hs::HotkeyType_ScreenRecorderGIF(), "Ctrl + Shift + Print Screen", icon::Film),
     ]
 }
 
@@ -147,10 +193,11 @@ pub struct MenuState {
     pub list_windows: bool,
     /// `ApplicationConfig.DisableHotkeys`, for the tray's toggle.
     pub hotkeys_disabled: bool,
-    /// The tray's Recent items entry: `RecentTasksSave`,
-    /// `RecentTasksShowInTrayMenu` and recent tasks to show (none are kept
-    /// until history is ported).
-    pub recent_items: bool,
+    /// The tray's Recent items entry is shown: `RecentTasksSave` and
+    /// `RecentTasksShowInTrayMenu` (and some recent task).
+    pub show_recent_items: bool,
+    /// Recent items › the tasks.
+    pub recent_items: Vec<RecentItem>,
 }
 
 /// A window in Capture › Window.
@@ -221,7 +268,8 @@ impl Default for MenuState {
             windows: Vec::new(),
             list_windows: false,
             hotkeys_disabled: false,
-            recent_items: false,
+            show_recent_items: false,
+            recent_items: Vec::new(),
         }
     }
 }
@@ -332,7 +380,7 @@ pub fn tray_menu(state: &MenuState) -> Vec<Entry> {
     vec![
         parent(s::MainMenuBuilder_Capture(), icon::Camera, capture_menu(state)),
         parent(s::MainMenuBuilder_Upload(), icon::Upload, upload_menu()).visible(up),
-        parent(s::MainMenuBuilder_Workflows(), icon::Workflows, workflows_menu(state)),
+        parent(s::MainMenuBuilder_Workflows(), icon::Workflows, workflows_menu(state, true)),
         Entry::label(s::MainMenuBuilder_Tools(), icon::Wrench).categories(tools),
         Entry::separator(),
         parent(s::MainMenuBuilder_AfterCaptureTasks(), icon::AfterCaptureTasks, after_capture_menu(state)),
@@ -352,7 +400,8 @@ pub fn tray_menu(state: &MenuState) -> Vec<Entry> {
         item(s::MainMenuBuilder_ImageHistory(), icon::ImageHistory, C::ImageHistory),
         Entry::separator(),
         item(s::MainMenuBuilder_RestartAsAdministrator(), icon::RestartAsAdmin, C::RestartAsAdministrator),
-        parent(s::MainMenuBuilder_RecentItems(), icon::RecentItems, Vec::new()).visible(state.recent_items),
+        parent(s::MainMenuBuilder_RecentItems(), icon::RecentItems, recent_items_menu(state))
+            .visible(state.show_recent_items && !state.recent_items.is_empty()),
         item(s::MainMenuBuilder_ActionsToolbar(), icon::Toolbar, C::ActionsToolbar),
         item(s::MainMenuBuilder_ShowShareX(), icon::Window, C::ShowMainWindow),
         item(s::MainMenuBuilder_Exit(), icon::Exit, C::Exit),
@@ -372,14 +421,28 @@ pub fn upload_menu() -> Vec<Entry> {
     ]
 }
 
-/// `BuildWorkflowsMenu` (the main window's: with "Add workflows…").
-pub fn workflows_menu(state: &MenuState) -> Vec<Entry> {
+/// `BuildRecentItemsMenu`: each task with Copy and Open.
+pub fn recent_items_menu(state: &MenuState) -> Vec<Entry> {
+    state
+        .recent_items
+        .iter()
+        .map(|r| {
+            parent(&r.text, r.icon, vec![
+                item(s::MainMenuBuilder_Copy(), icon::Copy, C::RecentCopy(r.index)),
+                item(s::MainMenuBuilder_Open(), icon::ExternalLink, C::RecentOpen(r.index)),
+            ])
+        })
+        .collect()
+}
+
+/// `BuildWorkflowsMenu`: the main window's ends with "Add workflows…",
+/// the tray's (`_trayMenu`) doesn't.
+pub fn workflows_menu(state: &MenuState, tray: bool) -> Vec<Entry> {
     let mut items: Vec<Entry> = state
         .workflows
         .iter()
-        .enumerate()
-        .filter(|(_, w)| !(state.workflows_only_show_edited && w.uses_default_settings))
-        .map(|(i, w)| {
+        .filter(|w| !(state.workflows_only_show_edited && w.uses_default_settings))
+        .map(|w| {
             let mut title = w.name.clone();
             if !w.uses_default_settings {
                 title.push('*');
@@ -388,13 +451,15 @@ pub fn workflows_menu(state: &MenuState) -> Vec<Entry> {
                 title.push_str("    ");
                 title.push_str(hotkey);
             }
-            item(&title, w.icon, C::RunWorkflow(i))
+            item(&title, w.icon, C::RunWorkflow(w.hotkey_index))
         })
         .collect();
-    if !items.is_empty() {
-        items.push(Entry::separator());
+    if !tray {
+        if !items.is_empty() {
+            items.push(Entry::separator());
+        }
+        items.push(item(s::MainMenuBuilder_AddWorkflowsFromHotkeySettings(), icon::Keyboard, C::HotkeySettings));
     }
-    items.push(item(s::MainMenuBuilder_AddWorkflowsFromHotkeySettings(), icon::Keyboard, C::HotkeySettings));
     items
 }
 
@@ -916,7 +981,9 @@ mod tests {
         assert_eq!(after_capture_menu(&state)[0].header, "Show quick task menu");
         let tools = tool_categories();
         assert_eq!(tools[0].entries[0].header, "Color picker...");
-        assert_eq!(workflows_menu(&state)[0].header, "Capture region    Ctrl + Print Screen");
+        assert_eq!(workflows_menu(&state, false)[0].header, "Capture region    Ctrl + Print Screen");
+        assert_eq!(workflows_menu(&state, false).last().unwrap().header, "Add workflows from hotkey settings...");
+        assert_eq!(workflows_menu(&state, true).len(), 5);
     }
 
     #[test]

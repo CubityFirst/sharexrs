@@ -264,7 +264,7 @@ impl MainWindow {
         let flyout = match index {
             0 => Flyout::menu(id, main_menu::capture_menu(state), anchor, place),
             1 => Flyout::menu(id, main_menu::upload_menu(), anchor, place),
-            2 => Flyout::menu(id, main_menu::workflows_menu(state), anchor, place),
+            2 => Flyout::menu(id, main_menu::workflows_menu(state, false), anchor, place),
             3 => {
                 let mut f = Flyout::grid(id, main_menu::tool_categories(), anchor, place);
                 f.edit_label = s::MainMenuBuilder_EditTools().to_string();

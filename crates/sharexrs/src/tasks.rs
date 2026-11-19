@@ -192,6 +192,41 @@ impl RecentTask {
         })
     }
 
+    /// `ToString()`: the shortened URL, the URL or the file path.
+    pub fn text(&self) -> &str {
+        [&self.shortened_url, &self.url, &self.file_path].into_iter().find(|s| !s.is_empty()).map_or("", |s| s.as_str())
+    }
+
+    /// `TrayMenuText`: `[HH:mm:ss] ` and the text, its last 47 characters
+    /// after "..." when longer than 50 (`Truncate(50, "...", false)`).
+    pub fn tray_menu_text(&self) -> String {
+        let text = self.text();
+        let chars: Vec<char> = text.chars().collect();
+        let text = if chars.len() > 50 { format!("...{}", chars[chars.len() - 47..].iter().collect::<String>()) } else { text.to_owned() };
+        let time = chrono::DateTime::parse_from_rfc3339(&self.time)
+            .map(|t| t.with_timezone(&chrono::Local).format("%H:%M:%S").to_string())
+            .unwrap_or_else(|_| chrono::NaiveDateTime::parse_from_str(&self.time, "%Y-%m-%dT%H:%M:%S%.f").map(|t| t.format("%H:%M:%S").to_string()).unwrap_or_default());
+        format!("[{time}] {text}")
+    }
+
+    /// `MainMenuBuilder.GetRecentTaskIcon`.
+    pub fn icon(&self) -> &'static str {
+        use sharex_helpers::file_helpers as f;
+        use sharex_ui::keys::app_icons as icon;
+        let path = self.file_path.as_str();
+        if !self.shortened_url.is_empty() || !self.url.is_empty() {
+            icon::Link
+        } else if f::is_video_file(path) {
+            icon::FileVideo
+        } else if f::is_text_file(path) {
+            icon::FileText
+        } else if f::is_image_file(path) {
+            icon::FileImage
+        } else {
+            icon::File
+        }
+    }
+
     pub fn from_json(v: &serde_json::Value) -> Self {
         let get = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or_default().to_string();
         Self {

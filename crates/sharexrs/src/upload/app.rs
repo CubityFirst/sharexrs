@@ -251,6 +251,10 @@ impl App {
             }
         }
         self.store_recent_tasks();
+        // The native tray menus (macOS, Linux) are built ahead: Recent items.
+        if cfg!(not(windows)) {
+            self.refresh_menus();
+        }
         let busy = self.state.tasks.manager.tasks.iter().any(|t| t.is_busy());
         // `TaskManager`'s `if (!IsBusy && StartupOptions.AutoClose) ApplicationLifecycle.Exit()`.
         if !busy && self.auto_close {

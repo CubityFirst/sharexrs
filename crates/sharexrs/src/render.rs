@@ -379,6 +379,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let w = width.unwrap_or((main_window::WIDTH * scale) as u32);
             let mut screen = Offscreen::new([w, h], scale, dark)?;
             state.menu_state.monitors = monitors.clone();
+            // `--state workflows-unbound`: the hotkeys have no keys.
+            if dialog.state.as_deref() == Some("workflows-unbound") {
+                for w in &mut state.menu_state.workflows {
+                    w.hotkey = None;
+                }
+            }
             state.work_area = work_area.map(|r: egui::Rect| egui::Rect::from_min_max((r.min.to_vec2() / scale).to_pos2(), (r.max.to_vec2() / scale).to_pos2()));
             let nav_index = match menu {
                 None => None,

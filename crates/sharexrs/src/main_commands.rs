@@ -39,6 +39,15 @@ impl App {
         crate::app_windows::open_path(if folder.is_dir() { &folder } else { &parent });
     }
 
+    /// The tray's Recent items (`BuildTrayMenu`: shown with `RecentTasksSave`,
+    /// `RecentTasksShowInTrayMenu` and some recent task).
+    pub(crate) fn refresh_recent_items(&mut self) {
+        let s = &self.settings.settings;
+        let m = &mut self.state.menu_state;
+        m.show_recent_items = s.RecentTasksSave && s.RecentTasksShowInTrayMenu;
+        m.recent_items = crate::main_menu::recent_items(&self.state.tasks.manager.recent, s.RecentTasksTrayMenuMostRecentFirst);
+    }
+
     /// `MainFormCommand.Donate`, `X`, `Discord`.
     pub(crate) fn open_link(&mut self, which: Link) {
         let url = match which {

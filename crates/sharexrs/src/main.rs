@@ -646,6 +646,34 @@ impl App {
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
+            MenuCommand::RunWorkflow(i) => {
+                // `TaskHelpers.ExecuteJob(workflow.TaskSettings)`.
+                if let Some(h) = self.settings.hotkeys.Hotkeys.get(i) {
+                    let task = h.TaskSettings.safe_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.run_job(event_loop, task.Job.clone(), task, Some(i));
+                }
+                return;
+            }
+            MenuCommand::RecentCopy(i) => {
+                if let Some(t) = self.state.tasks.manager.recent.get(i) {
+                    let text = t.text().to_owned();
+                    if let Err(e) = sharex_capture::clipboard::copy_text(&text, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy text failed: {e}");
+                    }
+                }
+            }
+            MenuCommand::RecentOpen(i) => {
+                if let Some(t) = self.state.tasks.manager.recent.get(i).cloned() {
+                    // `RecentTask.Open`.
+                    if !t.shortened_url.is_empty() {
+                        upload::open_url(&t.shortened_url);
+                    } else if !t.url.is_empty() {
+                        upload::open_url(&t.url);
+                    } else if !t.file_path.is_empty() {
+                        shell::open_file(std::path::Path::new(&t.file_path));
+                    }
+                }
+            }
             // `TaskHelpers.OpenDebugLog`.
             MenuCommand::DebugLog => self.open_dialog_window(event_loop, Box::new(dialogs::debug_log::DebugLogWindow::new())),
             other => eprintln!("menu: {other:?}: not ported yet"),
@@ -663,6 +691,11 @@ impl App {
         m.screenshot_delay_just_once = s.ScreenshotDelayJustOnce;
         m.hotkeys_disabled = s.DisableHotkeys;
         menu_settings::fill(m, &s.DefaultTaskSettings);
+        // `BuildWorkflowsMenu`: the hotkeys as they are.
+        m.workflows = main_menu::workflows_from_hotkeys(&self.settings.hotkeys.Hotkeys);
+        m.workflows_only_show_edited = s.WorkflowsOnlyShowEdited;
+        self.refresh_recent_items();
+        let m = &mut self.state.menu_state;
         m.list_windows = true;
         // `DesktopScreen.AllScreens`.
         m.monitors = sharex_capture::screenshot::screens()
@@ -1414,6 +1447,7 @@ impl App {
         }
         self.refresh_menus();
         self.state.menu_state.uploads_enabled = !self.state.uploads_disabled;
+        self.refresh_recent_items();
         let entries = main_menu::tray_menu(&self.state.menu_state);
         let screens = sharex_capture::screenshot::screens();
         let cursor = sharex_capture::screenshot::cursor_position().unwrap_or_default();
