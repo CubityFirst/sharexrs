@@ -221,8 +221,10 @@ build of that branch.
 | ED-01 | ShareX's `Zoom` is image pixels per screen pixel (`EffectiveZoom = Zoom / DpiScale`). | The editor draws at the effective zoom; zoom to fit multiplies by the DPI. | 640×400 physical at 100%. |
 
 Image surfaces at 125%, from ShareX's source and shots: the editor canvas
-and pinned images are screen pixels; the scrolling capture preview and the
-image viewer are DIPs; thumbnails are fitted to DIP boxes.
+and pinned images are screen pixels; the scrolling capture preview, the
+image viewer and every `DownOnly` preview are DIPs (the main window's list
+preview was fitted as screen pixels, fixed too: `thumbnail::fit_at`);
+thumbnails are fitted to DIP boxes.
 
 Also found: Avalonia sizes some windows' clients a pixel smaller than
 ShareXrs at 125% (Video converter 1062×687 vs 1063×688, QR code 1175×762 vs
