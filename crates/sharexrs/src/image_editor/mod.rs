@@ -225,8 +225,12 @@ pub struct EditorWindow {
     pub reply: Option<mpsc::Sender<Option<RgbaImage>>>,
     /// `TaskResult`: Continue's image.
     result: Option<RgbaImage>,
-    /// `EffectiveZoom`.
+    /// `Zoom`: image pixels per screen pixel (100% shows the image pixel
+    /// for pixel); [`Self::effective_zoom`] is what it's drawn at.
     zoom: f64,
+    /// The display's pixels per point (`MainViewModel.DpiScale`), as of
+    /// the last frame.
+    dpi_scale: f32,
     zoom_to_fit_pending: bool,
     /// The scroll offset when the image is larger than the viewport.
     scroll: Vec2,
@@ -375,6 +379,7 @@ impl EditorWindow {
             reply: None,
             result: None,
             zoom: 1.0,
+            dpi_scale: 1.0,
             zoom_to_fit_pending: options.ZoomToFitOnOpen,
             scroll: Vec2::ZERO,
             tex: None,
@@ -943,6 +948,13 @@ impl EditorWindow {
         Some(f)
     }
 
+    /// `EffectiveZoom => Zoom / DpiScale`: points per image pixel. `Zoom`
+    /// is image pixels per screen pixel, so at 100% on a 125% display a
+    /// 640x400 image is 640x400 screen pixels (ED-01).
+    pub(super) fn effective_zoom(&self) -> f64 {
+        self.zoom / self.dpi_scale as f64
+    }
+
     fn set_zoom(&mut self, z: f64) {
         self.zoom = z.clamp(MIN_ZOOM, MAX_ZOOM);
     }
@@ -955,7 +967,8 @@ impl EditorWindow {
         if vp.width() <= 0.0 || w == 0 || h == 0 {
             return;
         }
-        let fit = (vp.width() as f64 / w as f64).min(vp.height() as f64 / h as f64);
+        // In points, then `* DpiScale` into `Zoom`'s unit.
+        let fit = (vp.width() as f64 / w as f64).min(vp.height() as f64 / h as f64) * self.dpi_scale as f64;
         self.zoom = fit.clamp(MIN_ZOOM, MAX_ZOOM);
         self.scroll = Vec2::ZERO;
     }
@@ -976,7 +989,7 @@ impl EditorWindow {
     }
 
     fn mapper_ppp(&self, ppp: f32) -> Mapper {
-        Mapper { origin: (0.0, 0.0), ppp, scale: self.zoom * ppp as f64, offset: self.layout.image.min }
+        Mapper { origin: (0.0, 0.0), ppp, scale: self.effective_zoom() * ppp as f64, offset: self.layout.image.min }
     }
 
     /// The pressed key as Avalonia's `Key` names it (`D1`, `R`, ...).
@@ -1072,7 +1085,7 @@ impl EditorWindow {
                 }
                 ed::Request::AutoExpanded { left, top } => {
                     // Content moved right/down: scrolled by as much.
-                    let z = self.zoom as f32;
+                    let z = self.effective_zoom() as f32;
                     self.scroll += vec2(left as f32 * z, top as f32 * z);
                     self.update_title();
                 }
@@ -1353,6 +1366,7 @@ impl EditorWindow {
     fn paint_canvas(&mut self, ui: &Ui, p: &Palette, full: Rect) {
         let ctx = ui.ctx().clone();
         let ppp = ctx.pixels_per_point();
+        self.dpi_scale = ppp;
         let canvas = full.shrink(8.0);
         self.layout.canvas = canvas;
         if !self.has_image {
@@ -1365,8 +1379,8 @@ impl EditorWindow {
         }
         let (w, h) = self.display_size();
         let (fw, fh, ox, oy) = self.display_frame();
-        // One image pixel is one DIP at 100%.
-        let size = vec2(fw as f32, fh as f32) * self.zoom as f32;
+        // One image pixel is one screen pixel at 100% (`EffectiveZoom`).
+        let size = vec2(fw as f32, fh as f32) * self.effective_zoom() as f32;
         // Centred when it fits (with its room), scrolled when it doesn't.
         let content = size + self.room * 2.0;
         let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
@@ -1375,7 +1389,7 @@ impl EditorWindow {
         // Avalonia's layout rounding: `Math.Round`, ties to even (a centred
         // frame half a pixel off lands on the even side).
         let min = pos2((min.x * ppp).round_ties_even() / ppp, (min.y * ppp).round_ties_even() / ppp);
-        let z = self.zoom as f32;
+        let z = self.effective_zoom() as f32;
         let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
         let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
         self.layout.image = image;
@@ -1433,8 +1447,8 @@ impl EditorWindow {
         let painter = ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
         // The `Border` with `ShareX.Brush.Checkered` (15px squares, scaled
         // with the zoom) and its 1px border, under the image.
-        paint_checkered(&painter, frame_rect, frame_rect.min, self.zoom as f32, p);
-        painter.rect_stroke(frame_rect, 0.0, Stroke::new(self.zoom as f32, p.border), StrokeKind::Inside);
+        paint_checkered(&painter, frame_rect, frame_rect.min, self.effective_zoom() as f32, p);
+        painter.rect_stroke(frame_rect, 0.0, Stroke::new(self.effective_zoom() as f32, p.border), StrokeKind::Inside);
         if let Some((_, t)) = &self.tex {
             painter.image(t.id(), frame_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }

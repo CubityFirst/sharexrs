@@ -152,8 +152,9 @@ impl EditorWindow {
         let vp = self.layout.canvas;
         if vp.width() > 0.0 && vp.height() > 0.0 {
             let fit = (vp.width() as f64 * FIT_FACTOR / w as f64).min(vp.height() as f64 * FIT_FACTOR / h as f64);
-            if fit < self.zoom * 0.99 {
-                let z = ((self.zoom * fit / self.zoom * 100.0).floor() / 100.0).max(0.25);
+            let effective = self.effective_zoom();
+            if fit < effective * 0.99 {
+                let z = ((self.zoom * fit / effective * 100.0).floor() / 100.0).max(0.25);
                 if z < self.zoom {
                     cr.saved_zoom = Some(self.zoom);
                     self.zoom = z;
@@ -169,7 +170,7 @@ impl EditorWindow {
         // The frame (the image, or the Background panel's frame round it)
         // is what's centred or scrolled; the image sits in it.
         let (w, h, ox, oy) = self.display_frame();
-        let z = self.zoom as f32;
+        let z = self.effective_zoom() as f32;
         let size = vec2(w as f32, h as f32) * z;
         let content = size + room * 2.0;
         pos2(
@@ -193,7 +194,7 @@ impl EditorWindow {
     fn ensure_room(&mut self) {
         let Some(cr) = &self.canvas_resize else { return };
         let (w, h) = self.ws.size();
-        let z = self.zoom as f32;
+        let z = self.effective_zoom() as f32;
         let vp = self.layout.canvas;
         let [l, t, r, b] = cr.rect;
         let rx = vp.width() * ROOM_FACTOR + (((-l).max(0.0)).max((r - w as f64).max(0.0)) as f32) * z;
@@ -217,7 +218,7 @@ impl EditorWindow {
             return true;
         }
         let o = self.image_origin(self.room, self.scroll);
-        let z = self.zoom as f32;
+        let z = self.effective_zoom() as f32;
         let target = pos2(o.x + l as f32 * z, o.y + t as f32 * z);
         let fill = sharex_ui::accent::parse_hex(&self.ws.tools.options.CanvasFillColorHex).unwrap_or(Color32::TRANSPARENT);
         let resized = self.ws.resize_canvas(add_t, add_r, add_b, add_l, fill.to_srgba_unmultiplied());
@@ -250,7 +251,7 @@ impl EditorWindow {
         let cr = self.canvas_resize.as_ref()?;
         let (w, h) = self.ws.size();
         let o = self.image_origin(self.room, self.scroll);
-        let z = self.zoom as f32;
+        let z = self.effective_zoom() as f32;
         let image = Rect::from_min_size(o, vec2(w as f32, h as f32) * z);
         let [l, t, r, b] = cr.rect.map(|v| v as f32);
         let frame = Rect::from_min_max(pos2(o.x + l * z, o.y + t * z), pos2(o.x + r * z, o.y + b * z));
