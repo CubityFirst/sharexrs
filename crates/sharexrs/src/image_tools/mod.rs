@@ -112,6 +112,22 @@ pub fn ellipsize(ui: &Ui, text: &str, font: &FontId, width: f32) -> String {
     String::new()
 }
 
+/// `ToolTip.Tip` on a control in `rect` (`sharex_ui::tooltip`); a
+/// disabled control gets no pointer events, so no tip.
+pub fn tip(ui: &Ui, rect: Rect, id: Id, text: &str, enabled: bool) {
+    if enabled {
+        sharex_ui::tooltip::show(ui, rect, id, text);
+    }
+}
+
+/// The `path-text` `TextBlock` with `ToolTip.Tip="{Binding InputFilePath}"`
+/// (no tip without a file): its line, centred in `rect`.
+pub fn path_tip(ui: &Ui, rect: Rect, id: Id, path: &str) {
+    let lh = line_height(ui, &normal_font());
+    let line = Rect::from_min_size(pos2(rect.min.x, center_y(rect, lh)), vec2(rect.width(), lh));
+    sharex_ui::tooltip::show(ui, line, id, path);
+}
+
 /// `TextBlock.path-text`: Normal, secondary, trimmed with an ellipsis,
 /// centred vertically in `rect`.
 pub fn path_text(ui: &Ui, rect: Rect, text: &str) {
