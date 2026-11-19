@@ -738,10 +738,18 @@ impl Frame {
         (self.frame.viewport.0 - self.frame.crop.0, self.frame.viewport.1 - self.frame.crop.1)
     }
 
-    /// The export: `content` (the image with its annotations) on the
-    /// background; `source` is the image alone (the padding colour).
+    /// `content` (the image with its annotations) on the background;
+    /// `source` is the image alone (the padding colour). What the canvas
+    /// shows.
     pub fn render(&self, content: &Pixmap, source: &Pixmap) -> Pixmap {
         bg::render(content, source.pixel(0, 0), self.insets, &self.background)
+    }
+
+    /// The export (`GetSnapshot()`): the image `source` on the background
+    /// with `annotations` drawn in the frame, through its clip, as ShareX
+    /// renders the panel's preview ([`bg::render_annotated`]).
+    pub fn export(&self, source: &Pixmap, annotations: &[sharex_image_editor::model::Annotation]) -> Pixmap {
+        bg::render_annotated(source, annotations, self.insets, &self.background)
     }
 }
 

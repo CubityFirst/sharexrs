@@ -256,7 +256,7 @@ lacks; since clippy never links, the script points `cc` at a stub
 - **Image beautifier**: not a ShareX.Tools tool; `TaskHelpers.OpenImageBeautifier`
   opens the image editor with its background panel (`AnnotateImageModern(...,
   openBackgroundPanel: true)`), so it belongs to the image editor port
-  (docs/IMAGE-EDITOR.md, "The Background panel": its export is 23/26
+  (docs/IMAGE-EDITOR.md, "The Background panel": its export is 33/33
   pixel-identical to ShareX's).
 - **Analyze image** differs from ShareX on purpose in two ways. ShareX's
   OpenAI providers set `Authorization` on `HttpClientFactory`'s shared

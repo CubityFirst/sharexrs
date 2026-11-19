@@ -753,16 +753,40 @@ spreads them to 7). A SkiaSharp probe on ShareX's own `libSkiaSharp`
 and the clip separately) showed the shape and the blur each matching
 sharex-skia exactly, and only the layer's place differing.
 
+Annotations are drawn in the frame, as ShareX draws the annotation canvas
+there (`render::background::render_annotated`): each visual's transform
+followed by the viewport's offset (composed in double precision before
+`ToSKMatrix`, `layout::with_device_offset`), clipped to the viewport, and
+through the padding border's rounded clip intersected with the viewport's
+`ClipToBounds`. That clip is an `SkAAClip` (Skia keeps it anti-aliased),
+so every fill goes through `SkAAClipBlitter` with forced RLE, which turns
+the scan converters' `blitAntiH2` pairs into `blitAntiH` runs and so
+blends edge pixels differently (`sharex_skia::draw::with_aa_clip`); with
+no rounded corners the clip is the viewport rectangle, aliased. Kinds that
+draw through their transform alone do this (shapes, text, steps, balloons,
+images, cursors, emoji, without a drop shadow); effects, the spotlight,
+the smart eraser and shadows work on the image's pixel grid, so an export
+with any of them renders the image with its annotations first and draws
+that into the frame. While the panel is open its sliders hold their
+ranges (margin and padding 0-200, corner 0-50, shadow 0-100: Avalonia
+coerces a `Slider`'s value and the two-way binding writes it back, so a
+saved corner of 60 exports, and is saved, as 50).
+
+Two Skia details these cases turned up, fixed in `sharex-skia`: a legacy
+image shader maps the first pixel of each `shadeSpan` span in float and
+steps from there in 32.32, so the coverage recorder keeps where each
+pixel's span starts (the upscaled image brush); and `SkRectClipBlitter`'s
+`blitAntiRect` turns a clipped side's alpha to 255, so a rect chopped at
+the clip blends that column through `blitV` (a translucent rectangle over
+the image's left edge, plain exports too).
+
 Validation: the editor harness got a `background` case field (the options,
 the panel open; a fake wallpaper service hands it a generated image, never
-the desktop's): 26 cases in `cases.json`, 23 pixel-identical. Left: an
-image or wallpaper brush scaled up (`bg-image`, `bg-wallpaper-fill`), one
-level on 3 pixels in one column (Skia's legacy bilinear stepping), and
-annotations over the viewport's edge (`bg-annotations`), within 5 levels on
-0.03%: ShareX rasterises them at their place in the frame (120, 120), and
-ShareXrs renders the image with its annotations first and draws it there,
-so their anti-aliased edges differ (the same translation effect as the
-shadow; fixing it needs the annotation renderer to draw at an offset). The panel vs ShareX
+the desktop's): 33 cases in `cases.json`, all 33 pixel-identical,
+including annotations over the viewport's edges and into rounded corners
+(rectangles, ellipses, lines, arrows, freehand, dashes, rotation, text,
+steps, balloons, images, cursors, smart padding's crop, no corners, a
+corner over the slider's maximum, effects and a shadow). The panel vs ShareX
 (`--render image-editor --state background[-gradient|-color|-image][-scrolled]`,
 shots in `shots/sharex/editor-background/`): dark transparent 0.16%,
 gradient 0.16%, gradient scrolled 0.06%, colour 0.15%, image 0.16%; light

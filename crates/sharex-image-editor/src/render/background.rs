@@ -122,6 +122,58 @@ impl Mode {
     }
 }
 
+/// The export with the annotations: `source` is the image alone. ShareX
+/// draws the annotation canvas inside the frame, at the viewport's place,
+/// under the padding border's rounded clip (`clipRRect`, anti-aliased) and
+/// the viewport's `ClipToBounds` (`clipRect`): an `SkAAClip`, so every
+/// path goes through `SkAAClipBlitter` with forced RLE (which turns the
+/// scan converters' `blitAntiH2` pairs into `blitAntiH` runs, blended
+/// differently), and edges are chopped at the viewport. Without rounded
+/// corners the clip is the viewport rectangle (Skia keeps an integral
+/// rect clip aliased). Annotations that draw through their transform alone
+/// (`render::draws_at_offset`) are drawn that way; otherwise (effects,
+/// shadows, the smart eraser) the image with its annotations is rendered
+/// first and drawn into the frame like the image.
+pub fn render_annotated(
+    source: &Pixmap,
+    annotations: &[crate::model::Annotation],
+    insets: Option<(i32, i32, i32, i32)>,
+    bg: &Background,
+) -> Pixmap {
+    let top_left = source.pixel(0, 0);
+    if annotations.is_empty() {
+        return render(source, top_left, insets, bg);
+    }
+    let f = frame((source.width(), source.height()), insets, bg);
+    let (vx, vy, vw, vh) = f.viewport;
+    let (cx, cy, cw, ch) = f.card;
+    let device = sharex_skia::IRect::from_ltrb(0, 0, f.width as i32, f.height as i32);
+    let mut viewport = sharex_skia::IRect::from_ltrb(vx, vy, vx + vw, vy + vh);
+    let in_frame = viewport.intersect(&device);
+    if !in_frame || cw <= 0 || ch <= 0 || !annotations.iter().all(super::draws_at_offset) {
+        return render(&super::render(source, annotations), top_left, insets, bg);
+    }
+    let radius = bg.corner.max(0.0) as f32;
+    let aa_clip = (radius > 0.0).then(|| {
+        let clip_path = rrect_path(cx as f32, cy as f32, cw as f32, ch as f32, radius);
+        sharex_skia::aaclip::AAClip::from_path(&clip_path, device).intersect_rect(viewport)
+    });
+    let mut out = render(source, top_left, insets, bg);
+    let before = out.clone();
+    super::draw_at_offset(&mut out, source, annotations, (vx - f.crop.0, vy - f.crop.1), viewport, aa_clip);
+    // The viewport clip: nothing outside it changes (some draws, a sprite's,
+    // only clip to their own surface).
+    for y in 0..f.height as i32 {
+        for x in 0..f.width as i32 {
+            let inside = x >= viewport.left && x < viewport.right && y >= viewport.top && y < viewport.bottom;
+            if !inside {
+                *out.pixel_mut(x, y) = before.pixel(x, y);
+            }
+        }
+    }
+    out
+}
+
 /// `NormalizeBackgroundColorHex`: `#AARRGGBB`, or the fallback when the
 /// value isn't a colour.
 pub fn normalize_hex(hex: &str, fallback: [u8; 4]) -> String {
@@ -138,6 +190,24 @@ pub fn normalize_hex(hex: &str, fallback: [u8; 4]) -> String {
 pub fn rgba(hex: &str) -> [u8; 4] {
     let c = super::color::parse_color(hex);
     [c.r, c.g, c.b, c.a]
+}
+
+/// The panel's sliders' ranges (`BackgroundSettingsPanel.axaml`): margin,
+/// padding, rounded corner, shadow radius.
+pub const SLIDER_MAX: (f64, f64, f64, f64) = (200.0, 200.0, 50.0, 100.0);
+
+/// What the panel's sliders do to the settings while it's open: each
+/// `Slider` coerces its `Value` into `0..=Maximum` and its two-way binding
+/// writes the coerced value back (`BackgroundRoundedCorner` 60 becomes 50,
+/// and so does `ImageEditorOptions`). Returns whether anything changed.
+pub fn coerce_slider_values(o: &mut crate::options::ImageEditorOptions) -> bool {
+    let before = (o.BackgroundMargin, o.BackgroundPadding, o.BackgroundRoundedCorner, o.BackgroundShadowRadius);
+    let (m, p, c, s) = SLIDER_MAX;
+    o.BackgroundMargin = o.BackgroundMargin.clamp(0.0, m);
+    o.BackgroundPadding = o.BackgroundPadding.clamp(0.0, p);
+    o.BackgroundRoundedCorner = o.BackgroundRoundedCorner.clamp(0.0, c);
+    o.BackgroundShadowRadius = o.BackgroundShadowRadius.clamp(0.0, s);
+    before != (o.BackgroundMargin, o.BackgroundPadding, o.BackgroundRoundedCorner, o.BackgroundShadowRadius)
 }
 
 /// The fallbacks `InitializeBackgroundSettingsFromOptions` uses.
@@ -186,12 +256,15 @@ pub fn from_options(
     };
     let shadow =
         super::color::try_parse(&o.ShadowColorHex).map_or([0, 0, 0, 128], |c| [c.r, c.g, c.b, c.a]);
+    // The panel is open (it's what applies the background): its sliders'
+    // ranges hold.
+    let (max_margin, max_padding, max_corner, max_shadow) = SLIDER_MAX;
     Background {
-        margin: o.BackgroundMargin.max(0.0),
-        padding: o.BackgroundPadding.max(0.0),
+        margin: o.BackgroundMargin.clamp(0.0, max_margin),
+        padding: o.BackgroundPadding.clamp(0.0, max_padding),
         smart_padding: o.BackgroundSmartPadding,
-        corner: o.BackgroundRoundedCorner.max(0.0),
-        shadow: o.BackgroundShadowRadius.max(0.0),
+        corner: o.BackgroundRoundedCorner.clamp(0.0, max_corner),
+        shadow: o.BackgroundShadowRadius.clamp(0.0, max_shadow),
         fill,
         ratio,
         shadow_color: shadow,

@@ -6333,11 +6333,6 @@
    "background": {
     "type": "Image",
     "image": "images/wallpaper.png"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 3,
-    "why": "one column of the upscaled image brush (Skia's legacy bilinear stepping): one level on 3 pixels"
    }
   },
   {
@@ -6347,11 +6342,6 @@
     "type": "Wallpaper",
     "wallpaper": "images/wallpaper.png",
     "layout": "Fill"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 3,
-    "why": "one column of the upscaled image brush (Skia's legacy bilinear stepping): one level on 3 pixels"
    }
   },
   {
@@ -6423,11 +6413,455 @@
    "background": {
     "type": "Gradient",
     "corner": 40
+   }
+  },
+  {
+   "name": "bg-annotations-shapes",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 40,
+      "Y": 50
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     }
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 300,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 280
+     },
+     "StrokeColor": "#FF2080F0"
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 120,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 60
+     },
+     "StrokeWidth": 5
+    },
+    {
+     "$type": "Freehand",
+     "StartPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "EndPoint": {
+      "X": 0,
+      "Y": 0
+     },
+     "Points": [
+      {
+       "X": 30,
+       "Y": 250
+      },
+      {
+       "X": 80,
+       "Y": 230
+      },
+      {
+       "X": 150,
+       "Y": 260
+      },
+      {
+       "X": 220,
+       "Y": 215
+      },
+      {
+       "X": 330,
+       "Y": 250
+      }
+     ],
+     "StrokeColor": "#FF00A050"
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 290,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 380,
+      "Y": 90
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 250,
+      "Y": 150
+     }
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 330,
+      "Y": -15
+     },
+     "EndPoint": {
+      "X": 420,
+      "Y": 40
+     },
+     "FillColor": "#A0FFC000",
+     "StrokeColor": "#FF102030",
+     "StrokeWidth": 3,
+     "BorderStyle": "Dash",
+     "CornerRadius": 8
+    },
+    {
+     "$type": "Line",
+     "StartPoint": {
+      "X": -20,
+      "Y": 150
+     },
+     "EndPoint": {
+      "X": 120,
+      "Y": 290
+     },
+     "StrokeColor": "#C0FF0000",
+     "StrokeWidth": 4
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 150,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 260,
+      "Y": 190
+     },
+     "RotationAngle": 35,
+     "FillColor": "#6000FF80",
+     "StrokeWidth": 2
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 240,
+      "Y": 260
+     },
+     "EndPoint": {
+      "X": 330,
+      "Y": 330
+     },
+     "FillColor": "#80FFFFFF",
+     "StrokeWidth": 1
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 40
+   }
+  },
+  {
+   "name": "bg-annotations-corners",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": -30,
+      "Y": -30
+     },
+     "EndPoint": {
+      "X": 90,
+      "Y": 70
+     },
+     "FillColor": "#C0FF4060",
+     "StrokeWidth": 0
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 330,
+      "Y": 230
+     },
+     "EndPoint": {
+      "X": 430,
+      "Y": 330
+     },
+     "FillColor": "#C04060FF",
+     "StrokeWidth": 6,
+     "StrokeColor": "#FF000000"
+    },
+    {
+     "$type": "Line",
+     "StartPoint": {
+      "X": 360,
+      "Y": -10
+     },
+     "EndPoint": {
+      "X": 410,
+      "Y": 60
+     },
+     "StrokeColor": "#FF00C0C0",
+     "StrokeWidth": 1
+    }
+   ],
+   "background": {
+    "type": "Color",
+    "padding": 0,
+    "corner": 60
+   }
+  },
+  {
+   "name": "bg-annotations-square",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": -10,
+      "Y": -10
+     },
+     "EndPoint": {
+      "X": 60,
+      "Y": 50
+     },
+     "FillColor": "#C02080F0",
+     "StrokeWidth": 6
+    },
+    {
+     "$type": "Ellipse",
+     "StartPoint": {
+      "X": 330,
+      "Y": 240
+     },
+     "EndPoint": {
+      "X": 420,
+      "Y": 320
+     },
+     "StrokeColor": "#FF00A050",
+     "StrokeWidth": 8
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 0
+   }
+  },
+  {
+   "name": "bg-annotations-smart",
+   "annotations": [
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 5,
+      "Y": 5
+     },
+     "EndPoint": {
+      "X": 70,
+      "Y": 60
+     },
+     "FillColor": "#C02080F0",
+     "StrokeWidth": 4
+    },
+    {
+     "$type": "Arrow",
+     "StartPoint": {
+      "X": 40,
+      "Y": 120
+     },
+     "EndPoint": {
+      "X": 180,
+      "Y": 20
+     },
+     "StrokeWidth": 5,
+     "StrokeColor": "#FF8000FF"
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "padding": 20,
+    "corner": 30
    },
-   "tolerance": {
-    "maxDelta": 5,
-    "maxPixels": 100,
-    "why": "ShareX rasterises the annotations at their place in the frame (120, 120); analytic AA depends on where a path sits, so their edges differ by a level or so"
+   "base": "images/border.png"
+  },
+  {
+   "name": "bg-annotations-text",
+   "annotations": [
+    {
+     "$type": "Text",
+     "StartPoint": {
+      "X": -20,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 200,
+      "Y": 260
+     },
+     "Text": "Edge text",
+     "TextColor": "#FF000080",
+     "FontSize": 36,
+     "StrokeWidth": 0
+    },
+    {
+     "$type": "Number",
+     "StartPoint": {
+      "X": 390,
+      "Y": 20
+     },
+     "EndPoint": {
+      "X": 390,
+      "Y": 20
+     },
+     "Number": 7,
+     "FontSize": 30,
+     "FillColor": "#FFF23C3C",
+     "StrokeWidth": 0,
+     "TextColor": "#00000000",
+     "TailEnabled": false
+    },
+    {
+     "$type": "SpeechBalloon",
+     "StartPoint": {
+      "X": 250,
+      "Y": 200
+     },
+     "EndPoint": {
+      "X": 420,
+      "Y": 320
+     },
+     "Text": "",
+     "TailPointInitialized": true,
+     "TailPoint": {
+      "X": 200,
+      "Y": 120
+     }
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 40
+   },
+   "fonts": [
+    "Segoe UI"
+   ]
+  },
+  {
+   "name": "bg-annotations-images",
+   "annotations": [
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": -20,
+      "Y": 250
+     },
+     "EndPoint": {
+      "X": 44,
+      "Y": 298
+     },
+     "ImagePath": "images/sticker.png"
+    },
+    {
+     "$type": "Image",
+     "StartPoint": {
+      "X": 360,
+      "Y": 10
+     },
+     "EndPoint": {
+      "X": 424,
+      "Y": 58
+     },
+     "ImagePath": "images/sticker.png",
+     "RotationAngle": 30
+    },
+    {
+     "$type": "Cursor",
+     "StartPoint": {
+      "X": 380,
+      "Y": 270
+     },
+     "EndPoint": {
+      "X": 412,
+      "Y": 302
+     },
+     "CursorType": "PanNE"
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 40
+   }
+  },
+  {
+   "name": "bg-annotations-effects",
+   "annotations": [
+    {
+     "$type": "Blur",
+     "StartPoint": {
+      "X": 40,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 140,
+      "Y": 120
+     },
+     "Amount": 6
+    },
+    {
+     "$type": "Pixelate",
+     "StartPoint": {
+      "X": 180,
+      "Y": 40
+     },
+     "EndPoint": {
+      "X": 300,
+      "Y": 130
+     },
+     "Amount": 12
+    },
+    {
+     "$type": "Highlight",
+     "StartPoint": {
+      "X": 60,
+      "Y": 180
+     },
+     "EndPoint": {
+      "X": 220,
+      "Y": 240
+     }
+    },
+    {
+     "$type": "Spotlight",
+     "StartPoint": {
+      "X": 250,
+      "Y": 160
+     },
+     "EndPoint": {
+      "X": 370,
+      "Y": 270
+     },
+     "IsEllipse": true
+    },
+    {
+     "$type": "Rectangle",
+     "StartPoint": {
+      "X": 250,
+      "Y": 30
+     },
+     "EndPoint": {
+      "X": 350,
+      "Y": 100
+     },
+     "ShadowEnabled": true,
+     "FillColor": "#80FFFFFF"
+    }
+   ],
+   "background": {
+    "type": "Gradient",
+    "corner": 40
    }
   }
  ]

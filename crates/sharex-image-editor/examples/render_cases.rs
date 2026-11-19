@@ -2,6 +2,9 @@
 //! ShareX's rendering of it (the editor harness's output).
 //!
 //!     cargo run -p sharex-image-editor --example render_cases -- <sharex dir> [out dir] [filter]
+//!
+//! `EDITOR_CASES=<file>` reads another cases file in tests/data (probe
+//! cases run through the harness the same way).
 
 #[path = "../tests/common/mod.rs"]
 mod common;
@@ -15,7 +18,7 @@ fn main() {
     let filter = args.get(3).cloned();
     let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data");
     let cases: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(data.join("cases.json")).unwrap()).unwrap();
+        serde_json::from_str(&std::fs::read_to_string(data.join(cases_file())).unwrap()).unwrap();
     let base = common::load(&data.join(cases["base"].as_str().unwrap())).unwrap();
     let (mut identical, mut total) = (0, 0);
     for case in cases["cases"].as_array().unwrap() {
@@ -73,4 +76,9 @@ fn diff(a: &Pixmap, b: &Pixmap) -> (u32, usize) {
         n += (d > 0) as usize;
     }
     (m, n)
+}
+
+/// The cases file in tests/data: `EDITOR_CASES`, else cases.json.
+fn cases_file() -> String {
+    std::env::var("EDITOR_CASES").unwrap_or_else(|_| "cases.json".into())
 }

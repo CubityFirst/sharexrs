@@ -426,7 +426,8 @@ pub fn draw_text_annotation(
 
     // ClipToBounds: the control's rectangle (in device space when unrotated).
     let clip = (c.rotation_angle == 0.0).then(|| {
-        sharex_skia::IRect::from_xywh(a.x as i32, a.y as i32, a.width as i32, a.height as i32)
+        let (ox, oy) = super::layout::device_offset();
+        sharex_skia::IRect::from_xywh((a.x + ox) as i32, (a.y + oy) as i32, a.width as i32, a.height as i32)
     });
     let text_color = super::color::parse_color(&p.text_color);
     let stroke_color = super::color::parse_color(&c.stroke_color);

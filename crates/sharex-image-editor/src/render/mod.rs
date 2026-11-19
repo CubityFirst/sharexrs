@@ -112,6 +112,57 @@ impl Cache {
     }
 }
 
+/// Whether `a` draws entirely through its visual's transform and the
+/// device's clip, so it can be drawn into a larger surface at an offset
+/// ([`layout::with_device_offset`]) through that surface's clip: the
+/// shapes, text, steps, balloons and images without a drop shadow. Effects,
+/// the spotlight, the smart eraser and shadows work on the image's own
+/// pixel grid.
+pub(crate) fn draws_at_offset(a: &Annotation) -> bool {
+    !a.common.shadow_enabled
+        && matches!(
+            a.kind,
+            Kind::Rectangle(_)
+                | Kind::Ellipse(_)
+                | Kind::Line(_)
+                | Kind::Arrow(_)
+                | Kind::Freehand(_)
+                | Kind::Text(_)
+                | Kind::Number(_)
+                | Kind::SpeechBalloon(_)
+                | Kind::Image(_)
+                | Kind::Cursor(_)
+                | Kind::Emoji(_)
+        )
+}
+
+/// Draws `annotations` (all [`draws_at_offset`]) onto `pm`, a surface the
+/// image's (0, 0) sits in at `offset`, clipped to `clip` (device pixels)
+/// and, when given, through the anti-aliased clip `aa_clip`.
+pub(crate) fn draw_at_offset(
+    pm: &mut Pixmap,
+    base: &Pixmap,
+    annotations: &[Annotation],
+    offset: (i32, i32),
+    clip: sharex_skia::IRect,
+    aa_clip: Option<sharex_skia::aaclip::AAClip>,
+) {
+    let mut cache = Cache::default();
+    let mut go = |pm: &mut Pixmap| {
+        layout::with_device_offset(offset.0 as f64, offset.1 as f64, || {
+            sharex_skia::blitter::with_device_clip(clip, || {
+                for a in annotations {
+                    draw(pm, base, a, &mut cache);
+                }
+            })
+        })
+    };
+    match aa_clip {
+        Some(c) => sharex_skia::draw::with_aa_clip(c, || go(pm)),
+        None => go(pm),
+    }
+}
+
 fn draw(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache) {
     if a.common.shadow_enabled
         && let Some((size, ctm)) = shapes::visual_frame(a)
@@ -157,7 +208,11 @@ fn draw_visual(pm: &mut Pixmap, base: &Pixmap, a: &Annotation, cache: &mut Cache
             let bounds = shapes::bounds(&a.common);
             let side = (bounds.2 - bounds.0).max(bounds.3 - bounds.1);
             let size = (side.ceil() as i64).max(1) as u32;
-            if let Some(bitmap) = emoji::sticker_bitmap(&p.unicode_sequence, size) {
+            // The sticker is rendered on a surface of its own.
+            let sticker = sharex_skia::blitter::with_no_device_clip(|| {
+                sharex_skia::draw::with_no_aa_clip(|| emoji::sticker_bitmap(&p.unicode_sequence, size))
+            });
+            if let Some(bitmap) = sticker {
                 image::draw_image_control(pm, bounds, a.common.rotation_angle, &bitmap, image::Stretch::Uniform);
             }
         }

@@ -259,15 +259,10 @@ CASES += [
 WALLPAPER = "images/wallpaper.png"
 
 
-# The canvas shadow's blurred corners come out one level off on a few
-# pixels; annotations crossing the viewport's edge are chopped at the
-# frame's clip in ShareX, at the image's here (a few levels on their
-# anti-aliased edge pixels).
-SHADOW_CORNER = {"maxDelta": 1, "maxPixels": 8, "why": "the blurred canvas shadow's corners: one level on a few pixels"}
-
-
-def bg(name, annotations=(), base=None, tolerance=SHADOW_CORNER, **kw):
+def bg(name, annotations=(), base=None, tolerance=None, fonts=None, **kw):
     c = {"name": name, "annotations": list(annotations), "background": kw}
+    if fonts:
+        c["fonts"] = fonts
     if base:
         c["base"] = base
     if tolerance:
@@ -280,8 +275,7 @@ CASES += [
     bg("bg-gradient", type="Gradient"),
     bg("bg-gradient-preset", type="Gradient", color1="#FF7E5F", color2="#FEB47B"),
     bg("bg-color", type="Color"),
-    bg("bg-color-translucent", type="Color", color="#80336699",
-       tolerance={"maxDelta": 3, "maxPixels": 8, "why": "the shadow's corners under a translucent colour"}),
+    bg("bg-color-translucent", type="Color", color="#80336699"),
     bg("bg-plain", type="Color", corner=0, shadow=0),
     bg("bg-square-shadow", type="Color", color="#FFFFFFFF", corner=0, shadow=30),
     bg("bg-no-shadow", type="Gradient", shadow=0),
@@ -304,8 +298,45 @@ CASES += [
     bg("bg-wallpaper-tile", type="Wallpaper", wallpaper=WALLPAPER, layout="Tile"),
     bg("bg-annotations", [ann("Rectangle", (-10, -10), (60, 50), FillColor="#C02080F0", StrokeWidth=6),
                           ann("Ellipse", (330, 240), (420, 320), StrokeColor="#FF00A050", StrokeWidth=8)],
-       type="Gradient", corner=40,
-       tolerance={"maxDelta": 5, "maxPixels": 120, "why": "annotations over the viewport's edge: ShareX chops their edges at the frame's clip"}),
+       type="Gradient", corner=40),
+    # Annotations drawn in the frame through its anti-aliased clip: every
+    # kind that draws through its transform, rotated, dashed, translucent,
+    # over the viewport's edges and into the rounded corners.
+    bg("bg-annotations-shapes", SHAPES + [
+        ann("Rectangle", (330, -15), (420, 40), FillColor="#A0FFC000", StrokeColor="#FF102030", StrokeWidth=3,
+            BorderStyle="Dash", CornerRadius=8),
+        ann("Line", (-20, 150), (120, 290), StrokeColor="#C0FF0000", StrokeWidth=4),
+        ann("Rectangle", (150, 120), (260, 190), RotationAngle=35, FillColor="#6000FF80", StrokeWidth=2),
+        ann("Ellipse", (240, 260), (330, 330), FillColor="#80FFFFFF", StrokeWidth=1),
+    ], type="Gradient", corner=40),
+    bg("bg-annotations-corners", [
+        ann("Rectangle", (-30, -30), (90, 70), FillColor="#C0FF4060", StrokeWidth=0),
+        ann("Ellipse", (330, 230), (430, 330), FillColor="#C04060FF", StrokeWidth=6, StrokeColor="#FF000000"),
+        ann("Line", (360, -10), (410, 60), StrokeColor="#FF00C0C0", StrokeWidth=1),
+    ], type="Color", padding=0, corner=60),
+    bg("bg-annotations-square", [
+        ann("Rectangle", (-10, -10), (60, 50), FillColor="#C02080F0", StrokeWidth=6),
+        ann("Ellipse", (330, 240), (420, 320), StrokeColor="#FF00A050", StrokeWidth=8),
+    ], type="Gradient", corner=0),
+    bg("bg-annotations-smart", [
+        ann("Rectangle", (5, 5), (70, 60), FillColor="#C02080F0", StrokeWidth=4),
+        ann("Arrow", (40, 120), (180, 20), StrokeWidth=5, StrokeColor="#FF8000FF"),
+    ], base=BORDER, type="Gradient", padding=20, corner=30),
+    bg("bg-annotations-text", [
+        ann("Text", (-20, 200), (200, 260), Text="Edge text", TextColor="#FF000080", FontSize=36, StrokeWidth=0),
+        ann("Number", (390, 20), (390, 20), Number=7, FontSize=30, FillColor="#FFF23C3C", StrokeWidth=0,
+            TextColor="#00000000", TailEnabled=False),
+        ann("SpeechBalloon", (250, 200), (420, 320), Text="", TailPointInitialized=True, TailPoint=p(200, 120)),
+    ], type="Gradient", corner=40, fonts=["Segoe UI"]),
+    bg("bg-annotations-images", [
+        ann("Image", (-20, 250), (44, 298), ImagePath=STICKER),
+        ann("Image", (360, 10), (424, 58), ImagePath=STICKER, RotationAngle=30),
+        ann("Cursor", (380, 270), (412, 302), CursorType="PanNE"),
+    ], type="Gradient", corner=40),
+    # Effects and shadows still go through the image's own render.
+    bg("bg-annotations-effects", EFFECTS + [
+        ann("Rectangle", (250, 30), (350, 100), ShadowEnabled=True, FillColor="#80FFFFFF"),
+    ], type="Gradient", corner=40),
 ]
 
 

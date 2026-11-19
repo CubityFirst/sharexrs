@@ -105,6 +105,7 @@ pub(super) fn draw_image_control(
     let mut bmp = Bitmap::from_premultiplied(pm.width(), pm.height(), pm.to_premul_rgba());
     {
         let mut canvas = Canvas::new(&mut bmp);
+        canvas.aa_clip = sharex_skia::draw::aa_clip();
         canvas.matrix = RMatrix([
             ctm.sx, ctm.kx, ctm.tx, ctm.ky, ctm.sy, ctm.ty, 0.0, 0.0, 1.0,
         ]);

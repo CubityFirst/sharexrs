@@ -1,7 +1,30 @@
 //! Avalonia's layout rounding (`LayoutHelper`, at a scale of 1) and the
 //! render transform `ImmediateRenderer` builds for a visual.
 
+use std::cell::Cell;
+
 use sharex_skia::Matrix;
+
+thread_local! {
+    static DEVICE_OFFSET: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) };
+}
+
+/// Runs `f` with every visual's transform followed by a translation of
+/// `(dx, dy)`: the annotation canvas drawn somewhere inside a larger
+/// surface (the Background panel's frame), its parents' offsets composed
+/// into each visual's matrix in double precision before `ToSKMatrix`, as
+/// Avalonia's renderer composes them.
+pub fn with_device_offset<R>(dx: f64, dy: f64, f: impl FnOnce() -> R) -> R {
+    let previous = DEVICE_OFFSET.with(|c| c.replace((dx, dy)));
+    let r = f();
+    DEVICE_OFFSET.with(|c| c.set(previous));
+    r
+}
+
+/// The offset of [`with_device_offset`] ((0, 0) outside it).
+pub fn device_offset() -> (f64, f64) {
+    DEVICE_OFFSET.with(|c| c.get())
+}
 
 /// Where a `Canvas` child with `Canvas.Left/Top` and `Width/Height` ends
 /// up: its position rounded (`Math.Round`, to even), its size rounded up.
@@ -70,15 +93,17 @@ impl AMatrix {
         }
     }
 
-    /// `ToSKMatrix`.
+    /// `ToSKMatrix` of the visual's device transform (this, then the
+    /// [`with_device_offset`] translation).
     pub fn to_sk(self) -> Matrix {
+        let (ox, oy) = device_offset();
         Matrix {
             sx: self.m11 as f32,
             kx: self.m21 as f32,
-            tx: self.m31 as f32,
+            tx: (self.m31 + ox) as f32,
             ky: self.m12 as f32,
             sy: self.m22 as f32,
-            ty: self.m32 as f32,
+            ty: (self.m32 + oy) as f32,
         }
     }
 }

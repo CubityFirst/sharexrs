@@ -249,6 +249,5 @@ fn render_background(core: &EditorCore, bg: &Value, data: &Path) -> Pixmap {
     let source = core.source();
     let insets = background::smart_padding_insets(source);
     let active = b.smart_padding && background::has_smart_padding(insets);
-    let content = core.composite();
-    background::render(&content, source.pixel(0, 0), active.then_some(insets), &b)
+    background::render_annotated(source, core.annotations(), active.then_some(insets), &b)
 }

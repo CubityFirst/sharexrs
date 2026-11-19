@@ -557,7 +557,7 @@ impl EditorWindow {
         let export = self.ws.export();
         self.update_bg_frame();
         match &self.bg_frame {
-            Some(f) => rgba_of(&f.render(&export, self.ws.source())),
+            Some(f) => rgba_of(&f.export(self.ws.source(), self.ws.annotations())),
             None => rgba_of(&export),
         }
     }
@@ -571,6 +571,11 @@ impl EditorWindow {
         }
         // The image's identity: its pixels' address and size (the editor's
         // operations replace the bitmap).
+        // The panel's sliders coerce the settings into their ranges (kept in
+        // the options, which are saved with the rest).
+        if self.bg_panel.open {
+            sharex_image_editor::render::background::coerce_slider_values(&mut self.ws.tools.options);
+        }
         let src = self.ws.source();
         let key = (src.pixels().as_ptr() as u64) ^ ((src.width() as u64) << 40) ^ ((src.height() as u64) << 20);
         if self.bg_panel.needs_insets(key) {
