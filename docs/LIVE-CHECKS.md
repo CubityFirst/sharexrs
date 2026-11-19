@@ -105,6 +105,7 @@ Checks from [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checke
 | SCR-02 | Scrolling capture | 120 (125%) | Inspect the unzoomed 420×480 viewport preview from SCR-01 on the 125% display. | Displays the image at 525×600 physical pixels inside the preview. | Displays the image at 420×480 physical pixels inside the preview. | FAIL | Same shots as SCR-01. Compare the image rectangle within each window, excluding surrounding panel. |
 | SCR-03 | Scrolling capture | — | Scroll by `WM_VSCROLL`. | The supplied test pattern page handles wheel and keys and has no native scroll bar to receive this message. | Same fixture limitation. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
 | SCR-04 | Scrolling capture | — | Open Help. | Skipped. Opens a web page. | Skipped for the same reason. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
+| SCR-05 | Scrolling capture | 120 (125%) | Set Down Arrow, ScrollDelay 375 ms, ScrollAmount 2 and AutoUpload off. Open `--test-pattern --scroll 300,120,420,480`. Hover at `500,300` in the selection overlay for 650 ms, click and wait for the window to restore. | Capture successful, 420×2400. | Capture successful, 420×2400. | PASS | `scrolling-downarrow-verified-dark.png` under `SX` and `RS`. The first pair, `scrolling-downarrow-dark.png`, selected different targets and is superseded. |
 
 ## History
 
