@@ -22,17 +22,22 @@
 //!   seconds), `controls-hidden`, `muted`, `invalid`; the controls shown
 //!   unless hidden).
 //!
+//! - `video-trimmer` (`--image <video>`, `--state paused` (at `--count`
+//!   seconds), `trimmed-copy` (2 s to 6 s), `reencode` (that, Re-encode),
+//!   `exporting` (at `--count` percent), `saved` (a real copy trim to
+//!   `--text`), `invalid`).
+//!
 //! Previews are made at once, on the drawing thread.
 
 use sharex_settings::TaskSettings;
 use sharex_tools::video::converter::Codec;
 
-use super::{converter, gif_maker, gif_trimmer, player, thumbnailer};
+use super::{converter, gif_maker, gif_trimmer, player, thumbnailer, trimmer};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "gif-maker" | "gif-trimmer" | "video-converter" | "video-player" | "video-thumbnailer")
+    matches!(name, "gif-maker" | "gif-trimmer" | "video-converter" | "video-player" | "video-thumbnailer" | "video-trimmer")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -135,6 +140,45 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 "" | "empty" | "paused" | "controls-hidden" | "invalid" | "seek-pressed" | "fullscreen-controls" => {}
                 "muted" => w.muted = true,
                 other => return Err(format!("no video-player state {other}")),
+            }
+            Box::new(w)
+        }
+        "video-trimmer" => {
+            let ffmpeg = ffmpeg_path();
+            let mut w = trimmer::VideoTrimmerWindow::new(TaskSettings::default(), ffmpeg.clone(), None);
+            w.player.sync = true;
+            if let Some(p) = &o.image {
+                w.load_input(&p.to_string_lossy());
+                w.poll(&egui::Context::default());
+            }
+            let trimmed = |w: &mut trimmer::VideoTrimmerWindow| {
+                w.end = 6.0f64.min(w.duration);
+                w.start = 2.0f64.min(w.end);
+                w.player.seek(w.end);
+                w.position = w.end;
+            };
+            match state {
+                "" | "empty" | "invalid" | "timeline-drag" => {}
+                "paused" => {
+                    w.player.seek(o.count as f64);
+                    w.position = w.player.position();
+                }
+                "trimmed-copy" => trimmed(&mut w),
+                "reencode" => {
+                    trimmed(&mut w);
+                    w.precise = true;
+                }
+                "exporting" => {
+                    trimmed(&mut w);
+                    w.set_exporting(o.count as f64);
+                }
+                "saved" => {
+                    trimmed(&mut w);
+                    let out = o.text.clone().ok_or("--text <output> is required")?;
+                    w.start_export(ffmpeg.ok_or("no FFmpeg")?, out);
+                    w.finish_export();
+                }
+                other => return Err(format!("no video-trimmer state {other}")),
             }
             Box::new(w)
         }

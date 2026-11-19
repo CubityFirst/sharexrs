@@ -7,7 +7,7 @@
 use sharex_settings::{HotkeyType, TaskSettings};
 use winit::event_loop::ActiveEventLoop;
 
-use super::{converter, gif_maker, gif_trimmer, player, thumbnailer};
+use super::{converter, gif_maker, gif_trimmer, player, thumbnailer, trimmer};
 use crate::App;
 use crate::dialogs::Dialog;
 
@@ -35,6 +35,12 @@ impl App {
             "MainMenuBuilder_AnimatedGifTrimmer" => Box::new(gif_trimmer::AnimatedGifTrimmerWindow::new(task, file)),
             // `OpenVideoPlayer(inputFilePath)`.
             "MainMenuBuilder_VideoPlayer" => Box::new(player::VideoPlayerWindow::new(super::playback_ffmpeg(&task), file)),
+            // `OpenVideoTrimmer(taskSettings, inputFilePath)`: FFmpeg isn't
+            // checked until Save (ShareXrs plays through it too).
+            "MainMenuBuilder_VideoTrimmer" => {
+                let ffmpeg = super::playback_ffmpeg(&task);
+                Box::new(trimmer::VideoTrimmerWindow::new(task, ffmpeg, file))
+            }
             // `OpenVideoConverter(taskSettings)` / `(filePath, taskSettings)`:
             // FFmpeg checked first.
             "MainMenuBuilder_VideoConverter" => {

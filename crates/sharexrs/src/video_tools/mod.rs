@@ -13,6 +13,7 @@ pub mod player;
 pub mod render;
 pub mod thumbnailer;
 pub mod timeline;
+pub mod trimmer;
 
 use egui::{Color32, Rect, Ui, pos2};
 

@@ -211,6 +211,10 @@ pub enum Effect {
     MessageBox(Box<crate::message_box::MessageBox>),
     /// `WindowState = WindowState.FullScreen` (true) or back.
     SetFullscreen(bool),
+    /// The video trimmer's Save: `resolveFFmpegPath` (`CheckFFmpeg` with
+    /// the window's task settings, its message when FFmpeg is missing),
+    /// then [`Dialog::trimmer_export`] with the path.
+    TrimmerExport,
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -357,6 +361,15 @@ pub trait Dialog {
     fn activated(&mut self) -> Vec<Effect> {
         Vec::new()
     }
+
+    /// The task settings the window was opened with (the video trimmer's
+    /// `CheckFFmpeg`).
+    fn task(&self) -> Option<&TaskSettings> {
+        None
+    }
+
+    /// The video trimmer's export, once FFmpeg is resolved (`None`: missing).
+    fn trimmer_export(&mut self, _ffmpeg: Option<std::path::PathBuf>) {}
 
     /// The scrolling capture window, for the app to report to.
     fn as_scrolling(&mut self) -> Option<&mut crate::scrolling_capture::window::ScrollingCaptureWindow> {
@@ -633,6 +646,16 @@ impl App {
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
+                Effect::TrimmerExport => {
+                    let task = self.dialogs.iter().find(|d| d.window.window.id() == id).and_then(|d| d.dialog.task().cloned());
+                    if let Some(task) = task {
+                        let ffmpeg = self.check_ffmpeg(event_loop, &task);
+                        if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+                            d.dialog.trimmer_export(ffmpeg);
+                            d.window.window.request_redraw();
+                        }
+                    }
+                }
                 Effect::SetFullscreen(on) => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         d.window.window.set_fullscreen(on.then_some(winit::window::Fullscreen::Borderless(None)));
