@@ -10,7 +10,9 @@
 //! shadow button).
 //!
 //! Each is a `Popup` with `Placement="Bottom"` and `VerticalOffset="4"`
-//! under its button, in a `Border.popup-border.popup-surface` (control
+//! under its button (placed by Avalonia's positioner on the screen's work
+//! area, past the window: `sharex_ui::popup`), in a
+//! `Border.popup-border.popup-surface` (control
 //! background, 1px border, 4px corners, 8px padding, `0 14 28 -14
 //! #66000000` shadow) holding `Button.picker-button`s (transparent, 6px
 //! corners, `Control.Background.Disabled` on hover, the accent when
@@ -207,36 +209,28 @@ impl Popups {
         self.rect.is_some_and(|r| r.contains(p))
     }
 
-    /// Draws the open popup under `anchor` (its button, points) within
-    /// `bounds` (the screen), applying choices to `ws`. Closes it on a
-    /// choice, Escape or a press outside it and its button.
+    /// Draws the open popup under `anchor` (its button, points), applying
+    /// choices to `ws`. `bounds` is the screen's work area when the window
+    /// can't open popups past its edge (region capture's overlay, a
+    /// render); a host's own screens win (`sharex_ui::popup`). Closes it
+    /// on a choice, Escape or a press outside it and its button.
     pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, ws: &mut Workspace) -> PopupResult {
         let Some(item) = self.open else { return PopupResult::default() };
         let mut result = PopupResult::default();
         let mut close = false;
         let id = Id::new(("editor-popup", item as u8));
         let size = self.size(ui, item, &ws.tools);
-        // `Placement="Bottom"`: centred under the button, 4px down; kept on
-        // the screen.
-        let mut size = size;
-        // Avalonia's positioner keeps a popup on the work area, its height
-        // cut to it (the cursor type list is taller than a 768px screen).
-        size.y = size.y.min(bounds.height());
-        let mut pos = pos2((anchor.center().x - size.x / 2.0).round(), anchor.max.y + 4.0);
-        if pos.y + size.y > bounds.max.y {
-            pos.y = (bounds.max.y - size.y).max(bounds.min.y);
-        }
-        pos.x = pos.x.clamp(bounds.min.x, (bounds.max.x - size.x).max(bounds.min.x));
-        let rect = Rect::from_min_size(pos, size);
+        let rect = place(ui.ctx(), anchor, size, bounds);
+        let (pos, size) = (rect.min, rect.size());
         self.rect = Some(rect);
-        let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).fade_in(false).show(ui.ctx(), |ui| {
+        let colour = matches!(item, OptionItem::BorderColor | OptionItem::FillColor | OptionItem::TextColor);
+        let shadow_popup = item == OptionItem::Shadow;
+        // `popup-border`, or the colour and shadow popups' own panel
+        // background and 8px corners.
+        let (bg, radius) = if colour || shadow_popup { (p.background_panel, 8.0) } else { (p.control_background, 4.0) };
+        let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
             let (r, _) = ui.allocate_exact_size(size, Sense::hover());
             ui.set_clip_rect(r.expand(40.0));
-            let colour = matches!(item, OptionItem::BorderColor | OptionItem::FillColor | OptionItem::TextColor);
-            let shadow_popup = item == OptionItem::Shadow;
-            // `popup-border`, or the colour and shadow popups' own panel
-            // background and 8px corners.
-            let (bg, radius) = if colour || shadow_popup { (p.background_panel, 8.0) } else { (p.control_background, 4.0) };
             paint_frame(ui, r, bg, p.border, radius);
             let inner = r.shrink(1.0);
             match item {
@@ -364,6 +358,7 @@ impl Popups {
                 _ => {}
             }
         });
+        sharex_ui::popup::register(ui.ctx(), area.response.layer_id, rect, radius);
         let ctx = ui.ctx();
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             close = true;
@@ -669,25 +664,22 @@ impl ColorDropdown {
         self.open && self.popups.contains(p)
     }
 
-    /// Draws the open popup under `anchor` within `bounds`, editing
-    /// `color`; closes it on Escape or a press outside it and `anchor`.
+    /// Draws the open popup under `anchor` (`bounds` as [`Popups::show`]),
+    /// editing `color`; closes it on Escape or a press outside it and
+    /// `anchor`.
     pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, key: &str, color: &mut Rgba8) -> PopupResult {
         let mut result = PopupResult::default();
         if !self.open {
             return result;
         }
         let id = Id::new(("color-dropdown", key));
-        let mut size = color_view::panel_size(color_view::Px::of(ui.ctx())) + vec2(10.0, 10.0);
-        size.y = size.y.min(bounds.height());
-        let mut pos = pos2((anchor.center().x - size.x / 2.0).round(), anchor.max.y + 4.0);
-        if pos.y + size.y > bounds.max.y {
-            pos.y = (bounds.max.y - size.y).max(bounds.min.y);
-        }
-        pos.x = pos.x.clamp(bounds.min.x, (bounds.max.x - size.x).max(bounds.min.x));
-        self.popups.rect = Some(Rect::from_min_size(pos, size));
+        let size = color_view::panel_size(color_view::Px::of(ui.ctx())) + vec2(10.0, 10.0);
+        let rect = place(ui.ctx(), anchor, size, bounds);
+        let (pos, size) = (rect.min, rect.size());
+        self.popups.rect = Some(rect);
         let mut close = false;
         let popups = &mut self.popups;
-        let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).fade_in(false).show(ui.ctx(), |ui| {
+        let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
             let (r, _) = ui.allocate_exact_size(size, Sense::hover());
             ui.set_clip_rect(r.expand(40.0));
             paint_frame(ui, r, p.background_panel, p.border, 8.0);
@@ -698,6 +690,7 @@ impl ColorDropdown {
                 close = true;
             }
         });
+        sharex_ui::popup::register(ui.ctx(), area.response.layer_id, rect, 8.0);
         let ctx = ui.ctx();
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             close = true;
@@ -719,6 +712,18 @@ impl ColorDropdown {
         }
         result
     }
+}
+
+/// Where a dropdown's `Popup` (`Placement="Bottom"`, `VerticalOffset="4"`,
+/// the default constraint adjustment) of `size` goes under `anchor`:
+/// Avalonia's positioner (`sharex_ui::popup::position`), against the host's
+/// screens or, without a host, `bounds`. Centred under the button, flipped
+/// above it when only that fits, slid onto the work area, then cut to it
+/// (a list taller than the screen; ShareX's lists don't scroll).
+fn place(ctx: &egui::Context, anchor: Rect, size: egui::Vec2, bounds: Rect) -> Rect {
+    use sharex_ui::popup::{PlacementMode, Request, edge};
+    let req = Request::placement(PlacementMode::AnchorAndGravity(edge::BOTTOM, edge::BOTTOM), anchor, vec2(0.0, 4.0), size);
+    sharex_ui::popup::position(ctx, &req, bounds)
 }
 
 /// `Border.popup-border`: its fill, 1px border and the open shadow.
@@ -927,5 +932,46 @@ mod tests {
             let (a, b) = (range.primary.index.0.min(range.secondary.index.0), range.primary.index.0.max(range.secondary.index.0));
             assert_eq!((a, b), (0, 2), "\"48\" selected, frame {t}");
         }
+    }
+
+    /// REG4-02g: with a host that can open popups past the window (a
+    /// 1280x720-point client at 125% on a 2560x1600 screen whose work area
+    /// ends at 1540), the cursor type list hangs below the window, whole,
+    /// as ShareX's does; without one it's kept in the window.
+    #[test]
+    fn cursor_list_leaves_the_window_for_the_work_area() {
+        use sharex_ui::popup::{Geometry, PxRect, ScreenInfo};
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut ws = workspace();
+        let anchor = Rect::from_min_size(pos2(600.0, 60.0), vec2(160.0, 40.0));
+        let mut popups = Popups::default();
+        popups.toggle(OptionItem::CursorType, &ws.tools);
+        frame(&ctx, 0, &mut popups, anchor, &mut ws);
+        let inside = popups.rect.unwrap();
+        assert!(inside.max.y <= 720.0, "kept in the window: {inside:?}");
+        let full = CURSOR_TYPES.len() as f32 * 32.0 + 18.0;
+        assert!(inside.height() < full);
+        // The host's screens: the client at 480,334 (physical).
+        let screen = ScreenInfo { bounds: PxRect::new(0.0, 0.0, 2560.0, 1600.0), working_area: PxRect::new(0.0, 0.0, 2560.0, 1540.0) };
+        let g = Geometry { screens: vec![screen], parent: PxRect::new(480.0, 334.0, 1600.0, 900.0), scaling: 1.25 };
+        let work = Rect::from_min_max(pos2(-480.0 / 1.25, -334.0 / 1.25), pos2(2080.0 / 1.25, 1206.0 / 1.25));
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 720.0))), time: Some(1.0), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            sharex_ui::popup::set_host_screens(ui.ctx(), Some(work), Some(g.clone()));
+            let p = sharex_ui::palette(ui.ctx());
+            let full = ui.max_rect();
+            popups.show(ui, &p, anchor, full, &mut ws);
+        });
+        out.textures_delta.clear();
+        let hosted = popups.rect.unwrap();
+        assert_eq!(hosted.height(), full, "the whole list");
+        // 4 below its button it would end past the work area: slid up to
+        // end on it (1540 - 1142.5 = 397.5, truncated to 397 physical),
+        // as ShareX's popup at 398..1540 in the pass 5 shot.
+        assert_eq!(hosted.min.y, (397.0 - 334.0) / 1.25);
+        assert!(hosted.max.y > 720.0, "past the window: {hosted:?}");
+        let layers = sharex_ui::popup::take(&ctx);
+        assert!(layers.iter().any(|l| l.rect == hosted), "registered for a popup window");
     }
 }

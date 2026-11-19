@@ -1506,7 +1506,9 @@ pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Rgba8, style
     let view_id = id.with("view");
     let mut changed = false;
     let mut pick = false;
-    let area = egui::Area::new(id.with("color-popup")).order(Order::Foreground).fixed_pos(pos).fade_in(false).show(ctx, |ui| {
+    // Not kept in the window: placed on the work area (`place`), a popup
+    // past the window's edge goes into a popup window of its own.
+    let area = egui::Area::new(id.with("color-popup")).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ctx, |ui| {
         let (r, _) = ui.allocate_exact_size(host.size, Sense::hover());
         match style {
             ColorPopup::Dropdown => border::border(ui.painter(), r, host.radius, host.border, Some(Brush::Solid(p.background_panel)), Some(p.border)),

@@ -2743,6 +2743,34 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
             }
             w.update_title();
         }
+        // `--state option:<tool>:<item>` (`option:Cursor:CursorType`): the
+        // tool selected and that option's dropdown open, as its button's
+        // click opens it (with `--popup-host`, placed on the screen).
+        Some(st) if st.starts_with("option:") => {
+            let mut parts = st["option:".len()..].split(':');
+            let (tool, item) = (parts.next().unwrap_or_default(), parts.next().unwrap_or_default());
+            let Some(t) = EditorTool::ALL.iter().find(|t| t.name().eq_ignore_ascii_case(tool)).cloned() else { return Err(format!("no tool {tool}")) };
+            use OptionItem as O;
+            const ITEMS: [OptionItem; 13] = [
+                O::BorderColor,
+                O::FillColor,
+                O::TextColor,
+                O::Thickness,
+                O::BorderStyle,
+                O::CornerRadius,
+                O::FontFamily,
+                O::TextAlignment,
+                O::ArrowStyle,
+                O::CursorType,
+                O::FontSize,
+                O::StepType,
+                O::StepStart,
+            ];
+            let Some(i) = ITEMS.iter().find(|i| format!("{i:?}").eq_ignore_ascii_case(item)).copied() else { return Err(format!("no option {item}")) };
+            w.modal = None;
+            w.ws.select_tool(t);
+            w.popups.toggle(i, &w.ws.tools);
+        }
         Some("confirm") => w.modal = Some(Modal::Confirm),
         Some("insert") => {
             let img = RgbaImage::from_pixel(200, 120, image::Rgba([30, 200, 90, 255]));
