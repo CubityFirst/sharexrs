@@ -54,6 +54,16 @@ pub trait TaskUi: Send + Sync {
     /// `TaskHelpers.OpenQRCodeScanFromImageFile`: the QR code window,
     /// scanning the image.
     fn scan_qr_code_file(&self, _path: &std::path::Path) {}
+    /// `TaskHelpers.PrintImage(image)`: the Send image to printer after
+    /// capture task (the Print window, or straight to the printer).
+    fn print_image(&self, _image: &image::RgbaImage) {}
+    /// `FileDialogHelpers.SaveFile` for the Save image to file as... after
+    /// capture task: ShareX's image types and all files, `file_name`
+    /// suggested in `initial_directory`, the task's format chosen; the path,
+    /// or `None` when cancelled.
+    fn save_image_file_dialog(&self, _title: &str, _file_name: &str, _initial_directory: &std::path::Path, _extension: &str) -> Option<std::path::PathBuf> {
+        None
+    }
     /// `TaskHelpers.AnalyzeImage(filePath, taskSettings)`: the Analyze
     /// image window on the file.
     fn analyze_image(&self, _path: &std::path::Path, _task: &TaskSettings) {}
@@ -128,6 +138,8 @@ pub enum UiRequest {
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
     /// The Analyze image window on a capture (the after capture task).
     AnalyzeImage(std::path::PathBuf, Box<TaskSettings>),
+    /// `TaskHelpers.PrintImage(image)`.
+    PrintImage(Box<image::RgbaImage>),
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
     /// to write (`None`: cancelled).
     FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
@@ -155,6 +167,7 @@ impl std::fmt::Debug for UiRequest {
             Self::Beautify(..) => f.write_str("Beautify"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
             Self::AnalyzeImage(p, _) => write!(f, "AnalyzeImage({})", p.display()),
+            Self::PrintImage(_) => f.write_str("PrintImage"),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
             Self::Email(..) => f.write_str("Email"),
             Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
@@ -214,6 +227,34 @@ impl TaskUi for SystemUi {
         if let Some(r) = &self.requests {
             r(UiRequest::PinToScreen(Box::new(image.clone()), Box::new(task.clone())));
         }
+    }
+
+    fn print_image(&self, image: &image::RgbaImage) {
+        if let Some(r) = &self.requests {
+            r(UiRequest::PrintImage(Box::new(image.clone())));
+        }
+    }
+
+    fn save_image_file_dialog(&self, title: &str, file_name: &str, initial_directory: &std::path::Path, extension: &str) -> Option<std::path::PathBuf> {
+        // `SaveImageFilter + "|" + WorkerTask_AllFilesFilter + "|*.*"`, the
+        // task's format first (`GetSaveImageFilterIndex`: the dialog can't
+        // preselect one otherwise).
+        let mut filters: Vec<(&str, &[&str])> = crate::image_tools::SAVE_IMAGE_FILTERS.to_vec();
+        if let Some(i) = filters.iter().position(|(_, exts)| exts.contains(&extension)) {
+            let chosen = filters.remove(i);
+            filters.insert(0, chosen);
+        }
+        let mut d = rfd::FileDialog::new().set_title(title).set_file_name(file_name);
+        for (name, exts) in filters {
+            d = d.add_filter(name, exts);
+        }
+        d = d.add_filter(sharex_strings::sharex::WorkerTask_AllFilesFilter(), &["*"]);
+        if initial_directory.is_dir() {
+            d = d.set_directory(initial_directory);
+        }
+        let out = d.save_file()?;
+        // `DefaultExtension`.
+        Some(if out.extension().is_none() { out.with_extension(extension) } else { out })
     }
 
     fn analyze_image(&self, path: &std::path::Path, task: &TaskSettings) {

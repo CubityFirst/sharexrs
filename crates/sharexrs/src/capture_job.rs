@@ -232,10 +232,59 @@ pub fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
     }
 }
 
+/// `HelpersOptions.LastSaveDirectory`: where the last Save as... went.
+static LAST_SAVE_DIRECTORY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+/// `SkiaImageHelpers.TryGetImageFormat`: the format a file's extension
+/// names.
+pub fn try_get_image_format(path: &Path) -> Option<sharex_settings::EImageFormat> {
+    use sharex_settings::EImageFormat;
+    let ext = path.extension()?.to_string_lossy().to_lowercase();
+    Some(match ext.as_str() {
+        "png" => EImageFormat::PNG,
+        "jpg" | "jpeg" | "jpe" | "jfif" => EImageFormat::JPEG,
+        "webp" => EImageFormat::WEBP,
+        "gif" => EImageFormat::GIF,
+        "bmp" => EImageFormat::BMP,
+        _ => return None,
+    })
+}
+
+/// `TaskHelpers.CreateThumbnail`: with a thumbnail width or height (and,
+/// with `ThumbnailCheckSize`, an image bigger than both), the image
+/// resized (`Resize(width, height)`, a 0 keeping the aspect ratio) on white
+/// as a JPEG at quality 90, named `<name><ThumbnailName>.jpg` in `folder`
+/// (`HandleExistsFile`); its path, or `None`.
+pub fn create_thumbnail(image: &RgbaImage, folder: &Path, file_name: &str, task: &TaskSettings) -> Option<PathBuf> {
+    let s = task.ImageSettings.clone().unwrap_or_default();
+    let (w, h) = (s.ThumbnailWidth, s.ThumbnailHeight);
+    let big = image.width() as i64 > i64::from(w) && image.height() as i64 > i64::from(h);
+    if !((w > 0 || h > 0) && (!s.ThumbnailCheckSize || big)) {
+        return None;
+    }
+    let stem = Path::new(file_name).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let path = handle_exists_file(&folder.join(format!("{stem}{}.jpg", s.ThumbnailName)), task)?;
+    let bmp = sharex_tools::imaging::Bitmap::from_straight(image.width(), image.height(), image.as_raw());
+    // `new Resize(width, height).Apply(...)` (`ResizeAll`).
+    let (rw, rh) = sharex_image_effects::ops::apply_aspect_ratio(w, h, bmp.width(), bmp.height());
+    let resized = sharex_image_effects::ops::resize_image(bmp, rw, rh);
+    let filled = sharex_tools::imaging::fill_background(&resized, sharex_tools::imaging::WHITE);
+    // `Save(path, SKEncodedImageFormat.Jpeg, 90)`: Skia's JPEG encoder's
+    // defaults (4:2:0).
+    let jpeg = sharex_tools::imaging::save_jpeg(&filled, 90, sharex_tools::imaging::JpegDownsample::Downsample420);
+    if let Err(e) = std::fs::create_dir_all(folder).and_then(|()| std::fs::write(&path, jpeg)) {
+        eprintln!("Thumbnail {}: {e}", path.display());
+        return None;
+    }
+    Some(path)
+}
+
 /// What the after capture tasks did.
 #[derive(Debug, Default)]
 pub struct TaskOutcome {
     pub file_path: Option<PathBuf>,
+    /// `Info.ThumbnailFilePath` (Save thumbnail image to file).
+    pub thumbnail_file_path: Option<PathBuf>,
     pub copied: bool,
     /// The encoded image (`WorkerTask.Data`) and its file name, when it was
     /// prepared for saving or uploading.
@@ -276,8 +325,10 @@ impl ImageTask {
         Self { metadata, task, file_name, folder, image_effects_folder, png_strip_color_space }
     }
 
-    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: beautify,
-    /// add image effects, annotate, copy the image to the clipboard (owned by `owner`), then save it.
+    /// `WorkerTask.DoAfterCaptureJobs`: beautify, add image effects,
+    /// annotate, copy the image to the clipboard (owned by `owner`), pin,
+    /// print, then encode it and save it (to the folder, with the dialog,
+    /// and its thumbnail). (Open in Photo editor is deferred.)
     pub fn run(mut self, owner: Option<isize>, ui: Option<&dyn crate::upload::TaskUi>) -> Result<TaskOutcome, String> {
         let mut outcome = TaskOutcome::default();
         let job = self.task.AfterCaptureJob;
@@ -325,16 +376,78 @@ impl ImageTask {
         {
             ui.pin_to_screen(&self.metadata.image, &self.task);
         }
-        if job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::UploadImageToHost) {
-            let (data, ext) = prepare_image(&self.metadata.image, &self.task, self.png_strip_color_space)?;
-            let name = change_extension(&self.file_name, ext);
-            if job.contains(AfterCaptureTasks::SaveImageToFile)
+        if job.contains(AfterCaptureTasks::SendImageToPrinter)
+            && let Some(ui) = ui
+        {
+            ui.print_image(&self.metadata.image);
+        }
+        let prepare = [
+            AfterCaptureTasks::SaveImageToFile,
+            AfterCaptureTasks::SaveImageToFileWithDialog,
+            AfterCaptureTasks::DoOCR,
+            AfterCaptureTasks::UploadImageToHost,
+            AfterCaptureTasks::AnalyzeImage,
+        ]
+        .iter()
+        .any(|t| job.contains(*t));
+        if prepare {
+            let (mut data, ext) = prepare_image(&self.metadata.image, &self.task, self.png_strip_color_space)?;
+            // `Info.FileName`; setting `Info.FilePath` sets it to the path's name.
+            let mut name = change_extension(&self.file_name, ext);
+            let file_name_of = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            if (job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::AnalyzeImage))
                 && let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task)
             {
                 std::fs::create_dir_all(&self.folder).map_err(|e| format!("{}: {e}", self.folder.display()))?;
                 std::fs::write(&path, &data).map_err(|e| format!("{}: {e}", path.display()))?;
                 eprintln!("Image saved to file: {}", path.display());
+                name = file_name_of(&path);
                 outcome.file_path = Some(path);
+            }
+            if job.contains(AfterCaptureTasks::SaveImageToFileWithDialog)
+                && let Some(ui) = ui
+            {
+                let last = LAST_SAVE_DIRECTORY.lock().expect("last save directory").clone();
+                let initial = if !last.is_empty() && Path::new(&last).is_dir() { PathBuf::from(last) } else { self.folder.clone() };
+                let title = format!("{} {}", sharex_strings::sharex::UploadTask_DoAfterCaptureJobs_Choose_a_folder_to_save(), name);
+                let mut format = try_get_image_format(Path::new(&name));
+                loop {
+                    let current_ext = Path::new(&name).extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
+                    let Some(selected) = ui.save_image_file_dialog(&title, &name, &initial, &current_ext) else { break };
+                    // Another format picked: the image in that format, which
+                    // later steps (uploading) use too.
+                    if let Some(f) = try_get_image_format(&selected)
+                        && Some(f.clone()) != format
+                    {
+                        let settings = self.task.ImageSettings.clone().unwrap_or_default();
+                        let image = &self.metadata.image;
+                        let bmp = sharex_tools::imaging::Bitmap::from_straight(image.width(), image.height(), image.as_raw());
+                        data = sharex_tools::capture_image::save_image_as_stream(&bmp, &f, &settings, self.png_strip_color_space);
+                        format = Some(f);
+                    }
+                    if let Some(dir) = selected.parent() {
+                        *LAST_SAVE_DIRECTORY.lock().expect("last save directory") = dir.to_string_lossy().into_owned();
+                    }
+                    name = file_name_of(&selected);
+                    outcome.file_path = Some(selected.clone());
+                    match std::fs::write(&selected, &data) {
+                        Ok(()) => {
+                            eprintln!("Image saved to file with dialog: {}", selected.display());
+                            break;
+                        }
+                        Err(e) => eprintln!("{}: {e}", selected.display()),
+                    }
+                }
+            }
+            if job.contains(AfterCaptureTasks::SaveThumbnailImageToFile) {
+                let (thumb_name, thumb_folder) = match &outcome.file_path {
+                    Some(p) => (file_name_of(p), p.parent().map(Path::to_path_buf).unwrap_or_default()),
+                    None => (name.clone(), self.folder.clone()),
+                };
+                outcome.thumbnail_file_path = create_thumbnail(&self.metadata.image, &thumb_folder, &thumb_name, &self.task);
+                if let Some(p) = &outcome.thumbnail_file_path {
+                    eprintln!("Thumbnail saved to file: {}", p.display());
+                }
             }
             outcome.data = Some(data);
             outcome.file_name = Some(name);

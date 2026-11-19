@@ -196,6 +196,10 @@ impl App {
                 self.pin_image(event_loop, *image, None, &task);
                 return;
             }
+            super::UiRequest::PrintImage(image) => {
+                self.print_image(event_loop, *image);
+                return;
+            }
             super::UiRequest::Email(fields, reply) => {
                 let (to, subject, body) = *fields;
                 Box::new(dialogs::email_window::EmailWindow::new(&to, &subject, &body, Some(reply)))

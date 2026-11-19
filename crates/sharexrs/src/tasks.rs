@@ -277,6 +277,8 @@ pub enum TaskEvent {
 pub struct TaskReport {
     pub file_name: String,
     pub file_path: Option<PathBuf>,
+    /// `Info.ThumbnailFilePath`.
+    pub thumbnail_file_path: Option<PathBuf>,
     pub result: UploadResult,
     /// `StopRequested`.
     pub stop_requested: bool,
@@ -472,6 +474,7 @@ impl TaskManager {
         let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) else { return false };
         task.info.file_name = report.file_name.clone();
         task.info.file_path = report.file_path.clone();
+        task.info.thumbnail_file_path = report.thumbnail_file_path.clone();
         task.info.result = report.result.clone();
         task.stop_requested |= report.stop_requested;
         self.complete(id, None, None, max_recent)
