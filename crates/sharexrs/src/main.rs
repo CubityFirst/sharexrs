@@ -1275,6 +1275,7 @@ impl App {
         self.refresh_menus();
         // `ApplicationSettingsRuntime.InitializeAsync`: the update manager too.
         self.apply_update_settings();
+        shell::set_browser_path(&self.settings.settings.BrowserPath);
         self.hotkeys.repeat_limit = Duration::from_millis(self.settings.settings.hotkey_repeat_limit() as u64);
         let disabled = self.settings.settings.DisableHotkeys;
         let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);

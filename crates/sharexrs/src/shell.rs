@@ -50,10 +50,20 @@ pub fn open_file(path: &Path) -> bool {
     }
 }
 
-/// `URLHelpers.OpenURL`'s `Process.Start(url)` with `UseShellExecute`:
-/// the default browser (a custom `BrowserPath` isn't supported yet).
+static BROWSER_PATH: Mutex<String> = Mutex::new(String::new());
+
+/// `HelpersOptions.BrowserPath` (`ApplicationSettingsRuntime.ApplyCore`).
+pub fn set_browser_path(path: &str) {
+    *BROWSER_PATH.lock().unwrap_or_else(|e| e.into_inner()) = path.to_owned();
+}
+
+/// `URLHelpers.OpenURL`'s `Process.Start` with `UseShellExecute`: the
+/// `BrowserPath` program with the URL as its arguments when one is set,
+/// else the URL itself (the default browser).
 pub fn open_url(url: &str) -> bool {
-    match shell_open(Path::new(url)) {
+    let browser = BROWSER_PATH.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let opened = if browser.is_empty() { shell_open(Path::new(url)) } else { sharex_update::install::shell_execute(Path::new(&browser), url, false) };
+    match opened {
         Ok(()) => true,
         Err(e) => {
             eprintln!("OpenURL({url}) failed: {e}");
