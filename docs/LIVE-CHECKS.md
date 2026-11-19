@@ -665,3 +665,74 @@ the edit (`--render color-view --content flyout --state components
 --text "128, 54, 169, 225" --scale 1.25`) is 1.01% against
 `SX/pass4-color-alpha-dark.png` for both binaries. The difference is the
 hex box's text anti-aliasing; both read `36A9E180`.
+
+## Pass 5 · Windows desktop checks
+
+ShareX reference `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` (the
+running portable build, PID 19224) and ShareXrs built from master
+`a5e4b3d075df19e1c6f85c2ed2bd6474140bb25c` with `cargo build --offline`.
+ShareXrs ran from a temporary copy with a `Portable` marker and
+`AutoCheckUpdate=false` in place before startup. The single display
+measured 2560×1600 with a 2560×1540 work area and 120 DPI (125%).
+Display settings were left as found. Evidence paths below are relative
+to the `pass5/` subdirectories of SX and RS. The editor used the same
+generated 640×400 `photo.png` in both apps.
+
+| ID | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|
+| HIL2-02a | Task settings › Tools › Mouse highlighter › Primary button color. Start at A=166, RGB 54,169,225. Open Components, switch to Spectrum and click the vertical alpha midpoint, then check Components and close settings. | Blue is 225 before the edit. Afterward Components reads A=128, RGB 54,169,225 and hex `36A9E180`. | Same initial and edited values. Both save `128, 54, 169, 225` in `DefaultTaskSettings.ToolsSettings.MouseHighlighterOptions.PrimaryColor`. | PASS | `hil-components-before.png`, `hil-components-after.png` in SX and RS, and `RS/saved-colours.json`. |
+| HIL2-02b | Open a fresh Image Editor on `photo.png`, select Rectangle, and open its Fill colour dropdown with the default transparent fill. Click the bottom-right Transparent palette cell. Click empty space within the popup to move the pointer off the cell. | The palette opens without selection. The click selects Transparent, and the blue cell stays selected after the pointer leaves. | The palette opens without selection. The checkerboard cell shows a hover outline on click, then returns to its initial unselected appearance when the pointer leaves. | FAIL | `fill-initial.png` and `fill-after-pointer-away.png` in SX and RS. |
+| REG4-02a | Select Rectangle in the editor and open the Solid stroke-style dropdown. | Solid has black text on blue and a light line preview. The other rows are Dash, Dot, Dash Dot and Dash Dot Dot. | Same text, selection, line preview and options. | PASS | `stroke-style.png` in SX and RS. |
+| REG4-02b | Select Arrow and open the arrow-style dropdown. | Classic has black text on blue and a light preview. The list also shows Double, Modern, Basic and Line. | Same selection, order and preview colours. | PASS | `arrow-style.png` in SX and RS. |
+| REG4-02c | Select Text and open alignment. | Center has a black icon and text on blue, between Left and Right. | Same icon, text and selection. | PASS | `alignment.png` in SX and RS. |
+| REG4-02d | Select Step and open the step-type dropdown. | The numeric sequence has black text on blue. The other four rows are upper- and lowercase letters and Roman numerals. | Same selection and order. | PASS | `step-type.png` in SX and RS. |
+| REG4-02e | Select Step and open start number. | The list shows 1 through 10, with 1 in black on blue. | Same selection and order. | PASS | `start-number.png` in SX and RS. |
+| REG4-02f | Select Text in the maximized Image Editor with its default 48 pt setting. Open the font-size dropdown and inspect the editable value at the top before typing. | The 48 pt row has black text on blue. The editable value `48` opens selected. | Same rows and 48 pt selection. The editable field opens with a caret after `48` and no text selection. | FAIL | `font-size.png` in SX and RS. |
+| REG4-02g | Restore the Image Editor to its 1600×900 physical client. Press K to select Cursor, then open the Default dropdown without scrolling. | Default is black on blue. An owned popup extends below the client and shows the full list through Wait cursor. | Default is black on blue. The list stays within the client and initially ends at Size NESW. Size NS through Wait cursor are below the visible area. | FAIL | `cursor-type.png` in SX and RS. |
+| REG5-01 | Pin `photo.png` over the verified test pattern with `-PinToScreen`. Open the gear menu's options and edit Border color with the first-row blue palette swatch and Spectrum alpha. Confirm A=128 in Components, dismiss the picker and click Save. | The picker shows A=128, RGB 0,120,215. Save updates the pin. | Same RGBA and applied colour. Both save `128, 0, 120, 215` in `ToolsSettings.PinToScreenOptions.BorderColor`. | PASS | `pin-color-edited.png` in SX and RS, and `RS/saved-colours.json`. |
+| REG5-02 | In the editor's Background panel, select Color, open the swatch, choose the first-row blue cell and set alpha to 128 on Spectrum. Check Components and close the editor. | Opens, edits and displays A=128, RGB 0,120,215. | Same RGBA. Both application configs save `BackgroundType="Color"` and `BackgroundColorHex="#800078D7"` in `ToolsSettings.ImageEditorOptions`. | PASS | `bg-components-after.png` in SX and RS, and `RS/saved-colours.json`. |
+| REG5-03 | Open `-ImageEffects photo.png`, select the Canvas effect with margin 0,0,0,30 and edit its Color. Choose the same blue and set alpha to 128. Check Components and close the tool. | Opens, edits and displays A=128, RGB 0,120,215. | Same RGBA. Both save the Canvas preset's `Color` as `128, 0, 120, 215`. | PASS | `effect-edited.png` in SX and RS, and `RS/saved-colours.json`. |
+| REG5-04a | Open Monitor test over the verified pattern. Choose RGB, open Color, select the first-row blue palette cell and dismiss the picker without moving a slider. | Shows and retains `#0078D7` on the RGB control. | Same colour and in-window retention. Neither tool has a Save action for this session setting. | PASS | `SX/monitor-rgb-edited.png` and `RS/monitor-rgb-neutral-dismiss.png`. |
+| REG5-04b | With Monitor test on RGB `#0078D7` and Color open, click the exposed left end of the red slider at screen `1000,273` to dismiss the popup. | Popup closes. Red stays 0 and the shown colour stays `#0078D7`. | The same click also moves the red slider. Red becomes 1 and the shown colour changes to `#0178D7`. Reproduced on a fresh Monitor test. | FAIL | `SX/monitor-rgb-edited.png` and `RS/monitor-rgb-slider-dismiss-repeat.png`. |
+
+### Pass 5 coverage and teardown
+
+**10 PASS, 4 FAIL and 0 BLOCKED** across the table's 14 checks. The
+editor dropdown foreground fixes passed, including the selected rows
+in the two dropdowns with separate interaction or placement failures.
+No product code changed.
+
+Activating an editor from the other app restored its window size. A
+coordinate based on the maximized size opened ShareX's Select image
+dialog. It was closed without selecting a file, and the Cursor check
+used verified 1600×900 clients in both apps. ShareXrs's Pin options
+opened behind the always-on-top test pattern. The test brought only
+that temporary options window above the pattern. The first ShareXrs
+pin alpha click landed at 127. The repeat clicked one pixel higher,
+read 128 in Components and saved the matching value. The editor's exit
+confirmation was dismissed without saving the generated image.
+
+Six pattern preflights reached the 0.99 threshold before the Pin to
+screen and Monitor test launches. The screen-level preflight files were
+deleted without viewing. The 33 retained images used PrintWindow on
+PID-verified app windows and have verified SHA-256 and DPI sidecars.
+The missing `shots/sharex/tools-ui/in/photo.png` and the missing
+`tools-ui/in/photo.png` used by `scripts/image-tools-compare.sh` were
+generated from `scripts/image-tools-inputs.py` in scratch and copied
+to both new paths. The PNG SHA-256 is
+`3fd46090f3913e4a73c648903f18333addaa00516e924a2552cec492916deea1`.
+
+Both apps honored `-ExitShareX` after every dialog closed. The pass
+compared the saved colour fields after exit, then restored and verified
+all 13 original ShareX profile hashes. The original executable restarted
+without arguments as **PID 5920**, with a temporary
+`AutoCheckUpdate=false` value for startup. After dismissing its usual
+hotkey warning, the original config bytes were restored and the main
+window was the only visible ShareX window. Twelve files still matched
+their hashes. The monthly log kept all its original bytes and appended
+2,663 bytes of normal startup logging.
+
+The test processes, scratch profiles and profile backup were removed.
+The clipboard reported zero formats. The display and work-area bounds
+matched the pre-test measurements. The offline build and macOS Clippy
+check completed.
