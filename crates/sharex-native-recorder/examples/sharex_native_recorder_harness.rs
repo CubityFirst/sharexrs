@@ -134,9 +134,9 @@ mod encode {
         let data = synthetic::camera_frame(c["format"].as_str().unwrap(), w, h, m);
         if c["bottom_up"].as_bool().unwrap_or(false) {
             let row = mode.format.row_bytes(mode.info.width) as usize;
-            return CameraFrame { data: data.chunks_exact(row).rev().flatten().copied().collect(), stride: mode.stride };
+            return CameraFrame::memory(data.chunks_exact(row).rev().flatten().copied().collect(), mode.stride);
         }
-        CameraFrame { data, stride: mode.stride }
+        CameraFrame::memory(data, mode.stride)
     }
 
     pub fn options(kind: &str, case: &Value, path: &Path) -> RecordingOptions {

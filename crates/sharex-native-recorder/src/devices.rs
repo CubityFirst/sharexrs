@@ -58,7 +58,7 @@ pub fn default_microphone() -> Option<AudioCaptureDevice> {
 /// `GetCameras`: Media Foundation's video capture devices.
 pub fn cameras() -> Result<Vec<CameraCaptureDevice>, String> {
     #[cfg(windows)]
-    return Ok(Vec::new());
+    return crate::windows::camera_capture::devices();
     #[cfg(not(windows))]
     Ok(Vec::new())
 }

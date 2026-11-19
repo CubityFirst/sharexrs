@@ -12,6 +12,7 @@ use super::device::GraphicsDevice;
 use super::err;
 use super::processor::{color_space, content_desc, input_view, output_view, rect, release, stream};
 use crate::camera::{CameraFrame, CameraMode, CameraPixelFormat, overlay_bounds};
+use windows::Win32::Media::MediaFoundation::{IMF2DBuffer, IMFDXGIBuffer, IMFSample};
 use crate::options::{CameraOverlayShape, Rect, RecordingOptions};
 
 /// `CameraOverlay`.
@@ -28,6 +29,9 @@ pub struct CameraOverlay {
     circle: Option<CircleShader>,
     upload: Option<ID3D11Texture2D>,
     upload_bytes: Vec<u8>,
+    /// The last camera sample, kept until the next GPU operation so its buffer isn't
+    /// returned while the video processor's commands are still being submitted.
+    retained: Option<super::camera_capture::CameraSample>,
     frame_number: u32,
     pub texture: ID3D11Texture2D,
     pub bounds: Rect,
@@ -109,6 +113,7 @@ impl CameraOverlay {
                 circle,
                 upload: None,
                 upload_bytes: Vec::new(),
+                retained: None,
                 frame_number: 0,
                 texture,
                 bounds,
@@ -128,9 +133,22 @@ impl CameraOverlay {
 
     /// `Update`: converts a new camera frame into the tile.
     pub fn update(&mut self, graphics: &GraphicsDevice, frame: &CameraFrame) -> Result<(), String> {
-        self.upload_camera_buffer(graphics, frame)?;
-        let upload = self.upload.clone().expect("uploaded");
-        let input = input_view(&self.video_device, &upload, &self.enumerator, 0, 0)?;
+        let (texture, subresource) = match &frame.sample {
+            Some(sample) => {
+                // Takes the sample; the previous one is released after this update.
+                let _previous = self.retained.replace(sample.clone());
+                self.sample_texture(graphics, &sample.0)?
+            }
+            None => {
+                self.upload_camera_buffer(graphics, frame)?;
+                (self.upload.clone().expect("uploaded"), 0)
+            }
+        };
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        // SAFETY: a live texture.
+        unsafe { texture.GetDesc(&mut desc) };
+        let mips = desc.MipLevels.max(1);
+        let input = input_view(&self.video_device, &texture, &self.enumerator, subresource % mips, subresource / mips)?;
         let mut streams = [stream(&input)];
         // SAFETY: valid processor, output view and stream.
         let r = unsafe { self.video_context.VideoProcessorBlt(&self.processor, &self.output, self.frame_number, &streams) };
@@ -138,6 +156,76 @@ impl CameraOverlay {
         self.frame_number = self.frame_number.wrapping_add(1);
         r.map_err(err)?;
         self.has_frame = true;
+        Ok(())
+    }
+
+    /// `Update(IMFSample)`'s texture: the sample's own DXGI texture when the
+    /// camera decodes on the recording's device, else its pixels uploaded
+    /// (`UploadCameraBuffer`: the 2D buffer's pitch, or the default stride).
+    fn sample_texture(&mut self, graphics: &GraphicsDevice, sample: &IMFSample) -> Result<(ID3D11Texture2D, u32), String> {
+        // SAFETY: Media Foundation buffer access on a live sample; locked memory is read only
+        // between Lock and Unlock, within the lengths and pitches the buffer reports.
+        unsafe {
+            let buffer = if sample.GetBufferCount().map_err(err)? == 1 { sample.GetBufferByIndex(0) } else { sample.ConvertToContiguousBuffer() }.map_err(err)?;
+            if let Ok(dxgi) = buffer.cast::<IMFDXGIBuffer>() {
+                let mut raw = std::ptr::null_mut();
+                dxgi.GetResource(&ID3D11Texture2D::IID, &mut raw).map_err(err)?;
+                let texture = ID3D11Texture2D::from_raw(raw);
+                // A camera can choose another adapter; then only its image takes the CPU bridge.
+                if texture.GetDevice().is_ok_and(|d| d.as_raw() == graphics.device.as_raw()) {
+                    return Ok((texture, dxgi.GetSubresourceIndex().map_err(err)?));
+                }
+            }
+            let (w, h) = (self.mode.info.width, self.mode.info.height);
+            if self.upload.is_none() {
+                self.upload = Some(graphics.create_texture(w, h, self.format, 0)?);
+            }
+            if self.upload_bytes.is_empty() {
+                self.upload_bytes = vec![0; self.image_bytes];
+            }
+            if let Ok(two) = buffer.cast::<IMF2DBuffer>() {
+                let (mut scanline, mut pitch) = (std::ptr::null_mut(), 0i32);
+                two.Lock2D(&mut scanline, &mut pitch).map_err(err)?;
+                let r = self.copy_rows_from(scanline, pitch as i64);
+                let _ = two.Unlock2D();
+                r?;
+            } else {
+                let (mut data, mut length) = (std::ptr::null_mut(), 0u32);
+                buffer.Lock(&mut data, None, Some(&mut length)).map_err(err)?;
+                let pitch = self.mode.stride as i64;
+                let absolute = pitch.abs();
+                let rows = if self.mode.format == CameraPixelFormat::Nv12 { h as i64 * 3 / 2 } else { h as i64 };
+                let r = if absolute < self.row_bytes as i64 || absolute * rows > length as i64 {
+                    Err("The camera delivered a truncated video frame or invalid stride.".to_string())
+                } else {
+                    let top = if pitch < 0 { data.add(((h - 1) as i64 * absolute) as usize) } else { data };
+                    self.copy_rows_from(top, pitch)
+                };
+                let _ = buffer.Unlock();
+                r?;
+            }
+            let upload = self.upload.clone().expect("created");
+            graphics.upload(&upload, Rect::new(0, 0, w, h), &self.upload_bytes, self.row_bytes);
+            Ok((upload, 0))
+        }
+    }
+
+    /// `CopyRows` from locked memory: `top` is the first row, `pitch` bytes apart.
+    ///
+    /// # Safety
+    /// `top` must hold the image's rows (and NV12's chroma rows) at `pitch`.
+    unsafe fn copy_rows_from(&mut self, top: *const u8, pitch: i64) -> Result<(), String> {
+        let rb = self.row_bytes;
+        if (pitch.unsigned_abs() as usize) < rb || (self.mode.format == CameraPixelFormat::Nv12 && pitch < 0) {
+            return Err("The camera delivered an unsupported video stride.".into());
+        }
+        let h = self.mode.info.height as i64;
+        let rows = if self.mode.format == CameraPixelFormat::Nv12 { h + h / 2 } else { h };
+        for row in 0..rows {
+            // SAFETY: the caller's buffer holds the rows at `pitch` from `top`.
+            let src = unsafe { std::slice::from_raw_parts(top.offset((row * pitch) as isize), rb) };
+            self.upload_bytes[row as usize * rb..(row as usize + 1) * rb].copy_from_slice(src);
+        }
         Ok(())
     }
 

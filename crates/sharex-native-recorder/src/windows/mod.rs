@@ -4,6 +4,7 @@
 //! writer (fed from a staging copy), and the camera overlay.
 
 pub mod camera;
+pub mod camera_capture;
 pub mod capture;
 pub mod device;
 pub mod hdr;
