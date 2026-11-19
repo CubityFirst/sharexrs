@@ -44,8 +44,6 @@ pub enum Effect {
     /// Capture › Select region...: `RegionCaptureTasks.GetRectangleRegionAsync`
     /// with the task's region options, into `CaptureCustomRegion`.
     SelectRegion,
-    /// A feature that isn't ported yet was asked for.
-    NotPorted(&'static str),
     /// Screen recording options... (`ShowScreenRecordingOptions`).
     FFmpegOptions,
     /// The watch folders changed (`WatchFolderManager.AddWatchFolder`,
@@ -197,6 +195,8 @@ pub struct TaskSettingsWindow {
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
+    /// The mouse highlighter's open colour flyout (its colour's key).
+    mh_color_open: Option<&'static str>,
     /// The Task page's uploader accounts.
     pub accounts: UploaderAccounts,
     /// Where the Screen recorder page's device lists come from, and the
@@ -246,6 +246,7 @@ impl TaskSettingsWindow {
             notification_editor: None,
             toolbar_editor: None,
             color_open: false,
+            mh_color_open: None,
             accounts: UploaderAccounts::default(),
             devices: Box::new(crate::capture_devices::SystemDevices),
             time_zones: None,
@@ -352,7 +353,7 @@ impl TaskSettingsWindow {
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
             let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
-            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.variables.is_open() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
+            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.variables.is_open() && !self.color_open && self.mh_color_open.is_none() && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
             self.scroll[page] = self.scroll[page].clamp(0.0, max);
@@ -1850,7 +1851,7 @@ fn page_mouse_highlighter(f: &mut Form) {
                 (t::MouseHighlighter_MiddleColor(), t::MouseHighlighter_MiddleReleaseCrosshairs(), "HighlightMiddleClicks", "MiddleColor", "ShowMiddleReleaseCrosshairs"),
             ] {
                 let mut on = jbool(&o, on_key, true);
-                if mh_color_row(f, label, Some(&mut on), &jstr(&o, color_key)) {
+                if mh_color_row(f, label, Some(&mut on), &mut o, color_key) {
                     jset(&mut o, on_key, Value::Bool(on));
                 }
                 if ripple {
@@ -1872,7 +1873,7 @@ fn page_mouse_highlighter(f: &mut Form) {
                 });
             } else {
                 f.stack(10.0, &mut |f| {
-                    mh_color_row(f, t::MouseHighlighter_AlwaysColor(), None, &jstr(&o, "AlwaysColor"));
+                    mh_color_row(f, t::MouseHighlighter_AlwaysColor(), None, &mut o, "AlwaysColor");
                     let help = t::MouseHighlighter_AlwaysColorHelp();
                     f.text(help);
                     if !f.collecting() {
@@ -1932,19 +1933,19 @@ fn mh_combo(f: &mut Form, label: &str, items: &[ComboItem], selected: usize) -> 
     out
 }
 
-/// "a, r, g, b" (`System.Drawing.Color` as Newtonsoft writes it), or a name.
+/// A `System.Drawing.Color` as Newtonsoft writes it (`ColorConverter`:
+/// "A, R, G, B", "R, G, B" or a name).
 fn parse_drawing_color(v: &str) -> egui::Color32 {
-    let parts: Vec<u8> = v.split(',').filter_map(|p| p.trim().parse().ok()).collect();
-    match parts.as_slice() {
-        [a, r, g, b] => egui::Color32::from_rgba_unmultiplied(*r, *g, *b, *a),
-        [r, g, b] => egui::Color32::from_rgb(*r, *g, *b),
-        _ => egui::Color32::TRANSPARENT,
-    }
+    sharex_image_effects::dotnet::Color::parse(v).map_or(egui::Color32::TRANSPARENT, |c| egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a))
 }
 
 /// `EnabledColorRow` / `ColorRow`: a check box (or label) and a button
-/// holding a 28x20 swatch. The colour flyout (`ColorView`) isn't ported.
-fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, color: &str) -> bool {
+/// holding a 28x20 swatch; the button's flyout is the colour picker
+/// (`ColorView` with alpha; the shared colour popup stands in for it), which
+/// writes `DrawingColor.FromArgb(...)` back. Returns whether the check box
+/// changed.
+fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, o: &mut Value, key: &'static str) -> bool {
+    let color = jstr(o, key);
     f.text(label);
     if f.collecting() {
         return false;
@@ -1969,13 +1970,26 @@ fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, color: &str) -
     let cell = mh_cell(r, h);
     let b = Rect::from_min_size(cell.min, vec2(1.0 + 10.0 + 28.0 + 10.0 + 1.0, h));
     let enabled = enabled && f.enabled;
-    if Button::default().show(f.ui, b, f.id(&format!("{label}-color")), "", enabled).clicked() {
-        f.effect(Effect::NotPorted("colour picker flyout"));
+    let clicked = Button::default().show(f.ui, b, f.id(&format!("{label}-color")), "", enabled).clicked();
+    let just_opened = clicked && f.w.mh_color_open != Some(key);
+    if clicked {
+        f.w.mh_color_open = if f.w.mh_color_open == Some(key) { None } else { Some(key) };
     }
     let swatch = Rect::from_center_size(b.center(), vec2(28.0, 20.0));
     let opacity = if enabled { 1.0 } else { 0.35 };
-    f.ui.painter().rect_filled(swatch, 0.0, parse_drawing_color(color).gamma_multiply(opacity));
+    f.ui.painter().rect_filled(swatch, 0.0, parse_drawing_color(&color).gamma_multiply(opacity));
     f.ui.painter().rect_stroke(swatch, 0.0, Stroke::new(1.0, egui::Color32::GRAY.gamma_multiply(opacity)), StrokeKind::Inside);
+    if f.w.mh_color_open == Some(key) {
+        let mut c = parse_drawing_color(&color);
+        let (picked, keep) = controls::color_popup_with_alpha(f.ui, f.id(&format!("{key}-flyout")), b, &mut c, just_opened, true);
+        if picked {
+            let [r, g, b, a] = c.to_srgba_unmultiplied();
+            jset(o, key, Value::String(sharex_image_effects::dotnet::Color::argb(a, r, g, b).to_string()));
+        }
+        if !keep || !enabled {
+            f.w.mh_color_open = None;
+        }
+    }
     changed
 }
 
@@ -2277,6 +2291,16 @@ mod tests {
         assert!(services.iter().any(|(_, id)| id == "CustomFileUploader"));
         assert_eq!(split_extensions(" png, ,jpg ,"), ["png", "jpg"]);
         assert_eq!(filter_json("Imgur", vec!["png".into()]).to_string(), r#"{"Uploader":"Imgur","Extensions":["png"]}"#);
+    }
+
+    #[test]
+    fn highlighter_colours_as_color_converter_writes_them() {
+        // egui keeps colours premultiplied: the channels come back within 1.
+        let c = parse_drawing_color("166, 54, 169, 225").to_srgba_unmultiplied();
+        assert!(c.iter().zip([54u8, 169, 225, 166]).all(|(a, b)| a.abs_diff(b) <= 1), "{c:?}");
+        assert_eq!(parse_drawing_color("Transparent").a(), 0);
+        assert_eq!(sharex_image_effects::dotnet::Color::argb(255, 1, 2, 3).to_string(), "1, 2, 3");
+        assert_eq!(sharex_image_effects::dotnet::Color::argb(166, 54, 169, 225).to_string(), "166, 54, 169, 225");
     }
 
     #[test]

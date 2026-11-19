@@ -582,7 +582,6 @@ impl App {
                 for e in effects {
                     match e {
                         task_settings_window::Effect::SelectRegion => select_region = true,
-                        task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                         task_settings_window::Effect::WatchFoldersChanged => watch = true,
                         task_settings_window::Effect::ImageEffects => image_effects = true,
