@@ -1,6 +1,8 @@
 //! .NET's composite formatting (`string.Format`) for the format items ShareX's
-//! tool strings use, with en-US's number and date conventions (`N0`, `0.##`,
-//! `0.00`, custom date patterns).
+//! tool strings use (`N0`, `0.##`, `0.00`, custom date patterns). Numbers
+//! take `CultureInfo.CurrentCulture`'s group and decimal separators (the
+//! system's regional format; ShareX only changes the UI culture), dates
+//! en-US's names.
 
 use chrono::{Datelike, NaiveDateTime, Timelike};
 
@@ -83,14 +85,37 @@ fn format_arg(a: &Arg, spec: Option<&str>) -> String {
         Arg::Str(s) => s.clone(),
         Arg::I64(v) => match spec {
             None => v.to_string(),
-            Some(s) => format_number(*v as f64, s, true),
+            Some(s) => in_current_culture(format_number(*v as f64, s, true)),
         },
         Arg::F64(v) => match spec {
-            None => format_double_g(*v),
-            Some(s) => format_number(*v, s, false),
+            None => in_current_culture(format_double_g(*v)),
+            Some(s) => in_current_culture(format_number(*v, s, false)),
         },
         Arg::Date(d) => format_date(d, spec.unwrap_or("G")),
     }
+}
+
+/// An en-US number (`,` groups, `.` decimals) in the current culture's
+/// separators.
+fn in_current_culture(s: String) -> String {
+    let c = sharex_helpers::date_format::CultureFormat::current();
+    with_separators(&s, &c.number_group_separator, &c.number_decimal_separator)
+}
+
+/// An en-US number (`,` groups, `.` decimals) with other separators.
+pub fn with_separators(s: &str, group: &str, decimal: &str) -> String {
+    if group == "," && decimal == "." {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            ',' => out.push_str(group),
+            '.' => out.push_str(decimal),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// `double.ToString()`: the shortest round-trip form (`R`), as .NET Core 3+.
