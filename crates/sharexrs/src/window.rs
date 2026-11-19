@@ -93,9 +93,12 @@ impl EguiWindow {
         sharex_ui::install(&ctx);
         let config = egui_wgpu::WgpuConfiguration { wgpu_setup: gpu.egui_setup(), ..Default::default() };
         let options = egui_wgpu::RendererOptions { dithering, ..Default::default() };
+        sharex_capture::trace::mark("egui context");
         let mut painter = pollster::block_on(Painter::new(ctx.clone(), config, alpha, options));
+        sharex_capture::trace::mark("painter");
         pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window.clone())))
             .map_err(|e| format!("couldn't set up the window: {e}"))?;
+        sharex_capture::trace::mark("surface");
         let state = egui_winit::State::new(
             ctx,
             egui::ViewportId::ROOT,
@@ -109,6 +112,37 @@ impl EguiWindow {
 
     pub fn ctx(&self) -> &egui::Context {
         self.state.egui_ctx()
+    }
+
+    /// A hidden window kept for another use (the region capture's overlays)
+    /// starts over as a new one would, keeping what's costly to make (the
+    /// OS window, swap chain, renderer, fonts and live textures): egui's
+    /// memory, animations and input, the pointer and drag state, popups.
+    pub fn reset_for_reuse(&mut self) {
+        self.popups.clear(self.window.id());
+        let ctx = self.ctx().clone();
+        ctx.clear_animations();
+        ctx.memory_mut(|m| {
+            let options = std::mem::take(&mut m.options);
+            *m = Default::default();
+            m.options = options;
+        });
+        self.state = egui_winit::State::new(
+            ctx,
+            egui::ViewportId::ROOT,
+            &self.window,
+            Some(self.window.scale_factor() as f32),
+            self.window.theme(),
+            self.painter.max_texture_side(),
+        );
+        // egui still has the pointer where the last use left it.
+        self.state.egui_input_mut().events.push(egui::Event::PointerGone);
+        self.repaint_at = None;
+        self.resize_hover = None;
+        self.last_cursor = None;
+        self.left_down = false;
+        self.press = None;
+        self.move_drag = None;
     }
 
     /// Whether the pointer is over one of the window's popup windows: a
@@ -279,6 +313,7 @@ impl EguiWindow {
                 }
             }
         });
+        sharex_capture::trace::mark("frame: ui");
         let (moved_out, fallback) = self.popups.prepare(&self.window, &mut self.painter, moved_out);
         output.shapes.extend(fallback);
         self.state.handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
@@ -289,6 +324,7 @@ impl EguiWindow {
             }
         }
         let primitives = ctx.tessellate(std::mem::take(&mut output.shapes), output.pixels_per_point);
+        sharex_capture::trace::mark("frame: tessellated");
         let clear = self.clear_color.unwrap_or_else(|| egui::Rgba::from(ctx.global_style().visuals.panel_fill).to_array());
         self.painter.paint_and_update_textures(
             egui::ViewportId::ROOT,
@@ -299,6 +335,7 @@ impl EguiWindow {
             Vec::new(),
             &self.window,
         );
+        sharex_capture::trace::mark("frame: textures uploaded, drawn, presented");
         output.textures_delta.clear();
         self.popups.paint(&self.window, &mut self.painter, &ctx, output.pixels_per_point, clear, moved_out);
         self.repaint_at = None;

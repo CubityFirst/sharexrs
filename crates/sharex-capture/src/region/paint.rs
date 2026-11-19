@@ -22,6 +22,9 @@ pub struct OverlayView {
     /// The desktop pixels the window covers.
     pub monitor: RectI,
     frozen: Option<TextureHandle>,
+    /// A frozen screen texture from an earlier capture, uploaded into
+    /// rather than allocating another when it's the size needed.
+    spare: Option<TextureHandle>,
     /// The editor's version the frozen texture shows (with annotations).
     frozen_version: Option<u64>,
     magnifier: Option<(TextureHandle, MagnifierKey)>,
@@ -40,6 +43,7 @@ impl OverlayView {
         Self {
             monitor,
             frozen: None,
+            spare: None,
             frozen_version: None,
             magnifier: None,
             toolbar: None,
@@ -47,6 +51,30 @@ impl OverlayView {
             popup: None,
             shapes: None,
         }
+    }
+
+    /// Gives the view a frozen screen texture kept from an earlier capture
+    /// (its window's), to upload into.
+    pub fn keep_texture(&mut self, texture: Option<TextureHandle>) {
+        self.spare = texture;
+    }
+
+    /// The frozen screen's texture, to keep for the next capture.
+    pub fn take_frozen_texture(&mut self) -> Option<TextureHandle> {
+        self.frozen.take().or_else(|| self.spare.take())
+    }
+
+    /// Shows `image` as the frozen screen: uploaded into the texture
+    /// there is when it's the same size, else into a new one.
+    fn set_frozen(&mut self, ctx: &egui::Context, image: egui::ColorImage) {
+        let texture = self.frozen.take().or_else(|| self.spare.take());
+        self.frozen = Some(match texture {
+            Some(mut tex) if tex.size() == image.size => {
+                tex.set_partial([0, 0], image, TextureOptions::NEAREST);
+                tex
+            }
+            _ => ctx.load_texture("frozen screen", image, TextureOptions::NEAREST),
+        });
     }
 
     /// The toolbar part under `p` (points in this window), as last drawn.
@@ -74,16 +102,38 @@ impl OverlayView {
     }
 }
 
-/// The monitor's part of `pm` as premultiplied RGBA.
-fn crop_premul(pm: &sharex_skia::Pixmap, x: i32, y: i32, w: i32, h: i32) -> Vec<u8> {
-    let mut out = Vec::with_capacity((w * h * 4) as usize);
-    for row in y..y + h {
-        for col in x..x + w {
-            let c = pm.pixel(col, row);
-            out.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]);
+/// The `w` x `h` part of `image` at `x`, `y` as egui's colours
+/// (`ColorImage::from_rgba_unmultiplied` of the crop, without the crop).
+fn frozen_image(image: &image::RgbaImage, x: i32, y: i32, w: i32, h: i32) -> egui::ColorImage {
+    let stride = image.width() as usize * 4;
+    let raw = image.as_raw();
+    let (w, h, x, y) = (w as usize, h as usize, x as usize, y as usize);
+    let pixels = sharex_skia::par::collect(w * h, w, |start, chunk| {
+        for (r, out) in chunk.chunks_mut(w).enumerate() {
+            let from = (y + start / w + r) * stride + x * 4;
+            for (slot, p) in out.iter_mut().zip(raw[from..from + w * 4].chunks_exact(4)) {
+                slot.write(Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]));
+            }
         }
-    }
-    out
+    });
+    egui::ColorImage::new([w, h], pixels)
+}
+
+/// The `w` x `h` part of `pm` (premultiplied ARGB) at `x`, `y` as egui's
+/// colours.
+fn composite_image(pm: &sharex_skia::Pixmap, x: i32, y: i32, w: i32, h: i32) -> egui::ColorImage {
+    let stride = pm.width() as usize;
+    let data = pm.pixels();
+    let (w, h, x, y) = (w as usize, h as usize, x as usize, y as usize);
+    let pixels = sharex_skia::par::collect(w * h, w, |start, chunk| {
+        for (r, out) in chunk.chunks_mut(w).enumerate() {
+            let from = (y + start / w + r) * stride + x;
+            for (slot, &c) in out.iter_mut().zip(&data[from..from + w]) {
+                slot.write(Color32::from_rgba_premultiplied((c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8));
+            }
+        }
+    });
+    egui::ColorImage::new([w, h], pixels)
 }
 
 /// How much of `[d0, d1]` a `[3, 3]` dash pattern (shifted by `offset`)
@@ -317,6 +367,34 @@ fn snap(v: f32, ppp: f32) -> f32 {
 }
 
 impl RegionCapture {
+    /// Uploads `view`'s part of the frozen screen when it isn't up to date:
+    /// the screenshot at first, the editor's composite once it has
+    /// annotations (or text being typed). [`Self::paint`] does it first;
+    /// done before the first frame, that frame only draws.
+    pub fn update_frozen(&mut self, ctx: &egui::Context, view: &mut OverlayView) {
+        let sb = self.screen_bounds;
+        let part = view.monitor.intersect(&sb);
+        if !part.is_valid() {
+            return;
+        }
+        if let Some(e) = self.editor.as_mut()
+            && view.frozen_version != Some(e.version())
+            && (!e.annotations().is_empty() || e.text_edit().is_some() || view.frozen_version.is_some())
+        {
+            let version = e.version();
+            let pm = e.composite();
+            crate::trace::mark("editor composite");
+            let image = composite_image(pm, part.x - sb.x, part.y - sb.y, part.w, part.h);
+            crate::trace::mark("frozen screen to ColorImage");
+            view.set_frozen(ctx, image);
+            view.frozen_version = Some(version);
+        } else if view.frozen.is_none() {
+            let image = frozen_image(&self.screenshot, part.x - sb.x, part.y - sb.y, part.w, part.h);
+            crate::trace::mark("frozen screen to ColorImage");
+            view.set_frozen(ctx, image);
+        }
+    }
+
     /// Draws the overlay for the window `view` belongs to (its whole area).
     pub fn paint(&mut self, ui: &mut egui::Ui, view: &mut OverlayView, now: Instant) {
         let ctx = ui.ctx().clone();
@@ -331,34 +409,10 @@ impl RegionCapture {
         // The frozen screen: this monitor's part, pixel for pixel, with the
         // annotations (the editor workspace under the region overlay).
         let part = view.monitor.intersect(&sb);
-        if let Some(e) = self.editor.as_mut()
-            && part.is_valid()
-            && view.frozen_version != Some(e.version())
-            && (!e.annotations().is_empty() || e.text_edit().is_some() || view.frozen_version.is_some())
+        self.update_frozen(&ctx, view);
+        if part.is_valid()
+            && let Some(tex) = &view.frozen
         {
-            let version = e.version();
-            let pm = e.composite();
-            let rgba = crop_premul(pm, part.x - sb.x, part.y - sb.y, part.w, part.h);
-            let image = egui::ColorImage::from_rgba_premultiplied([part.w as usize, part.h as usize], &rgba);
-            match &mut view.frozen {
-                Some(tex) => tex.set(image, TextureOptions::NEAREST),
-                None => view.frozen = Some(ctx.load_texture("frozen screen", image, TextureOptions::NEAREST)),
-            }
-            view.frozen_version = Some(version);
-        }
-        if part.is_valid() {
-            let tex = view.frozen.get_or_insert_with(|| {
-                let crop = image::imageops::crop_imm(
-                    &self.screenshot,
-                    (part.x - sb.x) as u32,
-                    (part.y - sb.y) as u32,
-                    part.w as u32,
-                    part.h as u32,
-                )
-                .to_image();
-                let image = egui::ColorImage::from_rgba_unmultiplied([part.w as usize, part.h as usize], crop.as_raw());
-                ctx.load_texture("frozen screen", image, TextureOptions::NEAREST)
-            });
             let r = m.rect((part.x - sb.x) as f64, (part.y - sb.y) as f64, part.w as f64, part.h as f64);
             painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
@@ -753,5 +807,58 @@ mod tests {
         assert_eq!(halo(Color32::from_rgb(0x09, 0xAA, 0xFF)), Color32::BLACK);
         assert_eq!(halo(Color32::from_rgb(0x20, 0x20, 0x60)), Color32::WHITE);
         assert_eq!(dim_alpha(20), 51);
+    }
+
+    /// A 7x5 image with opaque, translucent and transparent pixels.
+    fn sample() -> image::RgbaImage {
+        image::RgbaImage::from_fn(7, 5, |x, y| {
+            let a = [255, 128, 0, 1, 254][(x as usize + y as usize) % 5];
+            image::Rgba([(x * 37) as u8, (y * 51) as u8, (x * y * 13) as u8, a])
+        })
+    }
+
+    #[test]
+    fn the_frozen_image_is_the_crop_as_egui_converted_it() {
+        let shot = sample();
+        let (x, y, w, h) = (2, 1, 4, 3);
+        let crop = image::imageops::crop_imm(&shot, x, y, w, h).to_image();
+        let expected = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], crop.as_raw());
+        let got = frozen_image(&shot, x as i32, y as i32, w as i32, h as i32);
+        assert_eq!(got.size, expected.size);
+        assert_eq!(got.pixels, expected.pixels);
+    }
+
+    #[test]
+    fn a_screen_sized_frozen_image_split_over_threads_is_the_same() {
+        let shot = image::RgbaImage::from_fn(1500, 900, |x, y| image::Rgba([x as u8, y as u8, (x ^ y) as u8, [255, 7][(x % 2) as usize]]));
+        let (x, y, w, h) = (3, 5, 1400, 880);
+        let crop = image::imageops::crop_imm(&shot, x, y, w, h).to_image();
+        let expected = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], crop.as_raw());
+        assert_eq!(frozen_image(&shot, x as i32, y as i32, w as i32, h as i32).pixels, expected.pixels);
+        let pm = sharex_skia::Pixmap::from_rgba(shot.width(), shot.height(), shot.as_raw());
+        let premul: Vec<u8> = crop.pixels().flat_map(|p| {
+            let c = sharex_skia::blitter::premultiply_color(p[3] as u32, p[0] as u32, p[1] as u32, p[2] as u32);
+            [(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]
+        }).collect();
+        let expected = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &premul);
+        assert_eq!(composite_image(&pm, x as i32, y as i32, w as i32, h as i32).pixels, expected.pixels);
+        assert_eq!(pm.clone(), pm);
+    }
+
+    #[test]
+    fn the_composite_image_is_the_premultiplied_crop() {
+        let shot = sample();
+        let pm = sharex_skia::Pixmap::from_rgba(shot.width(), shot.height(), shot.as_raw());
+        let (x, y, w, h) = (1, 2, 5, 3);
+        let mut rgba = Vec::new();
+        for row in y..y + h {
+            for col in x..x + w {
+                let c = pm.pixel(col, row);
+                rgba.extend_from_slice(&[(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]);
+            }
+        }
+        let expected = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &rgba);
+        let got = composite_image(&pm, x, y, w, h);
+        assert_eq!(got.pixels, expected.pixels);
     }
 }

@@ -2,11 +2,24 @@
 //! little-endian machine (BGRA bytes): each pixel a `u32` of
 //! `a << 24 | r << 16 | g << 8 | b`.
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Pixmap {
     width: u32,
     height: u32,
     data: Vec<u32>,
+}
+
+impl Clone for Pixmap {
+    /// A copy (a screen-sized one split over threads: [`crate::par`]).
+    fn clone(&self) -> Self {
+        let src = &self.data;
+        let data = crate::par::collect(src.len(), self.width as usize, |start, chunk| {
+            for (slot, &c) in chunk.iter_mut().zip(&src[start..]) {
+                slot.write(c);
+            }
+        });
+        Self { width: self.width, height: self.height, data }
+    }
 }
 
 #[inline]
@@ -61,17 +74,11 @@ impl Pixmap {
     /// From straight (unpremultiplied) RGBA bytes, premultiplying as
     /// `SkPremultiplyARGBInline` does.
     pub fn from_rgba(width: u32, height: u32, rgba: &[u8]) -> Self {
-        let data = rgba
-            .chunks_exact(4)
-            .map(|p| {
-                crate::blitter::premultiply_color(
-                    p[3] as u32,
-                    p[0] as u32,
-                    p[1] as u32,
-                    p[2] as u32,
-                )
-            })
-            .collect();
+        let data = crate::par::collect(rgba.len() / 4, width as usize, |start, chunk| {
+            for (slot, p) in chunk.iter_mut().zip(rgba[start * 4..].chunks_exact(4)) {
+                slot.write(crate::blitter::premultiply_color(p[3] as u32, p[0] as u32, p[1] as u32, p[2] as u32));
+            }
+        });
         Self {
             width,
             height,

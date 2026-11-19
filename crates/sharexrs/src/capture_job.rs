@@ -20,7 +20,19 @@ use sharex_settings::{AfterCaptureTasks, ApplicationConfig, FileExistAction, Tas
 /// the frozen screen (every monitor, or the active one), the pointer drawn
 /// in (`ShowCursor`), the windows to snap to.
 pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
+    prepare_with(task, last_regions, |_| {})
+}
+
+/// [`prepare`], running `while_grabbing` (given the monitors) on this
+/// thread while another grabs the screen: most of the grab is waiting on
+/// the compositor, time the overlay windows can be got ready in. The
+/// window list is made meanwhile too (hidden windows, such as overlays
+/// not shown yet, aren't in it).
+pub fn prepare_with(task: &TaskSettings, last_regions: Vec<Rect>, while_grabbing: impl FnOnce(&[sharex_capture::Screen])) -> Result<Request, String> {
+    use sharex_capture::trace;
+    trace::mark_or_begin("prepare");
     let screens = screenshot::screens();
+    trace::mark("monitors");
     if screens.is_empty() {
         return Err("no monitors found".into());
     }
@@ -34,12 +46,42 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
     } else {
         screenshot::screen_bounds(&screens)
     };
-    let mut frozen = if options.ActiveMonitorMode {
-        shot.capture_active_monitor(&screens, at)
-    } else {
-        shot.capture_fullscreen(&screens)
-    }
-    .ok_or("couldn't capture the screen")?;
+    let grab = || {
+        if options.ActiveMonitorMode {
+            shot.capture_active_monitor(&screens, at)
+        } else {
+            shot.capture_fullscreen(&screens)
+        }
+    };
+    let list = || {
+        let windows = if options.DetectWindows {
+            windows_list::window_info_list(options.DetectControls, &[])
+        } else {
+            Vec::new()
+        };
+        trace::mark("window list");
+        windows
+    };
+    // GDI's grab is safe off the event loop's thread; elsewhere (xcap,
+    // CoreGraphics) it stays on it, before the rest, as it always was.
+    #[cfg(windows)]
+    let (frozen, windows) = std::thread::scope(|s| {
+        let grab = s.spawn(grab);
+        let windows = list();
+        while_grabbing(&screens);
+        trace::mark("overlays ready");
+        (grab.join().unwrap_or_else(|e| std::panic::resume_unwind(e)), windows)
+    });
+    #[cfg(not(windows))]
+    let (frozen, windows) = {
+        let frozen = grab();
+        let windows = list();
+        while_grabbing(&screens);
+        trace::mark("overlays ready");
+        (frozen, windows)
+    };
+    let mut frozen = frozen.ok_or("couldn't capture the screen")?;
+    trace::mark("screen grabbed");
     let enable_annotations = !task.AdvancedSettings.as_ref().is_some_and(|a| a.RegionCaptureDisableAnnotation);
     // The pointer becomes an image annotation over the frozen screen; with
     // annotations off (no workspace here) it's drawn in, which renders the
@@ -54,11 +96,7 @@ pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, 
             screenshot::draw_cursor(&mut frozen, &c);
         }
     }
-    let windows = if options.DetectWindows {
-        windows_list::window_info_list(options.DetectControls, &[])
-    } else {
-        Vec::new()
-    };
+    trace::mark("pointer image");
     Ok(Request {
         screenshot: frozen,
         screen_bounds,

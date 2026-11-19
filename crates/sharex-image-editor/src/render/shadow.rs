@@ -261,53 +261,186 @@ pub fn with_shadow(
     // The layer is drawn with the legacy blitters even inside a picture
     // shader's tile (where the device itself takes the pipeline's).
     sharex_skia::blitter::with_blitters(false, || draw(&mut layer));
-    for y in 0..h {
-        for x in 0..w {
-            if x < l.left || x >= l.right || y < l.top || y >= l.bottom {
-                *layer.pixel_mut(x, y) = 0;
-            }
-        }
-    }
     let s = sigma(blur);
-    let blurred = sharex_skia::blur::blur(&layer, s, s);
+    // Only `l` of the layer counts (the rest is cut away), and the blur
+    // spreads it by less than its 3-sigma kernel (Skia's triple box, a
+    // window of about 1.9 sigma per pass): the blur runs on `l` grown by
+    // twice that, which gives the pixels a whole-image blur does, and the
+    // image is left as it was where neither the layer nor its shadow
+    // reaches (the whole-image loop merged 0 there). A screen-sized image
+    // with one small annotation (the region capture's pointer) then costs
+    // what the annotation does.
+    let k = if s > 0.0 { 2 * (3.0 * s as f64).ceil() as i32 + 2 } else { 0 };
+    let r = sharex_skia::IRect::from_ltrb((l.left - k).max(0), (l.top - k).max(0), (l.right + k).min(w), (l.bottom + k).min(h));
+    let mut cut = Pixmap::new(r.width() as u32, r.height() as u32);
+    for y in l.top..l.bottom {
+        let from = (y * w) as usize;
+        let to = ((y - r.top) * r.width()) as usize;
+        let row = &layer.pixels()[from + l.left as usize..from + l.right as usize];
+        cut.pixels_mut()[to + (l.left - r.left) as usize..to + (l.right - r.left) as usize].copy_from_slice(row);
+    }
+    let blurred = sharex_skia::blur::blur(&cut, s, s);
     // DrawingContextImpl.CreateEffect: the colour's alpha times the opacity.
     let color = parse_color(&c.shadow_color);
     let alpha = (color.a as f64 * c.shadow_opacity.clamp(0.0, 1.0)).clamp(0.0, 255.0) as u8 as u32;
     // lowp uniform_color: the premultiplied colour, rounded.
     let pm_c = |v: u8| ((v as f32 / 255.0) * (alpha as f32 / 255.0) * 255.0 + 0.5) as u32;
-    let (cr, cg, cb) = (pm_c(color.r), pm_c(color.g), pm_c(color.b));
-    // The SSE build's lowp blend modes (srcin, srcover) use div255_accurate.
-    let div255 = |v: u32| {
-        let v = v + 128;
-        (v + (v / 256)) / 256
-    };
+    let rgb = (pm_c(color.r), pm_c(color.g), pm_c(color.b));
     let (ox, oy) = (dx.round() as i32, dy.round() as i32);
-    for y in 0..h {
-        for x in 0..w {
+    // Where the layer or its offset shadow can be.
+    let q = sharex_skia::IRect::from_ltrb(
+        r.left.min(r.left + ox).max(0),
+        r.top.min(r.top + oy).max(0),
+        r.right.max(r.right + ox).min(w),
+        r.bottom.max(r.bottom + oy).min(h),
+    );
+    for y in q.top..q.bottom {
+        for x in q.left..q.right {
             let (sx, sy) = (x - ox, y - oy);
-            let da = if sx >= 0 && sy >= 0 && sx < w && sy < h {
-                blurred.pixel(sx, sy) >> 24
+            let da = if sx >= r.left && sy >= r.top && sx < r.right && sy < r.bottom {
+                blurred.pixel(sx - r.left, sy - r.top) >> 24
             } else {
                 0
             };
-            // srcin: colour times the blurred alpha.
-            let shadow = (div255(alpha * da) << 24)
-                | (div255(cr * da) << 16)
-                | (div255(cg * da) << 8)
-                | div255(cb * da);
-            let src = layer.pixel(x, y);
-            let sa = src >> 24;
-            // lowp srcover: s + div255_accurate(d * (255 - sa)).
-            let mut merged = 0u32;
-            for sh in [0, 8, 16, 24] {
-                let s_c = (src >> sh) & 0xFF;
-                let d_c = (shadow >> sh) & 0xFF;
-                merged |= ((s_c + div255(d_c * (255 - sa))) & 0xFF) << sh;
-            }
+            let src = if x >= l.left && x < l.right && y >= l.top && y < l.bottom { layer.pixel(x, y) } else { 0 };
+            // srcin (the colour times the blurred alpha), then the layer
+            // over it (lowp srcover, div255_accurate).
+            let merged = shadow_pixel(src, da, alpha, rgb);
             if merged != 0 {
                 let d = pm.pixel_mut(x, y);
                 *d = super::effects::src_over(merged, *d);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `with_shadow`'s pixels as it computed them before it was bounded:
+    /// the whole image's layer cut to `l`, blurred and merged everywhere.
+    fn whole_image(pm: &mut Pixmap, c: &Common, l: sharex_skia::IRect, blur: f64, dx: f64, dy: f64, draw: impl FnOnce(&mut Pixmap)) {
+        let (w, h) = (pm.width() as i32, pm.height() as i32);
+        let mut layer = Pixmap::new(w as u32, h as u32);
+        // The layer is drawn with the legacy blitters even inside a picture
+        // shader's tile (where the device itself takes the pipeline's).
+        sharex_skia::blitter::with_blitters(false, || draw(&mut layer));
+        for y in 0..h {
+            for x in 0..w {
+                if x < l.left || x >= l.right || y < l.top || y >= l.bottom {
+                    *layer.pixel_mut(x, y) = 0;
+                }
+            }
+        }
+        let s = sigma(blur);
+        let blurred = sharex_skia::blur::blur(&layer, s, s);
+        // DrawingContextImpl.CreateEffect: the colour's alpha times the opacity.
+        let color = parse_color(&c.shadow_color);
+        let alpha = (color.a as f64 * c.shadow_opacity.clamp(0.0, 1.0)).clamp(0.0, 255.0) as u8 as u32;
+        // lowp uniform_color: the premultiplied colour, rounded.
+        let pm_c = |v: u8| ((v as f32 / 255.0) * (alpha as f32 / 255.0) * 255.0 + 0.5) as u32;
+        let (cr, cg, cb) = (pm_c(color.r), pm_c(color.g), pm_c(color.b));
+        // The SSE build's lowp blend modes (srcin, srcover) use div255_accurate.
+        let div255 = |v: u32| {
+            let v = v + 128;
+            (v + (v / 256)) / 256
+        };
+        let (ox, oy) = (dx.round() as i32, dy.round() as i32);
+        for y in 0..h {
+            for x in 0..w {
+                let (sx, sy) = (x - ox, y - oy);
+                let da = if sx >= 0 && sy >= 0 && sx < w && sy < h {
+                    blurred.pixel(sx, sy) >> 24
+                } else {
+                    0
+                };
+                // srcin: colour times the blurred alpha.
+                let shadow = (div255(alpha * da) << 24)
+                    | (div255(cr * da) << 16)
+                    | (div255(cg * da) << 8)
+                    | div255(cb * da);
+                let src = layer.pixel(x, y);
+                let sa = src >> 24;
+                // lowp srcover: s + div255_accurate(d * (255 - sa)).
+                let mut merged = 0u32;
+                for sh in [0, 8, 16, 24] {
+                    let s_c = (src >> sh) & 0xFF;
+                    let d_c = (shadow >> sh) & 0xFF;
+                    merged |= ((s_c + div255(d_c * (255 - sa))) & 0xFF) << sh;
+                }
+                if merged != 0 {
+                    let d = pm.pixel_mut(x, y);
+                    *d = crate::render::effects::src_over(merged, *d);
+                }
+            }
+        }
+    }
+
+    /// A layer drawn past `l` too (cut away), with translucent edges.
+    fn paint(layer: &mut Pixmap, l: sharex_skia::IRect, seed: u32) {
+        let (w, h) = (layer.width() as i32, layer.height() as i32);
+        for y in (l.top - 3).max(0)..(l.bottom + 3).min(h) {
+            for x in (l.left - 3).max(0)..(l.right + 3).min(w) {
+                let v = (x as u32).wrapping_mul(2654435761) ^ (y as u32).wrapping_mul(40503) ^ seed;
+                let a = [255, 200, 90, 0, 255][(v % 5) as usize];
+                let c = (v >> 8) & 0xFF;
+                let c = c * a / 255;
+                *layer.pixel_mut(x, y) = (a << 24) | (c << 16) | ((c / 2) << 8) | (c / 3);
+            }
+        }
+    }
+
+    #[test]
+    fn the_shadow_over_part_of_the_image_is_the_whole_image_one() {
+        let base = |w: u32, h: u32| {
+            let mut pm = Pixmap::new(w, h);
+            for (i, p) in pm.pixels_mut().iter_mut().enumerate() {
+                *p = 0xFF00_0000 | (i as u32).wrapping_mul(97) & 0x00FF_FFFF;
+            }
+            pm
+        };
+        let mut cases = vec![
+            // canvas, l, blur, offset
+            ((200, 150), (60, 40, 90, 70), 4.0, (3.0, 3.0)),
+            ((200, 150), (0, 0, 30, 25), 10.0, (-6.0, 8.0)),
+            ((200, 150), (170, 120, 200, 150), 7.0, (12.0, 12.0)),
+            ((200, 150), (5, 100, 195, 148), 0.0, (3.0, 3.0)),
+            ((64, 48), (10, 10, 50, 40), 30.0, (2.0, -9.0)),
+            ((300, 40), (100, 0, 140, 40), 2.0, (0.0, 0.0)),
+            ((120, 120), (50, 50, 52, 51), 1.0, (40.0, -60.0)),
+        ];
+        // And 300 drawn at random: sizes, places (at the edges too), blurs
+        // and offsets.
+        let mut seed = 0x2545_f491u32;
+        let mut next = |n: u32| {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed % n
+        };
+        for _ in 0..300 {
+            let (w, h) = (8 + next(150) as i32, 8 + next(110) as i32);
+            let (l0, t0) = (next(w as u32) as i32, next(h as u32) as i32);
+            let (r0, b0) = (l0 + 1 + next((w - l0) as u32) as i32, t0 + 1 + next((h - t0) as u32) as i32);
+            let blur = [0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 6.5, 10.0, 17.0, 40.0][next(10) as usize];
+            let (dx, dy) = (next(41) as f64 - 20.0, next(41) as f64 - 20.0);
+            cases.push(((w, h), (l0, t0, r0, b0), blur, (dx, dy)));
+        }
+        for (n, ((w, h), (l0, t0, r0, b0), blur, (dx, dy))) in cases.into_iter().enumerate() {
+            let (w, h) = (w as u32, h as u32);
+            let c = Common { shadow_enabled: true, shadow_blur_radius: blur, shadow_offset_x: dx, shadow_offset_y: dy, ..Default::default() };
+            let l = sharex_skia::IRect::from_ltrb(l0, t0, r0, b0);
+            let mut expected = base(w, h);
+            whole_image(&mut expected, &c, l, blur, dx, dy, |layer| paint(layer, l, n as u32));
+            // `with_shadow`'s rectangle for this `l`: the visual's frame grown
+            // by the padding, at the translation.
+            let (pl, pt, pr, pb) = padding(blur, dx, dy);
+            let size = ((r0 - l0) as f64 - pl - pr, (b0 - t0) as f64 - pt - pb);
+            let ctm = AMatrix::translation(l0 as f64 + pl, t0 as f64 + pt);
+            let mut got = base(w, h);
+            with_shadow(&mut got, &c, size, &ctm, |layer| paint(layer, l, n as u32));
+            assert!(got == expected, "case {n}: {w}x{h}, l {l0},{t0},{r0},{b0}, blur {blur}, offset {dx},{dy}");
         }
     }
 }
