@@ -1500,15 +1500,19 @@ impl App {
         self.hotkeys.toggle_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         self.refresh_hotkey_tips();
         self.refresh_menus();
-        // ShareX shows this as a notification, which isn't ported yet.
-        eprintln!(
-            "{}",
-            if disabled {
+        // `PlayNotificationSoundAsync(ActionCompleted)` and the tip.
+        let general = self.default_general();
+        if general.PlaySoundAfterAction {
+            sound::play_action_completed();
+        }
+        if general.ShowToastNotificationAfterTaskCompleted {
+            let text = if disabled {
                 sharex_strings::sharex::TaskHelpers_ToggleHotkeys_Hotkeys_disabled_()
             } else {
                 sharex_strings::sharex::TaskHelpers_ToggleHotkeys_Hotkeys_enabled_()
-            }
-        );
+            };
+            self.pending_notification = Some(dialogs::notification::NotificationConfig::tip(&general, text, "ShareXrs", -1));
+        }
     }
 }
 
