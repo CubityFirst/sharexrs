@@ -78,6 +78,7 @@ def main():
     ap.add_argument("--sample-every", type=int, default=10)
     ap.add_argument("--memprof", help="SHAREXRS_MEMPROF for a memory-profile build")
     ap.add_argument("--env", action="append", default=[], help="NAME=VALUE for the app")
+    ap.add_argument("--keep", action="store_true", help="leave the app running at the end (prints its PID)")
     a = ap.parse_args()
 
     exe = os.path.normpath(os.path.expandvars(a.exe))
@@ -161,6 +162,9 @@ def main():
         time.sleep(a.settle)
         sample(proc, f"capture-{a.captures}")
     finally:
+        if a.keep:
+            print("left running: PID", proc.pid)
+            return
         for h, i in rc.overlay_candidates({proc.pid}, app["overlay_title"]).items():
             if bw.shown(i):
                 bw.user32.PostMessageW(h, bw.WM_CLOSE, 0, 0)

@@ -7,10 +7,12 @@ Reads only (PROCESS_QUERY_INFORMATION); nothing is sent to the process.
 
 .EXAMPLE
 powershell -File scripts/vmmap.ps1 -Id 1234 -Top 30
+powershell -File scripts/vmmap.ps1 -Id 1234 -Csv before.csv   # every allocation, for diffing
 #>
 param(
     [Parameter(Mandatory = $true)][int]$Id,
-    [int]$Top = 25
+    [int]$Top = 25,
+    [string]$Csv = ""
 )
 
 Add-Type -TypeDefinition @"
@@ -26,7 +28,8 @@ public static class VmMap {
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] static extern IntPtr VirtualQueryEx(IntPtr h, IntPtr addr, out MBI info, IntPtr len);
-    public class Alloc { public long Base; public long Committed; public uint Type; public uint Protect; public int Regions; }
+    [DllImport("psapi.dll", CharSet = CharSet.Unicode)] static extern uint GetMappedFileNameW(IntPtr h, IntPtr addr, System.Text.StringBuilder name, uint size);
+    public class Alloc { public long Base; public long Committed; public uint Type; public uint Protect; public int Regions; public string File; }
     public static List<Alloc> Walk(int pid) {
         var result = new Dictionary<long, Alloc>();
         IntPtr h = OpenProcess(0x0400 | 0x0010, false, pid);
@@ -39,7 +42,14 @@ public static class VmMap {
                 if (m.State == 0x1000) {
                     long b = m.AllocationBase.ToInt64();
                     Alloc a;
-                    if (!result.TryGetValue(b, out a)) { a = new Alloc { Base = b, Type = m.Type, Protect = m.Protect }; result[b] = a; }
+                    if (!result.TryGetValue(b, out a)) {
+                        a = new Alloc { Base = b, Type = m.Type, Protect = m.Protect };
+                        if (m.Type == 0x40000) {
+                            var sb = new System.Text.StringBuilder(1024);
+                            a.File = GetMappedFileNameW(h, m.AllocationBase, sb, 1024) > 0 ? sb.ToString() : "(section, no file)";
+                        }
+                        result[b] = a;
+                    }
                     a.Committed += size; a.Regions++;
                 }
                 long next = m.BaseAddress.ToInt64() + size;
@@ -53,6 +63,9 @@ public static class VmMap {
 "@
 
 $allocs = [VmMap]::Walk($Id)
+if ($Csv) {
+    $allocs | ForEach-Object { [pscustomobject]@{ Base = '0x{0:X}' -f $_.Base; Type = '0x{0:X}' -f $_.Type; Protect = '0x{0:X}' -f $_.Protect; Committed = $_.Committed; Regions = $_.Regions } } | Export-Csv -NoTypeInformation -Path $Csv
+}
 $kinds = @{ 0x20000 = 'private'; 0x40000 = 'mapped'; 0x1000000 = 'image' }
 $allocs | Group-Object { $kinds[[int]$_.Type] } | ForEach-Object {
     [pscustomobject]@{ Kind = $_.Name; CommittedMB = [math]::Round(($_.Group | Measure-Object Committed -Sum).Sum / 1MB, 1); Allocations = $_.Count }
@@ -61,6 +74,10 @@ $allocs | Group-Object { $kinds[[int]$_.Type] } | ForEach-Object {
 $allocs | Where-Object { $_.Type -eq 0x20000 } | Sort-Object Committed -Descending | Select-Object -First $Top | ForEach-Object {
     [pscustomobject]@{ Base = '0x{0:X}' -f $_.Base; CommittedMB = [math]::Round($_.Committed / 1MB, 2); Protect = '0x{0:X}' -f $_.Protect; Regions = $_.Regions }
 } | Format-Table -AutoSize | Out-String -Width 200
+"Largest mapped allocations:"
+$allocs | Where-Object { $_.Type -eq 0x40000 } | Sort-Object Committed -Descending | Select-Object -First $Top | ForEach-Object {
+    [pscustomobject]@{ Base = '0x{0:X}' -f $_.Base; CommittedMB = [math]::Round($_.Committed / 1MB, 2); Protect = '0x{0:X}' -f $_.Protect; File = $_.File }
+} | Format-Table -AutoSize | Out-String -Width 250
 "Private allocations by committed size bucket:"
 $allocs | Where-Object { $_.Type -eq 0x20000 } | Group-Object { if ($_.Committed -ge 16MB) { '>=16MB' } elseif ($_.Committed -ge 1MB) { '1-16MB' } elseif ($_.Committed -ge 64KB) { '64KB-1MB' } else { '<64KB' } } | ForEach-Object {
     [pscustomobject]@{ Bucket = $_.Name; Count = $_.Count; MB = [math]::Round(($_.Group | Measure-Object Committed -Sum).Sum / 1MB, 1) }
