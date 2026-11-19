@@ -2775,6 +2775,15 @@ impl crate::App {
 
     /// `TaskHelpers.AnnotateImageFromFile(filePath, taskSettings)`.
     pub(crate) fn annotate_file(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, path: &std::path::Path, task: Option<TaskSettings>) {
+        if !path.is_file() {
+            // `MessageBox.Show(string.Format(TaskHelpers_FileDoesNotExist, filePath), "ShareX", OK, Information)`.
+            let text = sharex_strings::sharex::TaskHelpers_FileDoesNotExist().replace("{0}", &path.to_string_lossy());
+            let message = crate::message_box::MessageBox::ok("ShareXrs", text, crate::message_box::MessageBoxIcon::Information);
+            if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::Information) {
+                eprintln!("couldn't open the message box: {e}");
+            }
+            return;
+        }
         let task = task.unwrap_or_else(|| TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings));
         match crate::thumbnail::load(path) {
             Some(img) => self.open_image_editor(event_loop, Some(img), Some(path.to_path_buf()), task, None),

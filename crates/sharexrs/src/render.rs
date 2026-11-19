@@ -541,6 +541,22 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 dialog.ui(ui);
             })
         }
+        // `TaskHelpers.AnnotateImageFromFile`'s message for a file that's
+        // gone (`--text` its path).
+        "task-missing-file" => {
+            let path = dialog.text.clone().unwrap_or_else(|| r"C:\ShareXrs\Screenshots6-11\ShareX_test.png".into());
+            let text = sharex_strings::sharex::TaskHelpers_FileDoesNotExist().replace("{0}", &path);
+            let mut dialog = MessageBox::ok("ShareXrs", text, MessageBoxIcon::Information);
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
         "start-screen" => {
             // The Start screen of a fresh profile; `--height` caps the window
             // as `FitToWorkingArea` does, `--scroll` scrolls its content.
