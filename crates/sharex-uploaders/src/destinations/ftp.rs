@@ -1070,16 +1070,35 @@ impl Write for DataStream {
 }
 
 impl DataStream {
-    /// Closes the data connection (the end of the file for the server).
+    /// Closes the data connection (the end of the file for the server):
+    /// TLS's close_notify, then a FIN, then whatever the server still sends
+    /// read and dropped until it closes. Closing a socket with unread data
+    /// (a TLS 1.3 server's session tickets) makes Windows reset the
+    /// connection instead, and a reset can cost the server the end of the
+    /// file it hasn't read yet.
     pub fn close(self) {
         match self {
             DataStream::Plain(s) => {
-                let _ = s.shutdown(Shutdown::Both);
+                let _ = s.shutdown(Shutdown::Write);
+                drain(&s);
             }
             DataStream::Tls(mut s) => {
                 let _ = s.shutdown();
-                let _ = s.get_ref().shutdown(Shutdown::Both);
+                let _ = s.get_ref().shutdown(Shutdown::Write);
+                drain(s.get_ref());
             }
+        }
+    }
+}
+
+/// Reads and drops what's left on a half-closed socket until the peer
+/// closes it (or 5 s pass).
+fn drain(mut s: &TcpStream) {
+    let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+    let mut buf = [0u8; 4096];
+    while let Ok(n) = s.read(&mut buf) {
+        if n == 0 {
+            break;
         }
     }
 }
