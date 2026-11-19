@@ -46,6 +46,8 @@ enum Ui {
     Analyze(PathBuf),
     /// The save dialog: its title, suggested name and folder.
     SaveAs(String, String, PathBuf),
+    /// A message box: its caption, text and icon.
+    Message(String, String, crate::message_box::MessageBoxIcon),
 }
 
 #[derive(Default)]
@@ -97,6 +99,11 @@ impl TaskUi for RecordingUi {
 
     fn analyze_image(&self, path: &Path, _task: &TaskSettings) {
         self.actions.lock().unwrap().push(Ui::Analyze(path.to_path_buf()));
+    }
+
+    fn message_box(&self, message: crate::message_box::MessageBox) -> crate::message_box::DialogResult {
+        self.actions.lock().unwrap().push(Ui::Message(message.caption, message.text, message.icon));
+        crate::message_box::DialogResult::Ok
     }
 
     fn save_image_file_dialog(&self, title: &str, file_name: &str, initial_directory: &Path, _extension: &str) -> Option<PathBuf> {
@@ -563,6 +570,35 @@ fn a_url_is_downloaded_then_uploaded() {
     assert_eq!(out.info().result.url, "https://i.example.com/abc.png");
 }
 
+/// `WorkerTask.DownloadFromURL`'s catch: `MessageBox.Show(string.Format(
+/// Download_failed, e), "ShareX", OK, Error)`, with `e.ToString()`'s type
+/// and message (LIVE-CHECKS APP2-02c: a `file:///` URL).
+#[test]
+fn a_failed_download_shows_its_error_in_a_message_box() {
+    let dir = TempDir::new("download-file-scheme");
+    let mut app = app_settings();
+    let t = manager::create_download_task("file:///C:/made-up/download-source.txt", false, task_settings(), &mut new_task_context(&mut app, &dir.0)).unwrap();
+    let out = run(t, UploadersConfig::default(), &dir.0, Options::default());
+    let text = s::UploadManager_DownloadAndUploadFile_Download_failed().replace("{0}", "System.NotSupportedException: The 'file' scheme is not supported.");
+    assert_eq!(out.ui, [Ui::Message("ShareXrs".into(), text, crate::message_box::MessageBoxIcon::Error)]);
+    assert_eq!(out.status(), TaskStatus::Stopped);
+}
+
+/// `TaskHelpers.IsUploadAllowed`: `MessageBox.Show(…DisableUpload…,
+/// "ShareX", OK, Information)` and no upload (LIVE-CHECKS APP2-02b).
+#[test]
+fn disable_upload_explains_itself_in_a_message_box() {
+    let dir = TempDir::new("disable-upload");
+    let path = dir.0.join("recent-local.txt");
+    std::fs::write(&path, "made-up text").unwrap();
+    let mut app = app_settings();
+    app.DisableUpload = true;
+    let t = manager::create_file_uploader_task(&path, task_settings(), &mut new_task_context(&mut app.clone(), &dir.0)).unwrap();
+    let out = run(t, UploadersConfig::default(), &dir.0, Options { app: Some(app), ..Options::default() });
+    let text = s::ThisFeatureWillNotWorkWhenDisableUploadOptionIsEnabled().to_owned();
+    assert_eq!(out.ui, [Ui::Message("ShareXrs".into(), text, crate::message_box::MessageBoxIcon::Information)]);
+}
+
 // ---------------------------------------------------------------------------
 // Failures, stopping and retrying.
 
@@ -1007,13 +1043,23 @@ fn print_save_as_and_thumbnail_after_capture_tasks() {
         s.ThumbnailWidth = 20;
         s.ThumbnailHeight = 0;
     }
-    // The dialog's first answer can't be written (no such folder): it asks
-    // again, and the second is a JPEG.
+    // The dialog's first answer can't be written (its folder is a file, so
+    // `WriteToFile` can't make it): two error boxes, then it asks again,
+    // and the second is a JPEG.
     let chosen = dir.0.join("picked").join("chosen.jpg");
     std::fs::create_dir_all(chosen.parent().unwrap()).unwrap();
-    let options = Options { save_as: vec![dir.0.join("missing").join("x.png"), chosen.clone()], ..Options::default() };
+    let blocker = dir.0.join("not-a-folder");
+    std::fs::write(&blocker, b"made-up").unwrap();
+    let unwritable = blocker.join("x.png");
+    let options = Options { save_as: vec![unwritable.clone(), chosen.clone()], ..Options::default() };
     let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, options);
     assert_eq!(out.status(), TaskStatus::Completed);
+    let messages: Vec<_> = out.ui.iter().filter_map(|u| if let Ui::Message(c, t, i) = u { Some((c.clone(), t.clone(), *i)) } else { None }).collect();
+    assert_eq!(messages.len(), 2, "{messages:?}");
+    assert!(messages[0].1.starts_with(sharex_strings::helpers_lib::Helpers_CreateDirectoryIfNotExist_Create_failed_()));
+    let write_error = format!("{}\r\n\"{}\"", s::ImageData_Write_Error_Message(), unwritable.display());
+    assert!(messages[1].1.starts_with(&write_error), "{}", messages[1].1);
+    assert_eq!(messages[1].0, format!("ShareXrs - {}", s::Error()));
     let prints: Vec<_> = out.ui.iter().filter(|u| matches!(u, Ui::Print(..))).cloned().collect();
     assert_eq!(prints, vec![Ui::Print(40, 30)]);
     let dialogs: Vec<_> = out.ui.iter().filter_map(|u| if let Ui::SaveAs(t, n, d) = u { Some((t.clone(), n.clone(), d.clone())) } else { None }).collect();

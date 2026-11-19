@@ -136,7 +136,8 @@ impl Dialog for PackagerWindow {
         let mut effects = Vec::new();
         if tools::text_button(ui, Rect::from_min_size(pos2(c.min.x, by), vec2(ow, 40.0)), Id::new("packager-open"), open, true).clicked() {
             let _ = std::fs::create_dir_all(&self.effects_folder);
-            crate::app_windows::open_path(&self.effects_folder);
+            // `FileHelpers.OpenFolder(_effectsFolder)`.
+            crate::shell::open_folder(&self.effects_folder);
         }
         let xr = Rect::from_min_size(pos2(c.max.x - xw, by), vec2(xw, 40.0));
         let cr = Rect::from_min_size(pos2(xr.min.x - 8.0 - cw, by), vec2(cw, 40.0));

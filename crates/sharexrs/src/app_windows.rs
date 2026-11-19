@@ -222,7 +222,10 @@ impl App {
                 // `ApplicationSettingsRuntime.UpdateTrayIcon` (`MainForm.UpdateTrayIcon`).
                 Effect::TrayIcon => self.apply_tray_icon_setting(),
                 Effect::Restart => self.restart(event_loop),
-                Effect::OpenFolder(path) => open_path(&path),
+                // `FileHelpers.OpenFolder`.
+                Effect::OpenFolder(path) => {
+                    crate::shell::open_folder(&path);
+                }
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                 Effect::QuickTaskMenuEditor => self.show_quick_task_editor(event_loop),

@@ -36,7 +36,7 @@ impl App {
         let task = sharex_settings::TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
         let metadata = crate::capture_job::Metadata { image: image::RgbaImage::new(0, 0), window_title: None, process_name: None };
         let folder = crate::capture_job::screenshots_folder(&task, &self.settings.settings, &parent, &metadata);
-        crate::app_windows::open_path(if folder.is_dir() { &folder } else { &parent });
+        crate::shell::open_folder(if folder.is_dir() { &folder } else { &parent });
     }
 
     /// The tray's Recent items (`BuildTrayMenu`: shown with `RecentTasksSave`,

@@ -362,6 +362,10 @@ enum DialogPurpose {
     /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
     /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
     Owned(winit::window::WindowId),
+    /// A task's thread waits for the answer (`UiRequest::Message`).
+    Reply(std::sync::mpsc::Sender<DialogResult>),
+    /// `ForceClose` during a recording: Yes aborts it.
+    AbortRecording,
 }
 
 struct App {
@@ -752,7 +756,7 @@ impl App {
             MenuCommand::CustomUploaderSettings => self.show_custom_uploader_settings(event_loop),
             MenuCommand::History => self.show_history(event_loop),
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
-            MenuCommand::Exit => self.exit(event_loop),
+            MenuCommand::Exit => self.force_close(event_loop),
             // `ApplicationLifecycle.Restart(true)`.
             MenuCommand::RestartAsAdministrator => {
                 RESTART_AS_ADMIN.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -1069,7 +1073,8 @@ impl App {
     /// in a notification); without it, ShareX exits.
     fn close_main_window(&mut self, event_loop: &ActiveEventLoop) {
         if !self.settings.settings.ShowTray || self.tray.is_none() {
-            self.exit(event_loop);
+            // `OnClosing` posts `ForceClose`.
+            self.force_close(event_loop);
             return;
         }
         self.hide_to_tray();
@@ -1089,7 +1094,21 @@ impl App {
         }
     }
 
-    /// `ApplicationLifecycle.ForceClose`.
+    /// `ApplicationLifecycle.ForceClose`: while a recording is on (its bar
+    /// or its frame), `MessageBox.Show(ShareXCannotBeClosedWhileScreen
+    /// RecordingIsActive, ApplicationInfo.Name, YesNo, Warning)`; Yes aborts
+    /// the recording, and ShareX stays open either way.
+    fn force_close(&mut self, event_loop: &ActiveEventLoop) {
+        if self.is_recording() {
+            let text = sharex_strings::sharex::ShareXCannotBeClosedWhileScreenRecordingIsActive();
+            let message = MessageBox::yes_no("ShareXrs", text, MessageBoxIcon::Warning);
+            self.queue_dialog(event_loop, message, DialogPurpose::AbortRecording);
+            return;
+        }
+        self.exit(event_loop);
+    }
+
+    /// `ApplicationLifecycle.Exit`.
     fn exit(&mut self, event_loop: &ActiveEventLoop) {
         self.tray_menu = None;
         event_loop.exit();
@@ -1414,6 +1433,12 @@ impl App {
             if result == DialogResult::Yes {
                 self.reset_settings(event_loop);
             }
+        } else if let DialogPurpose::Reply(reply) = &dialog.purpose {
+            let _ = reply.send(result);
+        } else if matches!(dialog.purpose, DialogPurpose::AbortRecording) {
+            if result == DialogResult::Yes {
+                self.abort_screen_recording();
+            }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
             self.cli_answered(question, result);
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
@@ -1556,7 +1581,7 @@ impl App {
             HotkeyType::DisableHotkeys => self.toggle_hotkeys(),
             HotkeyType::OpenMainWindow => self.show_main_window(event_loop),
             HotkeyType::ToggleTrayMenu => self.toggle_tray_menu(event_loop),
-            HotkeyType::ExitShareX => self.exit(event_loop),
+            HotkeyType::ExitShareX => self.force_close(event_loop),
             HotkeyType::OCR => self.ocr_capture(task, false),
             // `OpenScrollingCapture`, `OpenAutoCapture`, `StartAutoCapture`, `StopAutoCapture`.
             HotkeyType::ScrollingCapture => self.open_scrolling_capture(event_loop, task),

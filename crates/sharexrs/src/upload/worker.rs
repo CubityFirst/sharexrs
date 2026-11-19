@@ -20,6 +20,7 @@ use sharex_uploaders::{FileDestination, ImageDestination, TextDestination, Uploa
 use super::filters::{Service, find_filter_service};
 use super::{EventSink, StopHandle, TaskUi, UploadersConfigStore};
 use crate::capture_job::{self, ImageTask};
+use crate::message_box::{MessageBox, MessageBoxIcon};
 use crate::tasks::{self, EDataType, TaskEvent, TaskJob, TaskReport, TaskStatus, UploadProgress};
 
 /// What every task's thread shares: the uploaders' settings, the desktop,
@@ -255,17 +256,18 @@ impl<'a> Worker<'a> {
         }
     }
 
-    /// `TaskHelpers.IsUploadAllowed`. ShareX explains in a message box.
+    /// `TaskHelpers.IsUploadAllowed`: `MessageBox.Show(text, "ShareX", OK,
+    /// Information)` says why not.
     fn is_upload_allowed(&self) -> bool {
-        if self.ctx.system_disable_upload {
-            eprintln!("{}", s::YourSystemAdminDisabledTheUploadFeature());
-            return false;
-        }
-        if self.ctx.app.DisableUpload {
-            eprintln!("{}", s::ThisFeatureWillNotWorkWhenDisableUploadOptionIsEnabled());
-            return false;
-        }
-        true
+        let text = if self.ctx.system_disable_upload {
+            s::YourSystemAdminDisabledTheUploadFeature()
+        } else if self.ctx.app.DisableUpload {
+            s::ThisFeatureWillNotWorkWhenDisableUploadOptionIsEnabled()
+        } else {
+            return true;
+        };
+        self.ctx.ui.message_box(MessageBox::ok("ShareXrs", text, MessageBoxIcon::Information));
+        false
     }
 
     /// `DoThreadJob`.
@@ -494,8 +496,9 @@ impl<'a> Worker<'a> {
                 true
             }
             Err(e) => {
-                // ShareX shows this in a message box.
-                eprintln!("{}", s::UploadManager_DownloadAndUploadFile_Download_failed().replace("{0}", &e));
+                // `MessageBox.Show(string.Format(…Download_failed, e), "ShareX", OK, Error)`.
+                let text = s::UploadManager_DownloadAndUploadFile_Download_failed().replace("{0}", &exception_text(&e));
+                self.ctx.ui.message_box(MessageBox::ok("ShareXrs", text, MessageBoxIcon::Error));
                 false
             }
         }
@@ -814,6 +817,21 @@ fn file_name_from_web_server(url: &str) -> Option<String> {
 
 /// `WebHelpers.DownloadFileAsync`: a GET written to `path` when it
 /// succeeds (nothing is written otherwise, as ShareX).
+/// `Exception.ToString()` for what [`download_file`] failed with: the
+/// exception's type, then its message, for the errors whose .NET type is
+/// known (`System.Uri` refusing the URL); .NET's stack trace that follows
+/// isn't ported.
+fn exception_text(message: &str) -> String {
+    let kind = if message.starts_with("Invalid URI:") {
+        "System.UriFormatException"
+    } else if message.ends_with("scheme is not supported.") {
+        "System.NotSupportedException"
+    } else {
+        return message.to_owned();
+    };
+    format!("{kind}: {message}")
+}
+
 fn download_file(url: &str, path: &std::path::Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

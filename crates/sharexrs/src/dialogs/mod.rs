@@ -136,6 +136,8 @@ pub enum Effect {
     OpenFile(PathBuf),
     /// `FileHelpers.OpenFolderWithFile`.
     OpenFolderWithFile(PathBuf),
+    /// `FileHelpers.OpenFolder`.
+    OpenFolder(PathBuf),
     /// `BeginMoveDrag`.
     DragWindow,
     /// The window's tooltip for this element of its client area (points),
@@ -723,6 +725,9 @@ impl App {
                 Effect::OpenUrl(url) => crate::upload::open_url(&url),
                 Effect::OpenFile(path) => {
                     crate::shell::open_file(&path);
+                }
+                Effect::OpenFolder(path) => {
+                    crate::shell::open_folder(&path);
                 }
                 Effect::OpenFolderWithFile(path) => {
                     crate::shell::open_folder_with_file(&path);

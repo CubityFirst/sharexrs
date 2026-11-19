@@ -183,11 +183,7 @@ impl App {
                 if !name.is_empty() && !current.eq_ignore_ascii_case(&name) {
                     // `FileHelpers.RenameFile(path, customFileName + ext)`.
                     let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-                    let to = path.with_file_name(format!("{name}{ext}"));
-                    match std::fs::rename(&path, &to) {
-                        Ok(()) => path = to,
-                        Err(e) => eprintln!("couldn't rename {}: {e}", path.display()),
-                    }
+                    path = crate::shell::rename_file(&path, &format!("{name}{ext}"));
                 }
                 let mut ctx = self.new_task_context();
                 if let Some(t) = crate::upload::manager::create_file_job_task(&path, accepted.task, &mut ctx) {

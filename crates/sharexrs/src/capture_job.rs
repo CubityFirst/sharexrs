@@ -398,8 +398,7 @@ impl ImageTask {
             if (job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::AnalyzeImage))
                 && let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task)
             {
-                std::fs::create_dir_all(&self.folder).map_err(|e| format!("{}: {e}", self.folder.display()))?;
-                std::fs::write(&path, &data).map_err(|e| format!("{}: {e}", path.display()))?;
+                write_image_data(&path, &data, ui);
                 eprintln!("Image saved to file: {}", path.display());
                 name = file_name_of(&path);
                 outcome.file_path = Some(path);
@@ -430,12 +429,9 @@ impl ImageTask {
                     }
                     name = file_name_of(&selected);
                     outcome.file_path = Some(selected.clone());
-                    match std::fs::write(&selected, &data) {
-                        Ok(()) => {
-                            eprintln!("Image saved to file with dialog: {}", selected.display());
-                            break;
-                        }
-                        Err(e) => eprintln!("{}: {e}", selected.display()),
+                    if write_image_data(&selected, &data, Some(ui)) {
+                        eprintln!("Image saved to file with dialog: {}", selected.display());
+                        break;
                     }
                 }
             }
@@ -490,6 +486,43 @@ impl ImageTask {
             return None;
         }
         RgbaImage::from_raw(out.width(), out.height(), out.to_straight())
+    }
+}
+
+/// `ImageData.Write(filePath)`: the folder made (`WriteToFile`'s
+/// `CreateDirectoryFromFilePath`), then the image; a failure is
+/// `MessageBox.Show(ImageData_Write_Error_Message + "\r\n\"path\"",
+/// "ShareX - Error", OK, Error)`, with the antivirus hint when access was
+/// blocked (`FileHelpers.IsAccessBlocked`: `UnauthorizedAccessException` or
+/// `FileNotFoundException`), and the task goes on.
+pub fn write_image_data(path: &Path, data: &[u8], ui: Option<&dyn crate::upload::TaskUi>) -> bool {
+    use sharex_strings::sharex as s;
+    if data.is_empty() || path.as_os_str().is_empty() {
+        return false;
+    }
+    if let Some(parent) = path.parent() {
+        crate::shell::create_directory(parent, ui);
+    }
+    match std::fs::write(path, data) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("{}: {e}", path.display());
+            let mut text = format!("{}\r\n\"{}\"", s::ImageData_Write_Error_Message(), path.display());
+            if matches!(e.kind(), std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::NotFound) {
+                text.push_str("\r\n\r\n");
+                text.push_str(s::YourAntiVirusSoftwareOrTheControlledFolderAccessFeatureInWindowsCouldBeBlockingShareX());
+            }
+            let caption = format!("ShareXrs - {}", s::Error());
+            let message = crate::message_box::MessageBox::ok(caption, text, crate::message_box::MessageBoxIcon::Error);
+            match ui {
+                Some(ui) => {
+                    eprintln!("{}", message.text);
+                    ui.message_box(message);
+                }
+                None => crate::message_box::show(message),
+            }
+            false
+        }
     }
 }
 

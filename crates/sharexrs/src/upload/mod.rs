@@ -72,6 +72,12 @@ pub trait TaskUi: Send + Sync {
     fn large_file_warning(&self) -> (bool, bool) {
         (true, false)
     }
+    /// `MessageBox.Show(text, caption, buttons, icon)`: the task's thread
+    /// waits for the answer.
+    fn message_box(&self, message: crate::message_box::MessageBox) -> crate::message_box::DialogResult {
+        eprintln!("{}", message.text);
+        crate::message_box::DialogResult::None
+    }
     /// `BeforeUploadWindowIntegration.Show(info)`: the task settings with
     /// the destination the window left chosen, or `None` when cancelled.
     /// The task's thread waits for the answer.
@@ -121,6 +127,12 @@ pub enum UiRequest {
     /// A message box with only OK, from another thread or module
     /// (`MessageBox.Show(text, "ShareX", OK, Information)`).
     Information(String),
+    /// `MessageBox.Show(text, caption, buttons, icon)` from a task's
+    /// thread, which waits for the answer (ShareX's `ShowInternal` off the
+    /// UI thread blocks on the box's completion).
+    Message(Box<crate::message_box::MessageBox>, mpsc::Sender<crate::message_box::DialogResult>),
+    /// A message box nothing waits for ([`crate::message_box::show`]).
+    Show(Box<crate::message_box::MessageBox>),
     LargeFileWarning(mpsc::Sender<(bool, bool)>),
     BeforeUpload(Box<BeforeUpload>, mpsc::Sender<Option<TaskSettings>>),
     QrCode(String),
@@ -169,6 +181,8 @@ impl std::fmt::Debug for UiRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Information(t) => write!(f, "Information({t})"),
+            Self::Message(m, _) => write!(f, "Message({})", m.text),
+            Self::Show(m) => write!(f, "Show({})", m.text),
             Self::LargeFileWarning(_) => f.write_str("LargeFileWarning"),
             Self::BeforeUpload(r, _) => write!(f, "BeforeUpload({})", r.file_name),
             Self::QrCode(t) => write!(f, "QrCode({t})"),
@@ -317,6 +331,14 @@ impl TaskUi for SystemUi {
         if let Some(r) = &self.requests {
             r(UiRequest::QrCodeScanFile(path.to_path_buf()));
         }
+    }
+
+    fn message_box(&self, message: crate::message_box::MessageBox) -> crate::message_box::DialogResult {
+        eprintln!("{}", message.text);
+        let Some(r) = &self.requests else { return crate::message_box::DialogResult::None };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::Message(Box::new(message), tx));
+        rx.recv().unwrap_or(crate::message_box::DialogResult::None)
     }
 
     fn large_file_warning(&self) -> (bool, bool) {

@@ -204,7 +204,8 @@ impl Dialog for DebugLogWindow {
         ui.painter().galley(link.min, g, color);
         ui.painter().rect_filled(Rect::from_min_size(pos2(link.min.x, baseline + 1.0), vec2(link.width(), 1.0)), 0.0, color);
         if lr.clicked() && !modal {
-            out.push(Effect::OpenFile(std::path::PathBuf::from(&self.startup_path)));
+            // `FileHelpers.OpenFolder(_startupPath)`.
+            out.push(Effect::OpenFolder(std::path::PathBuf::from(&self.startup_path)));
         }
 
         // The log (`TextBox` in a `tool-panel` with `Padding="1"`): its
