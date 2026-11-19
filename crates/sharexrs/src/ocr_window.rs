@@ -98,6 +98,14 @@ pub struct OcrWindow {
     version: u64,
     rx: Option<mpsc::Receiver<Recognition>>,
     texture: Option<((u32, u32), egui::TextureHandle)>,
+    /// `OCRPreview._zoom` (relative to the fitted size) and `_pan` (from
+    /// the centre of the content area).
+    zoom: f32,
+    pan: egui::Vec2,
+    /// A drag of the zoomed image: where it started and the pan then.
+    drag: Option<(Pos2, egui::Vec2)>,
+    /// `ResultPanelColumn.Width` (the splitter moves it).
+    panel_width: f32,
     hovered: Option<usize>,
     copied: Option<usize>,
     started: bool,
@@ -157,6 +165,14 @@ impl OcrWindow {
             version: 0,
             rx: None,
             texture: None,
+            zoom: 1.0,
+            pan: egui::Vec2::ZERO,
+            drag: None,
+            // `ResultPanelWidth` (0: the column's 420), at least 300.
+            panel_width: match options.get("ResultPanelWidth").and_then(Value::as_f64) {
+                Some(w) if w > 0.0 => (w as f32).max(MIN_RESULT_PANEL_WIDTH),
+                _ => RESULT_PANEL_WIDTH,
+            },
             hovered: None,
             copied: None,
             started: false,
@@ -248,6 +264,10 @@ impl OcrWindow {
     pub fn replace_source(&mut self, image: RgbaImage, ctx: &egui::Context) {
         self.image = image;
         self.texture = None;
+        // `OnPropertyChanged(Source)` -> `ResetZoom`.
+        self.zoom = 1.0;
+        self.pan = egui::Vec2::ZERO;
+        self.drag = None;
         self.recognize(ctx);
     }
 
@@ -256,17 +276,47 @@ impl OcrWindow {
     }
 }
 
-/// The preview's layout: the image's rect and scale in `content`.
-fn image_rect(content: Rect, size: (u32, u32)) -> Option<(Rect, f32)> {
+/// `OCRPreview.MaxZoomScale`: zooming in stops at this many units a pixel.
+const MAX_ZOOM_SCALE: f32 = 32.0;
+/// `WheelZoomFactor`.
+const WHEEL_ZOOM_FACTOR: f32 = 1.25;
+
+/// `OCRPreview.TryGetLayout`: the image's rect and scale in `content` at
+/// `zoom` and `pan`, and the pan that gives that place. An image smaller
+/// than the content is centred; a larger one keeps covering it.
+fn image_layout(content: Rect, size: (u32, u32), zoom: f32, pan: egui::Vec2) -> Option<(Rect, f32, egui::Vec2)> {
     let (w, h) = (size.0 as f32, size.1 as f32);
     if w <= 0.0 || h <= 0.0 || content.width() <= 0.0 || content.height() <= 0.0 {
         return None;
     }
-    let scale = (content.width() / w).min(content.height() / h).min(MAX_FIT_ZOOM);
+    let fit = (content.width() / w).min(content.height() / h).min(MAX_FIT_ZOOM);
+    let scale = fit * zoom;
     let (sw, sh) = (w * scale, h * scale);
-    let x = content.min.x + (content.width() - sw) / 2.0;
-    let y = content.min.y + (content.height() - sh) / 2.0;
-    Some((Rect::from_min_size(pos2(x, y), vec2(sw, sh)), scale))
+    let cx = content.min.x + (content.width() - sw) / 2.0;
+    let cy = content.min.y + (content.height() - sh) / 2.0;
+    // `ClampAxis`.
+    let clamp = |pos: f32, len: f32, start: f32, end: f32| if len <= end - start { start + (end - start - len) / 2.0 } else { pos.clamp(end - len, start) };
+    let x = clamp(cx + pan.x, sw, content.min.x, content.max.x);
+    let y = clamp(cy + pan.y, sh, content.min.y, content.max.y);
+    Some((Rect::from_min_size(pos2(x, y), vec2(sw, sh)), scale, vec2(x - cx, y - cy)))
+}
+
+/// `ZoomAt`: the zoom times `factor` (1 to `MaxZoomScale`), the image point
+/// under `point` kept where it is. The new zoom and pan, if it changed.
+fn zoom_at(content: Rect, size: (u32, u32), zoom: f32, pan: egui::Vec2, point: Pos2, factor: f32) -> Option<(f32, egui::Vec2)> {
+    let (rect, scale, _) = image_layout(content, size, zoom, pan)?;
+    let fit = scale / zoom;
+    let new_zoom = (zoom * factor).clamp(1.0, (MAX_ZOOM_SCALE / fit).max(1.0));
+    if new_zoom == zoom {
+        return None;
+    }
+    let new_scale = fit * new_zoom;
+    let ip = ((point.x - rect.min.x) / scale, (point.y - rect.min.y) / scale);
+    let top_left = pos2(point.x - ip.0 * new_scale, point.y - ip.1 * new_scale);
+    let (sw, sh) = (size.0 as f32 * new_scale, size.1 as f32 * new_scale);
+    let centered = pos2(content.min.x + (content.width() - sw) / 2.0, content.min.y + (content.height() - sh) / 2.0);
+    let (_, _, clamped) = image_layout(content, size, new_zoom, top_left - centered)?;
+    Some((new_zoom, clamped))
 }
 
 impl OcrWindow {
@@ -279,20 +329,38 @@ impl OcrWindow {
         // `Padding="28,28,28,84"`: clear of the toolbar.
         let content = Rect::from_min_max(pos2(rect.min.x + 28.0, rect.min.y + 28.0), pos2(rect.max.x - 28.0, rect.max.y - 84.0));
         let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        if let Some((img_rect, scale)) = image_rect(content, self.image.dimensions()) {
+        let size_px = self.image.dimensions();
+        if live {
+            // `OnPointerWheelChanged` (`OCRPreview`).
+            let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p));
+            if let Some(pt) = hover {
+                let wheel: f32 = ui.input(|i| {
+                    i.events
+                        .iter()
+                        .filter_map(|e| if let egui::Event::MouseWheel { delta, unit, .. } = e { Some(if *unit == egui::MouseWheelUnit::Point { delta.y / 50.0 } else { delta.y }) } else { None })
+                        .sum()
+                });
+                if wheel != 0.0
+                    && let Some((z, p)) = zoom_at(content, size_px, self.zoom, self.pan, pt, WHEEL_ZOOM_FACTOR.powf(wheel))
+                {
+                    self.zoom = z;
+                    self.pan = p;
+                }
+            }
+        }
+        if let Some((img_rect, scale, clamped)) = image_layout(content, size_px, self.zoom, self.pan) {
+            self.pan = clamped;
             // The soft shadow under the image (`Blur=24, OffsetY=6`, black 90).
             let shadow = egui::epaint::Shadow { offset: [0, 6], blur: 24, spread: 0, color: Color32::from_black_alpha(90) };
             painter.add(shadow.as_shape(img_rect, CornerRadius::same(6)));
-            let size = (img_rect.width().round().max(1.0) as u32, img_rect.height().round().max(1.0) as u32);
+            // Enlarged pixels stay sharp (the picture at its own size, drawn
+            // unsmoothed); shrinking is smoothed.
+            let size = if scale > 1.0 { size_px } else { (img_rect.width().round().max(1.0) as u32, img_rect.height().round().max(1.0) as u32) };
             if self.texture.as_ref().is_none_or(|(s, _)| *s != size) {
-                // Enlarged pixels stay sharp; shrinking is smoothed.
-                let img = if scale > 1.0 {
-                    image::imageops::resize(&self.image, size.0, size.1, image::imageops::FilterType::Nearest)
-                } else {
-                    crate::thumbnail::resize(&self.image, size.0, size.1)
-                };
-                let rounded = round_corners(img, 6.0);
-                let tex = ui.ctx().load_texture("ocr-image", crate::thumbnail::to_color_image(&rounded), egui::TextureOptions::LINEAR);
+                let img = if scale > 1.0 { self.image.clone() } else { crate::thumbnail::resize(&self.image, size.0, size.1) };
+                let rounded = round_corners(img, if scale > 1.0 { 6.0 / scale } else { 6.0 });
+                let filter = if scale > 1.0 { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
+                let tex = ui.ctx().load_texture("ocr-image", crate::thumbnail::to_color_image(&rounded), filter);
                 self.texture = Some((size, tex));
             }
             if let Some((_, tex)) = &self.texture {
@@ -343,7 +411,28 @@ impl OcrWindow {
                     painter.add(egui::Shape::convex_polygon(pts, fill, egui::Stroke::new(1.5, HIGHLIGHT)));
                 }
                 if live {
-                    let r = ui.interact(img_rect, Id::new("ocr-preview"), egui::Sense::click());
+                    let r = ui.interact(img_rect.intersect(rect), Id::new("ocr-preview"), egui::Sense::click_and_drag());
+                    if r.double_clicked() {
+                        // `ResetZoom`.
+                        self.zoom = 1.0;
+                        self.pan = egui::Vec2::ZERO;
+                        self.drag = None;
+                    }
+                    if self.zoom > 1.0 {
+                        if r.drag_started() {
+                            self.drag = r.interact_pointer_pos().map(|p| (p, self.pan));
+                        }
+                        if let (Some((start, start_pan)), Some(now)) = (self.drag, r.interact_pointer_pos())
+                            && r.dragged()
+                            && let Some((_, _, p)) = image_layout(content, size_px, self.zoom, start_pan + (now - start))
+                        {
+                            self.pan = p;
+                        }
+                        if r.drag_stopped() {
+                            self.drag = None;
+                        }
+                        ui.ctx().set_cursor_icon(if self.drag.is_some() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::PointingHand });
+                    }
                     if let Some(h) = hit {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         let tip = if Some(h) == self.copied { s::OCRWindow_Copied_to_clipboard().to_string() } else { result.regions[h].text.clone() };
@@ -677,9 +766,18 @@ impl Dialog for OcrWindow {
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);
         let content = full.shrink(12.0);
-        let panel_w = RESULT_PANEL_WIDTH.max(MIN_RESULT_PANEL_WIDTH).min(content.width());
+        let panel_w = self.panel_width.max(MIN_RESULT_PANEL_WIDTH).min((content.width() - 12.0).max(MIN_RESULT_PANEL_WIDTH));
         let sheet = Rect::from_min_max(pos2(content.max.x - panel_w, content.min.y), content.max);
         let canvas = Rect::from_min_max(content.min, pos2(sheet.min.x - 12.0, content.max.y));
+        // The `GridSplitter` in the 12px column between them.
+        let split = Rect::from_min_max(pos2(canvas.max.x, content.min.y), pos2(sheet.min.x, content.max.y));
+        let sr = ui.interact(split, Id::new("ocr-splitter"), egui::Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeColumn);
+        if live && sr.dragged() {
+            let dx = sr.drag_delta().x;
+            self.panel_width = (panel_w - dx).clamp(MIN_RESULT_PANEL_WIDTH, (content.width() - 12.0).max(MIN_RESULT_PANEL_WIDTH));
+        } else {
+            self.panel_width = panel_w;
+        }
         self.canvas(ui, canvas, live);
         // Under the service editor the sheet keeps its look; the overlay
         // takes the pointer.
@@ -698,7 +796,14 @@ impl Dialog for OcrWindow {
 
     /// `TaskHelpers.OCRImage`: the result into `<file>.txt` (UTF-8 with a
     /// BOM, `Encoding.UTF8`) when the window was opened for a file.
-    fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {
+    fn closed(&mut self, cx: &mut Cx) -> Vec<Effect> {
+        // `SaveWindowState`: the result panel's width.
+        if let Some(o) = self.options.as_object_mut() {
+            o.insert("ResultPanelWidth".into(), json!(self.panel_width.round() as f64));
+            if self.target == OptionsTarget::Default {
+                cx.settings.DefaultTaskSettings.CaptureSettings.get_or_insert_default().OCROptions = self.options.clone();
+            }
+        }
         let result = self.result_text();
         if let Some(path) = &self.file_path
             && !result.is_empty()
@@ -741,8 +846,19 @@ pub fn render_dialog(_name: &str, o: &Options) -> Result<Box<dyn Dialog>, String
         }
         _ => w.recognize(&egui::Context::default()),
     }
-    if o.state.as_deref() == Some("services") {
-        w.editor = Some(ServiceEditor { editing: w.selected_service });
+    match o.state.as_deref() {
+        Some("services") => w.editor = Some(ServiceEditor { editing: w.selected_service }),
+        // `--count`: the zoom in percent (the preview's centre kept), and
+        // with `pan` the image dragged to its top left corner.
+        Some("zoom") | Some("pan") => {
+            w.zoom = (o.count.max(100) as f32) / 100.0;
+            if o.state.as_deref() == Some("pan") {
+                w.pan = vec2(1.0e6, 1.0e6);
+            }
+        }
+        // The splitter dragged: the result panel `--count` px wide.
+        Some("splitter") => w.panel_width = o.count.max(300) as f32,
+        _ => {}
     }
     // A render doesn't write the result beside the image.
     w.file_path = None;
