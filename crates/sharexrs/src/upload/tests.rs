@@ -599,6 +599,20 @@ fn disable_upload_explains_itself_in_a_message_box() {
     assert_eq!(out.ui, [Ui::Message("ShareXrs".into(), text, crate::message_box::MessageBoxIcon::Information)]);
 }
 
+/// Dropped text with `DisableUpload` (LIVE-CHECKS DROP3-03): the drop makes
+/// a text task (`UploadManager.DragDropUpload`), whose `ThreadDoWork`
+/// asks `IsUploadAllowed`: the same message box as Ctrl+U's, not a log.
+#[test]
+fn dropped_text_with_disable_upload_shows_the_message_box() {
+    let dir = TempDir::new("disable-upload-text");
+    let mut app = app_settings();
+    app.DisableUpload = true;
+    let t = manager::create_text_uploader_task("made-up dropped text".into(), task_settings(), &mut new_task_context(&mut app.clone(), &dir.0));
+    let out = run(t, UploadersConfig::default(), &dir.0, Options { app: Some(app), ..Options::default() });
+    let text = s::ThisFeatureWillNotWorkWhenDisableUploadOptionIsEnabled().to_owned();
+    assert_eq!(out.ui, [Ui::Message("ShareXrs".into(), text, crate::message_box::MessageBoxIcon::Information)]);
+}
+
 // ---------------------------------------------------------------------------
 // Failures, stopping and retrying.
 
