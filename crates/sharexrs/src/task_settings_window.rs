@@ -1103,6 +1103,26 @@ fn label_button_row(f: &mut Form, label: &str, button: &str) -> bool {
     b.show(f.ui, br, f.id(button), button, f.enabled).clicked()
 }
 
+/// `ToolTip.SetTip(rowLabel, tooltip)` and `ToolTip.SetTip(editor, tooltip)`
+/// for the combo row just laid out: the label's text line (centred in its
+/// 210 column) and the combo box sized to `selected`.
+fn row_tooltip(f: &mut Form, label: &str, selected: &str, tip: &str) {
+    if f.collecting() {
+        return;
+    }
+    let ch = f.control_height(&controls::ComboBox::item_font());
+    let lh = line_height(f.ui, &Form::label_font());
+    let row = Rect::from_min_size(pos2(f.x, f.y - ch.max(lh)), vec2(f.width, ch.max(lh)));
+    let label_rect = Rect::from_min_size(pos2(row.min.x, center_y(row, lh)), vec2(LABEL_W, lh));
+    let combo = controls::ComboBox { padding: f.d.settings_control_padding, enabled: f.enabled };
+    let w = combo.content_width(f.ui, &[ComboItem::text(selected)]).max(250.0).min(row.max.x - row.min.x - LABEL_W - 8.0);
+    let combo_rect = Rect::from_min_size(pos2(row.min.x + LABEL_W + 8.0, center_y(row, ch)), vec2(w, ch));
+    for (k, r) in [label_rect, combo_rect].into_iter().enumerate() {
+        let id = f.id(&format!("tip-{label}-{k}"));
+        f.ui.interact(r, id, egui::Sense::hover()).on_hover_text(tip);
+    }
+}
+
 /// `ToastMonitorCombo`: active monitor, primary monitor, then the others.
 fn toast_monitor_row(f: &mut Form) {
     use sharex_settings::ToastWindowMonitor as M;
@@ -1372,6 +1392,9 @@ fn page_region_capture(f: &mut Form) {
         enum_combo!(f, s::TaskSettingsWindow_Mouse4Click(), true, CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click);
         enum_combo!(f, s::TaskSettingsWindow_Mouse5Click(), true, CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click);
         enum_combo!(f, s::TaskSettingsWindow_MouseWheel(), true, CaptureSettings.RegionCaptureOptions.MagnifierScrollAction);
+        // `Row(label, editor, tooltip)`: the tooltip on the label and the combo box.
+        let selected = sec!(f, CaptureSettings).RegionCaptureOptions.MagnifierScrollAction.localized_description();
+        row_tooltip(f, s::TaskSettingsWindow_MouseWheel(), &selected, s::TaskSettingsWindow_MouseWheelTooltip());
     });
     f.enabled_card(Section::Capture, &mut |f| {
         f.title(s::TaskSettingsWindow_InformationAndMagnifier());
