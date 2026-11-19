@@ -6,16 +6,19 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod animation;
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod clicker;
+mod display_native;
+mod drag_out;
 mod logger;
 mod main_commands;
 mod quick_task;
 mod appearance;
 mod auto_capture;
 mod capture;
-mod capture_devices;
 mod capture_job;
 mod cli;
 mod controls_gallery;
@@ -71,6 +74,7 @@ mod update;
 mod upload;
 mod watch_folder;
 mod window;
+mod window_geometry_log;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -233,6 +237,9 @@ fn main() {
         state: MainWindow::new(),
         cursor: None,
         swallow_release: false,
+        drag_source: drag_out::system(),
+        tooltip_popup: None,
+        own_drag_until: None,
         settings,
         uploads,
         hotkeys: HotkeyManager::new(host),
@@ -333,6 +340,16 @@ struct App {
     cursor: Option<egui::Pos2>,
     /// A press closed a menu (light dismiss); its release goes nowhere either.
     swallow_release: bool,
+    /// Drags files out of the app (OLE's `DoDragDrop` on Windows).
+    drag_source: Box<dyn drag_out::DragSource>,
+    /// A dialog's tooltip in its own popup window: the owner, the popup,
+    /// the text and the element it's for (desktop pixels).
+    tooltip_popup: Option<(winit::window::WindowId, winit::window::WindowId, String, sharex_capture::Rect)>,
+    /// Until when the main window ignores the file drag events of its own
+    /// drag (OLE delivers them to winit's drop target during the drag;
+    /// winit hands them over once the drag returns). ShareX ignores its own
+    /// drag in `UpdateDropOverlay`/`OnDrop` (`_thumbnailDragSource != null`).
+    own_drag_until: Option<Instant>,
     /// `ApplicationState.Settings` and `HotkeysConfig`.
     settings: SettingManager,
     /// `ApplicationState.UploadersConfig` and the queued upload tasks.
@@ -1120,7 +1137,12 @@ impl App {
     /// `UploadManager.RunImageTask(bmp, taskSettings)`: an image made by a
     /// tool (the combiner) through the task's after capture tasks.
     pub(crate) fn run_image_task_for(&mut self, image: image::RgbaImage, task: TaskSettings) {
-        let metadata = capture_job::Metadata { image, window_title: None, process_name: None };
+        self.run_image_task_with(image, task, None);
+    }
+
+    /// [`Self::run_image_task_for`] with `TaskMetadata.ProcessName`.
+    pub(crate) fn run_image_task_with(&mut self, image: image::RgbaImage, task: TaskSettings, process_name: Option<String>) {
+        let metadata = capture_job::Metadata { image, window_title: None, process_name };
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let effects = self.settings.paths.image_effects_folder();
         let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent, effects);
@@ -1847,6 +1869,8 @@ impl ApplicationHandler<UserEvent> for App {
         }
         let Some(w) = self.main.as_mut().filter(|w| w.window.id() == id) else { return };
         match event {
+            WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_)
+                if self.own_drag_until.is_some_and(|t| Instant::now() < t) => {}
             WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_) => {
                 // Uploading what's dropped comes with the upload tools.
                 self.state.drop_overlay = matches!(event, WindowEvent::HoveredFile(_));

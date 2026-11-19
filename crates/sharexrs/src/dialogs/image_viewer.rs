@@ -170,6 +170,9 @@ pub struct ImageViewerWindow {
     offset: Vec2,
     /// `_closeOnDeactivate`.
     close_on_deactivate: bool,
+    /// `PlayAnimation`: the current file's animation, at full size, until
+    /// another image is shown (`_imageVersion`).
+    animation: Option<(PathBuf, crate::animation::Player)>,
 }
 
 impl ImageViewerWindow {
@@ -183,7 +186,7 @@ impl ImageViewerWindow {
             .or(screens.first());
         let (bounds, scale) = screen.map_or((sharex_capture::Rect::new(0, 0, 1280, 720), 1.0), |s| (s.bounds, s.scale as f32));
         let close_on_deactivate = images.image.is_some();
-        Self { images, screen: bounds, scale, texture: None, zoom: 1.0, offset: Vec2::ZERO, close_on_deactivate }
+        Self { images, screen: bounds, scale, texture: None, zoom: 1.0, offset: Vec2::ZERO, close_on_deactivate, animation: None }
     }
 
     /// For `--render`: a screen of this size (points).
@@ -191,6 +194,31 @@ impl ImageViewerWindow {
         self.screen = sharex_capture::Rect::new(0, 0, w, h);
         self.scale = 1.0;
         self
+    }
+
+    /// `PlayAnimation(CurrentImageFilePath)` and `ShowFrame`: frames replace
+    /// the image but keep the zoom.
+    fn play(&mut self, ctx: &egui::Context) {
+        let current = self.images.files.get(self.images.index).cloned();
+        if self.animation.as_ref().map(|(p, _)| p) != current.as_ref() {
+            self.animation = current
+                .filter(|p| sharex_tools::animated_preview::can_be_animated(&p.to_string_lossy()))
+                .map(|p| (p.clone(), crate::animation::Player::start(p, u32::MAX, Box::new(crate::animation::straight))));
+        }
+        let Some((_, player)) = &mut self.animation else { return };
+        match player.poll(std::time::Instant::now()) {
+            crate::animation::Poll::Frame(frame) => {
+                let ci = egui::ColorImage::from_rgba_unmultiplied([frame.width() as usize, frame.height() as usize], frame.as_raw());
+                match &mut self.texture {
+                    Some(t) if t.size() == ci.size => t.set(ci, egui::TextureOptions::LINEAR),
+                    t => *t = Some(ctx.load_texture("image-viewer", ci, egui::TextureOptions::LINEAR)),
+                }
+                self.images.image = Some(frame);
+                ctx.request_repaint();
+            }
+            crate::animation::Poll::Wait(d) => ctx.request_repaint_after(d),
+            crate::animation::Poll::NotAnimated | crate::animation::Poll::Ended => {}
+        }
     }
 
     fn reset_view(&mut self) {
@@ -242,6 +270,7 @@ impl Dialog for ImageViewerWindow {
         }
         let mut out = Vec::new();
 
+        self.play(ui.ctx());
         // The image: `Stretch="Uniform" StretchDirection="DownOnly"`.
         let mut image_rect = None;
         if let Some(img) = &self.images.image {

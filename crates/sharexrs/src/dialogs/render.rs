@@ -174,6 +174,23 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
                 c.status = status;
                 w.checked(c);
             }
+            // The clicker: `clicker` after three clicks on the logo,
+            // `clicker-store` with the store open and a few things bought.
+            if state.starts_with("clicker") {
+                w.clicker.activated = true;
+                let g = &mut w.clicker.game;
+                for _ in 0..3 {
+                    g.click();
+                }
+                if state == "clicker-store" {
+                    g.state.logos = 1200.0;
+                    g.state.lifetime_logos = 1300.0;
+                    g.state.store_discovered = true;
+                    g.buy_building(&crate::clicker::BUILDINGS[0], 3);
+                    g.buy_upgrade(&crate::clicker::UPGRADES[0]);
+                    w.clicker.store_visible = true;
+                }
+            }
             Box::new(w)
         }
         // A generated log; `--state upload-confirm` shows the confirmation.
@@ -303,7 +320,16 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
                 Screen { bounds: R::new(960, -1440, 2560, 1440), work_area: R::new(960, -1440, 2560, 1440), scale: 1.5, primary: false },
             ];
             let at = chrono::Local::now();
-            let data = super::display_diagnostics::collect(&screens, Some((640, 480)), Some((R::new(510, 170, 900, 740), 1.0)), &ApplicationConfig::default(), at);
+            let native = super::display_diagnostics::sample_snapshot(&screens);
+            let config = ApplicationConfig::default();
+            let data = super::display_diagnostics::collect(&super::display_diagnostics::Inputs {
+                screens: &screens,
+                window: Some((R::new(510, 170, 900, 740), 1.0)),
+                settings: &config,
+                now: at,
+                native: Some(&native),
+                geometry: &[],
+            });
             Box::new(super::display_diagnostics::DisplayDiagnosticsWindow::with_data(data))
         }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),

@@ -9,6 +9,8 @@
 //! [`crate::thumbnail`], decoded off the UI thread ([`ImageRequest`]).
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
 
 use egui::{Color32, CornerRadius, Event, Key, Modifiers, PointerButton, Pos2, Rect, Stroke, TextureHandle, Ui, Vec2, pos2, vec2};
 use sharex_helpers::file_helpers::{is_image_file, is_text_file, is_video_file};
@@ -20,6 +22,7 @@ use sharex_ui::menu::{Flyout, FlyoutOutput, MenuEntry, Placement};
 use sharex_ui::theme::{FAILED, FONT_SIZE, palette};
 use sharex_ui::widgets::{self, font};
 
+use crate::animation::{Player, Poll};
 use crate::tasks::{ImageKind, TaskManager, TaskStatus, UploadInfoStatus, WorkerTask};
 
 /// `TaskListColumnLayout`: `MinColumnWidth`, `StatusIconWidth`, `DefaultWidths`.
@@ -38,6 +41,8 @@ const CARD_MARGIN: f32 = 4.0;
 const CARD_BORDER: f32 = 1.0;
 const CARD_PADDING: f32 = 4.0;
 const CARD_SPACING: f32 = 3.0;
+/// `MaxAnimatedImagePreviewSize`: animated previews are decoded at most this large.
+const MAX_ANIMATED_PREVIEW_SIZE: u32 = 1024;
 /// Windows' double-click time and size (`GetTapSize`, 4x4).
 const DOUBLE_CLICK_SECONDS: f64 = 0.5;
 const DOUBLE_CLICK_DISTANCE: f32 = 4.0;
@@ -231,6 +236,9 @@ pub enum TaskAction {
     CloseWindow,
     /// The view settings changed; save them.
     SettingsChanged,
+    /// `OnThumbnailPointerMoved` past the drag size: drag the task's file
+    /// out (`DragDrop.DoDragDropAsync`).
+    DragOut(u64, PathBuf),
 }
 
 /// A picture to decode off the UI thread.
@@ -244,13 +252,29 @@ pub struct ImageRequest {
     pub size: [u32; 2],
     /// The box's corner radius, in physical pixels.
     pub radius: f32,
+    /// `RefreshFromOwnedImage`: the task's image itself (`ImageReady`),
+    /// not its file.
+    pub image: Option<Arc<image::RgbaImage>>,
 }
 
 impl ImageRequest {
     /// Decodes and draws the picture into its box ([`crate::thumbnail`]).
     pub fn run(&self) -> Option<image::RgbaImage> {
-        let img = crate::thumbnail::load(&self.path)?;
         let [w, h] = self.size;
+        // `CreateThumbnail`: the task's own image, or a video's shell
+        // thumbnail, through `BitmapConversionHelpers.CreatePreview`.
+        let preview = match &self.image {
+            Some(img) => Some(crate::thumbnail::create_preview(img, w, h)),
+            None if is_video_file(&self.path.to_string_lossy()) => {
+                let shell = crate::shell::file_thumbnail(&self.path, w, h)?;
+                Some(crate::thumbnail::create_preview(&shell, w, h))
+            }
+            None => None,
+        };
+        if let Some(p) = preview {
+            return Some(crate::thumbnail::fit(&p, w, h, crate::thumbnail::Stretch::Uniform, self.radius));
+        }
+        let img = crate::thumbnail::load(&self.path)?;
         Some(match self.kind {
             ImageKind::Thumbnail => {
                 let fit = crate::thumbnail::decode_to_fit(&img, w, h);
@@ -277,6 +301,41 @@ struct Preview {
     key: Option<(PathBuf, [u32; 2])>,
     version: u64,
     texture: Option<TextureHandle>,
+}
+
+/// A GIF played over a thumbnail while the pointer is on its picture
+/// (`StartHoverAnimation`): `HoverFrame`.
+struct Hover {
+    id: u64,
+    player: Player,
+    frame: Option<TextureHandle>,
+}
+
+/// The preview pane's animation (`LoadImagePreviewAsync` playing a GIF).
+struct PreviewAnimation {
+    key: (PathBuf, [u32; 2]),
+    player: Player,
+    /// A frame was shown: the still decode no longer replaces it.
+    playing: bool,
+}
+
+/// A press on a task that may become a drag of its file
+/// (`PrepareThumbnailDrag`): `_thumbnailDragSource`, `_thumbnailDragStart`,
+/// `_thumbnailDragStarted`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FileDrag {
+    id: u64,
+    start: Pos2,
+    started: bool,
+}
+
+/// The combine drop zones a dragged thumbnail is over: the target card
+/// (`_thumbnailCombineTarget`) and the zone under the pointer (true for
+/// Horizontal), lit with `drag-over`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CombineTarget {
+    pub id: u64,
+    pub zone: Option<bool>,
 }
 
 /// A drag in progress on a column or the preview's resizer.
@@ -317,6 +376,12 @@ pub struct TaskView {
     next_version: u64,
     /// Rects laid out last frame, for hit testing.
     layout: Layout,
+    hover: Option<Hover>,
+    preview_animation: Option<PreviewAnimation>,
+    file_drag: Option<FileDrag>,
+    combine: Option<CombineTarget>,
+    /// The window's scale, as of the last frame.
+    ppp: f32,
 }
 
 #[derive(Clone)]
@@ -377,6 +442,11 @@ impl TaskView {
             clipboard_keys: Vec::new(),
             next_version: 0,
             layout: Layout::default(),
+            hover: None,
+            preview_animation: None,
+            file_drag: None,
+            combine: None,
+            ppp: 1.0,
         }
     }
 
@@ -406,6 +476,31 @@ impl TaskView {
         self.preview.key = None;
     }
 
+    /// `OnTaskImageReady` → `RefreshFromOwnedImage`: the thumbnail from
+    /// the task's image (the list view decodes none). A file saved since
+    /// replaces it as soon as it's asked for.
+    pub fn owned_image(&mut self, id: u64, image: Arc<image::RgbaImage>) {
+        if self.settings.is_list() {
+            return;
+        }
+        let ppp = self.ppp;
+        let size = [(self.settings.thumb_w() * ppp).ceil() as u32, (self.settings.thumb_h() * ppp).ceil() as u32];
+        self.next_version += 1;
+        let version = self.next_version;
+        let Some(item) = self.items.iter_mut().find(|i| i.id == id) else { return };
+        item.version = version;
+        item.thumb_key = Some((PathBuf::new(), size));
+        self.requests.push(ImageRequest {
+            id,
+            version,
+            kind: ImageKind::Thumbnail,
+            path: PathBuf::new(),
+            size,
+            radius: 4.0 * ppp,
+            image: Some(image),
+        });
+    }
+
     /// `OnTaskRemoved`.
     fn remove_item(&mut self, id: u64) {
         self.selection_order.retain(|i| *i != id);
@@ -427,7 +522,8 @@ impl TaskView {
                 }
             }
             ImageKind::Preview => {
-                if self.preview.version == version {
+                let playing = self.preview_animation.as_ref().is_some_and(|a| a.playing);
+                if self.preview.version == version && !playing {
                     self.preview.texture = texture;
                 }
             }
@@ -524,8 +620,11 @@ impl TaskView {
     pub fn ui(&mut self, ui: &mut Ui, area: Rect, menus_open: bool) -> Vec<TaskAction> {
         let mut actions = Vec::new();
         let flyout_open = menus_open || self.flyout.is_some();
+        self.ppp = ui.ctx().pixels_per_point();
         self.layout = self.lay_out(ui, area);
         self.request_images(ui);
+        self.update_hover(ui, flyout_open);
+        self.poll_animations(ui.ctx());
 
         if !flyout_open {
             self.pointer_input(ui, &mut actions);
@@ -721,16 +820,15 @@ impl TaskView {
                 let item = &mut self.items[idx];
                 item.thumb_key = key;
                 item.version = self.next_version;
-                if is_image_file(&p) {
-                    self.requests.push(ImageRequest {
-                        id,
-                        version: item.version,
-                        kind: ImageKind::Thumbnail,
-                        path,
-                        size,
-                        radius: 4.0 * ppp,
-                    });
-                }
+                self.requests.push(ImageRequest {
+                    id,
+                    version: item.version,
+                    kind: ImageKind::Thumbnail,
+                    path,
+                    size,
+                    radius: 4.0 * ppp,
+                    image: None,
+                });
             }
         }
         let key = self.preview_path().zip(self.layout.preview_image).map(|(p, r)| {
@@ -744,7 +842,20 @@ impl TaskView {
             self.preview.key = key.clone();
             self.next_version += 1;
             self.preview.version = self.next_version;
+            // `AnimatedImagePreview.PlayAsync` over the preview, at most
+            // `MaxAnimatedImagePreviewSize`, until another file is selected.
+            self.preview_animation = None;
             if let Some((path, size)) = key {
+                if sharex_tools::animated_preview::can_be_animated(&path.to_string_lossy()) {
+                    let [w, h] = size;
+                    let radius = 3.0 * ppp;
+                    let prepare: crate::animation::Prepare = Box::new(move |frame| {
+                        let img = crate::animation::straight(frame);
+                        crate::thumbnail::fit(&img, w, h, crate::thumbnail::Stretch::UniformDownOnly, radius)
+                    });
+                    let player = Player::start(path.clone(), MAX_ANIMATED_PREVIEW_SIZE, prepare);
+                    self.preview_animation = Some(PreviewAnimation { key: (path.clone(), size), player, playing: false });
+                }
                 self.requests.push(ImageRequest {
                     id: 0,
                     version: self.preview.version,
@@ -752,8 +863,189 @@ impl TaskView {
                     path,
                     size,
                     radius: 3.0 * ppp,
+                    image: None,
                 });
             }
+        }
+    }
+
+    /// The dragged task, while its file is being dragged out.
+    pub fn dragging(&self) -> Option<u64> {
+        self.file_drag.filter(|d| d.started).map(|d| d.id)
+    }
+
+    /// For `--render`: task `source` dragged over `target`'s card, the
+    /// pointer on a zone (true: Horizontal) or elsewhere on it.
+    pub fn show_combine(&mut self, source: u64, target: u64, zone: Option<bool>) {
+        self.file_drag = Some(FileDrag { id: source, start: Pos2::ZERO, started: true });
+        self.combine = Some(CombineTarget { id: target, zone });
+    }
+
+    /// `CanCombineThumbnails`: two different tasks with existing images.
+    fn can_combine(&self, source: u64, target: u64) -> bool {
+        let image = |id| {
+            self.task(id).and_then(|t| t.info.file_path.as_ref()).is_some_and(|p| p.is_file() && is_image_file(&p.to_string_lossy()))
+        };
+        source != target && image(source) && image(target)
+    }
+
+    /// The combine overlay's two zones on a card's picture (`Padding="6"`,
+    /// the title row, `RowSpacing`/`ColumnSpacing` 6): Horizontal, Vertical.
+    fn combine_zones(title_h: f32, preview: Rect) -> (Rect, Rect) {
+        let inner = preview.shrink(6.0);
+        let top = inner.min.y + title_h + 6.0;
+        let w = ((inner.width() - 6.0) / 2.0).max(0.0);
+        let h = Rect::from_min_max(pos2(inner.min.x, top), pos2(inner.min.x + w, inner.max.y));
+        let v = Rect::from_min_max(pos2(inner.max.x - w, top), pos2(inner.max.x, inner.max.y));
+        (h, v)
+    }
+
+    /// `UpdateDropOverlay` and `UpdateCombineImagesDragZone` while this
+    /// view's own file is dragged: the card under `pos` becomes the combine
+    /// target when the two can be combined, its zone under the pointer
+    /// lights up. Returns whether the window takes the drop there
+    /// (`DragDropEffects.Copy`); `pos` is `None` outside the window.
+    /// `title_h`: the overlay title's line height (Segoe UI 13 SemiBold).
+    pub fn drag_over(&mut self, title_h: f32, pos: Option<Pos2>) -> bool {
+        let Some(source) = self.dragging() else { return true };
+        let Some(pos) = pos else {
+            // `OnDragLeave` outside the client area.
+            self.combine = None;
+            return true;
+        };
+        // Only thumbnail cards have combine drop zones.
+        let target = if self.settings.is_list() { None } else { self.hovered_task(pos) };
+        let ok = target.is_some_and(|t| self.can_combine(source, t));
+        self.combine = target.filter(|_| ok).map(|id| {
+            let preview = self.layout.hits.iter().find(|(i, ..)| *i == id).and_then(|(_, _, p)| *p);
+            let zone = preview.and_then(|pr| {
+                let (h, v) = Self::combine_zones(title_h, pr);
+                if h.contains(pos) {
+                    Some(true)
+                } else if v.contains(pos) {
+                    Some(false)
+                } else {
+                    None
+                }
+            });
+            CombineTarget { id, zone }
+        });
+        ok
+    }
+
+    /// The drag ended (`OnCombineImagesDrop` when it was dropped on a
+    /// zone): the files to combine and the orientation (true: horizontal).
+    pub fn drag_ended(&mut self, dropped: bool) -> Option<(PathBuf, PathBuf, bool)> {
+        let source = self.dragging();
+        // `_thumbnailDragStarted` stays until the button's release
+        // (`HandleTaskPointerReleased`), so it runs no click action.
+        let target = self.combine.take();
+        let (source, CombineTarget { id: target, zone: Some(horizontal) }) = (source?, target?) else { return None };
+        if !dropped || !self.can_combine(source, target) {
+            return None;
+        }
+        let path = |id| self.task(id).and_then(|t| t.info.file_path.clone());
+        Some((path(source)?, path(target)?, horizontal))
+    }
+
+    /// The `IsCombineTarget` overlay on a card's picture.
+    fn paint_combine_overlay(&self, ui: &Ui, painter: &egui::Painter, preview: Rect, zone: Option<bool>) {
+        let p = palette(ui.ctx());
+        painter.rect_filled(preview, CornerRadius::same(4), Color32::from_rgba_unmultiplied(0x1B, 0x1B, 0x1B, 0xE6));
+        let inner = preview.shrink(6.0);
+        let title_font = font(FONT_SIZE, 600);
+        let title_h = widgets::line_height(ui, &title_font);
+        let g = widgets::galley(ui, s::MainWindow_CombineImages(), title_font, Color32::WHITE, inner.width());
+        let x = inner.min.x + ((inner.width() - g.size().x) / 2.0).round();
+        painter.galley(pos2(x, inner.min.y), g, Color32::WHITE);
+        let (h, v) = Self::combine_zones(title_h, preview);
+        for (rect, horizontal) in [(h, true), (v, false)] {
+            let lit = zone == Some(horizontal);
+            let (fill, fg) = if lit {
+                (p.accent_start, p.accent_foreground)
+            } else {
+                (Color32::from_rgba_unmultiplied(0x2B, 0x2B, 0x2B, 0xCC), Color32::WHITE)
+            };
+            sharex_ui::border::border(painter, rect, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(fill)), Some(p.accent_border));
+            // A 20px icon over its 11px label, 3 apart, centred.
+            let label_font = font(11.0, 600);
+            let label_h = widgets::line_height(ui, &label_font);
+            let stack_h = 20.0 + 3.0 + label_h;
+            let top = rect.min.y + ((rect.height() - stack_h) / 2.0).round_ties_even();
+            let key = if horizontal { icon::Columns } else { icon::Rows };
+            let ix = rect.min.x + ((rect.width() - 20.0) / 2.0).round_ties_even();
+            icons::paint(painter, Rect::from_min_size(pos2(ix, top), Vec2::splat(20.0)), key, fg);
+            let text = if horizontal { s::MainWindow_Horizontal() } else { s::MainWindow_Vertical() };
+            let g = widgets::galley(ui, text, label_font, fg, rect.width());
+            let lx = rect.min.x + ((rect.width() - g.size().x) / 2.0).round();
+            painter.galley(pos2(lx, top + 23.0), g, fg);
+        }
+    }
+
+    /// `OnThumbnailPreviewPointerEntered/Exited`: a GIF under the pointer
+    /// plays over its thumbnail (`StartHoverAnimation`, decoded at twice
+    /// the thumbnail's size), and stops when the pointer leaves it.
+    fn update_hover(&mut self, ui: &Ui, flyout_open: bool) {
+        let pointer = ui.ctx().pointer_latest_pos().filter(|p| self.layout.area.contains(*p));
+        let over = if self.settings.is_list() || flyout_open {
+            None
+        } else {
+            pointer.and_then(|pos| self.layout.hits.iter().find(|(_, _, pr)| pr.is_some_and(|pr| pr.contains(pos))).map(|(id, ..)| *id))
+        };
+        if self.hover.as_ref().map(|h| h.id) == over {
+            return;
+        }
+        // `StopHoverAnimation`.
+        self.hover = None;
+        let Some(id) = over else { return };
+        let Some(path) = self.task(id).and_then(|t| t.info.file_path.clone()) else { return };
+        // Only formats that can be animated, so hovering a large PNG doesn't read it.
+        if !sharex_tools::animated_preview::can_be_animated(&path.to_string_lossy()) || !path.is_file() {
+            return;
+        }
+        let s = &self.settings;
+        let ppp = self.ppp;
+        let (w, h) = ((s.thumb_w() * ppp).ceil() as u32, (s.thumb_h() * ppp).ceil() as u32);
+        let max = (s.thumb_w().max(s.thumb_h()) * 2.0) as u32;
+        let prepare: crate::animation::Prepare = Box::new(move |frame| {
+            let img = crate::animation::straight(frame);
+            crate::thumbnail::fit(&img, w, h, crate::thumbnail::Stretch::Uniform, 4.0 * ppp)
+        });
+        self.hover = Some(Hover { id, player: Player::start(path, max, prepare), frame: None });
+    }
+
+    /// Shows the frames that are due and asks to be repainted for the next.
+    fn poll_animations(&mut self, ctx: &egui::Context) {
+        let now = Instant::now();
+        let mut wait: Option<std::time::Duration> = None;
+        let mut next = |d: std::time::Duration| wait = Some(wait.map_or(d, |w| w.min(d)));
+        if let Some(h) = &mut self.hover {
+            match h.player.poll(now) {
+                Poll::Frame(img) => {
+                    set_texture(ctx, &mut h.frame, &format!("task-hover-{}", h.id), &img);
+                    next(std::time::Duration::ZERO);
+                }
+                Poll::Wait(d) => next(d),
+                Poll::NotAnimated | Poll::Ended => {}
+            }
+        }
+        if let Some(a) = &mut self.preview_animation {
+            if self.preview.key.as_ref() != Some(&a.key) {
+                self.preview_animation = None;
+            } else {
+                match a.player.poll(now) {
+                    Poll::Frame(img) => {
+                        a.playing = true;
+                        set_texture(ctx, &mut self.preview.texture, "task-preview-animation", &img);
+                        next(std::time::Duration::ZERO);
+                    }
+                    Poll::Wait(d) => next(d),
+                    Poll::NotAnimated | Poll::Ended => {}
+                }
+            }
+        }
+        if let Some(d) = wait {
+            ctx.request_repaint_after(d);
         }
     }
 
@@ -797,19 +1089,32 @@ impl TaskView {
                 let g = widgets::galley(ui, &text, title_font.clone(), p.text, title.width());
                 let x = title.min.x + ((title.width() - g.size().x) / 2.0).round();
                 painter.with_clip_rect(title.intersect(self.layout.area)).galley(pos2(x, title.min.y), g, p.text);
+                // `ToolTip.Tip`: `Details` (`TaskInfo.ToString()`), wrapped.
+                if hover_enabled {
+                    sharex_ui::tooltip::show(ui, title.intersect(self.layout.area), egui::Id::new(("task-title-tip", *id)), &task.info.text());
+                }
             }
 
             // `Border.thumbnail-preview`: the panel colour, rounded 4, clipped.
             painter.rect_filled(preview, CornerRadius::same(4), p.background_panel);
             let path = task.info.file_path_str();
+            let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+            // `HoverFrame` over the thumbnail; the still one hidden while it
+            // plays (`ShowStillThumbnail`).
+            let hover = self.hover.as_ref().filter(|h| h.id == *id).and_then(|h| h.frame.as_ref());
             match &item.thumb {
                 Some(tex) => {
-                    painter.image(tex.id(), preview, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                    painter.image(hover.unwrap_or(tex).id(), preview, uv, Color32::WHITE);
                     // `ShowPlayIcon`: a video's thumbnail.
                     if is_video_file(&path) {
                         let c = preview.center();
                         painter.circle_filled(c, 25.0, Color32::from_rgba_unmultiplied(0x18, 0x18, 0x18, 0xB8));
                         icons::paint(painter, Rect::from_center_size(c, Vec2::splat(18.0)), icon::Play, Color32::from_rgb(0xA9, 0xA9, 0xA9));
+                    }
+                }
+                None if hover.is_some() => {
+                    if let Some(frame) = hover {
+                        painter.image(frame.id(), preview, uv, Color32::WHITE);
                     }
                 }
                 None => {
@@ -839,6 +1144,9 @@ impl TaskView {
                 let badge = Rect::from_min_size(pos2(preview.max.x - 5.0 - size.x, preview.min.y + 5.0), size);
                 painter.rect_filled(badge, CornerRadius::same(4), Color32::from_rgba_unmultiplied(0xB9, 0x1C, 0x1C, 0xC8));
                 icons::paint(painter, Rect::from_center_size(badge.center(), Vec2::splat(FONT_SIZE)), icon::Warning, Color32::WHITE);
+            }
+            if let Some(c) = self.combine.filter(|c| c.id == *id) {
+                self.paint_combine_overlay(ui, &painter.with_clip_rect(preview.intersect(painter.clip_rect())), preview, c.zone);
             }
         }
         self.paint_scroll_indicator(ui, painter);
@@ -919,6 +1227,15 @@ impl TaskView {
             }
             let url_w = (row.max.x.max(row.min.x + min_row) - x).max(0.0);
             cell_text(ui, &rows, &cells[6], cell_font.clone(), text_color, x, url_w, *row, cell_h);
+            // `ToolTip.Tip`: the file name cell's `Title`, the URL cell's
+            // `ListUrlToolTip` (none while it's empty).
+            if hover_enabled {
+                let visible = l.list.intersect(painter.clip_rect());
+                let name = Rect::from_min_size(pos2(row.min.x + STATUS_ICON_WIDTH, row.min.y), vec2(self.columns[0], row.height()));
+                sharex_ui::tooltip::show(ui, name.intersect(visible), egui::Id::new(("task-name-tip", *id)), &cells[0]);
+                let url = Rect::from_min_size(pos2(x, row.min.y), vec2(url_w, row.height()));
+                sharex_ui::tooltip::show(ui, url.intersect(visible), egui::Id::new(("task-url-tip", *id)), &cells[6]);
+            }
         }
 
         if let (Some(pane), Some(image)) = (l.preview_pane, l.preview_image) {
@@ -972,6 +1289,20 @@ impl TaskView {
                 Event::PointerMoved(pos) => {
                     if let Some(r) = self.resize {
                         self.drag_resize(r, pos);
+                    }
+                    // `OnThumbnailPointerMoved`: past half the tap size
+                    // (4x4) either way, the file is dragged out.
+                    let primary = ctx.input(|i| i.pointer.primary_down());
+                    if let Some(d) = &mut self.file_drag
+                        && !d.started
+                        && primary
+                        && ((pos.x - d.start.x).abs() >= DOUBLE_CLICK_DISTANCE / 2.0 || (pos.y - d.start.y).abs() >= DOUBLE_CLICK_DISTANCE / 2.0)
+                    {
+                        d.started = true;
+                        let id = d.id;
+                        if let Some(path) = self.task(id).and_then(|t| t.info.file_path.clone()).filter(|p| p.is_file()) {
+                            actions.push(TaskAction::DragOut(id, path));
+                        }
                     }
                 }
                 Event::MouseWheel { delta, unit, .. } => {
@@ -1159,6 +1490,12 @@ impl TaskView {
                 } else {
                     self.select_only(id);
                 }
+                // `PrepareThumbnailDrag`: only a task whose file exists.
+                self.file_drag = self
+                    .task(id)
+                    .and_then(|t| t.info.file_path.as_ref())
+                    .filter(|p| p.is_file())
+                    .map(|_| FileDrag { id, start: pos, started: false });
                 if double && !self.suppress_click {
                     if self.settings.is_list() {
                         // `OnTaskRowDoubleTapped`: `TryOpen` on that task.
@@ -1203,7 +1540,13 @@ impl TaskView {
         let hit = self.hovered_task(pos);
         match button {
             PointerButton::Primary => {
+                // `HandleTaskPointerReleased`: `wasDragging`, then `ResetThumbnailDrag`.
+                let was_dragging = self.file_drag.take().is_some_and(|d| d.started);
+                self.combine = None;
                 let Some(id) = hit else { return };
+                if was_dragging {
+                    return;
+                }
                 if !self.settings.is_list() && self.title_hit(pos) == Some(id) {
                     // `OnThumbnailTitlePointerReleased`: the URL, else the file.
                     if let Some(task) = self.task(id) {
@@ -1580,6 +1923,15 @@ fn sharing_menu() -> Vec<MenuEntry<TaskCommand>> {
 }
 
 /// `ThumbnailItemViewModel.Title`.
+/// Shows `img` in `slot`, reusing its texture.
+fn set_texture(ctx: &egui::Context, slot: &mut Option<TextureHandle>, name: &str, img: &image::RgbaImage) {
+    let ci = crate::thumbnail::to_color_image(img);
+    match slot {
+        Some(t) if t.size() == ci.size => t.set(ci, egui::TextureOptions::NEAREST),
+        _ => *slot = Some(ctx.load_texture(name, ci, egui::TextureOptions::NEAREST)),
+    }
+}
+
 fn title_text(task: &WorkerTask) -> String {
     if !task.info.file_name.is_empty() {
         task.info.file_name.clone()
@@ -1712,6 +2064,111 @@ mod tests {
             v.add_task(id);
         }
         v
+    }
+
+    /// Two finished tasks whose files are images in `dir` (1 older, 2 newer),
+    /// laid out as two cards side by side.
+    fn two_cards(dir: &std::path::Path) -> TaskView {
+        let mut v = TaskView::new();
+        for i in 1..=2 {
+            let path = dir.join(format!("{i}.png"));
+            image::RgbaImage::new(4, 4).save(&path).unwrap();
+            let id = v.manager.start_image_task(format!("{i}.bmp"));
+            v.add_task(id);
+            v.manager.complete(id, Some(path), None, 10);
+        }
+        let card = |x: f32| (Rect::from_min_size(pos2(x, 0.0), vec2(218.0, 180.0)), Rect::from_min_size(pos2(x + 9.0, 27.0), vec2(200.0, 150.0)));
+        let (b2, p2) = card(0.0);
+        let (b1, p1) = card(218.0);
+        v.layout.area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+        v.layout.list = v.layout.area;
+        v.layout.hits = vec![(2, b2, Some(p2)), (1, b1, Some(p1))];
+        v
+    }
+
+    #[test]
+    fn a_dragged_thumbnail_combines_on_a_drop_zone() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-drag-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut v = two_cards(&dir);
+        // The press prepares the drag of task 2's file; it starts as the
+        // drag (here: the mock) reports the pointer over task 1's zones.
+        v.file_drag = Some(FileDrag { id: 2, start: pos2(100.0, 100.0), started: true });
+        let title_h = 18.0;
+        // Task 1's picture is x 227..427, y 27..177: zones below the title
+        // row (6 + 18 + 6), Horizontal on the left, Vertical on the right.
+        let mut src = crate::drag_out::MockDragSource {
+            moves: vec![(100, 100), (300, 120), (380, 120), (300, 40)],
+            effect: crate::drag_out::Effect::Copy,
+            dropped: true,
+            dragged: Vec::new(),
+            cursors: Vec::new(),
+        };
+        let mut seen = Vec::new();
+        use crate::drag_out::DragSource;
+        let outcome = src.drag_files(&[dir.join("2.png")], false, &mut |(x, y)| {
+            let takes = v.drag_over(title_h, Some(pos2(x as f32, y as f32)));
+            seen.push(v.combine);
+            if takes { crate::drag_out::Cursor::Default } else { crate::drag_out::Cursor::NoDrop }
+        });
+        assert!(outcome.dropped);
+        // Over itself: no target, refused; then task 1's Horizontal and
+        // Vertical zones; then its title row, still the target, no zone.
+        assert_eq!(src.cursors[0], crate::drag_out::Cursor::NoDrop);
+        assert_eq!(seen[0], None);
+        assert_eq!(seen[1], Some(CombineTarget { id: 1, zone: Some(true) }));
+        assert_eq!(seen[2], Some(CombineTarget { id: 1, zone: Some(false) }));
+        assert_eq!(seen[3], Some(CombineTarget { id: 1, zone: None }));
+        // Dropped off a zone: nothing to combine.
+        assert_eq!(v.drag_ended(true), None);
+        // Dropped on Horizontal: source first, then the target.
+        v.drag_over(title_h, Some(pos2(300.0, 120.0)));
+        let (a, b, horizontal) = v.drag_ended(true).unwrap();
+        assert_eq!((a, b, horizontal), (dir.join("2.png"), dir.join("1.png"), true));
+        // Cancelled (Escape) on a zone: nothing either.
+        v.drag_over(title_h, Some(pos2(380.0, 120.0)));
+        assert_eq!(v.drag_ended(false), None);
+        // The release after the drag runs no click action.
+        let mut actions = Vec::new();
+        v.release(pos2(100.0, 100.0), PointerButton::Primary, &mut actions);
+        assert!(actions.is_empty());
+        assert_eq!(v.dragging(), None);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_list_view_has_no_combine_zones() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-drag-list-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut v = two_cards(&dir);
+        v.settings.mode = TaskViewMode::ListView;
+        v.file_drag = Some(FileDrag { id: 2, start: Pos2::ZERO, started: true });
+        assert!(!v.drag_over(18.0, Some(pos2(300.0, 120.0))));
+        assert_eq!(v.combine, None);
+        // Outside the window: no target, and the window has no say.
+        assert!(v.drag_over(18.0, None));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_working_task_shows_its_own_image() {
+        // `RefreshFromOwnedImage`: the card's thumbnail from the image,
+        // fitted into the 200x150 box with its rounded corners.
+        let mut v = view_with(1);
+        let img = Arc::new(image::RgbaImage::from_pixel(400, 100, image::Rgba([10, 20, 30, 255])));
+        v.owned_image(1, img);
+        let r = v.requests.pop().unwrap();
+        assert_eq!((r.id, r.kind, r.size), (1, ImageKind::Thumbnail, [200, 150]));
+        let out = r.run().unwrap();
+        assert_eq!(out.dimensions(), (200, 150));
+        // 400x100 into 200x150: 200x50, centred at y 50.
+        assert_eq!(out.get_pixel(100, 75).0, [10, 20, 30, 255]);
+        assert_eq!(out.get_pixel(100, 20).0[3], 0);
+        // The list view decodes no image.
+        let mut list = view_with(1);
+        list.settings.mode = TaskViewMode::ListView;
+        list.owned_image(1, Arc::new(image::RgbaImage::new(4, 4)));
+        assert!(list.requests.is_empty());
     }
 
     #[test]

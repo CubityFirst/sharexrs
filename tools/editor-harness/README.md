@@ -45,6 +45,12 @@ Other modes: `--cursors <dir>` dumps every `CursorType`'s bitmap
 <sequence> <canvas> <font size> <file>` Direct2D's raw emoji
 (`RenderWithDirect2D`), `--probe-picture <dir>` the same draws directly
 and through an `SKPicture` shader; `--text` and `--fonts` as before;
+`--control-dump autocomplete|datepicker|datepicker-presenter` lays a Fluent
+control out as ShareX's theme styles it and prints its visual tree (bounds,
+paddings, corners, brushes, fonts, the relevant theme resources and, for the
+DatePicker, its popup's placement), the source of the History window's
+search suggestions and date picker flyout.
+
 `--tooltip-theme x` prints what FluentTheme gives ShareX's `ToolTip`
 (resources, control theme setters, default delays and offsets, a laid-out
 tooltip's size) for the region capture's toolbar tooltips.

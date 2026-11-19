@@ -134,6 +134,34 @@ impl Fmt {
         format_date(d.naive(), &self.short_long_pattern(true), self.culture)
     }
 
+    /// `StatsFormat.LongDateWithDay`: the long date pattern, with the day's
+    /// name in front when it has none.
+    fn long_date_with_day(&self, d: DateTime) -> String {
+        let pattern = &self.culture.long_date_pattern;
+        let pattern = if pattern.contains("dddd") { pattern.clone() } else { format!("dddd {pattern}") };
+        format_date(d.naive(), &pattern, self.culture)
+    }
+
+    /// `StatsFormat.TallyToolTip`: the title, then the total and each kind
+    /// there is any of, a line each.
+    fn tally_tooltip(&self, title: &str, t: HistoryStatsTally) -> String {
+        let mut out = title.to_owned();
+        if t.total() == 0 {
+            out.push('\n');
+            out.push_str(s::StatsWindow_NothingYet());
+            return out;
+        }
+        out.push('\n');
+        out.push_str(&s::StatsWindow_TotalCount().replace("{0}", &self.number(t.total())));
+        for (kind, count) in [(HistoryStatsKind::Image, t.images), (HistoryStatsKind::Recording, t.recordings), (HistoryStatsKind::Other, t.other)] {
+            if count > 0 {
+                out.push('\n');
+                out.push_str(&format!("{}: {}", Self::series_name(kind), self.number(count)));
+            }
+        }
+        out
+    }
+
     fn series_name(kind: HistoryStatsKind) -> &'static str {
         match kind {
             HistoryStatsKind::Image => s::StatsWindow_Images(),
@@ -163,6 +191,17 @@ struct Row {
     fraction: f64,
     value: String,
     peak: bool,
+    /// `StatsRow.ToolTip`.
+    tooltip: String,
+}
+
+/// What a chart's pointer is over (`HoverKey`): a split bar segment (its
+/// kind), a calendar day (its ticks) or an hour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HoverKey {
+    Split(usize),
+    Day(i64),
+    Hour(usize),
 }
 
 pub struct StatsWindow {
@@ -176,6 +215,13 @@ pub struct StatsWindow {
     scroll: f32,
     effects: Vec<Effect>,
     sync: bool,
+    /// The chart element under the pointer, where the pointer was when its
+    /// tooltip opened, and when (`UpdateHover`).
+    hover: Option<(HoverKey, Pos2, f64)>,
+    /// Share was clicked: the page goes out as an image this frame.
+    share: bool,
+    /// `ActionsPanel.Opacity = 0` while the snapshot renders.
+    hide_actions: bool,
 }
 
 impl Default for StatsWindow {
@@ -186,7 +232,21 @@ impl Default for StatsWindow {
 
 impl StatsWindow {
     pub fn new() -> Self {
-        Self { stats: None, error: None, loader: None, loading: false, spans: vec![CalendarSpan::PastYear], span: 0, filter: HistoryStatsFilter::All, scroll: 0.0, effects: Vec::new(), sync: false }
+        Self {
+            stats: None,
+            error: None,
+            loader: None,
+            loading: false,
+            spans: vec![CalendarSpan::PastYear],
+            span: 0,
+            filter: HistoryStatsFilter::All,
+            scroll: 0.0,
+            effects: Vec::new(),
+            sync: false,
+            hover: None,
+            share: false,
+            hide_actions: false,
+        }
     }
 
     /// `HistoryStats.Calculate(items, DateTime.Now, FirstDayOfWeek)`.
@@ -243,6 +303,12 @@ struct Page<'a> {
     ui: &'a Ui,
     pal: Palette,
     fmt: Fmt,
+    /// The pointer (none while a menu or the snapshot has it).
+    pointer: Option<Pos2>,
+    /// The hovered chart element (`HoverKey`).
+    hover: Option<HoverKey>,
+    /// What the charts' `HitTest` found under the pointer this frame.
+    hit: std::cell::Cell<Option<HoverKey>>,
 }
 
 const PAGE_PADDING: f32 = 24.0;
@@ -294,7 +360,15 @@ impl StatsWindow {
     fn content(&mut self, ui: &mut Ui, origin: Pos2, width: f32, paint: bool) -> f32 {
         let p = palette(ui.ctx());
         let dark = ui.ctx().theme() == egui::Theme::Dark;
-        let page = Page { ui, pal: Palette::new(dark, p.accent_border), fmt: Fmt { culture: CultureFormat::current() } };
+        let pointer = if self.hide_actions { None } else { ui.input(|i| i.pointer.latest_pos()).filter(|pos| ui.clip_rect().contains(*pos)) };
+        let page = Page {
+            ui,
+            pal: Palette::new(dark, p.accent_border),
+            fmt: Fmt { culture: CultureFormat::current() },
+            pointer,
+            hover: self.hover.map(|(k, ..)| k),
+            hit: std::cell::Cell::new(None),
+        };
         let x0 = origin.x;
         let mut y = origin.y;
         // The title row: icon, "Stats", the subtitle, Refresh and Share.
@@ -311,11 +385,15 @@ impl StatsWindow {
             let rw = super::common::icon_button_width(ui, refresh);
             let share_r = Rect::from_min_size(pos2(x0 + width - sw, center_y(row, 40.0)), vec2(sw, 40.0));
             let refresh_r = Rect::from_min_size(pos2(share_r.min.x - 6.0 - rw, share_r.min.y), vec2(rw, 40.0));
-            if super::common::icon_button(ui, refresh_r, Id::new("stats-refresh"), icon::Refresh, refresh, false, !self.loading).clicked() {
-                self.refresh(ui.ctx());
-            }
-            if super::common::icon_button(ui, share_r, Id::new("stats-share"), icon::Share, share, false, self.has_items()).clicked() {
-                self.effects.push(Effect::NotPorted("Stats › Share (the page as an image task)"));
+            // `ActionsPanel`, hidden from the snapshot.
+            if !self.hide_actions {
+                if super::common::icon_button(ui, refresh_r, Id::new("stats-refresh"), icon::Refresh, refresh, false, !self.loading).clicked() {
+                    self.refresh(ui.ctx());
+                }
+                if super::common::icon_button(ui, share_r, Id::new("stats-share"), icon::Share, share, false, self.has_items()).clicked() {
+                    self.share = true;
+                }
+                sharex_ui::tooltip::show(ui, share_r, Id::new("stats-share-tip"), s::StatsWindow_ShareToolTip());
             }
             if let Some(stats) = &self.stats
                 && let Some(first) = stats.first_day
@@ -377,6 +455,7 @@ impl StatsWindow {
                     fraction: if max > 0 { t.total() as f64 / max as f64 } else { 0.0 },
                     value: hs::format_share(t.total(), total),
                     peak: Some(day) == peak,
+                    tooltip: page.fmt.tally_tooltip(&culture.day_names[day as usize], t),
                 }
             })
             .collect();
@@ -385,12 +464,18 @@ impl StatsWindow {
             let total: i32 = list.iter().map(|e| e.count).sum();
             let max = list.iter().map(|e| e.count).max().unwrap_or(0);
             list.iter()
-                .map(|e| Row {
-                    label: if e.name.is_empty() { s::StatsWindow_Other().to_string() } else { e.name.clone() },
-                    label_width: 150.0,
-                    fraction: if max > 0 { e.count as f64 / max as f64 } else { 0.0 },
-                    value: hs::format_share(e.count, total),
-                    peak: false,
+                .map(|e| {
+                    let name = if e.name.is_empty() { s::StatsWindow_Other().to_string() } else { e.name.clone() };
+                    let share = hs::format_share(e.count, total);
+                    let tooltip = format!("{name}: {} ({share})", page.fmt.number(e.count));
+                    Row {
+                        label: name,
+                        label_width: 150.0,
+                        fraction: if max > 0 { e.count as f64 / max as f64 } else { 0.0 },
+                        value: share,
+                        peak: false,
+                        tooltip,
+                    }
                 })
                 .collect()
         };
@@ -413,7 +498,43 @@ impl StatsWindow {
                 y += CARD_SPACING;
             }
         }
+        // `UpdateHover`: a new element under the pointer opens its tooltip
+        // at once, where the pointer is.
+        if paint && !self.hide_actions {
+            let hit = page.hit.take();
+            match (hit, self.hover) {
+                (Some(key), Some((old, ..))) if key == old => {}
+                (Some(key), _) => self.hover = Some((key, pointer.unwrap_or(origin), ui.input(|i| i.time))),
+                (None, _) => self.hover = None,
+            }
+            if let Some((key, at, opened)) = self.hover
+                && let Some(tip) = Self::hover_tip(&page, &stats, key)
+            {
+                sharex_ui::tooltip::show_now(ui, Id::new("stats-chart-tip"), at, opened, &tip);
+            }
+        }
         y - origin.y
+    }
+
+    /// The hovered element's tooltip (`HitTest`'s text).
+    fn hover_tip(page: &Page, stats: &HistoryStats, key: HoverKey) -> Option<String> {
+        Some(match key {
+            HoverKey::Split(k) => {
+                let t = stats.total;
+                let (kind, count) = [(HistoryStatsKind::Image, t.images), (HistoryStatsKind::Recording, t.recordings), (HistoryStatsKind::Other, t.other)][k];
+                format!("{}: {} ({})", Fmt::series_name(kind), page.fmt.number(count), hs::format_share(count, t.total()))
+            }
+            HoverKey::Day(ticks) => {
+                let day = DateTime::from_ticks(ticks, stats.today.kind());
+                let title = page.fmt.long_date_with_day(day);
+                if stats.first_day.is_some_and(|f| day < f) {
+                    format!("{title}\n{}", s::StatsWindow_BeforeHistory())
+                } else {
+                    page.fmt.tally_tooltip(&title, stats.get_day(day))
+                }
+            }
+            HoverKey::Hour(h) => page.fmt.tally_tooltip(&hs::format_hour_span(h as u32), stats.hours[h]),
+        })
     }
 
     /// The Total card: the count, the rate, the split bar and its legend.
@@ -599,7 +720,7 @@ impl StatsWindow {
             page.text(pos2(inner.min.x + tw.ceil() + 10.0, center_y(title_row, page.lh(&hf))), &note, hf, p.text_secondary, f32::INFINITY);
         }
         if let Some(l) = layout {
-            paint_calendar(page, pos2(inner.min.x, header.max.y + 10.0), stats, &l);
+            paint_calendar(page, pos2(inner.min.x, header.max.y + 10.0), inner_w, stats, &l);
         }
         h
     }
@@ -658,7 +779,8 @@ fn filter_button(ui: &Ui, rect: Rect, id: Id, text: &str, active: bool) -> egui:
 }
 
 /// `StatsSplitBar`: a segment per kind there is any of, 2 apart, each at
-/// least 4 wide.
+/// least 4 wide; the hovered one in its peak colour. `HitTest`: the
+/// segment within the gap of the pointer's x.
 fn split_bar(page: &Page, bar: Rect, t: HistoryStatsTally) {
     if t.total() == 0 {
         page.rounded(bar, 3.0, page.pal.ramp[0]);
@@ -669,10 +791,23 @@ fn split_bar(page: &Page, bar: Rect, t: HistoryStatsTally) {
     let minimum = 4f64.min(available / parts.len() as f64);
     let scalable = available - minimum * parts.len() as f64;
     let mut x = bar.min.x as f64;
+    let mut hit = None;
     for (k, count) in parts {
         let w = minimum + scalable * count as f64 / t.total() as f64;
-        page.rounded(Rect::from_min_size(pos2(x as f32, bar.min.y), vec2(w as f32, bar.height())), 3.0, page.pal.series[k]);
+        let seg = Rect::from_min_size(pos2(x as f32, bar.min.y), vec2(w as f32, bar.height()));
+        let color = if page.hover == Some(HoverKey::Split(k)) { page.pal.peak[k] } else { page.pal.series[k] };
+        page.rounded(seg, 3.0, color);
+        if hit.is_none()
+            && let Some(p) = page.pointer.filter(|p| bar.contains(*p))
+            && p.x >= seg.min.x - 2.0
+            && p.x <= seg.max.x + 2.0
+        {
+            hit = Some(k);
+        }
         x += w + 2.0;
+    }
+    if let Some(k) = hit {
+        page.hit.set(Some(HoverKey::Split(k)));
     }
 }
 
@@ -737,8 +872,29 @@ fn days_between(a: DateTime, b: DateTime) -> i64 {
     (b.ticks() - a.ticks()) / TICKS_PER_DAY
 }
 
-/// `StatsCalendar.Render`.
-fn paint_calendar(page: &Page, origin: Pos2, stats: &HistoryStats, l: &CalLayout) {
+/// `StatsCalendar.Render`, and its `HitTest` (`width`: the control's).
+fn paint_calendar(page: &Page, origin: Pos2, width: f32, stats: &HistoryStats, l: &CalLayout) {
+    // `HitTest`: the day under the pointer, in a run's grid and range.
+    if let Some(p) = page.pointer
+        && p.x >= origin.x + l.left
+        && p.x < origin.x + width
+    {
+        let mut top = origin.y;
+        for run in &l.runs {
+            let grid_top = top + 18.0;
+            let grid_bottom = grid_top + 7.0 * l.step - 3.0;
+            if p.y >= grid_top && p.y < grid_bottom {
+                let column = ((p.x - origin.x - l.left) / l.step) as i64;
+                let row = (((p.y - grid_top) / l.step) as i64).min(6);
+                let day = run.week_start.add_days(column * 7 + row);
+                if day >= run.from && day <= run.to {
+                    page.hit.set(Some(HoverKey::Day(day.ticks())));
+                }
+                break;
+            }
+            top = grid_bottom + 14.0;
+        }
+    }
     let ui = page.ui;
     let p = palette(ui.ctx());
     let culture = page.fmt.culture;
@@ -785,9 +941,14 @@ fn paint_calendar(page: &Page, origin: Pos2, stats: &HistoryStats, l: &CalLayout
             let cell = Rect::from_min_size(pos2(origin.x + l.left + (index / 7) as f32 * l.step, grid_top + (index % 7) as f32 * l.step), Vec2::splat(size));
             if day < first {
                 border::border(ui.painter(), cell, 3.0, 1.0, None, Some(page.pal.ramp[0]));
-            } else {
-                let level = hs::calendar_level(stats.get_day(day).total(), l.steps);
-                page.rounded(cell, 3.0, page.pal.ramp[level as usize]);
+                day = day.add_days(1);
+                continue;
+            }
+            let level = hs::calendar_level(stats.get_day(day).total(), l.steps);
+            page.rounded(cell, 3.0, page.pal.ramp[level as usize]);
+            if page.hover == Some(HoverKey::Day(day.ticks())) {
+                // `new Pen(text, 1.5)` round the cell, inflated 1, corners 4.
+                border::border(ui.painter(), cell.expand(1.0), 4.0, 1.5, None, Some(p.text));
             }
             day = day.add_days(1);
         }
@@ -822,8 +983,21 @@ fn hour_chart(page: &Page, rect: Rect, stats: &HistoryStats, filter: HistoryStat
         ui.painter().galley(pos2(plot_left - 8.0 - size.x, y - size.y / 2.0), g, muted);
         value += step;
     }
+    // `HitTest`: the hour column under the pointer, down to the axis labels.
+    if let Some(p) = page.pointer.filter(|p| rect.contains(*p))
+        && p.x >= plot_left
+        && p.x < plot_right
+        && p.y <= plot_bottom + 20.0
+    {
+        let hour = (((p.x - plot_left) / slot) as i32).clamp(0, 23) as usize;
+        page.hit.set(Some(HoverKey::Hour(hour)));
+    }
     for (hour, &v) in values.iter().enumerate() {
         let col_left = plot_left + hour as f32 * slot;
+        if page.hover == Some(HoverKey::Hour(hour)) {
+            let column = Rect::from_min_max(pos2(col_left, plot_top), pos2(col_left + slot, plot_bottom));
+            page.rounded(column, 3.0, p.control_background_hover);
+        }
         if v > 0 {
             let gap = (slot * 0.22).max(2.0);
             let height = ((plot_bottom - plot_top) * v as f32 / top as f32).max(2.0);
@@ -885,11 +1059,12 @@ fn list_card(page: &Page, rect: Rect, title: &str, note: &str, rows: &[Row], emp
         page.text(pos2(inner.min.x, y), s::StatsWindow_NoData(), hf, p.text_secondary, f32::INFINITY);
         return;
     }
-    for row in rows {
+    for (k, row) in rows.iter().enumerate() {
         let r = Rect::from_min_size(pos2(inner.min.x, y), vec2(inner.width(), 26.0));
-        if ui.rect_contains_pointer(r) {
+        if page.pointer.is_some_and(|p| r.contains(p)) {
             ui.painter().rect_filled(r, CornerRadius::same(4), p.control_background_hover);
         }
+        sharex_ui::tooltip::show(ui, r, Id::new(("stats-row-tip", title, k)), &row.tooltip);
         let c = Rect::from_min_max(pos2(r.min.x + 4.0, r.min.y), pos2(r.max.x - 4.0, r.max.y));
         let lf = font(13.0, if row.peak { 600 } else { 400 });
         page.text(pos2(c.min.x, center_y(c, page.lh(&lf))), &row.label, lf, p.text, row.label_width);
@@ -911,12 +1086,36 @@ fn list_card(page: &Page, rect: Rect, title: &str, note: &str, rows: &[Row], emp
     }
 }
 
+impl StatsWindow {
+    /// `RenderSnapshot`: `SnapshotPanel` (the page on the window's
+    /// background, its padding, everything scrolled out of view too)
+    /// without the title's buttons, at the window's width and scale.
+    fn snapshot(&mut self, width: f32, ppp: f32, dark: bool) -> Result<image::RgbaImage, String> {
+        let inner = width - 2.0 * PAGE_PADDING;
+        let mut probe = sharex_ui::offscreen::Offscreen::new([1, 1], ppp, dark)?;
+        let mut h = 0.0;
+        probe.run(Vec::new(), &mut |ui| h = self.content(ui, pos2(0.0, 0.0), inner, false));
+        drop(probe);
+        let height = h + 2.0 * PAGE_PADDING;
+        let size = [(width * ppp).round().max(1.0) as u32, (height * ppp).round().max(1.0) as u32];
+        let mut screen = sharex_ui::offscreen::Offscreen::new(size, ppp, dark)?;
+        self.hide_actions = true;
+        let image = screen.render(|ui| {
+            let p = palette(ui.ctx());
+            ui.painter().rect_filled(ui.max_rect(), 0.0, p.background_main);
+            self.content(ui, pos2(PAGE_PADDING, PAGE_PADDING), inner, true);
+        });
+        self.hide_actions = false;
+        Ok(image)
+    }
+}
+
 impl Dialog for StatsWindow {
     fn spec(&self) -> Spec {
         Spec::sized(crate::rs_title(s::StatsWindow_Title()), WIDTH, HEIGHT, MIN_WIDTH, MIN_HEIGHT)
     }
 
-    fn ui(&mut self, ui: &mut Ui, _cx: &mut Cx) -> Vec<Effect> {
+    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
         if self.stats.is_none() && self.error.is_none() && !self.loading && !self.sync {
             self.refresh(ui.ctx());
         }
@@ -943,6 +1142,19 @@ impl Dialog for StatsWindow {
         child.set_clip_rect(full.intersect(ui.clip_rect()));
         self.content(&mut child, origin, width, true);
         crate::dialogs::layout::scroll_bar(ui, full, content_h, self.scroll, 16.0);
+        if std::mem::take(&mut self.share) {
+            // `OnShareClick`: the page as an image (`RenderSnapshot`) through
+            // `UploadManager.RunImageTask(new TaskMetadata(image) { ProcessName
+            // = "ShareX" }, TaskSettings.GetDefaultTaskSettings())`.
+            let dark = ui.ctx().theme() == egui::Theme::Dark;
+            match self.snapshot(full.width(), ui.ctx().pixels_per_point(), dark) {
+                Ok(image) => {
+                    let task = sharex_settings::TaskSettings::default_task_settings(&cx.settings.DefaultTaskSettings);
+                    self.effects.push(Effect::RunImageTaskAs(image, Box::new(task), "ShareX"));
+                }
+                Err(e) => eprintln!("Stats › Share: {e}"),
+            }
+        }
         std::mem::take(&mut self.effects)
     }
 

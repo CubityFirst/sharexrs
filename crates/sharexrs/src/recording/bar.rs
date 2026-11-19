@@ -1,14 +1,15 @@
 //! The recorder bar shown before recording: `ShareX/Presentation/
 //! ScreenRecording/ScreenRecorderBarWindow.axaml(.cs)` and
-//! `ScreenRecorderBarSettings`, as ShareX builds it for the FFmpeg recorder
-//! (`native: false`: no audio, camera or bitrate settings, titled "Screen
-//! recorder"), which is the recorder ShareXrs runs.
+//! `ScreenRecorderBarSettings`, for the native recorder (titled "Built-in
+//! screen recorder", with System audio and Microphone for MP4, and Camera:
+//! `bar_sources`) or the FFmpeg one (`native: false`: no audio, camera or
+//! bitrate settings, titled "Screen recorder").
 //!
-//! A grip, Record, Start delay (on/off, and 1-5 s from its arrow), Cursor,
-//! Mouse highlighter (on/off, and its options from its arrow), Options and
-//! Cancel; Options and the highlighter's arrow open a settings panel under
-//! the bar. Its edits go to a copy of the capture settings, which the app
-//! commits when the bar closes, recording or not.
+//! A grip, Record, Start delay (on/off, and 1-5 s from its arrow), the
+//! sources, Cursor, Mouse highlighter (on/off, and its options from its
+//! arrow), Options and Cancel; Options and the arrows open a settings panel
+//! under the bar. Its edits go to a copy of the capture settings, which the
+//! app commits when the bar closes, recording or not.
 
 use egui::{Color32, Id, Pos2, Rect, Ui, pos2, vec2};
 use sharex_settings::TaskSettingsCapture;
@@ -20,6 +21,10 @@ use sharex_ui::menu::{Flyout, MenuEntry, Placement, Toggle};
 use sharex_ui::theme::{fluent, palette};
 use sharex_ui::widgets::{self, line_height, text_width};
 use sharex_ui::icons;
+use sharex_ui::controls::{ComboBox, ComboItem, Slider};
+use sharex_ui::theme::Thickness;
+
+use super::bar_sources::{self as sources, DeviceLister, Source, SourceKind};
 
 /// `Recorder.Record.Background` / `Hover` / `Pressed`.
 const RECORD: Color32 = Color32::from_rgb(0xB8, 0x32, 0x3F);
@@ -47,6 +52,8 @@ pub enum BarAction {
 enum Panel {
     Options,
     Highlighter,
+    /// A source's panel (`BuildSourcePanel`), by index.
+    Source(usize),
 }
 
 /// The bar's state (`ScreenRecorderBarWindow`).
@@ -54,6 +61,13 @@ pub struct Bar {
     /// `_draft.Capture`.
     pub capture: TaskSettingsCapture,
     gif: bool,
+    native: bool,
+    sources: Vec<Source>,
+    lister: DeviceLister,
+    /// The recording's size (`RecordingRegion`), for the camera's layout preview.
+    pub region: (i32, i32),
+    camera_tab: usize,
+    record_enabled: bool,
     panel: Option<Panel>,
     options_tab: usize,
     error: Option<String>,
@@ -68,14 +82,59 @@ struct Measure {
 }
 
 impl Bar {
-    pub fn new(capture: TaskSettingsCapture, gif: bool) -> Self {
-        Self { capture, gif, panel: None, options_tab: 0, error: None, delay_menu: None, delay_anchor: Rect::NOTHING }
+    /// `native`: the native recorder's bar, its sources' devices from `lister`.
+    pub fn new(capture: TaskSettingsCapture, gif: bool, native: bool, lister: DeviceLister) -> Self {
+        let mut bar = Self {
+            capture,
+            gif,
+            native,
+            sources: sources::kinds(native, gif).into_iter().map(Source::new).collect(),
+            lister,
+            region: (0, 0),
+            camera_tab: 0,
+            record_enabled: true,
+            panel: None,
+            options_tab: 0,
+            error: None,
+            delay_menu: None,
+            delay_anchor: Rect::NOTHING,
+        };
+        // `AddSource`'s `RefreshSource`, then `BuildBar`'s `ValidateSources`.
+        for i in 0..bar.sources.len() {
+            bar.refresh_source(i);
+        }
+        bar.validate_sources();
+        bar
     }
 
-    /// The window's title (`Strings.TaskSettingsWindow_ScreenRecorder` for
-    /// the FFmpeg recorder).
-    pub fn title() -> &'static str {
-        s::TaskSettingsWindow_ScreenRecorder()
+    /// The window's title (`TaskSettingsWindow_NativeRecorder`, or
+    /// `TaskSettingsWindow_ScreenRecorder` for the FFmpeg recorder).
+    pub fn title_for(native: bool) -> &'static str {
+        if native { s::TaskSettingsWindow_NativeRecorder() } else { s::TaskSettingsWindow_ScreenRecorder() }
+    }
+
+    pub fn is_native(&self) -> bool {
+        self.native
+    }
+
+    fn refresh_source(&mut self, i: usize) {
+        self.sources[i].refresh(&self.capture, &self.lister);
+    }
+
+    /// `ValidateSources`: an "unavailable" message and no Record while a source that's on has no device.
+    fn validate_sources(&mut self) -> bool {
+        let missing = sources::missing_source(&self.sources, &self.capture).map(|s| s.kind.unavailable_label().to_owned());
+        self.record_enabled = missing.is_none();
+        self.error = missing;
+        self.record_enabled
+    }
+
+    /// `RequestRecord`'s source check: every source refreshed, then validated.
+    pub fn check_sources(&mut self) -> bool {
+        for i in 0..self.sources.len() {
+            self.refresh_source(i);
+        }
+        self.validate_sources()
     }
 
     /// `ShowError`.
@@ -126,6 +185,11 @@ impl Bar {
         Measure { w: 10.0 + self.content_width(ui, label, toggle) + 10.0 + 2.0 }
     }
 
+    /// The sources' toggle widths.
+    fn source_widths(&self, ui: &Ui) -> Vec<f32> {
+        self.sources.iter().map(|src| self.setup_width(ui, src.kind.label(), Some(src.kind.enabled(&self.capture))).w).collect()
+    }
+
     /// The width of the toolbar row and of each control in it.
     fn row_widths(&self, ui: &Ui) -> (f32, [f32; 6]) {
         let record = self.setup_width(ui, s::ScreenRecorderBar_Record(), None).w;
@@ -136,7 +200,8 @@ impl Bar {
         let arrow = 30.0;
         let widths = [record, delay, cursor, highlighter, options, arrow];
         let total = 24.0 + (3.0 + record + 3.0) + (3.0 + delay + arrow + 3.0) + (3.0 + cursor + 3.0) + (3.0 + highlighter + arrow + 3.0)
-            + (3.0 + options + 3.0) + (3.0 + 28.0 + 3.0);
+            + (3.0 + options + 3.0) + (3.0 + 28.0 + 3.0)
+            + self.source_widths(ui).iter().map(|w| 3.0 + w + arrow + 3.0).sum::<f32>();
         (total, widths)
     }
 
@@ -183,7 +248,7 @@ impl Bar {
         let setup = |x: f32, w: f32| Rect::from_min_size(pos2(x + 3.0, row.min.y + 2.0), vec2(w, SETUP_HEIGHT));
         // Record.
         let r = setup(x, record_w);
-        if self.button(ui, r, "record", icon::Circle, s::ScreenRecorderBar_Record(), Kind::Record, true).clicked() {
+        if self.button(ui, r, "record", icon::Circle, s::ScreenRecorderBar_Record(), Kind::Record, self.record_enabled).clicked() {
             action = Some(BarAction::Record);
         }
         x = r.max.x + 3.0;
@@ -191,7 +256,8 @@ impl Bar {
         let t = setup(x, delay_w);
         let a = Rect::from_min_size(pos2(t.max.x, t.min.y), vec2(arrow_w, SETUP_HEIGHT));
         let enabled = self.capture.ScreenRecordStartDelayEnabled;
-        if self.toggle(ui, t, "delay", icon::Timer, s::ScreenRecorderBar_StartDelay(), enabled, [5.0, 0.0, 0.0, 5.0]).clicked() {
+        let tip = format!("{}\n{}", s::ScreenRecorderBar_StartDelay(), if enabled { start_delay_label(self.capture.ScreenRecordStartDelay) } else { s::ScreenRecorderBar_Off().to_owned() });
+        if self.toggle(ui, t, "delay", icon::Timer, s::ScreenRecorderBar_StartDelay(), enabled, [5.0, 0.0, 0.0, 5.0], true, tip).clicked() {
             self.capture.ScreenRecordStartDelayEnabled = !enabled;
         }
         if self.button(ui, a, "delay-arrow", icon::ChevronDown, "", Kind::Arrow, true).clicked() {
@@ -200,10 +266,30 @@ impl Bar {
         }
         self.delay_anchor = Rect::from_min_max(t.min, a.max);
         x = a.max.x + 3.0;
+        // The sources (`AddSource`'s split controls).
+        for (i, w) in self.source_widths(ui).into_iter().enumerate() {
+            let kind = self.sources[i].kind;
+            let t = setup(x, w);
+            let a = Rect::from_min_size(pos2(t.max.x, t.min.y), vec2(arrow_w, SETUP_HEIGHT));
+            let on = kind.enabled(&self.capture);
+            let usable = on || self.sources[i].available;
+            let tip = format!("{}\n{}", kind.label(), self.sources[i].device_name(&self.capture));
+            if self.toggle(ui, t, kind.label(), kind.icon(), kind.label(), on, [5.0, 0.0, 0.0, 5.0], usable, tip).clicked() {
+                self.refresh_source(i);
+                let available = self.sources[i].available;
+                kind.set_enabled(&mut self.capture, !on && available);
+                self.validate_sources();
+            }
+            let arrow_tip = s::ScreenRecorderBar_SourceOptions().replace("{0}", kind.label());
+            if self.button(ui, a, &format!("{}-arrow", kind.label()), icon::ChevronDown, "", Kind::Arrow, true).on_hover_text(arrow_tip).clicked() {
+                self.toggle_panel(Panel::Source(i));
+            }
+            x = a.max.x + 3.0;
+        }
         // Cursor.
         let c = setup(x, cursor_w);
         let on = self.capture.ScreenRecordShowCursor;
-        if self.toggle(ui, c, "cursor", icon::Pointer, s::ScreenRecorderBar_Cursor(), on, [4.0; 4]).clicked() {
+        if self.toggle(ui, c, "cursor", icon::Pointer, s::ScreenRecorderBar_Cursor(), on, [4.0; 4], true, s::ScreenRecorderBar_Cursor().to_owned()).clicked() {
             self.capture.ScreenRecordShowCursor = !on;
         }
         x = c.max.x + 3.0;
@@ -211,7 +297,7 @@ impl Bar {
         let t = setup(x, highlighter_w);
         let a = Rect::from_min_size(pos2(t.max.x, t.min.y), vec2(arrow_w, SETUP_HEIGHT));
         let on = self.capture.ScreenRecordMouseHighlighter;
-        if self.toggle(ui, t, "highlighter", icon::PointerClick, s::MouseHighlighter(), on, [5.0, 0.0, 0.0, 5.0]).clicked() {
+        if self.toggle(ui, t, "highlighter", icon::PointerClick, s::MouseHighlighter(), on, [5.0, 0.0, 0.0, 5.0], true, s::MouseHighlighter().to_owned()).clicked() {
             self.capture.ScreenRecordMouseHighlighter = !on;
         }
         if self.button(ui, a, "highlighter-arrow", icon::ChevronDown, "", Kind::Arrow, true).clicked() {
@@ -258,8 +344,21 @@ impl Bar {
     fn toggle_panel(&mut self, panel: Panel) {
         self.delay_menu = None;
         self.panel = if self.panel == Some(panel) { None } else { Some(panel) };
+        // `BuildSourcePanel`'s `Refresh`.
+        if let Some(Panel::Source(i)) = self.panel {
+            self.refresh_source(i);
+            self.validate_sources();
+        }
         if panel == Panel::Highlighter && self.panel.is_some() {
             eprintln!("The mouse highlighter's options in the recorder bar aren't ported yet (Task settings › Mouse highlighter has them).");
+        }
+    }
+
+    /// Opens source `i`'s panel (on the camera's Capture tab).
+    pub fn open_source_panel(&mut self, i: usize, capture_tab: bool) {
+        if i < self.sources.len() {
+            self.camera_tab = usize::from(capture_tab);
+            self.toggle_panel(Panel::Source(i));
         }
     }
 
@@ -285,10 +384,11 @@ impl Bar {
         self.delay_menu = Some(menu);
     }
 
-    fn panel_title(panel: Panel) -> &'static str {
+    fn panel_title(&self, panel: Panel) -> &'static str {
         match panel {
             Panel::Options => s::ScreenRecorderBar_Options(),
             Panel::Highlighter => s::MouseHighlighter(),
+            Panel::Source(i) => self.sources[i].kind.label(),
         }
     }
 
@@ -298,6 +398,7 @@ impl Bar {
         let (cw, ch) = match panel {
             Panel::Options => self.options_size(ui),
             Panel::Highlighter => (260.0, line_height(ui, &widgets::font(13.0, 400))),
+            Panel::Source(i) => self.source_panel_size(ui, i),
         };
         (cw + 26.0, 13.0 + 28.0 + 8.0 + ch + 13.0)
     }
@@ -307,7 +408,7 @@ impl Bar {
         border::border(ui.painter(), rect, 6.0, 1.0, Some(Brush::Solid(p.background_panel)), Some(p.border));
         let inner = rect.shrink(13.0);
         let title = Rect::from_min_size(inner.min, vec2(inner.width(), 28.0));
-        widgets::text_left(ui, title, title.min.x, Self::panel_title(panel), widgets::font(13.0, 600), p.text_secondary);
+        widgets::text_left(ui, title, title.min.x, self.panel_title(panel), widgets::font(13.0, 600), p.text_secondary);
         let close = Rect::from_min_size(pos2(title.max.x - 28.0, title.min.y), vec2(28.0, 28.0));
         if self.button(ui, close, "panel-close", icon::Close, "", Kind::Close, true).on_hover_text(s::ActionsToolbarWindow_Close()).clicked() {
             self.panel = None;
@@ -319,6 +420,165 @@ impl Bar {
             Panel::Highlighter => {
                 widgets::text_left(ui, body, body.min.x, s::TaskSettingsWindow_MouseHighlighterOptions(), widgets::font(13.0, 400), p.text_secondary);
             }
+            Panel::Source(i) => self.source_panel_ui(ui, body, i),
+        }
+    }
+
+    /// `Row`'s label height: a wrapped `TextBlock` with `Margin="0,3"`.
+    fn label_row(ui: &Ui) -> f32 {
+        line_height(ui, &widgets::font(13.0, 600)) + 6.0
+    }
+
+    /// `VolumeControl`: the label and percentage row, 4, the slider (32).
+    fn volume_height(ui: &Ui) -> f32 {
+        Self::label_row(ui) + 4.0 + 32.0
+    }
+
+    /// The camera panel's rows' labels.
+    fn camera_labels() -> [&'static str; 6] {
+        [
+            s::TaskSettingsWindow_NativeRecorderCamera_Shape(),
+            s::TaskSettingsWindow_Placement(),
+            s::TaskSettingsWindow_NativeRecorderCamera_Width(),
+            s::TaskSettingsWindow_NativeRecorderCamera_Margin(),
+            s::TaskSettingsWindow_NativeRecorderCamera_Resolution(),
+            s::TaskSettingsWindow_NativeRecorderCamera_FPS(),
+        ]
+    }
+
+    /// `BuildSourcePanel`: the device row (a combo box at least 260 wide and
+    /// the refresh button, 6 apart), 10, then the volume or the camera tabs.
+    fn source_panel_size(&self, ui: &Ui, i: usize) -> (f32, f32) {
+        let device_row = 260.0 + 6.0 + 38.0;
+        if self.sources[i].kind != SourceKind::Camera {
+            return (device_row, SETUP_HEIGHT + 10.0 + Self::volume_height(ui));
+        }
+        let label_w = Self::camera_labels().iter().map(|l| text_width(ui, l, widgets::font(13.0, 600))).fold(0.0, f32::max);
+        let tab_font = sharex_ui::controls::content_font(14.0, 400);
+        let tab_w = text_width(ui, s::ScreenRecorderBar_Overlay(), tab_font.clone()) + text_width(ui, s::ScreenRecorderBar_Capture(), tab_font) + 4.0 * 12.0;
+        let w = (label_w + 12.0 + 150.0 + 2.0 * TAB_INSET).max(tab_w).max(device_row);
+        let body = if self.camera_tab == 0 {
+            let hint = sharex_ui::controls::wrapped(ui, Pos2::ZERO, w - 2.0 * TAB_INSET, s::ScreenRecorderBar_LayoutPreview(), widgets::font(12.0, 600), Color32::TRANSPARENT, false);
+            10.0 + hint + 10.0 + 140.0 + 10.0 + 32.0 + 10.0 + 32.0 + 10.0 + 40.0 + 10.0 + 40.0 + 10.0
+        } else {
+            10.0 + 32.0 + 10.0 + 40.0 + 10.0
+        };
+        (w, SETUP_HEIGHT + 10.0 + TAB_HEADER + body)
+    }
+
+    fn source_panel_ui(&mut self, ui: &mut Ui, body: Rect, i: usize) {
+        let p = palette(ui.ctx());
+        let kind = self.sources[i].kind;
+        // The device row.
+        let refresh = Rect::from_min_size(pos2(body.max.x - 38.0, body.min.y), vec2(38.0, SETUP_HEIGHT));
+        let combo = Rect::from_min_max(pos2(body.min.x, body.min.y + 2.0), pos2(refresh.min.x - 6.0, body.min.y + 2.0 + 32.0));
+        let choices = self.sources[i].choices(&self.capture);
+        let items: Vec<ComboItem> = choices.iter().map(|d| ComboItem::text(d.name.clone())).collect();
+        let selected = choices.iter().position(|d| d.id == kind.selected(&self.capture));
+        if let Some(n) = (ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true }).show(ui, combo, Id::new(("bar-devices", i)), &items, selected) {
+            kind.set_selected(&mut self.capture, &choices[n].id);
+            self.refresh_source(i);
+            self.validate_sources();
+        }
+        if self.button(ui, refresh, &format!("{}-refresh", kind.label()), icon::Refresh, "", Kind::Setup, true).on_hover_text(s::ScreenRecorderBar_RefreshDevices()).clicked() {
+            self.refresh_source(i);
+            self.validate_sources();
+        }
+        let y = body.min.y + SETUP_HEIGHT + 10.0;
+        if kind != SourceKind::Camera {
+            // `VolumeControl`.
+            let gain = if kind == SourceKind::SystemAudio { &mut self.capture.ScreenRecordSystemAudioGain } else { &mut self.capture.ScreenRecordMicrophoneGain };
+            let mut v = sources::volume_percent(*gain);
+            let row = Rect::from_min_size(pos2(body.min.x, y), vec2(body.width(), Self::label_row(ui)));
+            widgets::text_left(ui, row, row.min.x, s::ScreenRecorderBar_Volume(), widgets::font(13.0, 600), p.text_secondary);
+            let pct = format!("{v:.0}%");
+            let pw = text_width(ui, &pct, widgets::font(13.0, 600));
+            widgets::text_left(ui, row, row.max.x - pw, &pct, widgets::font(13.0, 600), p.text_secondary);
+            let slider = Rect::from_min_size(pos2(body.min.x, row.max.y + 4.0), vec2(body.width(), 32.0));
+            if (Slider { minimum: 0.0, maximum: 400.0, step: 5.0, enabled: true }).show(ui, slider, Id::new(("bar-volume", i)), &mut v) {
+                *gain = v / 100.0;
+            }
+            return;
+        }
+        self.camera_panel_ui(ui, Rect::from_min_max(pos2(body.min.x, y), body.max));
+    }
+
+    /// `BuildCameraPanel`: the Overlay tab (the layout preview, shape,
+    /// placement, width, margin) and the Capture tab (resolution, FPS).
+    fn camera_panel_ui(&mut self, ui: &mut Ui, rect: Rect) {
+        let p = palette(ui.ctx());
+        let f = fluent(ui.ctx());
+        let mut x = rect.min.x;
+        let font = sharex_ui::controls::content_font(14.0, 400);
+        for (i, title) in [s::ScreenRecorderBar_Overlay(), s::ScreenRecorderBar_Capture()].into_iter().enumerate() {
+            let tw = text_width(ui, title, font.clone());
+            let r = Rect::from_min_size(pos2(x, rect.min.y), vec2(tw + 24.0, TAB_HEADER));
+            let resp = ui.interact(r, Id::new(("bar-camera-tab", i)), egui::Sense::click());
+            let selected = self.camera_tab == i;
+            let color = if selected || resp.hovered() { f.base_high } else { f.base_medium };
+            widgets::text_left(ui, r, r.min.x + 12.0, title, font.clone(), color);
+            if selected {
+                let pipe = Rect::from_min_size(pos2(r.min.x + 12.0, r.max.y - 2.0 - 3.0), vec2(tw, 3.0));
+                ui.painter().rect_filled(pipe, 1.5, p.accent_icon);
+            }
+            if resp.clicked() {
+                self.camera_tab = i;
+            }
+            x = r.max.x;
+        }
+        let (left, right) = (rect.min.x + TAB_INSET, rect.max.x - TAB_INSET);
+        let mut y = rect.min.y + TAB_HEADER + 10.0;
+        let label_font = widgets::font(13.0, 600);
+        let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true };
+        let c = &mut self.capture;
+        let control = |y: f32, h: f32| Rect::from_min_size(pos2(right - 150.0, y), vec2(150.0, h));
+        let label = |ui: &Ui, y: f32, h: f32, text: &str| {
+            widgets::text_left(ui, Rect::from_min_max(pos2(left, y), pos2(right, y + h)), left, text, label_font.clone(), p.text_secondary);
+        };
+        if self.camera_tab == 0 {
+            let hint_h = sharex_ui::controls::wrapped(ui, pos2(left, y), right - left, s::ScreenRecorderBar_LayoutPreview(), widgets::font(12.0, 600), p.text_secondary.gamma_multiply(0.75), true);
+            y += hint_h + 10.0;
+            let preview = Rect::from_min_max(pos2(left, y), pos2(right, y + 140.0));
+            sources::paint_layout_preview(ui, preview, c, self.region, p.accent_start, p.accent_border);
+            y += 140.0 + 10.0;
+            let shapes = sources::shape_choices();
+            label(ui, y, 32.0, s::TaskSettingsWindow_NativeRecorderCamera_Shape());
+            let items: Vec<ComboItem> = shapes.iter().map(|(_, t)| ComboItem::text(*t)).collect();
+            if let Some(n) = combo.show(ui, control(y, 32.0), Id::new("bar-camera-shape"), &items, shapes.iter().position(|(v, _)| *v == c.ScreenRecordCameraShape)) {
+                c.ScreenRecordCameraShape = shapes[n].0.clone();
+            }
+            y += 32.0 + 10.0;
+            let places = sources::position_choices();
+            label(ui, y, 32.0, s::TaskSettingsWindow_Placement());
+            let items: Vec<ComboItem> = places.iter().map(|(_, t)| ComboItem::text(*t)).collect();
+            if let Some(n) = combo.show(ui, control(y, 32.0), Id::new("bar-camera-position"), &items, places.iter().position(|(v, _)| *v == c.ScreenRecordCameraPosition)) {
+                c.ScreenRecordCameraPosition = places[n].0.clone();
+            }
+            y += 32.0 + 10.0;
+            label(ui, y, 40.0, s::TaskSettingsWindow_NativeRecorderCamera_Width());
+            let mut v = c.ScreenRecordCameraWidthPercent.clamp(5, 50) as i64;
+            if (NumericUpDown { minimum: 5, maximum: 50, enabled: true }).show(ui, control(y, 40.0), Id::new("bar-camera-width"), &mut v) {
+                c.ScreenRecordCameraWidthPercent = v as i32;
+            }
+            y += 40.0 + 10.0;
+            label(ui, y, 40.0, s::TaskSettingsWindow_NativeRecorderCamera_Margin());
+            let mut v = c.ScreenRecordCameraMargin.clamp(0, 1000) as i64;
+            if (NumericUpDown { minimum: 0, maximum: 1000, enabled: true }).show(ui, control(y, 40.0), Id::new("bar-camera-margin"), &mut v) {
+                c.ScreenRecordCameraMargin = v as i32;
+            }
+        } else {
+            let res = sources::resolution_choices();
+            label(ui, y, 32.0, s::TaskSettingsWindow_NativeRecorderCamera_Resolution());
+            let items: Vec<ComboItem> = res.iter().map(|(_, t)| ComboItem::text(*t)).collect();
+            if let Some(n) = combo.show(ui, control(y, 32.0), Id::new("bar-camera-resolution"), &items, res.iter().position(|(v, _)| *v == c.ScreenRecordCameraResolution)) {
+                c.ScreenRecordCameraResolution = res[n].0.clone();
+            }
+            y += 32.0 + 10.0;
+            label(ui, y, 40.0, s::TaskSettingsWindow_NativeRecorderCamera_FPS());
+            let mut v = c.ScreenRecordCameraFPS.clamp(1, 60) as i64;
+            if (NumericUpDown { minimum: 1, maximum: 60, enabled: true }).show(ui, control(y, 40.0), Id::new("bar-camera-fps"), &mut v) {
+                c.ScreenRecordCameraFPS = v as i32;
+            }
         }
     }
 
@@ -328,10 +588,12 @@ impl Bar {
     /// seconds) and the Bar tab (show before recording, timer, button
     /// labels): `Margin="0,8"`, `Spacing="10"`.
     fn options_size(&self, ui: &Ui) -> (f32, f32) {
-        let body = if self.options_tab == 0 { 40.0 + 10.0 + 32.0 + 10.0 + 40.0 } else { 3.0 * 32.0 + 2.0 * 10.0 };
+        let bitrate = self.native && !self.gif;
+        let body = if self.options_tab == 0 { 40.0 + 10.0 + if bitrate { 40.0 + 10.0 } else { 0.0 } + 32.0 + 10.0 + 40.0 } else { 3.0 * 32.0 + 2.0 * 10.0 };
         let labels = [
             if self.gif { s::TaskSettingsWindow_GIFFPS() } else { s::TaskSettingsWindow_ScreenRecordingFPS() },
             s::TaskSettingsWindow_DurationSeconds(),
+            if bitrate { s::TaskSettingsWindow_NativeRecorderBitrate() } else { "" },
         ];
         let label_w = labels.iter().map(|l| text_width(ui, l, widgets::font(13.0, 600))).fold(0.0, f32::max);
         let checks = [
@@ -388,6 +650,15 @@ impl Bar {
                 *value = v as i32;
             }
             y += 40.0 + 10.0;
+            if self.native && !self.gif {
+                let r = row(y, 40.0);
+                widgets::text_left(ui, r, r.min.x, s::TaskSettingsWindow_NativeRecorderBitrate(), widgets::font(13.0, 600), p.text_secondary);
+                let mut v = c.ScreenRecordVideoBitrate.clamp(100, 200_000) as i64;
+                if (NumericUpDown { minimum: 100, maximum: 200_000, enabled: true }).show(ui, number_rect(r), Id::new("bar-bitrate"), &mut v) {
+                    c.ScreenRecordVideoBitrate = v as i32;
+                }
+                y += 40.0 + 10.0;
+            }
             let mut fixed = c.ScreenRecordFixedDuration;
             if CheckBox::new(s::TaskSettingsWindow_UseFixedDuration()).show(ui, row(y, 32.0), Id::new("bar-fixed"), &mut fixed).changed() {
                 c.ScreenRecordFixedDuration = fixed;
@@ -432,6 +703,11 @@ impl Bar {
             Kind::Arrow => [0.0, 5.0, 5.0, 0.0],
             _ => [4.0; 4],
         };
+        let (fill, stroke, fg) = if kind == Kind::Record && !enabled {
+            (fill.gamma_multiply(0.35), stroke.map(|s| s.gamma_multiply(0.35)), fg.gamma_multiply(0.35))
+        } else {
+            (fill, stroke, fg)
+        };
         paint_shell(ui, rect, radius, fill, stroke);
         let content_w = if label.is_empty() { ICON } else { self.content_width(ui, label, None) };
         let inner = rect.shrink(1.0);
@@ -448,30 +724,33 @@ impl Bar {
     /// the accent fill, border and foreground when checked; an "off" icon
     /// for some when off.
     #[allow(clippy::too_many_arguments)]
-    fn toggle(&self, ui: &Ui, rect: Rect, id: &str, key: &'static str, label: &str, on: bool, radius: [f32; 4]) -> egui::Response {
+    fn toggle(&self, ui: &Ui, rect: Rect, id: &str, key: &'static str, label: &str, on: bool, radius: [f32; 4], enabled: bool, tip: String) -> egui::Response {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
-        let r = ui.interact(rect, Id::new(("bar-toggle", id)), egui::Sense::click());
-        let over = r.hovered() || r.is_pointer_button_down_on();
-        let pressed = r.is_pointer_button_down_on();
+        let r = ui.interact(rect, Id::new(("bar-toggle", id)), if enabled { egui::Sense::click() } else { egui::Sense::hover() });
+        let over = enabled && (r.hovered() || r.is_pointer_button_down_on());
+        let pressed = enabled && r.is_pointer_button_down_on();
         let (fill, stroke, fg) = if on {
             (if over { p.accent_fill_light[0] } else { p.accent_start }, Some(p.accent_border), p.accent_foreground)
         } else {
-            let fill = if pressed {
+            let fill = if !enabled {
+                // Fluent's `ToggleButtonBackgroundDisabled` / `ToggleButtonForegroundDisabled`.
+                f.base_low
+            } else if pressed {
                 f.base_medium_low
             } else if over {
                 f.base_high.gamma_multiply(0.1)
             } else {
                 f.base_low
             };
-            (fill, None, if over { f.base_high } else { p.text_secondary })
+            (fill, None, if !enabled { f.base_medium_low } else if over { f.base_high } else { p.text_secondary })
         };
         paint_shell(ui, rect, radius, fill, stroke);
         let key = if on { key } else { off_icon(key) };
         let content_w = self.content_width(ui, label, Some(on));
         let inner = rect.shrink(1.0);
         let left = inner.min.x + ((inner.width() - content_w) / 2.0).round_ties_even();
-        let icon_fg = if on { p.accent_foreground } else { f.base_high };
+        let icon_fg = if on { p.accent_foreground } else if !enabled { f.base_medium_low } else { f.base_high };
         let icon_rect = Rect::from_min_size(pos2(left, inner.min.y + ((inner.height() - ICON) / 2.0).round_ties_even()), vec2(ICON, ICON));
         icons::paint(ui.painter(), icon_rect, key, icon_fg);
         if self.labels() {
@@ -481,7 +760,7 @@ impl Bar {
             let state = if on { s::ScreenRecorderBar_On() } else { s::ScreenRecorderBar_Off() };
             widgets::text_left(ui, inner, x, state, widgets::font(11.0, 600), fg.gamma_multiply(0.8));
         }
-        r.on_hover_text(format!("{label}\n{}", if id == "cursor" { label.to_owned() } else if on { start_delay_label(self.capture.ScreenRecordStartDelay) } else { s::ScreenRecorderBar_Off().to_owned() }))
+        r.on_hover_text(tip)
     }
 }
 

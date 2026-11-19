@@ -361,18 +361,49 @@ and keep their settings in `ApplicationConfig.HistorySettings` /
 
 ## Not ported yet
 
-- In the windows: drag and drop of the selected files out of the lists;
-  preview downloads of URL-only images (the History preview shows "No image
-  preview" for them); the History window's remembered size and position
-  (`RememberWindowState`: the list width is kept, the window's place isn't);
-  the search box's process name suggestions (`AutoCompleteBox`); the date
-  pickers' own flyouts (shown, not editable yet); tooltips; the Stats
-  window's Share (logged) and its hover tooltips/marks; Image history's
-  video thumbnails beyond what the shell gives. The services that aren't
-  ported (image editor, photo editor, trimmers, pin to screen, analyze
-  image, image viewer) log when used; Upload file runs.
-- Recent items in the tray menu.
-- Settings export/import (history zipped in the export).
+- In the windows: the date picker flyout's up/down buttons (Fluent shows
+  them over a hovered column; the wheel, a click and the keys work);
+  dragging out of the lists outside Windows; Image history's video
+  thumbnails beyond what the shell gives; the photo editor (deferred).
+  The image viewer and the editor services run; what isn't ported logs.
+
+Ported since the windows (each built from source, no ShareX shot of the
+state):
+
+- Dragging the selected files out (`common::ListDrag`: armed by a left
+  press on an item, 5 px either way, the items' existing files, distinct
+  case-insensitively; `Effect::DragFiles` runs OLE's drag; the release
+  after it clicks nothing). On Windows only (`drag_out.rs`).
+- The History preview downloads a URL-only image (`UpdatePreviewAsync`'s
+  second source, `FileHelpers.IsImageFile(item.URL)`): a plain
+  `HttpClient` GET through `sharex_uploaders::http` (100 s timeout, a
+  failed status logged), cancelled when another item is selected; tested
+  against a 127.0.0.1 server. `--render` never downloads.
+- `RememberWindowState` in both windows (`window_state.rs`): the saved
+  client size and maximized state on open, the position when a screen
+  contains it, the normal bounds tracked as the window moves and resizes,
+  written back as Json.NET writes `HelpersLib.WindowState`.
+- The search boxes' process name suggestions (`common::Suggestions`,
+  `AutoCompleteBox` with `FilterMode="ContainsOrdinal"`): its drop-down as
+  Avalonia 12.1.6 lays it out with ShareX's theme (`tools/editor-harness
+  --control-dump autocomplete`: 374 max, 39 px items padded 12,9,12,12,
+  the overlay brushes, corners 5), Up/Down through the names with the box
+  showing each, Enter or a click to commit, Escape to put back what was
+  typed. `--render history --state suggestions --text <typed>`.
+- The advanced filters' DatePicker flyouts (`date_picker.rs`,
+  `DatePickerPresenter` from `--control-dump datepicker-presenter`:
+  296x398, 40 px items, the accent highlight at 0.6/0.4, the accept and
+  dismiss glyphs, opened 193.5 px up from the picker's bottom); day and
+  month loop. `--render history --state date-flyout`.
+- Stats: `UpdateHover` on the split bar (peak colour), calendar (the day
+  ringed) and hour chart (the column filled), each opening its
+  `HitTest` tooltip at once at the pointer (`TallyToolTip`,
+  `LongDateWithDay`, `HourSpan`); the `StatsRow` tooltips; Share renders
+  `SnapshotPanel` offscreen (the whole page, without the title's buttons)
+  and runs it as an image task (`ProcessName = "ShareX"`, the default task
+  settings). `--render stats --hover X,Y`.
+- Settings export/import, History.db included: the Application settings
+  window's (`settings_backup.rs`).
 - Culture details off Windows: on macOS/Linux the culture-aware comparisons
   (`OrderBy` of types and hosts, the URL/host/type filters, the Edit dialog's
   tag order) are simple case folding, not NLS; `char.IsLetterOrDigit` for

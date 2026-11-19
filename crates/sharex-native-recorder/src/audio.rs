@@ -1,10 +1,11 @@
 //! `Audio/WasapiCapture.cs` without the devices: what ShareX does with each
 //! captured packet (`Drain`: discontinuities, timestamp errors, silent
-//! packets, the endpoint's gain, into the [`AudioMixer`]) and the capture
-//! thread. Opening WASAPI endpoints (shared mode, loopback in a hidden
-//! session, 48 kHz stereo float with Windows' own conversion) waits for a
-//! desktop session: endpoints are [`AudioEndpoint`]s, and
-//! [`SyntheticEndpoint`] generates sound in their place.
+//! packets, the endpoint's gain, into the [`AudioMixer`]) and a capture
+//! thread over [`AudioEndpoint`]s. The WASAPI endpoints themselves (shared
+//! mode, loopback in a hidden session, 48 kHz stereo float with Windows'
+//! own conversion, the event-driven MMCSS thread) are
+//! `windows::wasapi`; [`SyntheticEndpoint`] generates sound in their place
+//! for tests.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -63,6 +64,12 @@ pub trait AudioEndpoint: Send {
 /// `WasapiCapture.Open`: the endpoints a recording asks for.
 pub trait AudioDevices: Send + Sync {
     fn open(&self, kind: AudioSourceKind, device_id: Option<&str>, gain: f32) -> Result<Box<dyn AudioEndpoint>, String>;
+    /// `new WasapiCapture(options, mixer)` when the devices run their own
+    /// capture thread (WASAPI's event-driven one); `None` (the default):
+    /// an [`EndpointCapture`] over [`Self::open`]'s endpoints.
+    fn capture(&self, _options: &RecordingOptions, _mixer: Arc<AudioMixer>, _time: Arc<dyn TimeSource>) -> Option<Result<Box<dyn AudioCapture>, String>> {
+        None
+    }
 }
 
 /// Per-endpoint state of `Drain`.

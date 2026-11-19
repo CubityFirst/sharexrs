@@ -214,7 +214,10 @@ impl<'a> Worker<'a> {
         if matches!(next, Next::Stop) {
             self.stop.stop();
         }
-        // `OnImageReady`: the task list shows the saved file.
+        // `OnImageReady`: the task list shows the image (and the saved file).
+        if let Some(image) = &self.image {
+            self.emit(TaskEvent::ImageReady { id: self.id, image: image.clone() });
+        }
         self.file_changed();
         if !self.stop_requested() {
             if !matches!(next, Next::Fail) && self.is_upload_job() && self.is_upload_allowed() {

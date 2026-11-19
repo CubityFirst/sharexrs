@@ -9,13 +9,13 @@
 //! runs [`run_ffmpeg_session`]; the finished file becomes a file task.
 //!
 //! ShareX's default recorder is its native one (`ScreenRecordUseNative`):
-//! on Windows it runs `sharex_native_recorder` (Media Foundation H.264/AAC
-//! or the adaptive GIF writer, `native.rs`), with FFmpeg grabbing the
-//! screen for it until Windows Graphics Capture is ported; its sound and
-//! camera wait for real WASAPI and camera capture. Elsewhere it falls back
-//! to the FFmpeg recorder, as before.
+//! on Windows it runs `sharex_native_recorder` (Windows Graphics Capture,
+//! WASAPI, the Media Foundation camera; Media Foundation H.264/AAC or the
+//! adaptive GIF writer, `native.rs`). Elsewhere it falls back to the
+//! FFmpeg recorder.
 
 pub mod bar;
+pub mod bar_sources;
 pub mod ffmpeg_options;
 pub mod frame;
 mod native;
@@ -255,7 +255,6 @@ impl App {
         if uses_native(&capture) {
             let kind = if output == ScreenRecordOutput::GIF { "Adaptive GIF" } else { "H.264/AAC MP4" };
             eprintln!("Starting native screen recording. {kind}, FPS: {}", prepared.fps);
-            eprintln!("Windows Graphics Capture isn't ported yet: FFmpeg grabs the screen for the native recorder.");
         } else {
             if capture.ScreenRecordUseNative {
                 eprintln!("ShareX's native screen recorder is Windows only: recording with FFmpeg instead.");
@@ -497,7 +496,7 @@ impl App {
         }
         let Some(r) = self.recording.as_mut() else { return };
         let spawned = if uses_native(&prepared.capture) {
-            let session = native::session(prepared, r.output == ScreenRecordOutput::GIF);
+            let session = native::session(prepared, r.output == ScreenRecordOutput::GIF, r.capture_window);
             std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
                 let mut hooks = hooks;
                 let path = native::run(session, control, &mut hooks);
@@ -746,12 +745,18 @@ impl App {
         let Some(Phase::Bar(bar)) = self.recording.as_mut().map(|r| &mut r.phase) else { return };
         match action {
             BarAction::Record => {
-                // `RequestRecord`: an active window recording records the
-                // window where it is now, if it's still there.
+                // `RequestRecord`: the sources refreshed and checked, then an
+                // active window recording records the window where it is
+                // now, if it's still there (clipped to the desktop for FFmpeg).
+                if !bar.bar.check_sources() {
+                    bar.refresh();
+                    return;
+                }
                 if capture_window != 0 {
                     let screens = sharex_capture::screenshot::screens();
                     let bounds = sharex_capture::screenshot::screen_bounds(&screens);
-                    let rect = sharex_capture::platform::window_rect(capture_window).intersect(&bounds);
+                    let window = sharex_capture::platform::window_rect(capture_window);
+                    let rect = if bar.bar.is_native() { window } else { window.intersect(&bounds) };
                     let visible = sharex_capture::platform::is_window_visible(capture_window);
                     if !visible || sharex_capture::platform::is_minimized(capture_window) || rect.w <= 0 || rect.h <= 0 {
                         bar.bar.show_error(s::ScreenRecorderBar_TargetUnavailable());
@@ -1119,7 +1124,8 @@ impl BarWindow {
             })
             .ok_or("no monitors found")?;
         let work = screen.work_area;
-        let window = overlay_window(event_loop, OverlayKind::Bar, (work.x, work.y), (work.w, work.h), true)?;
+        let native = uses_native(&capture);
+        let window = overlay_window(event_loop, OverlayKind::Bar { native }, (work.x, work.y), (work.w, work.h), true)?;
         let w = EguiWindow::transparent(window, gpu)?;
         crate::set_theme(&w, theme);
         let mut me = Self {
@@ -1127,7 +1133,11 @@ impl BarWindow {
             outline,
             outline_geometry: og,
             work,
-            bar: Bar::new(capture, gif),
+            bar: {
+                let mut bar = Bar::new(capture, gif, native, bar_sources::system_devices());
+                bar.region = (region.w, region.h);
+                bar
+            },
             at: (work.x, work.y),
             placed: false,
             region,
@@ -1218,7 +1228,7 @@ impl BarWindow {
 /// Which of the recording's windows.
 enum OverlayKind {
     Frame,
-    Bar,
+    Bar { native: bool },
     Outline,
 }
 
@@ -1226,7 +1236,7 @@ enum OverlayKind {
 fn overlay_window(event_loop: &ActiveEventLoop, kind: OverlayKind, at: (i32, i32), size: (i32, i32), active: bool) -> Result<winit::window::Window, String> {
     let title = match kind {
         OverlayKind::Frame => sharex_strings::screen_capture_lib::ScreenRecordWindow_Title(),
-        OverlayKind::Bar => Bar::title(),
+        OverlayKind::Bar { native } => Bar::title_for(native),
         OverlayKind::Outline => sharex_strings::screen_capture_lib::ScrollingCaptureWindow_Title(),
     };
     #[allow(unused_mut)]
@@ -1336,7 +1346,31 @@ pub fn render(screen: &str, dark: bool, o: &RenderOptions) -> Result<image::Rgba
         "recorder-bar" => {
             let c = o.content.as_str();
             let capture = TaskSettingsCapture { ScreenRecordShowButtonLabels: c.contains("labels"), ..Default::default() };
-            let mut bar = Bar::new(capture, c.contains("gif"));
+            // `--content native...`: the native recorder's bar, with made-up
+            // devices (no real device is listed); `nodevices`: none.
+            let lister: bar_sources::DeviceLister = if c.contains("nodevices") {
+                Box::new(|_| Ok((Vec::new(), None)))
+            } else {
+                Box::new(|kind| {
+                    let d = |id: &str, name: &str| bar_sources::DeviceChoice { id: id.into(), name: name.into() };
+                    Ok(match kind {
+                        bar_sources::SourceKind::SystemAudio => (vec![d("{out-1}", "Speakers (Example Audio)")], Some("Speakers (Example Audio)".into())),
+                        bar_sources::SourceKind::Microphone => (vec![d("{in-1}", "Microphone (Example Audio)")], Some("Microphone (Example Audio)".into())),
+                        bar_sources::SourceKind::Camera => (vec![d(r"\\?\example#camera", "Example Camera")], None),
+                    })
+                })
+            };
+            let capture = TaskSettingsCapture {
+                ScreenRecordSystemAudio: c.contains("audio"),
+                ScreenRecordMicrophone: c.contains("mic"),
+                ScreenRecordCamera: c.contains("camera"),
+                ..capture
+            };
+            let mut bar = Bar::new(capture, c.contains("gif"), c.contains("native"), lister);
+            bar.region = (1280, 720);
+            if let Some(i) = ["panel-system", "panel-mic", "panel-camera"].iter().position(|k| c.contains(k)) {
+                bar.open_source_panel(i, c.contains("capture-tab"));
+            }
             if c.starts_with("options") {
                 bar.open_options(c.contains("bar"));
             }

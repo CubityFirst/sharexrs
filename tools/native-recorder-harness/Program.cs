@@ -54,6 +54,33 @@ static unsafe class Program
             File.WriteAllBytes(Path.Combine(outDir, name + ".pcm"), MixerCase(c));
             Console.WriteLine($"{name}: ok");
         }
+        foreach (JObject c in cases["drain"] ?? new JArray())
+        {
+            string name = (string)c["name"];
+            if (only != null && name != only) continue;
+            object mixer = New("Audio.AudioMixer", Clock());
+            var read = Bind<MixerReadFn>(mixer, "Read");
+            var pcm = new MemoryStream();
+            short[] block = new short[960];
+            long first = 0;
+            void Out(short[] b, int n, long _) { foreach (short v in b.AsSpan(0, n)) pcm.Write(BitConverter.GetBytes(v)); }
+            int discontinuities = Hardware.Drain(c, mixer, (until, partial) => WriteAudioUntil(read, block, ref first, until, partial, Out));
+            File.WriteAllBytes(Path.Combine(outDir, name + ".pcm"), pcm.ToArray());
+            File.WriteAllText(Path.Combine(outDir, name + ".json"), new JObject { ["discontinuities"] = discontinuities }.ToString(Formatting.Indented));
+            Console.WriteLine($"{name}: ok");
+        }
+        foreach (JObject c in cases["hdr"] ?? new JArray())
+        {
+            string name = (string)c["name"];
+            if (only != null && name != only) continue;
+            File.WriteAllBytes(Path.Combine(outDir, name + ".bgra"), Hardware.Hdr(c));
+            Console.WriteLine($"{name}: ok");
+        }
+        if (only == null || only == "devices")
+        {
+            File.WriteAllText(Path.Combine(outDir, "devices.json"), Hardware.Devices().ToString(Formatting.Indented));
+            Console.WriteLine("devices: ok");
+        }
         foreach (string kind in new[] { "gif", "mp4" })
             foreach (JObject c in cases[kind])
             {
