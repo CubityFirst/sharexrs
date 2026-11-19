@@ -25,6 +25,8 @@ for file-only checks. A dash marks a check with no desktop execution.
 ## App windows
 
 Checks from [APP-WINDOWS.md](APP-WINDOWS.md#live-checks-for-the-desktop-agent).
+The exclusions also cover the additional cases on local `master` at
+`48ca3d1`. The tested ShareXrs executable is still `72045af`.
 
 | ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
 |---|---|---|---|---|---|---|---|
@@ -41,6 +43,9 @@ Checks from [APP-WINDOWS.md](APP-WINDOWS.md#live-checks-for-the-desktop-agent).
 | APP-13a | App windows | 96 (100%) | Run `-ToggleActionsToolbar` with no saved position, start a drag at client `26,19`, move `-160,-80` in 12 steps with `scripts/input.ps1`, then middle-click the title. | Opened flush with the bottom right of the work area. Moved `-160,-80`, saved `611, 600` and closed on middle click. | Opened at the same work-area anchor and closed on middle click. Moved `-147,-73` and saved `614, 607`. | FAIL | `app-toolbar-first-dark.png` and `app-toolbar-dragged-dark.png` under both `SX` and `RS`. Persisted field `ActionsToolbarPosition`. |
 | APP-13b | App windows | — | Drop a file on the Actions toolbar. | Skipped. The drop uploads the file. | Skipped for the same reason. | BLOCKED | [APP-WINDOWS.md](APP-WINDOWS.md#live-checks-for-the-desktop-agent) |
 | APP-14 | App windows | 120 (125%) | Configure FFmpeg recording with the local command `-nostdin -sharex-live-invalid-ffmpeg-option`. Record the generated region with audio disabled. | Opens FFmpeg error with the unrecognized option and stderr. | Opens the same Output box with the same error. | PASS | `app-ffmpeg-error-dark.png` under `SX` and `RS`. |
+| APP-26b | App windows | — | Use Ctrl+U to upload a file task, Ctrl+D to download a URL task, and Open URL with the default browser. | Skipped. The specified actions reach an upload provider or a URL. | Skipped for the same reason. | BLOCKED | `48ca3d1:docs/APP-WINDOWS.md`, item 26. |
+| APP-27 | App windows | — | Confirm or cancel Delete remotely on an S3-backed task. | Skipped. No permitted provider or 127.0.0.1 mock was used. | Skipped for the same reason. | BLOCKED | `48ca3d1:docs/APP-WINDOWS.md`, item 27. |
+| APP-29 | App windows | — | Tray › Restart as administrator. | Skipped. UAC. | Skipped. UAC. | BLOCKED | `48ca3d1:docs/APP-WINDOWS.md`, item 29. |
 
 ## Video tools
 
@@ -88,7 +93,7 @@ Checks from [SCREEN-RECORDING.md](SCREEN-RECORDING.md).
 | REC-02 | Screen recording | 120 (125%) | Leave `record-test.mp4` from REC-01 in the output folder. Set File exists to Overwrite and use APP-14's deliberately invalid FFmpeg command. Inspect History after the error. | Shows the error, removes the previous output, and keeps the seeded 60 History rows. | Shows the error, leaves the previous MP4 unchanged and adds History row 61 for it. | FAIL | `app-ffmpeg-error-dark.png` under both directories. SQL diff `+ (61, 'record-test.mp4', 'File')` in ShareXrs. The retained MP4 has the REC-01 SHA-256. |
 | REC-04 | Screen recording | — | Actual WASAPI loopback, microphone device selection and low-latency capture, mixes and meters. | Skipped. Needs real audio input or recording. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
 | REC-05 | Screen recording | — | Capture a camera in the native recorder, device and mode selection, overlay, encoder and composition fallbacks. | Skipped. Needs a camera. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
-| REC-06 | Screen recording | — | Download FFmpeg. | Skipped. Requires a network download. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#finding-ffmpeg) |
+| REC-06 | Screen recording | — | FFmpeg missing › Yes. Check the downloader's progress, Cancel and extraction of `ffmpeg.exe`. | Skipped. Requires a network download. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#finding-ffmpeg) and item 28 of `48ca3d1:docs/APP-WINDOWS.md`. |
 
 ## Scrolling capture
 
