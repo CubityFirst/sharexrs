@@ -40,6 +40,19 @@ struct Tally {
     same: usize,
     total: usize,
     failures: Vec<String>,
+    /// Results of Windows' own tone mapper (WIC) that differ on a Windows
+    /// build other than the fixtures' (reported, not failures).
+    os_differences: Vec<String>,
+    /// This Windows is the build the fixtures were recorded on.
+    same_windows: bool,
+}
+
+/// The Windows build number (`ver`), e.g. 26300.
+fn windows_build() -> Option<String> {
+    let out = std::process::Command::new("cmd").args(["/c", "ver"]).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let version = text.split("Version ").nth(1)?;
+    version.trim().trim_end_matches(']').split('.').nth(2).map(str::to_owned)
 }
 
 impl Tally {
@@ -58,6 +71,20 @@ impl Tally {
         });
     }
 
+    /// [`Self::check`] for an output of Windows' WIC tone mapper: exact on
+    /// the fixtures' Windows build, reported elsewhere (CI's runners have
+    /// another build, whose tone mapper rounds some pixels differently).
+    fn check_os(&mut self, dir: &Path, name: &str, what: &str, ours: Vec<u8>) {
+        if self.same_windows {
+            return self.check(dir, name, what, ours);
+        }
+        let theirs = std::fs::read(dir.join(format!("{name}.{what}"))).unwrap();
+        if ours != theirs {
+            let diff = ours.iter().zip(&theirs).filter(|(a, b)| a != b).count();
+            self.os_differences.push(format!("{name}.{what}: {diff} bytes differ"));
+        }
+    }
+
     fn outcome(&mut self, ok: bool, why: impl FnOnce() -> String) {
         self.total += 1;
         if ok {
@@ -72,7 +99,8 @@ impl Tally {
 fn hdr_correction_as_sharex() {
     let dir = dir();
     let cases: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("cases.json")).unwrap()).unwrap();
-    let mut t = Tally::default();
+    let fixtures_build = std::fs::read_to_string(dir.join("wic-windows-build.txt")).unwrap();
+    let mut t = Tally { same_windows: windows_build().as_deref() == Some(fixtures_build.trim()), ..Tally::default() };
     for c in cases.as_array().unwrap() {
         let name = c["Name"].as_str().unwrap();
         let (w, h) = (c["Width"].as_u64().unwrap() as u32, c["Height"].as_u64().unwrap() as u32);
@@ -105,11 +133,16 @@ fn hdr_correction_as_sharex() {
         let sharex_wic_failed = dir.join(format!("{name}.wic.error.txt")).exists();
         match wic_tone_map(&frame) {
             Ok(mut img) => {
-                t.check(&dir, name, "wic", bgra(&img));
+                t.check_os(&dir, name, "wic", bgra(&img));
                 hdr::rotate_output_premultiplied(&mut img, color.rotation);
-                t.check(&dir, name, "wicrot", bgra(&img));
+                t.check_os(&dir, name, "wicrot", bgra(&img));
             }
-            Err(e) => t.outcome(sharex_wic_failed, || format!("{name}.wic: ShareXrs's tone mapper failed ({e}), ShareX's didn't")),
+            Err(e) if t.same_windows => t.outcome(sharex_wic_failed, || format!("{name}.wic: ShareXrs's tone mapper failed ({e}), ShareX's didn't")),
+            Err(e) => {
+                if !sharex_wic_failed {
+                    t.os_differences.push(format!("{name}.wic: this Windows's tone mapper failed ({e}), ShareX's didn't"));
+                }
+            }
         }
 
         for (what, tone_mapper) in [("final", true), ("fallback", false)] {
@@ -124,10 +157,23 @@ fn hdr_correction_as_sharex() {
                 hdr::copy_output_intersection(&mut destination, capture, o, color.bounds);
             }
             t.outcome(output.is_none() == sharex_null, || format!("{name}.{what}: CaptureOutput's result differs in being null"));
-            t.check(&dir, name, what, bgra(&destination));
+            if tone_mapper {
+                t.check_os(&dir, name, what, bgra(&destination));
+            } else {
+                t.check(&dir, name, what, bgra(&destination));
+            }
         }
     }
     eprintln!("HDR harness: {}/{} identical", t.same, t.total);
+    if !t.os_differences.is_empty() {
+        eprintln!(
+            "Windows' tone mapper (WIC) on this build differs from the fixtures' build ({}):
+{}",
+            fixtures_build.trim(),
+            t.os_differences.join("
+")
+        );
+    }
     assert!(t.failures.is_empty(), "{}/{} identical:
 {}", t.same, t.total, t.failures.join("
 "));
