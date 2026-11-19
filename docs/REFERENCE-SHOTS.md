@@ -201,3 +201,18 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/app/`. Each PNG has 
 | `ffmpeg-output` | — | No forced failure capture in this batch. |
 | `update-message` | — | Skipped. Requires a release lookup or a separately scoped synthetic view fixture. |
 | `update-downloader` | — | Skipped. Requires download state or a separately scoped synthetic view fixture. |
+
+### Tools · Video · tools-video
+
+6 of 6 rows have new references. 42 PNGs and 42 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/tools-video/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `gif-maker` | `gif-maker-empty-dark.png`, `gif-maker-empty-light.png`, `gif-maker-frames-dark.png`, `gif-maker-frames-light.png` | Input and export use the fixture picker. Unrecorded states include the disabled/selected row variations and repeat-count interaction. |
+| `gif-trimmer` | `gif-trimmer-empty-dark.png`, `gif-trimmer-empty-light.png`, `gif-trimmer-invalid-dark.png`, `gif-trimmer-invalid-light.png`, `gif-trimmer-loaded-dark.png`, `gif-trimmer-loaded-light.png`, `gif-trimmer-trimmed-dark.png`, `gif-trimmer-trimmed-light.png` | Local GIF only. Remaining timeline, crop, sizing, and export states were not exercised. |
+| `video-converter` | `video-converter-codec-menu-dark.png`, `video-converter-codec-menu-light.png`, `video-converter-empty-dark.png`, `video-converter-empty-light.png`, `video-converter-input-dark.png`, `video-converter-input-light.png`, `video-converter-result-dark.png`, `video-converter-result-light.png` | Fixture media and local FFmpeg only. Rate control is not exposed as a second enabled combo on the tested layout. Other codec, interruption and warning variants remain. |
+| `video-player` | `video-player-empty-dark.png`, `video-player-empty-light.png`, `video-player-paused-dark.png`, `video-player-paused-light.png` | Fixture MP4 only. Fullscreen and timed seek/control variants remain. |
+| `video-thumbnailer` | `video-thumbnailer-empty-dark.png`, `video-thumbnailer-empty-light.png`, `video-thumbnailer-format-menu-dark.png`, `video-thumbnailer-format-menu-light.png`, `video-thumbnailer-input-dark.png`, `video-thumbnailer-input-light.png`, `video-thumbnailer-output-location-menu-dark.png`, `video-thumbnailer-output-location-menu-light.png` | Local settings and fixture media only. Export/progress variants remain. |
+| `video-trimmer` | `video-trimmer-empty-dark.png`, `video-trimmer-empty-light.png`, `video-trimmer-invalid-dark.png`, `video-trimmer-invalid-light.png`, `video-trimmer-paused-dark.png`, `video-trimmer-paused-light.png`, `video-trimmer-reencode-dark.png`, `video-trimmer-reencode-light.png`, `video-trimmer-trimmed-copy-dark.png`, `video-trimmer-trimmed-copy-light.png` | Fixture media. Some Media Foundation surface and export/timeline variants were not exercised. |
