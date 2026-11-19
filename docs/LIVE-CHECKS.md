@@ -93,3 +93,16 @@ Checks from [HISTORY.md](HISTORY.md#validation-of-the-windows) and commits
 | HIS-02a | History | Open Image history with `MaxItemCount=6`, `AutoLoadMoreItems=false` and the 60-row fixture. | Initial six images, ordered newest first, items 60 to 55. | Same six items and order. | PASS | `local-image-history-dark.png` under `SX` and `RS`. |
 | HIS-03 | History | Open Stats on the same fixture. | Total 60, all images, busiest day November 1, busiest hour 09:00–10:00. | Same counts and bins. | PASS | `local-stats-dark.png` under `SX` and `RS`. |
 | HIS-04 | History | Remote URL image preview and Stats Share. | Skipped. Requires download or upload. | Skipped for the same reason. | BLOCKED | [HISTORY.md](HISTORY.md#validation-of-the-windows) |
+
+## Settings windows
+
+Checks from [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#live-checks-for-the-desktop-agent).
+
+| ID | Area | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|
+| SET-01a | Settings windows | Application settings › Settings. Uncheck Settings and History. | Export becomes disabled. | Export becomes disabled. | PASS | `settings-export-disabled-dark.png` under `SX` and `RS`. |
+| SET-01b | Settings windows | Export the selected settings/history to scratch and inspect the archive. | Export ShareX backup opened. The file-picker automation opened Confirm Save As without verifying the target. Cancelled the confirmation and closed the picker. | No paired archive was collected. | BLOCKED | Two verified picker attempts on the disposable reference failed to produce a file at the intended scratch path. No replacement was confirmed. |
+| SET-03a | Settings windows | In Settings, choose Reset settings and then No. | Dialog closed. Theme stayed Dark and `AutoCheckUpdate=false` remained. | Same outcome and retained values. | PASS | `settings-reset-confirm-dark.png` under `SX` and `RS`. |
+| SET-03b | Settings windows | Choose Yes and check the reset, theme and hotkey reload. | Skipped. Reset reloads defaults with automatic update checks enabled. | Skipped for the same reason. | BLOCKED | [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#export-import-reset) |
+| SET-04a | Settings windows | At 125% open Application settings › Paths and click inside the first Sub folder pattern box where it shows `%y-%mo`. | Opens the variable menu next to the field on focus. | The same click focuses the box with no variable menu visible. | FAIL | `SX/settings-path-focus-dark.png`, `SX/settings-path-focus-popup-dark.png`, `RS/settings-path-focus-dark.png`. |
+| SET-09 | Settings windows | Toggle each Integration checkbox and exercise Send To. | Skipped. Writes real registry or shell integration. | Skipped for the same reason. | BLOCKED | [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#live-checks-for-the-desktop-agent) |
