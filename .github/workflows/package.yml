@@ -84,7 +84,7 @@ jobs:
             pkg-config clang libclang-dev libpipewire-0.3-dev libspa-0.2-dev \
             libgbm-dev libdrm-dev libegl-dev libwayland-dev libxkbcommon-dev \
             libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
-            libdbus-1-dev libssl-dev
+            libdbus-1-dev libssl-dev libasound2-dev
 
       # The version in rust-toolchain.toml, as CI.
       - uses: dtolnay/rust-toolchain@master

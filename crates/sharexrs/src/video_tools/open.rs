@@ -7,7 +7,7 @@
 use sharex_settings::{HotkeyType, TaskSettings};
 use winit::event_loop::ActiveEventLoop;
 
-use super::{converter, gif_maker, gif_trimmer, thumbnailer};
+use super::{converter, gif_maker, gif_trimmer, player, thumbnailer};
 use crate::App;
 use crate::dialogs::Dialog;
 
@@ -33,6 +33,8 @@ impl App {
             "MainMenuBuilder_AnimatedGifMaker" => Box::new(gif_maker::AnimatedGifMakerWindow::default()),
             // `OpenAnimatedGifTrimmer(filePath, taskSettings)`.
             "MainMenuBuilder_AnimatedGifTrimmer" => Box::new(gif_trimmer::AnimatedGifTrimmerWindow::new(task, file)),
+            // `OpenVideoPlayer(inputFilePath)`.
+            "MainMenuBuilder_VideoPlayer" => Box::new(player::VideoPlayerWindow::new(super::playback_ffmpeg(&task), file)),
             // `OpenVideoConverter(taskSettings)` / `(filePath, taskSettings)`:
             // FFmpeg checked first.
             "MainMenuBuilder_VideoConverter" => {

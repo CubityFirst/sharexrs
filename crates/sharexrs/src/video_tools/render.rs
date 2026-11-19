@@ -18,17 +18,21 @@
 //!   `exporting` (at `--count` percent), `saved` (written to `--text`),
 //!   `invalid`; `--select N` steps to frame N).
 //!
+//! - `video-player` (`--image <video>`, `--state paused` (at `--count`
+//!   seconds), `controls-hidden`, `muted`, `invalid`; the controls shown
+//!   unless hidden).
+//!
 //! Previews are made at once, on the drawing thread.
 
 use sharex_settings::TaskSettings;
 use sharex_tools::video::converter::Codec;
 
-use super::{converter, gif_maker, gif_trimmer, thumbnailer};
+use super::{converter, gif_maker, gif_trimmer, player, thumbnailer};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "gif-maker" | "gif-trimmer" | "video-converter" | "video-thumbnailer")
+    matches!(name, "gif-maker" | "gif-trimmer" | "video-converter" | "video-player" | "video-thumbnailer")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -111,6 +115,27 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 w.poll(&egui::Context::default());
             }
             w.render_state(state, o.select.first().copied(), o.count as f64, o.text.as_deref())?;
+            Box::new(w)
+        }
+        "video-player" => {
+            let mut w = player::VideoPlayerWindow::new(ffmpeg_path(), None);
+            w.player.sync = true;
+            w.force_controls = Some(state != "controls-hidden");
+            if let Some(p) = &o.image {
+                w.load_input(&p.to_string_lossy());
+                w.poll(&egui::Context::default());
+                // Paused where the shot is (`--count` seconds).
+                w.player.pause();
+                if o.count > 0 {
+                    w.player.seek(o.count as f64);
+                }
+                w.position = w.player.position();
+            }
+            match state {
+                "" | "empty" | "paused" | "controls-hidden" | "invalid" | "seek-pressed" | "fullscreen-controls" => {}
+                "muted" => w.muted = true,
+                other => return Err(format!("no video-player state {other}")),
+            }
             Box::new(w)
         }
         other => return Err(format!("no video tool window {other}")),

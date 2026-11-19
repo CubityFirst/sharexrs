@@ -209,6 +209,8 @@ pub enum Effect {
     /// `MessageBox.Show(owner, text, caption, OK, icon)`: a message that
     /// only needs reading.
     MessageBox(Box<crate::message_box::MessageBox>),
+    /// `WindowState = WindowState.FullScreen` (true) or back.
+    SetFullscreen(bool),
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -631,6 +633,11 @@ impl App {
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
+                Effect::SetFullscreen(on) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        d.window.window.set_fullscreen(on.then_some(winit::window::Fullscreen::Borderless(None)));
+                    }
+                }
                 Effect::MessageBox(message) => {
                     if let Err(e) = self.open_dialog(event_loop, *message, crate::DialogPurpose::Information) {
                         eprintln!("couldn't open the message box: {e}");

@@ -7,7 +7,9 @@
 pub mod converter;
 pub mod gif_maker;
 pub mod gif_trimmer;
+pub mod media;
 pub mod open;
+pub mod player;
 pub mod render;
 pub mod thumbnailer;
 pub mod timeline;
@@ -15,6 +17,17 @@ pub mod timeline;
 use egui::{Color32, Rect, Ui, pos2};
 
 use crate::image_tools::Picture;
+
+/// The video types the player's and trimmer's Open offer.
+pub const VIDEO_PATTERNS: [&str; 10] = ["mp4", "mkv", "webm", "mov", "avi", "m4v", "wmv", "ts", "mts", "m2ts"];
+
+/// FFmpeg for playback: where the task's settings say, else the usual
+/// places (`resolve_ffmpeg`), without ShareX's missing-FFmpeg message
+/// (ShareX plays through Media Foundation, which needs no FFmpeg).
+pub fn playback_ffmpeg(task: &sharex_settings::TaskSettings) -> Option<std::path::PathBuf> {
+    let capture = task.CaptureSettings.clone().unwrap_or_default();
+    sharex_screen_recording::discovery::resolve_ffmpeg(&capture.FFmpegOptions).ok()
+}
 
 /// `SaveFilePickerAsync` with a suggested name, start folder and one file
 /// type (`ShowOverwritePrompt`).
