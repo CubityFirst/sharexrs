@@ -637,7 +637,10 @@ impl Dialog for PinOptionsWindow {
         if self.o.border {
             sharex_ui::tooltip::show(ui, border_anchor, Id::new("pin-border-color-tip"), s::PinToScreenOptionsWindow_Border_color());
         }
+        // The click that opens a flyout isn't a press outside it.
+        let mut just_opened = false;
         if color_button(ui, border_anchor, "pin-border-color", &self.o.border_color, self.o.border) {
+            just_opened = self.picking != Some(0);
             self.picking = Some(0);
         }
         y += 50.0;
@@ -646,6 +649,7 @@ impl Dialog for PinOptionsWindow {
         let bg_anchor = Rect::from_min_size(pos2(rr.max.x - 40.0, rr.min.y), vec2(40.0, 40.0));
         sharex_ui::tooltip::show(ui, bg_anchor, Id::new("pin-bg-color-tip"), s::PinToScreenOptionsWindow_Background_color());
         if color_button(ui, bg_anchor, "pin-bg-color", &self.o.background_color, true) {
+            just_opened = self.picking != Some(1);
             self.picking = Some(1);
         }
         let prev_top = app_panel.max.y + 12.0;
@@ -697,7 +701,7 @@ impl Dialog for PinOptionsWindow {
             let mut rgba = [target.r, target.g, target.b, target.a];
             let anchor = if which == 0 { Rect::from_min_size(pos2(c.max.x - 53.0, c.min.y + 13.0 + lh + 10.0 + 126.0), vec2(40.0, 40.0)) } else { bg_anchor };
             // `<Flyout><cp:ColorView/></Flyout>`: the view's defaults (alpha on).
-            let (changed, keep) = controls::color_popup_styled(ui, Id::new(("pin-color", which)), anchor, &mut rgba, false, controls::ColorPopup::Flyout { alpha: true, size: None });
+            let (changed, keep) = controls::color_popup_styled(ui, Id::new(("pin-color", which)), anchor, &mut rgba, just_opened, controls::ColorPopup::Flyout { alpha: true, size: None });
             if changed {
                 let [r, g, b, a] = rgba;
                 *target = sharex_tools::color::Color::argb(a, r, g, b);

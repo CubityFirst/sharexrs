@@ -342,6 +342,8 @@ impl OptionsPanel {
         let pos = pos2(anchor.min.x, anchor.max.y + 4.0);
         let mut stop_color: Option<(usize, Rect)> = None;
         let area = egui::Area::new(Id::new(("gradient-flyout", name))).order(egui::Order::Foreground).fixed_pos(pos).fade_in(false).show(ui.ctx(), |ui| {
+            // A `Flyout`: a press outside closes it and goes no further.
+            sharex_ui::popup::light_dismiss_overlay(ui);
             let (rect, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::click());
             // `FlyoutPresenter` (transient border, 5px corners) and the
             // panel's `MenuFlyoutPresenterBackground`.
@@ -426,11 +428,12 @@ impl OptionsPanel {
         }
         let ctx = ui.ctx();
         let mut keep = !ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        // Its button's press too: the overlay takes it, so the button
+        // doesn't toggle.
         if !just_opened
             && ctx.input(|i| i.pointer.any_pressed())
             && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())
             && !area.response.rect.contains(pos)
-            && !anchor.contains(pos)
         {
             keep = false;
         }

@@ -121,6 +121,32 @@ pub fn escape_pressed(ctx: &Context) -> bool {
     ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !was_open(ctx)
 }
 
+/// Avalonia's `LightDismissOverlayLayer` for a popup with
+/// `IsLightDismissEnabled` and `OverlayDismissEventPassThrough` off (the
+/// default: ShareX's dropdowns, Fluent's `ComboBox`, `Flyout`s): while the
+/// popup is open, an invisible element over the whole owner window takes
+/// the pointer, so the press that dismisses it (`PointerPressedDismissOverlay`)
+/// never reaches the control under it, and nothing under it is
+/// `:pointerover`. A `ContextMenu` passes the press through and doesn't
+/// call this.
+///
+/// Call it first in the popup's area: a widget covering everything at the
+/// bottom of the popup's layer. egui's hit test then leaves the layers
+/// below out (the overlay covers the pointer's search area), while the
+/// popup's own widgets, registered after it in its layer, stay on top. It
+/// takes the pointer from the next frame on (egui hit-tests last frame's
+/// widgets), which is the press after the one that opened the popup.
+/// Code under the popup that reads the raw pointer (not a `Response`)
+/// isn't covered.
+pub fn light_dismiss_overlay(ui: &mut egui::Ui) {
+    let everything = Rect::from_min_max(pos2(-1.0e6, -1.0e6), pos2(1.0e6, 1.0e6));
+    let mut overlay = ui.new_child(egui::UiBuilder::new().max_rect(everything));
+    overlay.set_clip_rect(everything);
+    // Clicks only: not focusable (Tab never reaches it), and a drag inside
+    // the popup still goes to the popup's own drag widgets.
+    overlay.interact(everything, ui.id().with("light-dismiss-overlay"), egui::Sense::CLICK);
+}
+
 /// The popups drawn this frame (the host, after the frame's UI).
 pub fn take(ctx: &Context) -> Vec<PopupLayer> {
     ctx.data_mut(|d| std::mem::take(&mut d.get_temp_mut_or_default::<Frame>(key()).layers))
@@ -473,7 +499,49 @@ mod tests {
         assert!(was_open(&ctx));
     }
 
-    const PRIMARY: ScreenInfo = ScreenInfo { bounds: PxRect::new(0.0, 0.0, 1920.0, 1080.0), working_area: PxRect::new(0.0, 0.0, 1920.0, 1040.0) };
+    /// REG5-04b: with a light-dismiss popup open, a click outside it never
+    /// reaches the widget under it (nor hovers it); the popup's own widgets
+    /// still get theirs; with no popup the same click goes through.
+    #[test]
+    fn the_light_dismiss_overlay_takes_presses_outside_the_popup() {
+        let ctx = Context::default();
+        let below = Rect::from_min_size(pos2(10.0, 10.0), vec2(100.0, 40.0));
+        let inside = Rect::from_min_size(pos2(300.0, 300.0), vec2(80.0, 40.0));
+        let mut t = 0.0;
+        // Clicks on (below, inside), and whether `below` was hovered.
+        let mut run = |at: Pos2, open: bool| {
+            let mut got = (false, false, false);
+            // Two frames first: an area's first frame is egui's sizing
+            // pass, and the hit test uses the frame before's widgets.
+            for step in 0..5 {
+                let mut events = if step < 2 { Vec::new() } else { vec![egui::Event::PointerMoved(at)] };
+                if step == 3 || step == 4 {
+                    events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: step == 3, modifiers: Default::default() });
+                }
+                t += 1.0 / 60.0;
+                let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(t), events, ..Default::default() };
+                let mut out = ctx.run_ui(input, |ui| {
+                    let r = ui.interact(below, Id::new("below"), egui::Sense::click());
+                    got.0 |= r.clicked() || r.is_pointer_button_down_on();
+                    got.2 |= r.hovered();
+                    if open {
+                        egui::Area::new(Id::new("popup")).order(Order::Foreground).fixed_pos(inside.min).show(ui.ctx(), |ui| {
+                            light_dismiss_overlay(ui);
+                            let (_, r) = ui.allocate_exact_size(inside.size(), egui::Sense::click());
+                            got.1 |= r.clicked();
+                        });
+                    }
+                });
+                out.textures_delta.clear();
+            }
+            got
+        };
+        assert_eq!(run(below.center(), true), (false, false, false), "taken by the overlay");
+        assert_eq!(run(inside.center(), true), (false, true, false), "the popup's own");
+        assert_eq!(run(below.center(), false), (true, false, true), "no popup: through");
+    }
+
+    const PRIMARY: ScreenInfo =ScreenInfo { bounds: PxRect::new(0.0, 0.0, 1920.0, 1080.0), working_area: PxRect::new(0.0, 0.0, 1920.0, 1040.0) };
     const RIGHT: ScreenInfo = ScreenInfo { bounds: PxRect::new(1920.0, 0.0, 1280.0, 1024.0), working_area: PxRect::new(1920.0, 0.0, 1280.0, 984.0) };
 
     fn submenu(item: Rect, size: Vec2) -> Request {

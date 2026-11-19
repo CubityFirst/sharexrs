@@ -736,3 +736,61 @@ The test processes, scratch profiles and profile backup were removed.
 The clipboard reported zero formats. The display and work-area bounds
 matched the pre-test measurements. The offline build and macOS Clippy
 check completed.
+
+## Fixes for pass 5 (branch `fix/live-checks-5`)
+
+Fixed headlessly with unit tests, `--render` (a new `--render image-editor
+--state option:<tool>:<item>` opens an option's dropdown) and Avalonia's
+decompiled sources (`ListBoxItem`, `ItemSelectionEventTriggers`, `Popup`,
+`LightDismissOverlayLayer`, `ContextMenu`, `PopupFlyoutBase`,
+`PopupPositionerExtensions`). Pass 5 ran on `a5e4b3d`, before this branch,
+so every row needs a live re-check on a build of it.
+
+| ID | Cause | Fix | Re-check |
+|---|---|---|---|
+| HIL2-02b | The palette took a click only when it changed the colour, and drew its selection from the colour. The fill's default `#00FFFFFF` is the palette's `Transparent`, so the click changed nothing and the cell showed only its hover outline. | `6a706ff`: Avalonia's `ListBoxItem` selects on a mouse button's press (`ItemSelectionEventTriggers`: left or right, `PointerPressed` for a mouse), and the selection is its own state. The pressed cell is now selected on the press, whether or not the colour changes, until another cell or colour is chosen. A test presses `Transparent` on the fill's default and moves away. | Rectangle's Fill colour: the Transparent cell's press selects it, and the outline stays with the pointer elsewhere in the popup. Also: another cell moves the selection and the colour. |
+| REG4-02f | `OnPopupOpened` sets the text and posts `Focus()` and `SelectAll()`. The port asked for the focus after drawing the box, so it showed a caret. On a popup's first showing the request also fell in egui's sizing pass, an invisible, disabled frame whose focus request is dropped. | `d96fa4b`: the box is focused and fully selected on the popup's first drawn frame. The font family search box takes its focus the same way. From the same control: the text is centred (`HorizontalContentAlignment="Center"`), and Enter applies `TryParseFontSize` (optional `pt`, 1 to 1000, one decimal). Enter never applied before: egui's single-line edit gives up the focus on Enter. An invalid entry goes back to the size, selected. | Text's font size: `48` opens selected and centred, and typing replaces it. Also: `36 pt` and Enter applies 36, `abc` and Enter shows `48` selected again. |
+| REG4-02g | The option dropdowns placed themselves in the window, and egui's `Area` kept them there. The cursor list slid up over the toolbar and its last rows were cut off. ShareX opens each `Popup` (`Placement="Bottom"`, `VerticalOffset="4"`) in its own window on the work area. | `c2b8ca9`: the editor's option and colour dropdowns go through `sharex_ui::popup::position`: anchor and gravity `Bottom`, then flip, slide and resize. They register their layer, so the host moves one past the window into a popup window, and their area isn't constrained. The colour flyouts (`color_view::popup`) already targeted the work area but were still constrained to the window; they no longer are. `--render image-editor --state option:Cursor:CursorType --scale 1.25 --popup-host -384,-267.2,1664,964.8 --client-origin 480,334` puts the list in a popup window at screen y 397, 198×1143 px, ending on the work area at 1540. ShareX's is at 398, 197×1142. | The restored 1600×900 editor at 125%, Cursor (K), the Default dropdown: every row through Wait cursor in a popup below the client. Also: a colour flyout opened near a window's bottom edge goes past it. |
+| REG5-04b | A press outside a popup closed it and also reached the control under it. Avalonia's light-dismiss `Popup` puts a `LightDismissOverlayLayer` over the owner window. The dismissing press lands on it and goes no further unless `OverlayDismissEventPassThrough` is set, which ShareX never sets. Nothing under the overlay is `:pointerover`. | `5ff3bb9`: `sharex_ui::popup::light_dismiss_overlay` puts an invisible click widget at the bottom of the popup's own layer. egui's hit test then leaves out the layers below, and the popup's own widgets stay on top. A popup's own button's press now closes it, without toggling it back open. Pin options passes its real `just_opened`. See the sweep below. | Monitor test, RGB `#0078D7`, Color open, a click on the red slider: the flyout closes, red stays 0. Also: a combo box's or editor dropdown's own button closes it; a click on another editor tool button only closes the open dropdown. |
+
+Sweep of ShareX's popups for REG5-04b. These take the press and now
+swallow it:
+
+- `Flyout`s and `ColorPickerDropdown`: every `color_view` popup (Monitor
+  test, task settings, mouse highlighter, pin options, image effects, the
+  accent colour, image tools' `ColorPicker`).
+- Fluent's `ComboBox` (`PART_Popup`).
+- The editor's option dropdowns and colour dropdowns, in the editor and in
+  region capture.
+- `ZoomPickerDropdown`: the editor's canvas also swallows the press that
+  closes it.
+- The image effects' gradient `Flyout`.
+
+`ContextMenu` sets `OverlayDismissEventPassThrough = true`, so the press
+reaches what's under it. ShareXrs already passes it through for the text
+box variable menus, history, hotkey and task settings menus. Two
+differences were found and left for a live check:
+
+- **The main window's sidebar menus.** They are `ContextMenu`s
+  (`TryOpenContextMenu`), but `main.rs` swallows the dismissing press and
+  its release. In ShareX the press should reach the sidebar button, so
+  another section's button opens its menu at once, and the same button
+  closes then reopens on the release. The tool grid is a `Flyout` and
+  swallows.
+- **The editor's File menu.** It is a `MenuFlyout`, so it should swallow
+  the press, but `menu::Flyout` has no overlay yet.
+
+Regression: every compare script that runs headlessly (menus, editor
+popups, dialogs and effects, data, image, image-finish, screen and system
+tools, scrolling; dark and light where the script has both) ran with
+master's binary (`cba5884`) and this branch's: 277 compared states. Six
+changed, all editor popups, and all moved closer to ShareX:
+
+- stroke style: dark 0.26% → 0.15%, light 0.24% → 0.15%;
+- font size: dark and light 0.11% → 0.08% (the selected, centred `48`);
+- cursor type: dark 1.17% → 0.73%, light 1.65% → 1.24%.
+
+The stroke style and cursor type gains come from the positioner's
+placement. The menu and image tools scripts ran from copies that write
+to a temp folder, not into `sharexrs-ref`. Video tools weren't run:
+their FFmpeg states write beside their inputs and use no popup code.

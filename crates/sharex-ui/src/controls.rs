@@ -656,6 +656,8 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     let popup = Rect::from_min_size(pos2(left, top), vec2(width, height));
     let mut picked = None;
     let area = egui::Area::new(id.with("dropdown")).order(Order::Foreground).fixed_pos(popup.min).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
+        // Fluent's `PART_Popup` light-dismisses without passing the press on.
+        crate::popup::light_dismiss_overlay(ui);
         let (rect, _) = ui.allocate_exact_size(popup.size(), Sense::click());
         border::border(ui.painter(), rect, 5.0, 1.0, Some(Brush::Solid(popup_bg)), Some(f.transient_border));
         let view = rect.shrink(1.0);
@@ -709,11 +711,12 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     if !keep {
         crate::popup::closed_by_escape(ctx);
     }
+    // A press on the combo box itself closes it too: the overlay takes it,
+    // so the combo box doesn't toggle.
     if !just_opened
         && ctx.input(|i| i.pointer.any_pressed())
         && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())
         && !area.response.rect.contains(pos)
-        && !anchor.contains(pos)
     {
         keep = false;
     }
