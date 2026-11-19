@@ -295,6 +295,29 @@ fn main() {
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
+    restart_if_requested();
+}
+
+/// `ApplicationLifecycle.Restart(asAdmin: true)` was asked for
+/// (Restart as administrator).
+static RESTART_AS_ADMIN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `ApplicationLifecycle.RestartIfRequested`: once this instance has
+/// closed (settings saved, the single instance mutex released), ShareXrs
+/// again through the shell with `-silent` and the `runas` verb.
+fn restart_if_requested() {
+    if !RESTART_AS_ADMIN.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    eprintln!("ShareX restarting.");
+    match std::env::current_exe() {
+        Ok(exe) => {
+            if let Err(e) = sharex_update::install::shell_execute(&exe, "-silent", true) {
+                eprintln!("{e}");
+            }
+        }
+        Err(e) => eprintln!("Unable to determine the ShareX executable path. {e}"),
+    }
 }
 
 /// A message box in its own window (`MessageBoxWindow`).
@@ -717,6 +740,11 @@ impl App {
             MenuCommand::History => self.show_history(event_loop),
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
+            // `ApplicationLifecycle.Restart(true)`.
+            MenuCommand::RestartAsAdministrator => {
+                RESTART_AS_ADMIN.store(true, std::sync::atomic::Ordering::SeqCst);
+                self.exit(event_loop);
+            }
             MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
             // `TaskHelpers.ToggleActionsToolbar`.
             MenuCommand::ActionsToolbar => self.toggle_actions_toolbar(event_loop),
@@ -1515,6 +1543,8 @@ impl App {
             HotkeyType::StopAutoCapture => self.stop_auto_capture(event_loop),
             HotkeyType::OpenHistory => self.show_history(event_loop),
             HotkeyType::OpenImageHistory => self.show_image_history(event_loop),
+            // `TaskHelpers.OpenScreenshotsFolder`.
+            HotkeyType::OpenScreenshotsFolder => self.open_screenshots_folder(),
             _ => eprintln!("{}: not ported yet", job.name()),
         }
     }
