@@ -622,7 +622,10 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
         Color32::from_rgb(0xF2, 0xF2, 0xF2)
     };
     let item_font = ComboBox::item_font();
-    let row_h = line_height(ui, &item_font) + 16.0;
+    // Each item's height is layout-rounded to whole pixels: 34 points are
+    // 42 pixels at 125% (42.5 rounded to even), so ShareX's rows are 33.6
+    // points apart there (LIVE-CHECKS SET2-03).
+    let row_h = crate::widgets::layout_round(ui.ctx(), line_height(ui, &item_font) + 16.0);
     let full = row_h * items.len() as f32 + 14.0;
     // Fluent's `MaxDropDownHeight="504"`.
     let wanted = full.min(MAX_DROP_DOWN_HEIGHT);
@@ -634,8 +637,10 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     let (top, height) = place_dropdown(anchor, wanted, screen);
     let max_scroll = (full - height).max(0.0);
     // Opening scrolls the selected item into view (`ScrollIntoView`: the
-    // least scrolling, so one further down ends at the bottom).
-    let open_scroll = |s: usize| (row_h * (s + 1) as f32 + 14.0 - height).clamp(0.0, max_scroll);
+    // least scrolling, so one further down ends at the bottom). The item
+    // itself, not the list's 6 px margin below it: it ends at the bottom of
+    // the viewport inside the 1 px border (LIVE-CHECKS SET2-03).
+    let open_scroll = |s: usize| (7.0 + row_h * (s + 1) as f32 - (height - 1.0)).clamp(0.0, max_scroll);
     let scroll_id = id.with("scroll");
     let width_id = id.with("width");
     let mut scroll: f32 = if just_opened { None } else { ui.ctx().data(|d| d.get_temp(scroll_id)) }.unwrap_or_else(|| selected.map_or(0.0, open_scroll));
@@ -721,12 +726,13 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     (picked, keep)
 }
 
-/// Avalonia's `ManagedPopupPositioner` for the dropdown's `Popup`
-/// (`Placement="BottomEdgeAlignedLeft"`, the default constraint
-/// adjustment): below the combo box; flipped above it if that fits; then
-/// slid into `bounds` (the screen's work area: ShareX's codec list slides
-/// up over its combo box rather than shrinking); then cut to `bounds`.
-/// Returns the top and height.
+/// Avalonia's `ManagedPopupPositioner` for the dropdown's `Popup` (Fluent's
+/// `PART_Popup` sets no `Placement`, so it's `Popup`'s default `Bottom`:
+/// anchor and gravity `Bottom`; the default constraint adjustment): below
+/// the combo box; flipped above it if that fits; then slid into `bounds`
+/// (the screen's work area: ShareX's codec list slides up over its combo
+/// box rather than shrinking); then cut to `bounds`. Returns the top and
+/// height.
 pub fn place_dropdown(anchor: Rect, height: f32, bounds: Rect) -> (f32, f32) {
     let mut top = anchor.max.y;
     if top + height > bounds.max.y {
@@ -754,16 +760,14 @@ pub fn place_dropdown(anchor: Rect, height: f32, bounds: Rect) -> (f32, f32) {
     (top, h)
 }
 
-/// [`place_dropdown`] across: left edges aligned, flipped to the right
-/// edges, then slid into `bounds`.
+/// [`place_dropdown`] across: `PlacementMode.Bottom` centres the popup
+/// under the combo box (`GetAnchorPoint` and `Gravitate` with no horizontal
+/// edge), so a list wider than its combo box sticks out on both sides
+/// (ShareX's time zone list: 296 wide, centred on its 248 wide combo box;
+/// LIVE-CHECKS SET2-03); flipping a centred gravity changes nothing, then
+/// it's slid into `bounds`.
 pub fn place_dropdown_x(anchor: Rect, width: f32, bounds: Rect) -> f32 {
-    let mut left = anchor.min.x;
-    if left + width > bounds.max.x {
-        let flipped = anchor.max.x - width;
-        if flipped >= bounds.min.x {
-            left = flipped;
-        }
-    }
+    let mut left = anchor.center().x - width / 2.0;
     left = left.max(bounds.min.x);
     if left + width > bounds.max.x {
         left = (bounds.max.x - width).max(bounds.min.x);
@@ -1602,7 +1606,7 @@ mod dropdown_placement_tests {
         // it, so it slides up to end at the work area's bottom, 54 px below
         // the 550 px client (`edge-video-codecs-popup0`: offset 33,100).
         let work = Rect::from_min_max(pos2(-93.0, -116.0), pos2(931.0, 604.0));
-        let combo = Rect::from_min_max(pos2(33.0, 165.0), pos2(358.0, 203.0));
+        let combo = Rect::from_min_max(pos2(33.0, 165.0), pos2(359.0, 203.0));
         assert_eq!(place_dropdown(combo, 504.0, work), (100.0, 504.0));
         assert_eq!(place_dropdown_x(combo, 326.0, work), 33.0);
         // The Hash checker's Algorithm list fits below (`edge-small-combo`:
@@ -1615,8 +1619,16 @@ mod dropdown_placement_tests {
         let low = Rect::from_min_max(pos2(10.0, 250.0), pos2(100.0, 280.0));
         assert_eq!(place_dropdown(low, 100.0, small), (150.0, 100.0));
         assert_eq!(place_dropdown(low, 500.0, small), (0.0, 300.0));
-        // Past the right edge: right edges aligned.
+        // Centred on its combo box, slid back inside past either edge.
         let right = Rect::from_min_max(pos2(300.0, 10.0), pos2(390.0, 40.0));
-        assert_eq!(place_dropdown_x(right, 150.0, small), 240.0);
+        assert_eq!(place_dropdown_x(right, 150.0, small), 250.0);
+        let left = Rect::from_min_max(pos2(5.0, 10.0), pos2(95.0, 40.0));
+        assert_eq!(place_dropdown_x(left, 150.0, small), 0.0);
+        // The time zone list at 125% in the File naming page: its 248 wide
+        // combo box at 480; the 296 wide list starts at 456 (ShareX's popup
+        // at 570 px from the 125% client's left).
+        let zone = Rect::from_min_max(pos2(480.0, 456.0), pos2(728.0, 488.0));
+        let work = Rect::from_min_max(pos2(-548.8, -264.8), pos2(1499.2, 967.2));
+        assert_eq!(place_dropdown_x(zone, 296.0, work) * 1.25, 570.0);
     }
 }
