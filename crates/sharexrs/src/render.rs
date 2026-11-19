@@ -720,6 +720,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             let defaults = settings.DefaultTaskSettings.clone();
             let mut hotkeys = default_hotkeys(&[]);
+            {
+                let t = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
+                // `--state overrides`: the after capture, after upload and
+                // destination overrides on (Save image to file, no after
+                // upload task), as ShareX's override shots have them.
+                if dialog.state.as_deref() == Some("overrides") {
+                    t.UseDefaultAfterCaptureJob = false;
+                    t.AfterCaptureJob = sharex_settings::AfterCaptureTasks::SaveImageToFile;
+                    t.UseDefaultAfterUploadJob = false;
+                    t.AfterUploadJob = sharex_settings::AfterUploadTasks::None;
+                    t.UseDefaultDestinations = false;
+                }
+            }
             let mut state = if for_hotkey {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut hotkeys[0].TaskSettings, Some(&defaults))
             } else {
