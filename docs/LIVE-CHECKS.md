@@ -545,3 +545,21 @@ with a baseline binary that has master's `controls.rs` and `color_view.rs`
 and with this branch's: 240 compared states, none changed (the dropdown
 change alone against the pre-merge controls: also 240 unchanged). The
 mouse highlighter flyout stays at 0.09% against ShareX's 125% shot.
+
+## Pass 4 · Windows desktop checks
+
+ShareX reference `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+built offline from master `8723def1d238150b078cc33e8af47a0466a73e98`.
+Both executables ran from generated portable copies with automatic updates
+off. The reference copy matched the original executable's SHA-256. The
+single 2560×1600 display had a 2560×1540 work area at 120 DPI (125%).
+Display settings were left as found. Evidence uses the same SX and RS
+directories as the earlier passes. The new PrintWindow images and their
+SHA-256 sidecars start with `pass4-`.
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| APP2-02b | 120 (125%) | Seed the generated `recent-local.txt` recent task with `DisableUpload=true`, select its file card and press Ctrl+U. | The task opens the DisableUpload information box. | Same wording and 600×189 client. The task remains in Preparing while the box is open and the toast appears after OK. | PASS | `pass4-ctrl-u-dark.png` in SX and RS. |
+| APP2-02c | 120 (125%) | With uploads disabled, select the URL-only card for the generated `file:///…/download-source.txt` and press Ctrl+D. | The modal begins with “Download failed:” and “System.NotSupportedException: The 'file' scheme is not supported.” and continues with the .NET stack trace. | The modal has the same error and type. It contains the two-line error only, as documented in the fix. | PASS | `pass4-ctrl-d-dark.png` in SX and RS. Only the local `file:` URL was used. |
+| APP2-02e | 120 (125%) | Start with recent tasks saved and shown in the main window, thumbnail titles on, and two URL-only items for `file:///…/download-source.txt` and `https://example.invalid/fixture-open.txt`. | Titles are `download-source.txt` and `fixture-open.txt`. The file card is titled `recent-local.txt`. | All three titles match. | PASS | `pass4-seeded-repeat-dark.png` in SX and RS. The external URL was displayed as fixture text. |
+| SWP4-01 | 120 (125%) | Use a temp portable profile with a custom screenshots path, remove its empty directory after startup, and invoke `-OpenScreenshotsFolder`. | An information box says “Folder does not exist:” and shows the configured scratch path. | Same text, path, icon, OK action and 600×199 client. The path wraps at a different character. | PASS | `pass4-missing-folder-dark.png` in SX and RS. |
