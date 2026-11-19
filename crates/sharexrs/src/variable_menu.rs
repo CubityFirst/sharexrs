@@ -71,6 +71,10 @@ pub fn entries(kind: VariableKind) -> Vec<MenuEntry<String>> {
 pub struct VariableMenu {
     pub key: String,
     pub flyout: Flyout<String>,
+    /// Opened this frame: the press of a click that came in one frame
+    /// isn't a press outside it (SET-04a; Avalonia closes on the press and
+    /// reopens on the release).
+    just_opened: bool,
 }
 
 /// The menus of one window: at most one open; a chosen variable waits for
@@ -96,7 +100,7 @@ impl VariableMenus {
         }
         let mut flyout = Flyout::menu(Id::new(("variable-menu", key)), entries(kind), anchor, Placement::RightEdgeAlignedTop);
         flyout.style = MenuStyle::Standard;
-        self.open = Some(VariableMenu { key: key.to_string(), flyout });
+        self.open = Some(VariableMenu { key: key.to_string(), flyout, just_opened: true });
     }
 
     /// After a box is drawn: opens its menu when it gained the focus, was
@@ -134,7 +138,8 @@ impl VariableMenus {
         let layer = egui::LayerId::new(egui::Order::Foreground, Id::new("variable-menu-layer"));
         let child = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
         let out = menu.flyout.show(&child, full);
-        let pressed_outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.flyout.contains(pos));
+        let just_opened = std::mem::take(&mut menu.just_opened);
+        let pressed_outside = !just_opened && ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.flyout.contains(pos));
         if let Some(token) = out.command {
             self.pending = Some((menu.key.clone(), token));
             self.open = None;

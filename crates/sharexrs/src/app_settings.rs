@@ -111,6 +111,10 @@ pub struct CodeMenu {
     pub flyout: Flyout<String>,
     /// The text box's id (its caret is where the variable goes).
     field: Id,
+    /// Opened this frame: the press that opened it (a click whose press
+    /// and release came in one frame) isn't a press outside it. Avalonia
+    /// light-dismisses on the press and reopens on the release (SET-04a).
+    just_opened: bool,
 }
 
 /// `CodeMenuEntryFilename`s each sub folder pattern box leaves out.
@@ -382,7 +386,7 @@ impl ApplicationSettings {
         };
         let mut flyout = Flyout::menu(Id::new(("code-menu", target as u8)), entries, anchor, placement);
         flyout.style = MenuStyle::Standard;
-        self.code_menu = Some(CodeMenu { target, flyout, field });
+        self.code_menu = Some(CodeMenu { target, flyout, field, just_opened: true });
     }
 
     /// The open variable menu over the window: an item inserts its variable
@@ -392,7 +396,8 @@ impl ApplicationSettings {
         let layer = egui::LayerId::new(egui::Order::Foreground, Id::new("code-menu-layer"));
         let child = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
         let out = menu.flyout.show(&child, full);
-        let pressed_outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.flyout.contains(pos));
+        let just_opened = std::mem::take(&mut menu.just_opened);
+        let pressed_outside = !just_opened && ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.flyout.contains(pos));
         if let Some(token) = out.command {
             let (target, field) = (menu.target, menu.field);
             match target {
@@ -1672,5 +1677,53 @@ mod tests {
         let terms = vec!["tray".to_string(), "icon".to_string()];
         assert!(matches("Show tray icon", &terms));
         assert!(!matches("Show tray", &terms));
+    }
+}
+
+#[cfg(test)]
+mod variable_menu_click_tests {
+    use super::*;
+
+    /// Application settings › Paths at `ppp`, after these frames of input:
+    /// whether the Sub folder pattern menu is open.
+    fn menu_open_after(seq: &[Vec<egui::Event>], ppp: f32) -> bool {
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut settings = ApplicationConfig::default();
+        let mut state = ApplicationSettings::new(&settings, true, std::env::temp_dir()).with_integration(Box::new(crate::integration::NoIntegration));
+        state.page = PAGES.iter().position(|p| *p == "paths").unwrap();
+        let mut t = 0.0;
+        let mut frame = |events: Vec<egui::Event>| {
+            t += 1.0 / 60.0;
+            let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(950.4, 720.0))), time: Some(t), events, ..Default::default() };
+            input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(ppp);
+            let mut out = ctx.run_ui(input, |ui| {
+                state.ui(ui, &mut settings);
+            });
+            out.textures_delta.clear();
+        };
+        for ev in std::iter::repeat_n(vec![], 3).chain(seq.iter().cloned()).chain(std::iter::repeat_n(vec![], 3)) {
+            frame(ev);
+        }
+        state.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::SubFolder)
+    }
+
+    #[test]
+    fn a_click_in_the_sub_folder_box_opens_its_menu() {
+        // SET-04a: a quick click (press and release in one frame, as a
+        // synthetic click often comes) opened the menu and closed it again
+        // as a press outside it, at 100% and 125% alike.
+        let p = egui::pos2(700.0, 352.0);
+        let button = |pressed| egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        let moved = egui::Event::PointerMoved(p);
+        for ppp in [1.0, 1.25] {
+            assert!(menu_open_after(&[vec![moved.clone()], vec![button(true)], vec![button(false)]], ppp), "separate frames at {ppp}");
+            assert!(menu_open_after(&[vec![moved.clone(), button(true), button(false)]], ppp), "one frame at {ppp}");
+            assert!(menu_open_after(&[vec![moved.clone(), button(true)], vec![button(false)]], ppp), "move and press, then release at {ppp}");
+        }
+        // A press elsewhere still closes it.
+        let away = egui::pos2(100.0, 650.0);
+        let away_button = |pressed| egui::Event::PointerButton { pos: away, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        assert!(!menu_open_after(&[vec![moved.clone(), button(true), button(false)], vec![], vec![egui::Event::PointerMoved(away), away_button(true)], vec![away_button(false)]], 1.25));
     }
 }

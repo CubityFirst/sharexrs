@@ -94,6 +94,9 @@ pub struct ImageEffectsWindow {
     pending_dialog: Option<Box<dyn Dialog>>,
     /// Open the Add menu on the next frame (`--render --state add-menu`).
     add_menu_pending: bool,
+    /// The add menu opened this frame: the press of a one-frame click on
+    /// the button isn't a press outside it.
+    add_menu_just_opened: bool,
 }
 
 /// An engine bitmap from an image.
@@ -153,6 +156,7 @@ impl ImageEffectsWindow {
             pending_effects: Vec::new(),
             pending_dialog: None,
             add_menu_pending: false,
+            add_menu_just_opened: false,
         }
     }
 
@@ -469,10 +473,14 @@ impl ImageEffectsWindow {
             let br = Rect::from_min_size(pos2(x, bottom.min.y), Vec2::splat(PICKER));
             if k == 0 && std::mem::take(&mut self.add_menu_pending) {
                 self.add_menu = Some(add_menu(br));
+                self.add_menu_just_opened = true;
             }
             if Self::picker(ui, br, Id::new(("effects-effect-btn", k)), key, enabled && live, tip) {
                 match k {
-                    0 => self.add_menu = Some(add_menu(br)),
+                    0 => {
+                        self.add_menu = Some(add_menu(br));
+                        self.add_menu_just_opened = true;
+                    }
                     1 => self.remove_effect(),
                     2 => self.duplicate_effect(),
                     3 => self.move_effect(-1),
@@ -696,7 +704,8 @@ impl Dialog for ImageEffectsWindow {
         if let Some(menu) = self.add_menu.as_mut() {
             let full = ui.max_rect();
             let FlyoutOutput { command, closed } = menu.show(ui, full);
-            let pressed_outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.contains(pos));
+            let just_opened = std::mem::take(&mut self.add_menu_just_opened);
+            let pressed_outside = !just_opened && ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.contains(pos));
             if let Some(ty) = command {
                 self.add_menu = None;
                 if let Some(kind) = EffectKind::create(ty, &mut self.rng) {
