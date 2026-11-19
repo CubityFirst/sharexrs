@@ -1756,7 +1756,7 @@ mod variable_menu_click_tests {
         let click = vec![egui::Event::PointerMoved(p), right(true), right(false)];
         let separate = after("clipboard-formats", &[vec![egui::Event::PointerMoved(p)], vec![right(true)], vec![right(false)]], 1.25);
         assert!(separate.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::ClipboardFormat));
-        let opened = after("clipboard-formats", &[click.clone()], 1.25);
+        let opened = after("clipboard-formats", std::slice::from_ref(&click), 1.25);
         assert!(opened.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::ClipboardFormat));
         let once = after("clipboard-formats", &[click.clone(), vec![escape.clone()]], 1.25);
         assert!(once.code_menu.is_none());
