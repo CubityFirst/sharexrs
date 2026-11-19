@@ -2104,7 +2104,7 @@ mod tests {
         };
         let mut seen = Vec::new();
         use crate::drag_out::DragSource;
-        let outcome = src.drag_files(&[dir.join("2.png")], &mut |(x, y)| {
+        let outcome = src.drag_files(&[dir.join("2.png")], false, &mut |(x, y)| {
             let takes = v.drag_over(title_h, Some(pos2(x as f32, y as f32)));
             seen.push(v.combine);
             if takes { crate::drag_out::Cursor::Default } else { crate::drag_out::Cursor::NoDrop }

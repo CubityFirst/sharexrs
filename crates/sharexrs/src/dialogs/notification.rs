@@ -94,6 +94,8 @@ pub struct NotificationConfig {
     pub fade_duration: Duration,
     pub placement: ImageContentAlignment,
     pub monitor: ToastWindowMonitor,
+    /// `ToastWindowMonitorDeviceName` (`SpecificMonitor`).
+    pub monitor_device_name: String,
     /// `Offset` (5).
     pub offset: i32,
     /// `Size`: the image's bounds, the text card's width.
@@ -122,6 +124,7 @@ impl NotificationConfig {
             fade_duration: Duration::from_secs_f32((g.ToastWindowFadeDuration * 1000.0).trunc().max(0.0) / 1000.0),
             placement: g.ToastWindowPlacement.clone(),
             monitor: g.ToastWindowMonitor.clone(),
+            monitor_device_name: g.ToastWindowMonitorDeviceName.clone(),
             offset: 5,
             size: (g.ToastWindowSize.width, g.ToastWindowSize.height),
             background: Color32::from_rgb(50, 50, 50),
@@ -248,6 +251,12 @@ pub struct NotificationWindow {
     pub force_tooltip: bool,
     /// Closing (an action dismissed it, or the fade ended).
     closed: bool,
+    /// A left press on the card that may become a drag of the file
+    /// (`_isDragCandidate`, `_dragStart`), and the drag (`_fileDragStarted`).
+    drag_start: Option<egui::Pos2>,
+    file_dragged: bool,
+    /// The button tooltip shown in its popup window (`Effect::Tooltip`).
+    popup_tip: Option<(String, Rect)>,
 }
 
 impl NotificationWindow {
@@ -282,6 +291,9 @@ impl NotificationWindow {
             force_hover: None,
             force_tooltip: false,
             closed: false,
+            drag_start: None,
+            file_dragged: false,
+            popup_tip: None,
         })
     }
 
@@ -413,11 +425,16 @@ impl Dialog for NotificationWindow {
     /// monitor's work area, `Offset` in, less the shadow margin.
     fn position(&self, _work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
         let screens = sharex_capture::screenshot::screens();
+        // `GetTargetScreen`: a specific monitor by its device name, else the
+        // pointer's, else (or when that monitor is gone) the primary.
         let screen = match self.config.monitor {
             ToastWindowMonitor::ActiveMonitor => sharex_capture::screenshot::cursor_position()
                 .and_then(|(x, y)| screens.iter().find(|s| s.bounds.contains(x, y)))
                 .or(screens.iter().find(|s| s.primary)),
-            // `SpecificMonitor` by its device name isn't ported: the primary.
+            ToastWindowMonitor::SpecificMonitor => {
+                crate::display_native::screen_by_device_name(&screens, &crate::display_native::monitor_names(), &self.config.monitor_device_name)
+                    .or(screens.iter().find(|s| s.primary))
+            }
             _ => screens.iter().find(|s| s.primary),
         }
         .or(screens.first())?;
@@ -435,6 +452,17 @@ impl Dialog for NotificationWindow {
         let full = ui.max_rect();
         let card = Rect::from_min_size(full.min + Vec2::splat(SHADOW_MARGIN), vec2(self.card_width(), self.card_height(ui)));
 
+        let mut wanted_tip: Option<(String, Rect)> = None;
+        // The release that ends a drag of the file (OLE had the pointer):
+        // `ResetPointerInteraction`, then the fade if it's due.
+        if self.file_dragged && !ui.input(|i| i.pointer.primary_down()) {
+            self.file_dragged = false;
+            self.drag_start = None;
+            self.card_pressed = false;
+            if self.duration_ended && !ui.rect_contains_pointer(card) {
+                self.fade_from = Some(now);
+            }
+        }
         // The pointer over the card holds it and shows the overlays.
         let hovered = match self.force_hover {
             Some(_) => true,
@@ -599,21 +627,56 @@ impl Dialog for NotificationWindow {
                     }
                 }
                 if let Some((rect, label)) = tip_at {
-                    // `PlacementMode.Top`, `VerticalOffset="-4"`.
-                    let s = sharex_capture::region::tooltip::size(ui, &label);
-                    let at = pos2((rect.center().x - s.x / 2.0).round(), rect.min.y - 4.0 - s.y);
-                    sharex_capture::region::tooltip::paint(ui, &p, at, full, &label, 1.0);
+                    if self.force_tooltip {
+                        // `--render`: drawn in the window (ShareX's is a popup
+                        // window of its own, outside its shots).
+                        let s = sharex_capture::region::tooltip::size(ui, &label);
+                        let at = pos2((rect.center().x - s.x / 2.0).round(), rect.min.y - 4.0 - s.y);
+                        sharex_capture::region::tooltip::paint(ui, &p, at, full, &label, 1.0);
+                    } else {
+                        // `PlacementMode.Top`, `VerticalOffset="-4"`, in its popup.
+                        wanted_tip = Some((label, rect));
+                    }
                 } else if !buttons.iter().enumerate().any(|(i, _)| self.tip.is_some_and(|(j, _)| j == i)) {
                     self.tip = None;
                 }
             }
         }
 
+        if wanted_tip != self.popup_tip {
+            self.popup_tip = wanted_tip.clone();
+            out.push(Effect::Tooltip(wanted_tip));
+        }
+
         // A click on the card (`OnCardPointerReleased`).
         let card_r = ui.interact(card, ui.id().with("card"), Sense::click());
         let over_button = self.tip.is_some();
         if card_r.is_pointer_button_down_on() && !over_button {
+            if !self.card_pressed && ui.input(|i| i.pointer.primary_pressed()) {
+                // `OnCardPointerPressed`: a left press may start a drag.
+                self.drag_start = ui.input(|i| i.pointer.press_origin());
+                self.file_dragged = false;
+            }
             self.card_pressed = true;
+        }
+        // `OnCardPointerMoved`: 20 px away either way, the file is dragged
+        // out (Copy | Move), the fade held while it is.
+        if let (Some(start), Some(pos)) = (self.drag_start, ui.input(|i| i.pointer.latest_pos()))
+            && !self.file_dragged
+            && ui.input(|i| i.pointer.primary_down())
+            && ((pos.x - start.x).abs() >= 20.0 || (pos.y - start.y).abs() >= 20.0)
+        {
+            self.drag_start = None;
+            let path = std::path::PathBuf::from(&self.config.file_path);
+            if !self.config.file_path.is_empty() && path.is_file() {
+                self.file_dragged = true;
+                self.fade_from = None;
+                out.push(Effect::DragFilesMovable(vec![path]));
+                return out;
+            }
+        }
+        if self.file_dragged {
+            return out;
         }
         let released = ui.input(|i| {
             [egui::PointerButton::Primary, egui::PointerButton::Secondary, egui::PointerButton::Middle]

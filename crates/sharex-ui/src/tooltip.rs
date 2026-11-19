@@ -140,6 +140,28 @@ pub fn due(now: f64, since: f64, last_closed: Option<f64>) -> Due {
 /// rested on it for the delay, until it leaves or a button is pressed. An
 /// empty `text` shows nothing (`ToolTip.Tip` bound to null).
 pub fn show(ui: &Ui, rect: Rect, id: Id, text: &str) {
+    let Some((at, opened)) = step(ui, rect, id, text) else { return };
+    let ctx = ui.ctx();
+    let now = ui.input(|i| i.time);
+    let t = ((now - opened) / FADE).clamp(0.0, 1.0) as f32;
+    if t < 1.0 {
+        ctx.request_repaint();
+    }
+    let size = size(ui, text);
+    let rect = place(at, size, ctx.content_rect());
+    let painter = ctx.layer_painter(egui::LayerId::new(Order::Tooltip, id.with("tooltip")));
+    paint(&painter, ui, rect, text, t);
+}
+
+/// Whether the element's tooltip is open now, with [`show`]'s timing, for
+/// a tooltip drawn elsewhere (a popup window of its own).
+pub fn is_open(ui: &Ui, rect: Rect, id: Id, text: &str) -> bool {
+    step(ui, rect, id, text).is_some()
+}
+
+/// [`show`]'s state: where the pointer was when this element's tooltip
+/// opened, and when, while it's open.
+fn step(ui: &Ui, rect: Rect, id: Id, text: &str) -> Option<(Pos2, f64)> {
     let ctx = ui.ctx();
     let frame = ctx.cumulative_frame_nr();
     let (now, pointer, pressed) = ui.input(|i| (i.time, i.pointer.latest_pos(), i.pointer.any_pressed()));
@@ -184,18 +206,7 @@ pub fn show(ui: &Ui, rect: Rect, id: Id, text: &str) {
         }
     }
     ctx.data_mut(|d| d.insert_temp(state_id(), s));
-    let Some((o, at, opened)) = s.open else { return };
-    if o != id {
-        return;
-    }
-    let t = ((now - opened) / FADE).clamp(0.0, 1.0) as f32;
-    if t < 1.0 {
-        ctx.request_repaint();
-    }
-    let size = size(ui, text);
-    let rect = place(at, size, ctx.content_rect());
-    let painter = ctx.layer_painter(egui::LayerId::new(Order::Tooltip, id.with("tooltip")));
-    paint(&painter, ui, rect, text, t);
+    s.open.filter(|(o, ..)| *o == id).map(|(_, at, opened)| (at, opened))
 }
 
 #[cfg(test)]

@@ -39,6 +39,7 @@ pub mod quick_task_editor;
 pub mod render;
 pub mod response;
 pub mod text_upload;
+pub mod tooltip_window;
 pub mod update;
 pub mod url_input;
 pub mod youtube_options;
@@ -84,6 +85,8 @@ pub struct Spec {
     /// `MaxWidth` / `MaxHeight` (0: none).
     pub max_width: f32,
     pub max_height: f32,
+    /// The pointer passes through it (a tooltip's popup).
+    pub click_through: bool,
 }
 
 impl Spec {
@@ -105,6 +108,7 @@ impl Spec {
             maximized: false,
             max_width: 0.0,
             max_height: 0.0,
+            click_through: false,
         }
     }
 
@@ -132,8 +136,13 @@ pub enum Effect {
     OpenFolderWithFile(PathBuf),
     /// `BeginMoveDrag`.
     DragWindow,
+    /// The window's tooltip for this element of its client area (points),
+    /// in a popup window of its own above it; `None` closes it.
+    Tooltip(Option<(String, egui::Rect)>),
     /// `DragDrop.DoDragDropAsync` with these files (`DragDropEffects.Copy`).
     DragFiles(Vec<PathBuf>),
+    /// The same with `DragDropEffects.Copy | Move` (the toast's file).
+    DragFilesMovable(Vec<PathBuf>),
     /// `SizeToContent="Height"` after the content changed.
     SetHeight(f32),
     /// The window restored at this client size (points), centred in its
@@ -533,6 +542,9 @@ impl App {
             Some((x, y)) => w.window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y)),
             None => center(&w.window, event_loop),
         }
+        if spec.click_through {
+            let _ = w.window.set_cursor_hittest(false);
+        }
         w.window.set_visible(true);
         // Maximized once it's sized, placed and shown: a window created
         // maximized and then resized or moved (the clamp above, centring)
@@ -605,11 +617,66 @@ impl App {
         true
     }
 
+    /// [`Effect::DragFiles`]: OLE's drag (it has the pointer until the
+    /// drop), then the button's release egui never saw.
+    fn dialog_drag_files(&mut self, id: WindowId, files: &[PathBuf], allow_move: bool) {
+        let _ = self.drag_source.drag_files(files, allow_move, &mut |_| crate::drag_out::Cursor::Default);
+        if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
+            d.window.on_event(&WindowEvent::MouseInput {
+                device_id: winit::event::DeviceId::dummy(),
+                state: winit::event::ElementState::Released,
+                button: winit::event::MouseButton::Left,
+            });
+            d.window.window.request_redraw();
+        }
+    }
+
+    /// [`Effect::Tooltip`]: the owner's tooltip popup opened, moved or closed.
+    fn dialog_tooltip(&mut self, event_loop: &ActiveEventLoop, owner: WindowId, tip: Option<(String, egui::Rect)>) {
+        let theme = self.theme();
+        let wanted = tip.and_then(|(text, r)| {
+            let d = self.dialogs.iter().find(|d| d.window.window.id() == owner)?;
+            let origin = d.window.window.inner_position().ok()?;
+            let s = d.window.window.scale_factor() as f32;
+            let anchor = sharex_capture::Rect::new(
+                origin.x + (r.min.x * s).round() as i32,
+                origin.y + (r.min.y * s).round() as i32,
+                (r.width() * s).round() as i32,
+                (r.height() * s).round() as i32,
+            );
+            let dark = d.dialog.theme().unwrap_or(theme) == egui::Theme::Dark;
+            Some((text, anchor, s, dark))
+        });
+        if let (Some((o, _, text, anchor)), Some((t, a, ..))) = (&self.tooltip_popup, &wanted)
+            && *o == owner
+            && text == t
+            && anchor == a
+        {
+            return;
+        }
+        if let Some((_, popup, ..)) = self.tooltip_popup.take()
+            && let Some(i) = self.dialogs.iter().position(|d| d.window.window.id() == popup)
+        {
+            self.dialogs.remove(i);
+        }
+        if let Some((text, anchor, scale, dark)) = wanted {
+            let popup = tooltip_window::TooltipWindow::new(text.clone(), anchor, scale, dark);
+            self.open_dialog_window(event_loop, Box::new(popup));
+            if let Some(d) = self.dialogs.last() {
+                self.tooltip_popup = Some((owner, d.window.window.id(), text, anchor));
+            }
+        }
+    }
+
     /// Carries out what the dialog `id` asked for.
     pub(crate) fn dialog_effects(&mut self, event_loop: &ActiveEventLoop, id: WindowId, effects: Vec<Effect>) {
         for e in effects {
             match e {
+                Effect::Tooltip(tip) => self.dialog_tooltip(event_loop, id, tip),
                 Effect::Close => {
+                    if self.tooltip_popup.as_ref().is_some_and(|t| t.0 == id) {
+                        self.dialog_tooltip(event_loop, id, None);
+                    }
                     let Some(i) = self.dialogs.iter().position(|d| d.window.window.id() == id) else { continue };
                     let mut d = self.dialogs.remove(i);
                     let mut cx = Cx { settings: &mut self.settings.settings, uploaders: &self.uploads.config };
@@ -642,18 +709,8 @@ impl App {
                         let _ = d.window.window.drag_window();
                     }
                 }
-                Effect::DragFiles(files) => {
-                    let _ = self.drag_source.drag_files(&files, &mut |_| crate::drag_out::Cursor::Default);
-                    // OLE had the mouse: egui never saw the button go up.
-                    if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) {
-                        d.window.on_event(&WindowEvent::MouseInput {
-                            device_id: winit::event::DeviceId::dummy(),
-                            state: winit::event::ElementState::Released,
-                            button: winit::event::MouseButton::Left,
-                        });
-                        d.window.window.request_redraw();
-                    }
-                }
+                Effect::DragFiles(files) => self.dialog_drag_files(id, &files, false),
+                Effect::DragFilesMovable(files) => self.dialog_drag_files(id, &files, true),
                 Effect::SetSizeCentered(w, h) => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let win = &d.window.window;

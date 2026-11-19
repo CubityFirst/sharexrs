@@ -10,6 +10,7 @@ mod animation;
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod display_native;
 mod drag_out;
 mod logger;
 mod main_commands;
@@ -229,6 +230,7 @@ fn main() {
         cursor: None,
         swallow_release: false,
         drag_source: drag_out::system(),
+        tooltip_popup: None,
         own_drag_until: None,
         settings,
         uploads,
@@ -330,6 +332,9 @@ struct App {
     swallow_release: bool,
     /// Drags files out of the app (OLE's `DoDragDrop` on Windows).
     drag_source: Box<dyn drag_out::DragSource>,
+    /// A dialog's tooltip in its own popup window: the owner, the popup,
+    /// the text and the element it's for (desktop pixels).
+    tooltip_popup: Option<(winit::window::WindowId, winit::window::WindowId, String, sharex_capture::Rect)>,
     /// Until when the main window ignores the file drag events of its own
     /// drag (OLE delivers them to winit's drop target during the drag;
     /// winit hands them over once the drag returns). ShareX ignores its own

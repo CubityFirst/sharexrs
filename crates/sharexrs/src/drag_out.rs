@@ -21,6 +21,7 @@ use std::path::PathBuf;
 pub enum Effect {
     None,
     Copy,
+    Move,
 }
 
 /// The cursor the app wants where the pointer is.
@@ -43,9 +44,11 @@ pub struct Outcome {
 }
 
 pub trait DragSource {
-    /// Drags `files` until they're dropped or the drag is cancelled.
-    /// `feedback` sees the pointer (desktop pixels) each time it moves.
-    fn drag_files(&mut self, files: &[PathBuf], feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome;
+    /// Drags `files` until they're dropped or the drag is cancelled,
+    /// offering Copy (and Move with `allow_move`: the toast's
+    /// `DragDropEffects.Copy | Move`). `feedback` sees the pointer (desktop
+    /// pixels) each time it moves.
+    fn drag_files(&mut self, files: &[PathBuf], allow_move: bool, feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome;
 }
 
 /// The platform's drag source.
@@ -67,7 +70,7 @@ struct Unsupported;
 
 #[cfg(not(windows))]
 impl DragSource for Unsupported {
-    fn drag_files(&mut self, files: &[PathBuf], _feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
+    fn drag_files(&mut self, files: &[PathBuf], _allow_move: bool, _feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
         eprintln!("Dragging files out isn't available on this platform yet ({} file(s)).", files.len());
         Outcome { effect: Effect::None, dropped: false, last: None }
     }
@@ -81,7 +84,7 @@ mod windows {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::System::Com::{CoTaskMemFree, IDataObject};
     use windows::Win32::System::Ole::{
-        DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_NONE, DoDragDrop, IDropSource, IDropSource_Impl, OleInitialize,
+        DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop, IDropSource, IDropSource_Impl, OleInitialize,
     };
     use windows::Win32::System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS};
     use windows::Win32::UI::Shell::Common::ITEMIDLIST;
@@ -178,7 +181,7 @@ mod windows {
     }
 
     impl DragSource for OleDragSource {
-        fn drag_files(&mut self, files: &[PathBuf], feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
+        fn drag_files(&mut self, files: &[PathBuf], allow_move: bool, feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
             let none = Outcome { effect: Effect::None, dropped: false, last: None };
             // SAFETY: OLE on the window's thread (winit's drop target has it
             // initialised already; a second call only adds a reference).
@@ -195,11 +198,18 @@ mod windows {
             let source: IDropSource = Source { feedback: RefCell::new(erased), last: Cell::new(None), dropped: Cell::new(false) }.into();
             let mut effect = DROPEFFECT_NONE;
             // SAFETY: valid COM objects; `DoDragDrop` runs its loop here.
-            let hr = unsafe { DoDragDrop(&data, &source, DROPEFFECT_COPY, &mut effect) };
+            let allowed = if allow_move { DROPEFFECT(DROPEFFECT_COPY.0 | DROPEFFECT_MOVE.0) } else { DROPEFFECT_COPY };
+            let hr = unsafe { DoDragDrop(&data, &source, allowed, &mut effect) };
             // SAFETY: our own implementation behind the interface.
             let inner: &Source = unsafe { source.as_impl() };
             let outcome = Outcome {
-                effect: if effect.0 & DROPEFFECT_COPY.0 != 0 { Effect::Copy } else { Effect::None },
+                effect: if effect.0 & DROPEFFECT_MOVE.0 != 0 {
+                    Effect::Move
+                } else if effect.0 & DROPEFFECT_COPY.0 != 0 {
+                    Effect::Copy
+                } else {
+                    Effect::None
+                },
                 dropped: hr == DRAGDROP_S_DROP && inner.dropped.get(),
                 last: inner.last.get(),
             };
@@ -222,7 +232,7 @@ pub struct MockDragSource {
 
 #[cfg(test)]
 impl DragSource for MockDragSource {
-    fn drag_files(&mut self, files: &[PathBuf], feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
+    fn drag_files(&mut self, files: &[PathBuf], _allow_move: bool, feedback: &mut dyn FnMut((i32, i32)) -> Cursor) -> Outcome {
         self.dragged.push(files.to_vec());
         for m in &self.moves {
             let c = feedback(*m);

@@ -247,7 +247,7 @@ impl App {
         let title_h = w.ctx().fonts_mut(|f| f.row_height(&title_font)).ceil();
         let state = &mut self.state;
         let mut entered = false;
-        let outcome = self.drag_source.drag_files(&[path], &mut |(x, y)| {
+        let outcome = self.drag_source.drag_files(&[path], false, &mut |(x, y)| {
             let local = origin
                 .map(|o| (f64::from(x - o.x), f64::from(y - o.y)))
                 .filter(|(lx, ly)| *lx >= 0.0 && *ly >= 0.0 && *lx < f64::from(size.width) && *ly < f64::from(size.height))
