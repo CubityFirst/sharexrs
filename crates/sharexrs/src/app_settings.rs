@@ -201,6 +201,8 @@ pub struct ApplicationSettings {
     /// The Explorer and browser integrations' check boxes
     /// (`RefreshIntegration`), in `integration::SWITCHES`' order.
     integrations: [bool; 6],
+    /// Where they're read and changed (the system, or a test's).
+    integration: Box<dyn crate::integration::IntegrationBackend>,
     /// `IsBusy`: an export, import or reset is running.
     pub busy: bool,
     /// When `busy` started (egui's clock), for the progress bar's animation;
@@ -235,6 +237,7 @@ impl ApplicationSettings {
             editor: None,
             color_open: false,
             integrations: crate::integration::SWITCHES.map(crate::integration::check),
+            integration: Box::new(crate::integration::SystemIntegration),
             busy: false,
             busy_since: None,
             busy_phase: None,
@@ -250,7 +253,7 @@ impl ApplicationSettings {
     pub fn reload(&mut self, settings: &ApplicationConfig) {
         self.personal_folder = sharex_settings::paths::read_personal_path_config();
         self.personal_dirty = false;
-        self.integrations = crate::integration::SWITCHES.map(crate::integration::check);
+        self.refresh_integrations();
         self.startup = None;
         self.clipboard_selected = (!settings.ClipboardContentFormats.is_empty()).then_some(0);
         self.editor = None;
@@ -267,6 +270,19 @@ impl ApplicationSettings {
     /// Scrolls page `page` to `y` (clamped when drawn); `f32::MAX` is the end.
     pub fn set_scroll(&mut self, page: usize, y: f32) {
         self.scroll[page] = y;
+    }
+
+    /// Uses `backend` for the integration check boxes, and reads them from it.
+    pub fn with_integration(mut self, backend: Box<dyn crate::integration::IntegrationBackend>) -> Self {
+        self.integration = backend;
+        self.refresh_integrations();
+        self
+    }
+
+    /// `RefreshIntegrations`.
+    fn refresh_integrations(&mut self) {
+        let backend = &self.integration;
+        self.integrations = crate::integration::SWITCHES.map(|s| backend.check(s));
     }
 
     /// `IsBusy = true` with the status (`ExportingBackup`, `ImportingBackup`).
@@ -993,7 +1009,7 @@ fn page_integration(f: &mut Form) {
 /// `ShellContextMenu`, `EditWithShareX`, ... setters:
 /// `IntegrationHelpers.Create*(value)`. Send To's error is shown.
 fn set_integration(f: &mut Form, i: usize, on: bool) {
-    if let Err(e) = crate::integration::set(crate::integration::SWITCHES[i], on) {
+    if let Err(e) = f.w.integration.set(crate::integration::SWITCHES[i], on) {
         f.w.status = e;
     }
 }
@@ -1541,6 +1557,77 @@ mod tests {
         assert_eq!(size_string(1024, true), "1 KiB");
         assert_eq!(size_string(32 * 1024, false), "33 KB");
         assert_eq!(size_string(8192 * 1024, true), "8 MiB");
+    }
+
+    /// The integration check boxes against a mock system.
+    #[derive(Default)]
+    struct Mock {
+        on: std::rc::Rc<std::cell::RefCell<std::collections::BTreeMap<String, bool>>>,
+        send_to_error: Option<String>,
+    }
+
+    impl crate::integration::IntegrationBackend for Mock {
+        fn check(&self, switch: crate::integration::Switch) -> bool {
+            self.on.borrow().get(&format!("{switch:?}")).copied().unwrap_or(false)
+        }
+        fn set(&mut self, switch: crate::integration::Switch, on: bool) -> Result<(), String> {
+            if switch == crate::integration::Switch::SendToMenu
+                && let Some(e) = &self.send_to_error
+            {
+                return Err(e.clone());
+            }
+            self.on.borrow_mut().insert(format!("{switch:?}"), on);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn integration_boxes_read_and_change_the_backend() {
+        use crate::integration::Switch;
+        let state = std::rc::Rc::new(std::cell::RefCell::new(std::collections::BTreeMap::new()));
+        state.borrow_mut().insert("FirefoxAddonSupport".to_string(), true);
+        let mock = Mock { on: state.clone(), send_to_error: Some("Access denied".into()) };
+        let mut settings = ApplicationConfig::default();
+        let mut w = ApplicationSettings::new(&settings, true, PathBuf::from("shots")).with_integration(Box::new(mock));
+        // `RefreshIntegrations` read the backend.
+        assert_eq!(w.integrations, [false, false, false, false, false, true]);
+        w.page = 2;
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut boxes = Vec::new();
+        // Lay the page out, then click each check box by its text.
+        let names = [
+            s::ApplicationSettingsWindow_ShowUploadWithShareXButtonInWindowsExplorerContextMenu(),
+            s::ApplicationSettingsWindow_ShowShareXInSendToMenu(),
+        ];
+        let mut frame = |events: Vec<egui::Event>, w: &mut ApplicationSettings, settings: &mut ApplicationConfig| {
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(950.0, 720.0))), events, ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                let _ = w.ui(ui, settings);
+            });
+            out.textures_delta.clear();
+            out.shapes
+        };
+        let shapes = frame(Vec::new(), &mut w, &mut settings);
+        for name in names {
+            let pos = shapes
+                .iter()
+                .find_map(|c| match &c.shape {
+                    egui::Shape::Text(t) if t.galley.text() == name => Some(t.pos + vec2(-10.0, 8.0)),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{name} not drawn"));
+            boxes.push(pos);
+        }
+        for pos in boxes {
+            let press = |pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+            frame(vec![egui::Event::PointerMoved(pos)], &mut w, &mut settings);
+            frame(vec![press(true)], &mut w, &mut settings);
+            frame(vec![press(false)], &mut w, &mut settings);
+        }
+        // The context menu box went to the backend; Send To's error is shown.
+        assert_eq!(state.borrow().get(&format!("{:?}", Switch::ShellContextMenu)), Some(&true));
+        assert_eq!(w.status, "Access denied");
     }
 
     #[test]

@@ -632,7 +632,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let page = crate::app_settings::PAGES.iter().position(|p| *p == name).ok_or(format!("no settings page {name}"))?;
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             let parent = sharex_settings::paths::absolute_path("ShareXrs").join("Screenshots");
-            let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent);
+            // A fresh system: nothing integrated, nothing read from this one.
+            let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent).with_integration(Box::new(crate::integration::NoIntegration));
             state.page = page;
             state.set_scroll(page, scroll);
             // `--state` on the Settings page: the export and import states
