@@ -136,9 +136,7 @@ impl Game {
     pub fn click(&mut self) -> f64 {
         let gain = self.click_value();
         self.add_logos(gain);
-        if self.state.manual_clicks < i64::MAX {
-            self.state.manual_clicks += 1;
-        }
+        self.state.manual_clicks = self.state.manual_clicks.saturating_add(1);
         self.state.store_discovered |= self.state.lifetime_logos >= STORE_UNLOCK_AT;
         gain
     }
