@@ -233,8 +233,51 @@ impl App {
         }
     }
 
+    /// `OnThumbnailPointerMoved` → `DragDrop.DoDragDropAsync(trigger, data,
+    /// DragDropEffects.Copy)`: the task's file dragged out. While it's
+    /// dragged the main window redraws with the combine drop zones under
+    /// the pointer and refuses the drop elsewhere (`UpdateDropOverlay`);
+    /// dropped on a zone, the two images are combined (`OnCombineImagesDrop`).
+    pub(super) fn drag_task_file(&mut self, path: std::path::PathBuf) {
+        let Some(w) = self.main.as_mut() else { return };
+        let origin = w.window.inner_position().ok();
+        let size = w.window.inner_size();
+        let scale = w.window.scale_factor();
+        let title_font = sharex_ui::widgets::font(sharex_ui::theme::FONT_SIZE, 600);
+        let title_h = w.ctx().fonts_mut(|f| f.row_height(&title_font)).ceil();
+        let state = &mut self.state;
+        let mut entered = false;
+        let outcome = self.drag_source.drag_files(&[path], &mut |(x, y)| {
+            let local = origin
+                .map(|o| (f64::from(x - o.x), f64::from(y - o.y)))
+                .filter(|(lx, ly)| *lx >= 0.0 && *ly >= 0.0 && *lx < f64::from(size.width) && *ly < f64::from(size.height))
+                .map(|(lx, ly)| egui::pos2((lx / scale) as f32, (ly / scale) as f32));
+            entered |= local.is_some();
+            let takes = state.tasks.drag_over(title_h, local);
+            let _ = w.paint(|ui| state.ui(ui));
+            if local.is_some() && !takes { crate::drag_out::Cursor::NoDrop } else { crate::drag_out::Cursor::Default }
+        });
+        if entered {
+            self.own_drag_until = Some(std::time::Instant::now() + std::time::Duration::from_millis(500));
+        }
+        // OLE had the mouse: egui never saw the button go up.
+        let device_id = winit::event::DeviceId::dummy();
+        w.on_event(&winit::event::WindowEvent::MouseInput {
+            device_id,
+            state: winit::event::ElementState::Released,
+            button: winit::event::MouseButton::Left,
+        });
+        w.window.request_redraw();
+        if let Some((source, target, horizontal)) = self.state.tasks.drag_ended(outcome.dropped) {
+            // `TaskHelpers.CombineImages(new[] { sourcePath, targetPath }, orientation)`.
+            let o = if horizontal { sharex_tools::combiner::Orientation::Horizontal } else { sharex_tools::combiner::Orientation::Vertical };
+            self.combine_images(vec![source.to_string_lossy().into_owned(), target.to_string_lossy().into_owned()], o);
+        }
+    }
+
     pub(super) fn task_action(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, action: TaskAction) {
         match action {
+            TaskAction::DragOut(_, path) => self.drag_task_file(path),
             TaskAction::Command(command, ids) => self.task_command(event_loop, command, ids),
             TaskAction::OpenImageViewer(path) => {
                 // `ShowImagesInViewer`: the task list's image files, from this one.

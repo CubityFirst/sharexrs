@@ -234,6 +234,9 @@ pub enum TaskAction {
     CloseWindow,
     /// The view settings changed; save them.
     SettingsChanged,
+    /// `OnThumbnailPointerMoved` past the drag size: drag the task's file
+    /// out (`DragDrop.DoDragDropAsync`).
+    DragOut(u64, PathBuf),
 }
 
 /// A picture to decode off the UI thread.
@@ -314,6 +317,25 @@ struct PreviewAnimation {
     playing: bool,
 }
 
+/// A press on a task that may become a drag of its file
+/// (`PrepareThumbnailDrag`): `_thumbnailDragSource`, `_thumbnailDragStart`,
+/// `_thumbnailDragStarted`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FileDrag {
+    id: u64,
+    start: Pos2,
+    started: bool,
+}
+
+/// The combine drop zones a dragged thumbnail is over: the target card
+/// (`_thumbnailCombineTarget`) and the zone under the pointer (true for
+/// Horizontal), lit with `drag-over`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CombineTarget {
+    pub id: u64,
+    pub zone: Option<bool>,
+}
+
 /// A drag in progress on a column or the preview's resizer.
 #[derive(Clone, Copy)]
 enum Resize {
@@ -354,6 +376,8 @@ pub struct TaskView {
     layout: Layout,
     hover: Option<Hover>,
     preview_animation: Option<PreviewAnimation>,
+    file_drag: Option<FileDrag>,
+    combine: Option<CombineTarget>,
     /// The window's scale, as of the last frame.
     ppp: f32,
 }
@@ -418,6 +442,8 @@ impl TaskView {
             layout: Layout::default(),
             hover: None,
             preview_animation: None,
+            file_drag: None,
+            combine: None,
             ppp: 1.0,
         }
     }
@@ -841,6 +867,119 @@ impl TaskView {
         }
     }
 
+    /// The dragged task, while its file is being dragged out.
+    pub fn dragging(&self) -> Option<u64> {
+        self.file_drag.filter(|d| d.started).map(|d| d.id)
+    }
+
+    /// For `--render`: task `source` dragged over `target`'s card, the
+    /// pointer on a zone (true: Horizontal) or elsewhere on it.
+    pub fn show_combine(&mut self, source: u64, target: u64, zone: Option<bool>) {
+        self.file_drag = Some(FileDrag { id: source, start: Pos2::ZERO, started: true });
+        self.combine = Some(CombineTarget { id: target, zone });
+    }
+
+    /// `CanCombineThumbnails`: two different tasks with existing images.
+    fn can_combine(&self, source: u64, target: u64) -> bool {
+        let image = |id| {
+            self.task(id).and_then(|t| t.info.file_path.as_ref()).is_some_and(|p| p.is_file() && is_image_file(&p.to_string_lossy()))
+        };
+        source != target && image(source) && image(target)
+    }
+
+    /// The combine overlay's two zones on a card's picture (`Padding="6"`,
+    /// the title row, `RowSpacing`/`ColumnSpacing` 6): Horizontal, Vertical.
+    fn combine_zones(title_h: f32, preview: Rect) -> (Rect, Rect) {
+        let inner = preview.shrink(6.0);
+        let top = inner.min.y + title_h + 6.0;
+        let w = ((inner.width() - 6.0) / 2.0).max(0.0);
+        let h = Rect::from_min_max(pos2(inner.min.x, top), pos2(inner.min.x + w, inner.max.y));
+        let v = Rect::from_min_max(pos2(inner.max.x - w, top), pos2(inner.max.x, inner.max.y));
+        (h, v)
+    }
+
+    /// `UpdateDropOverlay` and `UpdateCombineImagesDragZone` while this
+    /// view's own file is dragged: the card under `pos` becomes the combine
+    /// target when the two can be combined, its zone under the pointer
+    /// lights up. Returns whether the window takes the drop there
+    /// (`DragDropEffects.Copy`); `pos` is `None` outside the window.
+    /// `title_h`: the overlay title's line height (Segoe UI 13 SemiBold).
+    pub fn drag_over(&mut self, title_h: f32, pos: Option<Pos2>) -> bool {
+        let Some(source) = self.dragging() else { return true };
+        let Some(pos) = pos else {
+            // `OnDragLeave` outside the client area.
+            self.combine = None;
+            return true;
+        };
+        // Only thumbnail cards have combine drop zones.
+        let target = if self.settings.is_list() { None } else { self.hovered_task(pos) };
+        let ok = target.is_some_and(|t| self.can_combine(source, t));
+        self.combine = target.filter(|_| ok).map(|id| {
+            let preview = self.layout.hits.iter().find(|(i, ..)| *i == id).and_then(|(_, _, p)| *p);
+            let zone = preview.and_then(|pr| {
+                let (h, v) = Self::combine_zones(title_h, pr);
+                if h.contains(pos) {
+                    Some(true)
+                } else if v.contains(pos) {
+                    Some(false)
+                } else {
+                    None
+                }
+            });
+            CombineTarget { id, zone }
+        });
+        ok
+    }
+
+    /// The drag ended (`OnCombineImagesDrop` when it was dropped on a
+    /// zone): the files to combine and the orientation (true: horizontal).
+    pub fn drag_ended(&mut self, dropped: bool) -> Option<(PathBuf, PathBuf, bool)> {
+        let source = self.dragging();
+        // `_thumbnailDragStarted` stays until the button's release
+        // (`HandleTaskPointerReleased`), so it runs no click action.
+        let target = self.combine.take();
+        let (source, CombineTarget { id: target, zone: Some(horizontal) }) = (source?, target?) else { return None };
+        if !dropped || !self.can_combine(source, target) {
+            return None;
+        }
+        let path = |id| self.task(id).and_then(|t| t.info.file_path.clone());
+        Some((path(source)?, path(target)?, horizontal))
+    }
+
+    /// The `IsCombineTarget` overlay on a card's picture.
+    fn paint_combine_overlay(&self, ui: &Ui, painter: &egui::Painter, preview: Rect, zone: Option<bool>) {
+        let p = palette(ui.ctx());
+        painter.rect_filled(preview, CornerRadius::same(4), Color32::from_rgba_unmultiplied(0x1B, 0x1B, 0x1B, 0xE6));
+        let inner = preview.shrink(6.0);
+        let title_font = font(FONT_SIZE, 600);
+        let title_h = widgets::line_height(ui, &title_font);
+        let g = widgets::galley(ui, s::MainWindow_CombineImages(), title_font, Color32::WHITE, inner.width());
+        let x = inner.min.x + ((inner.width() - g.size().x) / 2.0).round();
+        painter.galley(pos2(x, inner.min.y), g, Color32::WHITE);
+        let (h, v) = Self::combine_zones(title_h, preview);
+        for (rect, horizontal) in [(h, true), (v, false)] {
+            let lit = zone == Some(horizontal);
+            let (fill, fg) = if lit {
+                (p.accent_start, p.accent_foreground)
+            } else {
+                (Color32::from_rgba_unmultiplied(0x2B, 0x2B, 0x2B, 0xCC), Color32::WHITE)
+            };
+            sharex_ui::border::border(painter, rect, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(fill)), Some(p.accent_border));
+            // A 20px icon over its 11px label, 3 apart, centred.
+            let label_font = font(11.0, 600);
+            let label_h = widgets::line_height(ui, &label_font);
+            let stack_h = 20.0 + 3.0 + label_h;
+            let top = rect.min.y + ((rect.height() - stack_h) / 2.0).round_ties_even();
+            let key = if horizontal { icon::Columns } else { icon::Rows };
+            let ix = rect.min.x + ((rect.width() - 20.0) / 2.0).round_ties_even();
+            icons::paint(painter, Rect::from_min_size(pos2(ix, top), Vec2::splat(20.0)), key, fg);
+            let text = if horizontal { s::MainWindow_Horizontal() } else { s::MainWindow_Vertical() };
+            let g = widgets::galley(ui, text, label_font, fg, rect.width());
+            let lx = rect.min.x + ((rect.width() - g.size().x) / 2.0).round();
+            painter.galley(pos2(lx, top + 23.0), g, fg);
+        }
+    }
+
     /// `OnThumbnailPreviewPointerEntered/Exited`: a GIF under the pointer
     /// plays over its thumbnail (`StartHoverAnimation`, decoded at twice
     /// the thumbnail's size), and stops when the pointer leaves it.
@@ -1004,6 +1143,9 @@ impl TaskView {
                 painter.rect_filled(badge, CornerRadius::same(4), Color32::from_rgba_unmultiplied(0xB9, 0x1C, 0x1C, 0xC8));
                 icons::paint(painter, Rect::from_center_size(badge.center(), Vec2::splat(FONT_SIZE)), icon::Warning, Color32::WHITE);
             }
+            if let Some(c) = self.combine.filter(|c| c.id == *id) {
+                self.paint_combine_overlay(ui, &painter.with_clip_rect(preview.intersect(painter.clip_rect())), preview, c.zone);
+            }
         }
         self.paint_scroll_indicator(ui, painter);
     }
@@ -1145,6 +1287,20 @@ impl TaskView {
                 Event::PointerMoved(pos) => {
                     if let Some(r) = self.resize {
                         self.drag_resize(r, pos);
+                    }
+                    // `OnThumbnailPointerMoved`: past half the tap size
+                    // (4x4) either way, the file is dragged out.
+                    let primary = ctx.input(|i| i.pointer.primary_down());
+                    if let Some(d) = &mut self.file_drag
+                        && !d.started
+                        && primary
+                        && ((pos.x - d.start.x).abs() >= DOUBLE_CLICK_DISTANCE / 2.0 || (pos.y - d.start.y).abs() >= DOUBLE_CLICK_DISTANCE / 2.0)
+                    {
+                        d.started = true;
+                        let id = d.id;
+                        if let Some(path) = self.task(id).and_then(|t| t.info.file_path.clone()).filter(|p| p.is_file()) {
+                            actions.push(TaskAction::DragOut(id, path));
+                        }
                     }
                 }
                 Event::MouseWheel { delta, unit, .. } => {
@@ -1332,6 +1488,12 @@ impl TaskView {
                 } else {
                     self.select_only(id);
                 }
+                // `PrepareThumbnailDrag`: only a task whose file exists.
+                self.file_drag = self
+                    .task(id)
+                    .and_then(|t| t.info.file_path.as_ref())
+                    .filter(|p| p.is_file())
+                    .map(|_| FileDrag { id, start: pos, started: false });
                 if double && !self.suppress_click {
                     if self.settings.is_list() {
                         // `OnTaskRowDoubleTapped`: `TryOpen` on that task.
@@ -1376,7 +1538,13 @@ impl TaskView {
         let hit = self.hovered_task(pos);
         match button {
             PointerButton::Primary => {
+                // `HandleTaskPointerReleased`: `wasDragging`, then `ResetThumbnailDrag`.
+                let was_dragging = self.file_drag.take().is_some_and(|d| d.started);
+                self.combine = None;
                 let Some(id) = hit else { return };
+                if was_dragging {
+                    return;
+                }
                 if !self.settings.is_list() && self.title_hit(pos) == Some(id) {
                     // `OnThumbnailTitlePointerReleased`: the URL, else the file.
                     if let Some(task) = self.task(id) {
@@ -1894,6 +2062,90 @@ mod tests {
             v.add_task(id);
         }
         v
+    }
+
+    /// Two finished tasks whose files are images in `dir` (1 older, 2 newer),
+    /// laid out as two cards side by side.
+    fn two_cards(dir: &std::path::Path) -> TaskView {
+        let mut v = TaskView::new();
+        for i in 1..=2 {
+            let path = dir.join(format!("{i}.png"));
+            image::RgbaImage::new(4, 4).save(&path).unwrap();
+            let id = v.manager.start_image_task(format!("{i}.bmp"));
+            v.add_task(id);
+            v.manager.complete(id, Some(path), None, 10);
+        }
+        let card = |x: f32| (Rect::from_min_size(pos2(x, 0.0), vec2(218.0, 180.0)), Rect::from_min_size(pos2(x + 9.0, 27.0), vec2(200.0, 150.0)));
+        let (b2, p2) = card(0.0);
+        let (b1, p1) = card(218.0);
+        v.layout.area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+        v.layout.list = v.layout.area;
+        v.layout.hits = vec![(2, b2, Some(p2)), (1, b1, Some(p1))];
+        v
+    }
+
+    #[test]
+    fn a_dragged_thumbnail_combines_on_a_drop_zone() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-drag-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut v = two_cards(&dir);
+        // The press prepares the drag of task 2's file; it starts as the
+        // drag (here: the mock) reports the pointer over task 1's zones.
+        v.file_drag = Some(FileDrag { id: 2, start: pos2(100.0, 100.0), started: true });
+        let title_h = 18.0;
+        // Task 1's picture is x 227..427, y 27..177: zones below the title
+        // row (6 + 18 + 6), Horizontal on the left, Vertical on the right.
+        let mut src = crate::drag_out::MockDragSource {
+            moves: vec![(100, 100), (300, 120), (380, 120), (300, 40)],
+            effect: crate::drag_out::Effect::Copy,
+            dropped: true,
+            dragged: Vec::new(),
+            cursors: Vec::new(),
+        };
+        let mut seen = Vec::new();
+        use crate::drag_out::DragSource;
+        let outcome = src.drag_files(&[dir.join("2.png")], &mut |(x, y)| {
+            let takes = v.drag_over(title_h, Some(pos2(x as f32, y as f32)));
+            seen.push(v.combine);
+            if takes { crate::drag_out::Cursor::Default } else { crate::drag_out::Cursor::NoDrop }
+        });
+        assert!(outcome.dropped);
+        // Over itself: no target, refused; then task 1's Horizontal and
+        // Vertical zones; then its title row, still the target, no zone.
+        assert_eq!(src.cursors[0], crate::drag_out::Cursor::NoDrop);
+        assert_eq!(seen[0], None);
+        assert_eq!(seen[1], Some(CombineTarget { id: 1, zone: Some(true) }));
+        assert_eq!(seen[2], Some(CombineTarget { id: 1, zone: Some(false) }));
+        assert_eq!(seen[3], Some(CombineTarget { id: 1, zone: None }));
+        // Dropped off a zone: nothing to combine.
+        assert_eq!(v.drag_ended(true), None);
+        // Dropped on Horizontal: source first, then the target.
+        v.drag_over(title_h, Some(pos2(300.0, 120.0)));
+        let (a, b, horizontal) = v.drag_ended(true).unwrap();
+        assert_eq!((a, b, horizontal), (dir.join("2.png"), dir.join("1.png"), true));
+        // Cancelled (Escape) on a zone: nothing either.
+        v.drag_over(title_h, Some(pos2(380.0, 120.0)));
+        assert_eq!(v.drag_ended(false), None);
+        // The release after the drag runs no click action.
+        let mut actions = Vec::new();
+        v.release(pos2(100.0, 100.0), PointerButton::Primary, &mut actions);
+        assert!(actions.is_empty());
+        assert_eq!(v.dragging(), None);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_list_view_has_no_combine_zones() {
+        let dir = std::env::temp_dir().join(format!("sharexrs-drag-list-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut v = two_cards(&dir);
+        v.settings.mode = TaskViewMode::ListView;
+        v.file_drag = Some(FileDrag { id: 2, start: Pos2::ZERO, started: true });
+        assert!(!v.drag_over(18.0, Some(pos2(300.0, 120.0))));
+        assert_eq!(v.combine, None);
+        // Outside the window: no target, and the window has no say.
+        assert!(v.drag_over(18.0, None));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

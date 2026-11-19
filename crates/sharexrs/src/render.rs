@@ -187,6 +187,8 @@ struct TaskScene<'a> {
     scale: f32,
     dark: bool,
     work_area: Option<egui::Rect>,
+    /// `--combine S,T[,h|v]`: task S (0 newest) dragged over T's card.
+    combine: Option<(usize, usize, Option<bool>)>,
 }
 
 /// The main window with finished region capture tasks of `files`.
@@ -247,6 +249,9 @@ fn render_tasks(scene: TaskScene) -> Result<image::RgbaImage, String> {
         {
             events.push(egui::Event::PointerMoved(p));
         }
+        if let Some((s, t, zone)) = scene.combine {
+            state.tasks.show_combine(n - s as u64, n - t as u64, zone);
+        }
         screen.run(events, &mut |ui: &mut egui::Ui| {
             state.ui(ui);
         });
@@ -275,6 +280,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut select: Vec<usize> = Vec::new();
     let mut context = None;
     let mut scroll = 0.0f32;
+    let mut combine = None;
     // Theme options for the Start screen and settings screens.
     let mut accent: Option<String> = None;
     let mut legacy = false;
@@ -330,6 +336,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             "--list" => list_view = true,
             "--select" => select = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect(),
+            "--combine" => {
+                let v = val()?;
+                let p: Vec<&str> = v.split(',').collect();
+                let n = |i: usize| p.get(i).and_then(|x| x.trim().parse::<usize>().ok()).ok_or("--combine S,T[,h|v]");
+                let zone = match p.get(2).map(|z| z.trim()) {
+                    Some("h") => Some(true),
+                    Some("v") => Some(false),
+                    _ => None,
+                };
+                combine = Some((n(0)?, n(1)?, zone));
+            }
             "--context" => {
                 let v = val()?;
                 let (x, y) = v.split_once(',').ok_or("--context X,Y")?;
@@ -398,6 +415,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             scale,
             dark,
             work_area,
+            combine,
         })?,
         _ if screen == "main" || menu.is_some() => {
             let mut state = MainWindow::new();

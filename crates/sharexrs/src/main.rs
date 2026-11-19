@@ -10,6 +10,7 @@ mod animation;
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod drag_out;
 mod logger;
 mod main_commands;
 mod quick_task;
@@ -227,6 +228,8 @@ fn main() {
         state: MainWindow::new(),
         cursor: None,
         swallow_release: false,
+        drag_source: drag_out::system(),
+        own_drag_until: None,
         settings,
         uploads,
         hotkeys: HotkeyManager::new(host),
@@ -325,6 +328,13 @@ struct App {
     cursor: Option<egui::Pos2>,
     /// A press closed a menu (light dismiss); its release goes nowhere either.
     swallow_release: bool,
+    /// Drags files out of the app (OLE's `DoDragDrop` on Windows).
+    drag_source: Box<dyn drag_out::DragSource>,
+    /// Until when the main window ignores the file drag events of its own
+    /// drag (OLE delivers them to winit's drop target during the drag;
+    /// winit hands them over once the drag returns). ShareX ignores its own
+    /// drag in `UpdateDropOverlay`/`OnDrop` (`_thumbnailDragSource != null`).
+    own_drag_until: Option<Instant>,
     /// `ApplicationState.Settings` and `HotkeysConfig`.
     settings: SettingManager,
     /// `ApplicationState.UploadersConfig` and the queued upload tasks.
@@ -1808,6 +1818,8 @@ impl ApplicationHandler<UserEvent> for App {
         }
         let Some(w) = self.main.as_mut().filter(|w| w.window.id() == id) else { return };
         match event {
+            WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_)
+                if self.own_drag_until.is_some_and(|t| Instant::now() < t) => {}
             WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_) => {
                 // Uploading what's dropped comes with the upload tools.
                 self.state.drop_overlay = matches!(event, WindowEvent::HoveredFile(_));
