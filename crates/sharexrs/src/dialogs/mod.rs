@@ -11,6 +11,7 @@
 //! task's thread waits on.
 
 pub mod about;
+pub mod about_clicker;
 pub mod actions_toolbar;
 pub mod after_capture;
 pub mod after_upload;

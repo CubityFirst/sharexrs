@@ -10,6 +10,7 @@ mod animation;
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod clicker;
 mod display_native;
 mod drag_out;
 mod logger;

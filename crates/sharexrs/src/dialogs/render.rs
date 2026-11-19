@@ -174,6 +174,23 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
                 c.status = status;
                 w.checked(c);
             }
+            // The clicker: `clicker` after three clicks on the logo,
+            // `clicker-store` with the store open and a few things bought.
+            if state.starts_with("clicker") {
+                w.clicker.activated = true;
+                let g = &mut w.clicker.game;
+                for _ in 0..3 {
+                    g.click();
+                }
+                if state == "clicker-store" {
+                    g.state.logos = 1200.0;
+                    g.state.lifetime_logos = 1300.0;
+                    g.state.store_discovered = true;
+                    g.buy_building(&crate::clicker::BUILDINGS[0], 3);
+                    g.buy_upgrade(&crate::clicker::UPGRADES[0]);
+                    w.clicker.store_visible = true;
+                }
+            }
             Box::new(w)
         }
         // A generated log; `--state upload-confirm` shows the confirmation.
