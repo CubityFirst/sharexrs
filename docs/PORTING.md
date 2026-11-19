@@ -275,9 +275,22 @@ pointer annotation's composite through whole-image conversions), present
   of the topmost windows before it's shown. `MainWindow.WarmUpRegionCapture`
   makes them 2 s after startup once idle (~100 ms of the event loop,
   logged as ShareX does). Each kept overlay holds ~49 MB of GPU memory
-  and ~12 MB of the process's; `SHAREXRS_NO_OVERLAY_REUSE=1` closes them
+  and ~14 MB of the process's; `SHAREXRS_NO_OVERLAY_REUSE=1` closes them
   after each capture as before. macOS and Linux still make and close
   them per capture: hiding and showing them again is untested there.
+- **Memory** (MB, `Get-Process` working set / private / peak working set,
+  GPU dedicated from `GPU Process Memory`; ShareX's read from the running
+  reference copy, idle):
+
+  | | before | after | ShareX |
+  |---|---|---|---|
+  | idle, main window shown (5 s) | 354 / 416 / 354, GPU 204 | 368 / 430 / 383, GPU 253 | 231 / 189 / 232, GPU 59 |
+  | idle, closed to the tray | 355 / 416 / 355, GPU 204 | 368 / 430 / 383, GPU 253 | |
+  | after the first capture | 383 / 427 / 486, GPU 204 | 396 / 440 / 456, GPU 253 | |
+  | after 15 repeat captures | 388 / 432 / 492, GPU 204 | 404 / 448 / 466, GPU 253 | |
+
+  The kept overlay is the +49 MB of GPU memory and +14 MB of the
+  process's; the peak is lower, with fewer screen-sized copies at a time.
 - **The first frame only draws.** The frozen screen is uploaded before it
   (into the kept texture) straight from the screenshot or the composite;
   image annotations and drop shadows convert and blur only what they
