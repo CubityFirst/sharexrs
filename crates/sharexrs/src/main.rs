@@ -1801,6 +1801,9 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(config) = self.pending_notification.take() {
             self.show_notification(event_loop, config);
         }
+        for d in std::mem::take(&mut self.pending_dialogs) {
+            self.open_dialog_window(event_loop, d);
+        }
         if let Some(d) = &self.dialog
             && d.window.repaint_at.is_some_and(|at| at <= Instant::now())
         {

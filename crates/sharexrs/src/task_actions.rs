@@ -116,9 +116,69 @@ impl App {
     /// `UploadManager.RunImageTask`: the task shows in the main window at
     /// once (preparing), and its after capture tasks (and upload) run on a
     /// thread (`crate::upload`).
+    /// `UploadManager.RunImageTask`: the after capture window first, when
+    /// the task asks for it (`TaskHelpers.ShowAfterCaptureWindow`).
     pub(super) fn run_image_task(&mut self, job: capture_job::ImageTask) {
+        if job.task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowAfterCaptureWindow) {
+            self.pending_dialogs.push(self.after_capture_window(job));
+            return;
+        }
+        self.start_image_task(job);
+    }
+
+    /// `StartImageTask`: `WorkerTask.CreateImageUploaderTask` and `TaskManager.Start`.
+    pub(crate) fn start_image_task(&mut self, job: capture_job::ImageTask) {
         let task = crate::upload::manager::create_image_uploader_task(job);
         self.start_upload_tasks(vec![task]);
+    }
+
+    /// `AfterCaptureWindowIntegration.Show(taskSettings, metadata, null)`.
+    fn after_capture_window(&self, job: capture_job::ImageTask) -> Box<dyn crate::dialogs::Dialog> {
+        use crate::dialogs::after_capture::{AfterCaptureWindow, Target};
+        let task = job.task.clone();
+        let image = job.metadata.image.clone();
+        // `TaskHelpers.GetFileName(taskSettings, null, metadata)`: the name
+        // the task would use, without its extension.
+        let name = std::path::Path::new(&job.file_name).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let can_upload = !self.settings.system.disable_upload && !self.settings.settings.DisableUpload;
+        let window = self.uploads.config.with(|c| AfterCaptureWindow::new(Target::Image(Box::new(job)), task, Some(image), None, name, can_upload, c));
+        Box::new(window)
+    }
+
+    /// The after capture window's answer: the task starts (`StartImageTask`
+    /// with `result.FileName`), or a recording becomes a file task
+    /// (`FinishRecording`).
+    pub(crate) fn after_capture_accepted(&mut self, accepted: crate::dialogs::after_capture::Accepted) {
+        use crate::dialogs::after_capture::Target;
+        match accepted.target {
+            Target::Image(mut job) => {
+                job.task = accepted.task;
+                if !accepted.file_name.is_empty() {
+                    // `FileHelpers.AppendExtension(customFileName, "bmp")`.
+                    job.file_name = format!("{}.bmp", accepted.file_name);
+                }
+                self.start_image_task(*job);
+            }
+            Target::Recording(mut path) => {
+                let name = accepted.file_name;
+                let current = path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                if !name.is_empty() && !current.eq_ignore_ascii_case(&name) {
+                    // `FileHelpers.RenameFile(path, customFileName + ext)`.
+                    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+                    let to = path.with_file_name(format!("{name}{ext}"));
+                    match std::fs::rename(&path, &to) {
+                        Ok(()) => path = to,
+                        Err(e) => eprintln!("couldn't rename {}: {e}", path.display()),
+                    }
+                }
+                let mut ctx = self.new_task_context();
+                if let Some(t) = crate::upload::manager::create_file_job_task(&path, accepted.task, &mut ctx) {
+                    self.start_upload_tasks(vec![t]);
+                }
+            }
+            Target::Preview => {}
+        }
+        self.update_progress_ui();
     }
 
     fn redraw_main(&self) {

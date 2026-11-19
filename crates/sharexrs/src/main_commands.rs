@@ -87,4 +87,9 @@ impl App {
         }
         self.open_dialog_window(event_loop, Box::new(window));
     }
+
+    /// `ImageViewerWindowIntegration.ShowImage(image)`.
+    pub(crate) fn show_image(&mut self, _event_loop: &ActiveEventLoop, image: image::RgbaImage) {
+        eprintln!("Image viewer: {}x{}", image.width(), image.height());
+    }
 }

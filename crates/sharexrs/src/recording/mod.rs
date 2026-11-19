@@ -586,7 +586,13 @@ impl App {
         eprintln!("Screen recording saved: {path}");
         let task = r.task;
         if task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowAfterCaptureWindow) {
-            eprintln!("The after capture window isn't ported yet: the recording goes on as accepted.");
+            // `TaskHelpers.ShowAfterCaptureWindow(taskSettings, FinishRecording, null, path)`.
+            use crate::dialogs::after_capture::{AfterCaptureWindow, Target};
+            let path = std::path::PathBuf::from(&path);
+            let can_upload = !self.settings.system.disable_upload && !self.settings.settings.DisableUpload;
+            let window = self.uploads.config.with(|c| AfterCaptureWindow::new(Target::Recording(path.clone()), task.clone(), None, Some(path), String::new(), can_upload, c));
+            self.pending_dialogs.push(Box::new(window));
+            return;
         }
         let mut ctx = self.new_task_context();
         let task = crate::upload::manager::create_file_job_task(std::path::Path::new(&path), task, &mut ctx);

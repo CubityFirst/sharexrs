@@ -216,6 +216,26 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.force_tooltip = o.content.as_deref().is_some_and(|c| c.starts_with("tip:"));
             Box::new(w)
         }
+        // `--image`: the capture (none: a recording, `--files` its path);
+        // `--text`: the file name; `--state goal:<n>`: a goal picked;
+        // `--content <AfterCaptureJob>`: the task's after capture tasks.
+        "after-capture" => {
+            use super::after_capture::{AfterCaptureWindow, Target};
+            let mut task = TaskSettings::default();
+            if let Some(job) = o.content.as_deref() {
+                task.AfterCaptureJob = sharex_settings::AfterCaptureTasks::parse(job).ok_or("--content: AfterCaptureTasks")?;
+            }
+            let image = o.image.as_ref().map(|_| load_image(&o.image)).transpose()?;
+            let file = o.files.first().cloned();
+            let mut w = AfterCaptureWindow::new(Target::Preview, task, image, file, o.text.clone().unwrap_or_else(|| "AkM5MGPNSL".into()), true, &mock_config());
+            if let Some(g) = o.state.as_deref().and_then(|s| s.strip_prefix("goal:")).and_then(|g| g.parse::<usize>().ok()) {
+                let goals = super::after_capture::available_goals(w.has_image(), true);
+                if let Some(goal) = goals.get(g) {
+                    w.goal = *goal;
+                }
+            }
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -387,6 +407,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "about"
             | "debug-log"
             | "notification"
+            | "after-capture"
             | "before-upload"
             | "after-upload"
             | "qr-code"

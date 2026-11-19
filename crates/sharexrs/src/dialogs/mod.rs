@@ -11,6 +11,7 @@
 //! task's thread waits on.
 
 pub mod about;
+pub mod after_capture;
 pub mod after_upload;
 pub mod before_upload;
 pub mod clipboard_upload;
@@ -211,6 +212,11 @@ pub enum Effect {
     /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
     /// flashing in the taskbar (`FlashWindowEx`).
     MinimizeAndFlash,
+    /// The after capture window's Continue (or copy): the task starts with
+    /// the settings it chose.
+    AfterCaptureAccepted(Box<after_capture::Accepted>),
+    /// `ImageViewerWindowIntegration.ShowImage(image)`.
+    ShowImage(RgbaImage),
     /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
     /// (the notification's Delete file).
     DeleteFile(PathBuf),
@@ -673,6 +679,8 @@ impl App {
                 }
                 Effect::ApplyAppearance => self.apply_appearance(),
                 Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
+                Effect::AfterCaptureAccepted(accepted) => self.after_capture_accepted(*accepted),
+                Effect::ShowImage(image) => self.show_image(event_loop, image),
                 Effect::AnnotateImage(image) => {
                     let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                     self.open_image_editor(event_loop, Some(image), None, task, None);
