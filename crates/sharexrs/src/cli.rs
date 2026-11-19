@@ -412,10 +412,12 @@ impl App {
             | HotkeyType::PixelEditor
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects
-            | HotkeyType::ImageViewer
-            | HotkeyType::HashCheck
-            | HotkeyType::Metadata
-            | HotkeyType::StripMetadata => eprintln!("{} with a file: not ported yet", job.name()),
+            | HotkeyType::ImageViewer => eprintln!("{} with a file: not ported yet", job.name()),
+            // `OpenHashCheck(filePath, …)`, `OpenMetadataWindow(filePath)`,
+            // `StripMetadata(filePath, …)`.
+            HotkeyType::HashCheck | HotkeyType::Metadata | HotkeyType::StripMetadata => {
+                self.run_data_job(event_loop, &job, &task, Some(file.to_string_lossy().into_owned()));
+            }
             _ => self.run_job(event_loop, job, task, None),
         }
     }
@@ -584,7 +586,7 @@ impl App {
     }
 
     /// `ex.ShowError(false)`: the message, in an error box.
-    fn show_error(&mut self, event_loop: &ActiveEventLoop, text: &str) {
+    pub(crate) fn show_error(&mut self, event_loop: &ActiveEventLoop, text: &str) {
         let caption = format!("ShareXrs - {}", sharex_strings::helpers_lib::Error());
         self.queue_dialog(event_loop, MessageBox::ok(caption, text, MessageBoxIcon::Error), crate::DialogPurpose::Information);
     }

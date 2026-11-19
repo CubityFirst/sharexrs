@@ -255,6 +255,9 @@ pub enum UploadRequest {
     Files { files: Vec<PathBuf>, task: TaskSettings, confirmed: bool },
     /// `UploadImage(image)` of a generated QR code.
     QrCodeImage(RgbaImage),
+    /// `TaskHelpers.OpenDirectoryIndexer`'s upload: a text upload of the
+    /// index, its file name taking the output's extension.
+    IndexFolder { source: String, output: sharex_tools::indexer::IndexerOutput, task: TaskSettings },
 }
 
 impl UploadRequest {
@@ -714,7 +717,10 @@ impl App {
                 self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
             }
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
-            FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
+            FileService::AnalyzeImage => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+            }
             FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
         }
     }
