@@ -149,6 +149,72 @@ fn monitor_test_patterns_match() {
 }
 
 #[test]
+fn gif_trimmer_reencode_is_byte_identical() {
+    use sharex_tools::video::gif_trimmer::{AnimatedGifTrimmerDocument, CropRect, ExportResult};
+    let data = std::fs::read(input("disp1.gif")).unwrap();
+    let doc = AnimatedGifTrimmerDocument::open(data).unwrap();
+    assert_same_bitmap(&doc.image.frame(4), &expected_bitmap("gifreencode-disp1_gif-frame4"), "frame 4");
+    let full = CropRect { x: 0, y: 0, width: 48, height: 36 };
+    let cases = [
+        (1, 7, true, full, (48, 36), "export3"),
+        (0, 7, false, CropRect { x: 5, y: 3, width: 36, height: 27 }, (36, 27), "export10"),
+        (0, 5, true, CropRect { x: 7, y: 2, width: 24, height: 18 }, (16, 12), "export12"),
+    ];
+    for (first, end, reencode, crop, size, name) in cases {
+        let ExportResult::Written(ours) = doc.export_bytes(first, end, reencode, crop, size, None).unwrap() else {
+            panic!("{name}: not written");
+        };
+        assert_eq!(ours, expected(&format!("gifreencode-disp1_gif-{name}.gif")), "{name}");
+    }
+}
+
+/// The background remover over a synthetic 227-byte model, against ShareX's
+/// own service. Needs ONNX Runtime (`ORT_DYLIB_PATH`, e.g. ShareX's
+/// `onnxruntime.dll`); skipped without it, as on CI.
+#[test]
+fn background_remover_matches_sharex() {
+    use sharex_tools::background_remover::{self as br, Device, Model};
+    if std::env::var_os("ORT_DYLIB_PATH").is_none() {
+        eprintln!("skipped: ORT_DYLIB_PATH isn't set");
+        return;
+    }
+    let path = fixture("in-bgmodels-a-nchw-sigmoid.onnx");
+    let model = Model { file_name: "a-nchw-sigmoid.onnx".into(), file_size: std::fs::metadata(&path).unwrap().len(), path };
+    let source = br::load_image(std::path::Path::new(&input("alpha_64x48.png"))).unwrap();
+    let mut service = br::BackgroundRemovalService::new();
+    let r = service.remove_background(&source, &model, Device::Cpu).unwrap();
+    assert_eq!((r.session_cached, r.execution_device.as_str()), (false, "CPU"));
+    assert_same_bitmap(&r.image, &expected_bitmap("bgremove-a-nchw-sigmoid-0"), "background removed");
+    assert!(service.remove_background(&source, &model, Device::Cpu).unwrap().session_cached);
+}
+
+#[test]
+fn gif_trimmer_selection_follows_the_view_model() {
+    use sharex_tools::video::gif_trimmer::{AnimatedGifTrimmerDocument, CropRect, TrimSelection};
+    let doc = AnimatedGifTrimmerDocument::open(std::fs::read(input("trim.gif")).unwrap()).unwrap();
+    let mut s = TrimSelection::new(&doc);
+    assert_eq!((s.start_index, s.end_index, s.can_trim(), s.reencode), (0, 5, false, false));
+    s.set_crop(CropRect { x: 5, y: 3, width: 100, height: 100 });
+    assert_eq!(s.crop, CropRect { x: 5, y: 3, width: 55, height: 37 });
+    assert!(s.is_transformed() && s.reencode && s.can_trim() && !s.can_use_lossless());
+    s.set_output_width(110.0);
+    assert_eq!(s.output_size(), (110, 74));
+    s.reset_crop();
+    assert!(!s.is_transformed() && s.reencode, "a reset keeps re-encode on");
+    // Frame starts 0, 3, 10, 20, 21, 46 centiseconds.
+    s.set_start(&doc, 0.1);
+    assert_eq!((s.start_index, s.position_index), (2, 2));
+    s.set_end(&doc, 0.0);
+    assert_eq!((s.end_index, s.position_index), (3, 2));
+    s.set_end_time(&doc, "00:00:00.200");
+    assert_eq!(s.end_index, 3, "unchanged: 20 cs is still the boundary after frame 2");
+    s.set_end_time(&doc, "bad");
+    s.step_position(10);
+    assert_eq!(s.position_index, 4);
+    assert_eq!(TrimSelection::output_name("C:/x/a.b.gif"), "a.b-trimmed.gif");
+}
+
+#[test]
 fn gif_lossless_trim_is_byte_identical() {
     let data = std::fs::read(input("trim.gif")).unwrap();
     let t = sharex_tools::video::gif_trimmer::GifLosslessTrimmer::parse(&data).unwrap();

@@ -28,11 +28,16 @@ ported, and what each window will need.
 | `indexer` | `Indexer`, `IndexerText`/`Html`/`Xml`/`Json`, `FolderInfo`, `IndexerSettings`, `HtmlHelper`, `URLHelpers.HtmlEncode` | `index`, `index_at`, `scan`, `IndexerSettings` |
 | `metadata` | `MetadataService`, `MetadataReader`, `MetadataCollector`, `ImageMetadataReader`, `TiffMetadataReader`, `IccMetadataReader`, `XmpMetadataReader`, `IsoBaseMediaMetadataReader`, `MatroskaMetadataReader`, `RiffMetadataReader`, `AsfMetadataReader`, `MetadataStripper`, `MetadataViewModel` | `read`, `strip`, `can_strip`, `build_text`, `group`, `filter` |
 | `video::converter` | `VideoConverterOptions`, `VideoConverterViewModel.BuildArguments`, `VideoConversionOutputInfo` | `VideoConverterOptions::arguments`, `ConverterWindow::build_arguments`, `output_info` |
-| `video::trimmer` | `VideoTrimmerService` | `build_trim_arguments`, `validate`, `trim` |
+| `video::trimmer` | `VideoTrimmerService`, `VideoTrimmerViewModel.FormatTime`/`TryParseTime` | `build_trim_arguments`, `validate`, `trim`, `format_time`, `try_parse_time` |
 | `video::thumbnailer` | `VideoThumbnailer`, `VideoThumbnailOptions`, `VideoInfo.ToString` | `take_thumbnails`, `combine`, `frame_arguments`, `timestamps` |
 | `video::gif_maker` | `AnimatedGifMakerService` | `create`, `create_bytes`, `create_preview_frames` |
-| `video::gif_trimmer` | `GifLosslessTrimmer`, `AnimatedGifTrimmerDocument` timing | `GifLosslessTrimmer`, `frame_at`, `nearest_boundary` |
+| `video::gif_trimmer` | `GifLosslessTrimmer`, `AnimatedGifTrimmerDocument` (timing, `Export` with its re-encode, `RenderFrame`), `SkiaAnimatedImage.GetFrame` over Skia's GIF codec, `AnimatedGifTrimmerViewModel`'s selection | `GifLosslessTrimmer`, `AnimatedGif::frame`, `AnimatedGifTrimmerDocument::{open, export, export_bytes, render_frame}`, `TrimSelection`, `crop_and_resize` |
 | `monitor_test` | `MonitorTestPatternControl`, `MonitorTestViewModel` | `MonitorTest::render`, `advance_motion` |
+| `system::clipboard_viewer` | `ClipboardViewerData`, `ClipboardData`, `ClipboardHelpersEx.ImageFromClipboardDib`, `ClipboardViewerViewModel`'s texts | `ClipboardSnapshot::{set, formats, preview}`, `image_from_clipboard_dib`, `format_count_text`, `preview_details` |
+| `system::inspect_window` | `InspectWindowViewModel`, `InspectWindowService`'s list rules, `WindowStyles.ToString()` | `details`, `clipboard_text`, `window_styles_to_string`, `visible_windows`, `percent_to_opacity` |
+| `system::network_monitor` | `NetworkMonitorViewModel`, `NetworkMonitorProbe`, `NetworkMonitorEvent`, `NetworkMonitorEventLog`, `NetworkInterface.GetIsNetworkAvailable` | `NetworkMonitor::{record, needs_confirmation, update_connection, set_time_range, copy_all_text}`, `probe_result`, `probe` (with a `Pinger`), `append_log`, `is_network_available` |
+| `system::borderless_window` | `BorderlessWindowSettings`, `BorderlessWindowManager`, `BorderlessWindowViewModel.Toggle` | `BorderlessWindowSettings::{from_json, to_json}`, `BorderlessWindowManager::toggle` (with `WindowOps`), `toggle` |
+| `background_remover` | `BackgroundRemovalService`, `BackgroundRemovalModel`, `BackgroundRemoverOptions`, `BackgroundRemoverViewModel`'s model list | `BackgroundRemovalService::remove_background`, `scan_models`, `select_model`, `load_image`, `BackgroundRemoverOptions::{from_json, to_json}` |
 | `analyze_image` | `AIOptions`, `AIProviderFactory`, `OpenAIProvider` (Responses API), `OpenAILegacyProvider` (chat completions), `GeminiProvider`, `OpenRouterProvider`, `AnalyzeImageService`, `AnalyzeImageViewModel`'s prompts and result text, `AnalyzeImageOptionsViewModel`'s lists | `AIOptions::from_json/to_json`, `build_analyze_request`, `parse_analyze_response`, `analyze`, `test_connection`, `load_models`, `result_text` |
 | `dotnet`, `text`, `options` | `Array.Sort` introsort, `PriorityQueue`, `System.IO.Path`; `string.Format`/number and date formats; Newtonsoft's lenient settings reading | |
 
@@ -51,7 +56,7 @@ Border and Text watermark box exact), and its canvas gained Catmull-Rom.
 ## Validation
 
 `tools/tools-harness` (README there) runs ShareX's own code headlessly over
-1321 cases and `cargo run --release -p sharex-tools --example tools_validate`
+1333 cases and `cargo run --release -p sharex-tools --example tools_validate`
 compares. "Exact" means byte for byte (or equal values/strings); "pixel-exact"
 means the bitmap before encoding is identical and the encoded file decodes to
 the same pixels (only the PNG zlib stream differs); "close" is within a stated
@@ -71,6 +76,8 @@ tolerance.
 | Icon converter | 40 | 30 | 10 | 0 | 0 | 0 |
 | Animated GIF maker | 24 | 24 | 0 | 0 | 0 | 0 |
 | Animated GIF trimmer (lossless) | 5 | 5 | 0 | 0 | 0 | 0 |
+| Animated GIF trimmer (frames, preview, export) | 5 | 0 | 5 | 0 | 0 | 0 |
+| Trimmers' time texts | 1 | 1 | 0 | 0 | 0 | 0 |
 | Hash checker | 6 | 6 | 0 | 0 | 0 | 0 |
 | QR code (generate, SVG) | 60 | 60 | 0 | 0 | 0 | 0 |
 | QR code (scan) | 21 | 21 | 0 | 0 | 0 | 0 |
@@ -81,6 +88,9 @@ tolerance.
 | Video trimmer arguments | 16 | 16 | 0 | 0 | 0 | 0 |
 | Video thumbnailer | 4 | 1 | 1 | 2 | 0 | 0 |
 | Monitor test | 33 | 0 | 33 | 0 | 0 | 0 |
+| Clipboard viewer previews | 1 | 0 | 1 | 0 | 0 | 0 |
+| Inspect window texts | 1 | 1 | 0 | 0 | 0 | 0 |
+| Background remover | 4 | 4 | 0 | 0 | 0 | 0 |
 | Analyze image (requests and answers) | 141 | 107 | 34 | 0 | 0 | 0 |
 
 What the cases cover, per tool:
@@ -124,6 +134,34 @@ What the cases cover, per tool:
   output info from six real FFmpeg probes and canned text; thumbnailer runs
   (defaults, JPEG 2-column with kept frames, no decorations, separate files)
   on a 12 s synthetic clip.
+- **GIF trimmer**: `SkiaAnimatedImage.GetFrame` for every frame of five
+  GIFs (`trim.gif`, a GIF maker output, and `disp0-2.gif`: transparent and
+  opaque, partial and full frames, every disposal incl. restore-to-previous,
+  a first frame smaller than the screen): 28/28 frames identical; 52
+  exports (lossless cuts, re-encodes, crops, resizes, crop and resize, a
+  1-pixel crop, cuts that need re-encoding, out-of-range arguments), every
+  written GIF byte for byte; the previews (`RenderFrame` at 640 and 20 px)
+  pixel-identical ("pixel-exact" in the table: their PNG bytes). The time
+  boxes' `FormatTime`/`TryParseTime` on 47 values.
+- **Clipboard viewer**: `ClipboardViewerData.GetPreview`, built by
+  reflection over a `ClipboardData` the harness fills (the real clipboard
+  is never read): text, files, raw bytes as hex, PNG/`Bitmap`/`image/png`
+  (an undecodable one too), `CF_DIB` at 24 and 32 bpp, bottom-up and
+  top-down, bit fields with and without alpha, an opaque 32 bpp with zero
+  alpha bytes, 8 bpp with a palette (Skia's BMP decoder), truncated,
+  `CF_DIBV5`, a missing format: 28/28 previews (18 images pixel-identical).
+- **Inspect window**: `WindowStyles.ToString()` on 44 style and extended
+  style values (aliases, composite names, unknown bits) and
+  `FormatRectangle` on 6 rectangles.
+- **Background remover**: `make_bg_models.py` writes four tiny ONNX models
+  with the local `onnx` package (no model is downloaded): NCHW 32x32 with a
+  negative output (the sigmoid branch), NCHW 24x40 all positive (min-max),
+  NHWC in and channels-last out, a dynamic input (ShareX's 1024x1024) with
+  a 2-D output. Each runs over three images (alpha, opaque, odd size)
+  through ShareX's `BackgroundRemovalService` on the CPU device and
+  ShareXrs's with the same `onnxruntime.dll` (`ORT_DYLIB_PATH`): 12/12
+  results byte-identical; display names, session caching and device texts
+  equal.
 - **Monitor test**: gray levels incl. out of range, RGB, eight gradients, the
   three patterns at four sizes, moving bars at four offsets both ways,
   rendered by ShareX's own control through Avalonia.Headless.
@@ -159,9 +197,20 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
 
 ### Not exact, and why
 
-- **Lossy WebP** (10 converter cases, skipped): there's no Rust port of
-  libwebp's VP8 encoder; ShareXrs writes such files lossless. Lossless WebP
-  decodes to ShareX's pixels.
+- **Lossy WebP** (10 converter cases, skipped): ShareXrs writes such
+  files lossless (lossless WebP decodes to ShareX's pixels). ShareX encodes
+  with the libwebp built into SkiaSharp 3.119.4's `libSkiaSharp.dll`
+  (mono/skia `release/3.119.4`, f568ac9). Its PDB lists the libwebp files
+  with their MD5s (`tools/tools-harness/libwebp-sources.md5`, from
+  `llvm-pdbutil dump -files`), and `src/utils/palette.c` among them means
+  libwebp 1.4.0 or later. Byte-identical output means building that libwebp
+  (a `cc` build of its `src/enc`, `src/dsp`, `src/utils` and `sharpyuv`,
+  with the SSE2/SSE4.1 paths Skia compiles) and calling it as Skia's
+  `SkWebpEncoderImpl.cpp` does (the config, method and picture import; the
+  local `skia-m119` sources have no `src/encode`, so check them there). Not
+  done: no libwebp source is on this machine, and this round allowed no
+  downloads. Next step: fetch the libwebp commit whose files match the MD5
+  list.
 - **PNG bytes**: Skia compresses with its zlib and libpng's filter heuristics;
   ShareXrs's PNGs decode to the same pixels (the 256 px entry of 32-bit icons
   too). The icon converter's own 8-bit PNG entry is byte for byte (zlib-rs,
@@ -183,16 +232,16 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
 
 ## Not ported
 
-- **Background remover**: needs an ONNX model run through ONNX Runtime
-  (`BackgroundRemovalService`: `InferenceSession`, DirectML/CPU devices,
-  `AppPaths.ModelsFolder`, `BackgroundRemoverOptions` with the selected model
-  file and device). The pre/post-processing around the model (tensor layout,
-  mask resize and apply) is deterministic and could be ported with an ONNX
-  runtime crate later; stopped here as planned.
+- **Background remover on the GPU**: ShareX's Auto and GPU devices add
+  DirectML (`AppendExecutionProvider_DML` on the DXGI adapter with the most
+  dedicated memory). ShareXrs loads a CPU ONNX Runtime, so Auto runs on the
+  CPU and reports "CPU (GPU unavailable)", as ShareX does when DirectML
+  fails, and GPU fails. On the CPU the results are byte-identical.
 - **Image beautifier**: not a ShareX.Tools tool; `TaskHelpers.OpenImageBeautifier`
   opens the image editor with its background panel (`AnnotateImageModern(...,
   openBackgroundPanel: true)`), so it belongs to the image editor port
-  (docs/IMAGE-EDITOR.md).
+  (docs/IMAGE-EDITOR.md, "The Background panel": its export is 23/26
+  pixel-identical to ShareX's).
 - **Analyze image** differs from ShareX on purpose in two ways. ShareX's
   OpenAI providers set `Authorization` on `HttpClientFactory`'s shared
   client, so every later request through it (other tools, uploads, Gemini's
@@ -202,16 +251,23 @@ set of ShareX's outputs (`tests/fixtures`, made by the harness's
   requests carry ShareXrs's user agent, where ShareX's plain `HttpClient`
   sends none. ureq doesn't give the server's reason phrase, so a test
   connection message shows the standard one for a non-standard phrase.
-- **Animated GIF trimmer re-encode** (crop/resize, or a cut whose first frame
-  depends on earlier ones): decodes frames with Skia's animated GIF codec and
-  writes them with `AnimatedGifCreator` (ported). Needs a Skia-equivalent frame
-  compositor; the `image` crate's could be measured against it.
-- **OCR** (Windows.Media.Ocr / ShareX.OCR), **Remote storage browser**
-  (uploaders' file listings), **Video player** (Media Foundation), the screen
-  tools (color pickers, rulers, mouse highlighter, pin to screen) and the other
-  System tools (borderless window, inspect window, clipboard viewer, network
-  monitor): OS/UI-bound, ported with their windows (the screen tools: see
-  "The Screen tools in ShareXrs").
+- **GIF decoding** goes through the `gif` crate (LZW, interlacing) and
+  composites as Skia's codec does (`SkFrameHolder`'s required frames, the
+  prior frame's restore-to-background, Wuffs' source-over pixels, palette
+  entries past the table opaque black). Truncated or malformed GIFs may
+  stop at a different frame than Wuffs does.
+- **The System tools' native side**: reading the clipboard, enumerating and
+  reading windows (`WindowInfo`), sending ICMP echoes and changing other
+  apps' window styles belong to the windows (sharex-capture already lists
+  windows for Capture › Window). The engines take their results
+  (`ClipboardSnapshot`, `WindowSnapshot`/`WindowEntry`, `Pinger`,
+  `WindowOps`). `is_network_available` is read-only and Windows only (it
+  says yes elsewhere for now). There's no "canvas/sheet splitter" tool in
+  this ShareX version; the Image splitter is above.
+- **Video player** (Media Foundation): OS/UI-bound, ported with its
+  window. OCR is `sharex-ocr` (docs/OCR.md), the Remote storage browser's
+  data side `sharex_uploaders::remote_storage` (docs/UPLOADERS.md), the
+  screen tools are in "The Screen tools in ShareXrs".
 
 ## The Images windows in ShareXrs
 
@@ -371,7 +427,7 @@ version counter so stale previews are dropped (ShareX's `_previewVersion`).
 | Icon converter | `IconConverterWindow` 860×570, 720 | image picker/drop (`icon::load_image`), size checkboxes 16–256 (all on), 32-bit / 8-bit, Convert → save dialog with the `.ico` bytes, `Image_dimensions`/`Icon_saved` |
 | Image comparer | `ImageComparerWindow` 1180×760, 900 | two image pickers (`comparer::load_image`), Slider mode (ShareX's `ImageComparisonSlider` control: a draggable split between the two images) and Diff view (`ComparisonResult.diff`), similarity text in green when identical (`texts`, `is_identical`), 2048 px linear previews |
 | Animated GIF maker | `AnimatedGifMakerWindow` 1120×650, 900 | file list, delay (10–655350 ms), loop and repeat count, animated preview (`create_preview_frames`), save dialog → `create` |
-| Animated GIF trimmer | `AnimatedGifTrimmerWindow` 900×720, 760 | `AnimatedGifTrimmerTimeline` (frames, selection handles snapping with `nearest_boundary`), crop overlay, output size, frame preview (needs a GIF frame compositor), lossless export (`GifLosslessTrimmer::copy`) with the dependent-frame fallback, re-encode (not ported) |
+| Animated GIF trimmer | `AnimatedGifTrimmerWindow` 900×720, 760 | `AnimatedGifTrimmerDocument::open_file` on a thread (`AnimatedGifTrimmer_Loading`); `TrimSelection` behind the timeline (`set_start`/`set_end` snap to frame boundaries, `seek`, `step_position`), the time boxes (`set_start_time`/`set_end_time`, `format_time`), the crop overlay (`set_crop`), the output size (`set_output_width`/`height`), `can_use_lossless`, `status_text`, `frame_text`; the preview (`render_frame(index, u32::MAX)`) and 12 thumbnails (`render_frame(frame_at(duration * i / 12), 640)`); play with each frame's delay; Export → save dialog (`TrimSelection::output_name`) → `TrimSelection::export` with progress (`Ok(false)`: `AnimatedGifTrimmer_UseReencode`), then `reset_crop` and `VideoTrimmer_Saved` |
 | Hash checker | `HashCheckerWindow` 700 wide, 700 | file and second-file pickers and drop, compare-two toggle, algorithm (SHA-256 default, `display_name`), progress bar (`hash_file`'s callback), Stop (the cancel flag), result in upper case, match/differ state (`hashes_match`), notification sound on completion |
 | QR code | `QRCodeWindow` 940×610, 760 | content box (2952-byte limit message), size (0 fits the preview area, at least 64: `effective_size`), preview (`generate_png`), Copy image (clipboard), Save (PNG/JPEG/BMP via `imaging::save_image`, SVG via `generate_svg_file`), Upload, Scan screen/region (capture crate) and image file (`scan`), results joined (`join_results`) |
 | Index folder | `DirectoryIndexerWindow` 980×680, 820 | folder picker, output (HTML/Text/XML/JSON), each output's settings, source preview (text outputs) or a notice (HTML), Save as (`Index_for` name and extension) and Upload (`TaskHelpers.OpenDirectoryIndexer`: a text upload named `.html` etc.); `IndexerSettings` from `TaskSettingsTools.IndexerSettings` with `BinaryUnits` from the application settings |
@@ -380,4 +436,9 @@ version counter so stale previews are dropped (ShareX's `_previewVersion`).
 | Video thumbnailer | `VideoThumbnailerWindow` 900×650, 760 | video picker, the `VideoThumbnailOptions` form, progress (`take_thumbnails`' callback), result list; uploads each output when `UploadThumbnails` (TaskHelpers) |
 | Video trimmer | `VideoTrimmerWindow` 900×720, 760 | Media Foundation preview and timeline (`VideoTrimmerTimeline`); on other platforms an FFmpeg-decoded preview; start/end and Set start/end, Copy vs Re-encode (`build_trim_arguments`), save dialog with the forced extension (`validate`), progress (`trim`) |
 | Analyze image | `AnalyzeImageWindow` 1000×650, 820×560; `AnalyzeImageOptionsWindow` 650×590 | image from a file, the region capture (`AutoStartRegion`, PNG bytes) or a task's file; prompt box with `preset_prompts`, Analyze (`CanAnalyze`: an image, `has_api_key`, not busy; "Configure API key" otherwise) running `analyze` off the UI thread with the elapsed time (`AnalyzeImageViewModel_Time_ms`), the result (`result_text`), Copy (and `AutoCopyResult`), the notification sound; options window: provider, keys (`[JsonEncrypt]`), models with Load models (`load_models`), custom URL, reasoning effort and verbosity lists, Test connection (`test_connection`), the API key page link (`api_key_page`); settings `TaskSettingsTools.AIOptions` (`AIOptions::from_json/to_json`) |
+| Background remover | `BackgroundRemoverWindow` | the models folder (`AppPaths.ModelsFolder`): `scan_models`, `select_model`, `Model::display_name`; the device combo (`Device::ALL`); `BackgroundRemoverOptions` saved as they change; an image from a file or a drop (`load_image`); Remove background → `BackgroundRemovalService::remove_background` on a thread; the comparison slider (the image tools' `ImageComparisonSlider`); Save/Save as; the guide link and notifications |
+| Clipboard viewer | `ClipboardViewerWindow` | the clipboard read into a `ClipboardSnapshot` (Avalonia's names: `UnicodeText`, `FileDrop`, `Bitmap` as PNG bytes, `DeviceIndependentBitmap`, `Format17`, raw bytes otherwise); the formats list (`format_count_text`, `reselect` on Refresh); the preview (`preview`, `preview_details`, `preview_failed_text`); Clear clipboard |
+| Inspect window | `InspectWindowWindow`, `InspectWindowPickerOverlay` | the window list (`visible_windows` over enumerated `WindowEntry`s), the picker (the window under the cursor, top level or control), `details` of a `WindowSnapshot`, Copy (`clipboard_text`), top-most and opacity (`percent_to_opacity`) for top-level windows |
+| Network monitor | `NetworkMonitorWindow` | `targets`, `INTERVALS`, `time_ranges`; the probe loop off the UI thread (`probe` with an ICMP `Pinger`; `needs_confirmation` → wait `DISCONNECT_CONFIRMATION_DELAY`, probe again; `record`; `update_connection` → `append_log` to `Logs/NetworkMonitor.log`); the chart over `visible_samples`; the summary texts; events (`timestamp_text`, `status_text`); Copy all, Clear log, Open log |
+| Borderless window | `BorderlessWindowWindow` | `BorderlessWindowSettings` (`initial_title`), the window list (as the Inspect window's), Toggle → `toggle` with a native `WindowOps` (`SearchWindow`, styles, `SetWindowPos`) and one `BorderlessWindowManager` for the session (also the Make active window borderless hotkey: `BorderlessWindowManager::toggle` on the foreground window) |
 | Monitor test | `MonitorTestWindow`: borderless, topmost, not in the taskbar, sized to the screen under the cursor; a 720-wide controls panel | mode buttons, per-mode controls (gray, RGB with hex text and a 320×320 colour view, gradient colours and direction, pattern and size, motion direction and speed 100–2000 px/s, wheel ±50), the pattern drawn by `MonitorTest::render` each frame with `advance_motion`; left click or Space toggles the controls, right click or Esc closes, Left/Right change mode |

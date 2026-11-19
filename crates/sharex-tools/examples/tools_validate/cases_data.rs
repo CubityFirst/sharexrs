@@ -206,6 +206,102 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
             );
             json_eq(&serde_json::json!(ours), &read_json(ctx, name))
         }
+        "clipboard-preview" => {
+            use sharex_tools::system::clipboard_viewer::{ClipboardSnapshot, ClipboardValue, Preview};
+            let theirs = read_json(ctx, name);
+            let dir = ctx.inputs.join("clipboard");
+            let manifest: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap();
+            let ours_dir = ctx.out.join(name);
+            std::fs::create_dir_all(&ours_dir).unwrap();
+            let mut out = Outcome::exact();
+            let mut i = 0;
+            for (entries, theirs) in manifest.as_array().unwrap().iter().zip(theirs["snapshots"].as_array().unwrap()) {
+                let mut snap = ClipboardSnapshot::new();
+                for e in entries.as_array().unwrap() {
+                    let value = if let Some(t) = e["text"].as_str() {
+                        ClipboardValue::Text(t.into())
+                    } else if let Some(f) = e["files"].as_array() {
+                        ClipboardValue::Files(f.iter().map(|x| x.as_str().unwrap().to_string()).collect())
+                    } else {
+                        ClipboardValue::Bytes(std::fs::read(dir.join(e["bytes"].as_str().unwrap())).unwrap())
+                    };
+                    snap.set(e["format"].as_str().unwrap(), value);
+                }
+                out = out.and(json_eq(&serde_json::json!(snap.formats()), &theirs["formats"]));
+                for t in theirs["previews"].as_array().unwrap() {
+                    let format = t["format"].as_str().unwrap();
+                    let label = format!("{i} {format}: ");
+                    out = out.and(match snap.preview(format) {
+                        Ok(Preview::Image(b)) if t["image"].is_string() => {
+                            let p = ours_dir.join(format!("{i}.png"));
+                            std::fs::write(&p, imaging::encode_png(&b)).unwrap();
+                            if serde_json::json!([b.width(), b.height()]) == serde_json::json!([t["width"], t["height"]]) {
+                                compare::image_files(&label, &p, &ctx.sharex.join(name).join(t["image"].as_str().unwrap()), 0)
+                            } else {
+                                Outcome::fail(format!("{label}size"))
+                            }
+                        }
+                        Ok(Preview::Text(s)) if t["text"].is_string() => {
+                            if s == t["text"].as_str().unwrap() { Outcome::exact() } else { Outcome::fail(format!("{label}{s:?}")) }
+                        }
+                        Err(_) if t["error"].is_string() => Outcome::exact(),
+                        r => Outcome::fail(format!("{label}ours {:?}, ShareX {t}", r.map(|p| matches!(p, Preview::Image(_))))),
+                    });
+                    i += 1;
+                }
+            }
+            out
+        }
+        "bg-remove" => {
+            use sharex_tools::background_remover::{self as br, Device, Model};
+            if std::env::var_os("ORT_DYLIB_PATH").is_none() {
+                return Outcome::skip("ORT_DYLIB_PATH isn't set (ShareX's onnxruntime.dll)");
+            }
+            let theirs = read_json(ctx, name);
+            let path = ctx.inputs.join(c["model"].as_str().unwrap());
+            let model = Model {
+                file_name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                file_size: std::fs::metadata(&path).unwrap().len(),
+                path,
+            };
+            let mut service = br::BackgroundRemovalService::new();
+            let mut runs = Vec::new();
+            let mut out = Outcome::exact();
+            for (i, img) in c["images"].as_array().unwrap().iter().enumerate() {
+                let source = br::load_image(&ctx.inputs.join(img.as_str().unwrap())).unwrap();
+                match service.remove_background(&source, &model, Device::Cpu) {
+                    Ok(r) => {
+                        runs.push(serde_json::json!({"cached": r.session_cached, "device": r.execution_device}));
+                        let sharex = compare::read_sxrb(&ctx.sharex.join(name).join(format!("{i}.sxrb"))).unwrap();
+                        out = out.and(compare::bitmaps(&format!("image {i}"), &r.image, &sharex, 0));
+                    }
+                    Err(e) => return Outcome::fail(e),
+                }
+            }
+            out.and(json_eq(&serde_json::json!({"display": model.display_name(), "runs": runs}), &theirs))
+        }
+        "inspect-styles" => {
+            use sharex_tools::system::inspect_window::{format_rectangle, window_styles_to_string, Rect};
+            let theirs = read_json(ctx, name);
+            let strings: Vec<String> = c["values"].as_array().unwrap().iter().map(|v| window_styles_to_string(v.as_u64().unwrap() as u32)).collect();
+            let rects: Vec<String> = c["rects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| {
+                    let v = |i: usize| a[i].as_i64().unwrap() as i32;
+                    format_rectangle(Rect { x: v(0), y: v(1), width: v(2), height: v(3) })
+                })
+                .collect();
+            json_eq(&serde_json::json!({"strings": strings, "rects": rects}), &serde_json::json!({"strings": theirs["strings"], "rects": theirs["rects"]}))
+        }
+        "video-trim-time" => {
+            let ours = serde_json::json!({
+                "format": c["seconds"].as_array().unwrap().iter().map(|v| trimmer::format_time(v.as_f64().unwrap())).collect::<Vec<_>>(),
+                "parse": c["texts"].as_array().unwrap().iter().map(|v| trimmer::try_parse_time(v.as_str().unwrap())).collect::<Vec<_>>(),
+            });
+            json_eq(&ours, &read_json(ctx, name))
+        }
         "video-outputinfo" => {
             let text = std::fs::read_to_string(ctx.sharex.join(format!("{name}.txt"))).unwrap();
             let theirs = read_json(ctx, name);
@@ -315,6 +411,58 @@ pub fn run(ctx: &Ctx, c: &Value, tool: &str) -> Outcome {
                 "nearest": times.iter().map(|&x| gif_trimmer::nearest_boundary(&starts, x, false)).collect::<Vec<_>>(),
                 "nearestEnd": times.iter().map(|&x| gif_trimmer::nearest_boundary(&starts, x, true)).collect::<Vec<_>>(),
             });
+            out.and(json_eq(&ours, &theirs))
+        }
+        "gif-reencode" => {
+            let theirs = read_json(ctx, name);
+            let dir = ctx.sharex.join(name);
+            let ours_dir = ctx.out.join(name);
+            std::fs::create_dir_all(&ours_dir).unwrap();
+            let path = ctx.inputs.join(c["file"].as_str().unwrap());
+            let data = std::fs::read(&path).unwrap();
+            let image = gif_trimmer::AnimatedGif::decode(&data).unwrap();
+            let mut out = Outcome::exact();
+            for i in 0..image.frame_count() {
+                let theirs = compare::read_sxrb(&dir.join(format!("frame{i}.sxrb"))).unwrap();
+                out = out.and(compare::bitmaps(&format!("frame{i}"), &image.frame(i), &theirs, 0));
+            }
+            let doc = gif_trimmer::AnimatedGifTrimmerDocument::open(data).unwrap();
+            let preview = c["preview"].as_u64().unwrap_or(640) as u32;
+            for i in 0..doc.frame_count() {
+                let p = ours_dir.join(format!("preview{i}.png"));
+                std::fs::write(&p, doc.render_frame(i, preview)).unwrap();
+                out = out.and(compare::image_files(&format!("preview{i}"), &p, &dir.join(format!("preview{i}.png")), 0));
+            }
+            let mut results = Vec::new();
+            let src = path.to_string_lossy().to_string();
+            for (n, e) in c["exports"].as_array().unwrap().iter().enumerate() {
+                let v = |i: usize| e[i].as_i64().unwrap();
+                let a = |i: usize, j: usize| e[i][j].as_i64().unwrap() as i32;
+                let crop = gif_trimmer::CropRect { x: a(3, 0), y: a(3, 1), width: a(3, 2), height: a(3, 3) };
+                let target = ours_dir.join(format!("export{n}.gif"));
+                let _ = std::fs::remove_file(&target);
+                let r = doc.export(
+                    &src,
+                    &target.to_string_lossy(),
+                    v(0) as usize,
+                    v(1) as usize,
+                    e[2].as_bool().unwrap(),
+                    crop,
+                    (a(4, 0), a(4, 1)),
+                    None,
+                );
+                match r {
+                    Ok(ok) => {
+                        results.push(serde_json::json!(ok));
+                        if ok {
+                            let ours = std::fs::read(&target).unwrap();
+                            out = out.and(compare::bytes(&format!("export{n}"), &ours, &dir.join(format!("export{n}.gif"))));
+                        }
+                    }
+                    Err(_) => results.push(serde_json::json!("ArgumentOutOfRangeException")),
+                }
+            }
+            let ours = serde_json::json!({ "frames": image.frame_count(), "exports": results });
             out.and(json_eq(&ours, &theirs))
         }
         _ => Outcome::skip(format!("no validator for {tool}")),

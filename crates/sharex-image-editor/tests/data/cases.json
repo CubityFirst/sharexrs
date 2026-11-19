@@ -6168,11 +6168,6 @@
    "annotations": [],
    "background": {
     "type": "Transparent"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6180,11 +6175,6 @@
    "annotations": [],
    "background": {
     "type": "Gradient"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6194,11 +6184,6 @@
     "type": "Gradient",
     "color1": "#FF7E5F",
     "color2": "#FEB47B"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6206,11 +6191,6 @@
    "annotations": [],
    "background": {
     "type": "Color"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6219,11 +6199,6 @@
    "background": {
     "type": "Color",
     "color": "#80336699"
-   },
-   "tolerance": {
-    "maxDelta": 3,
-    "maxPixels": 8,
-    "why": "the shadow's corners under a translucent colour"
    }
   },
   {
@@ -6233,11 +6208,6 @@
     "type": "Color",
     "corner": 0,
     "shadow": 0
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6248,11 +6218,6 @@
     "color": "#FFFFFFFF",
     "corner": 0,
     "shadow": 30
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6261,11 +6226,6 @@
    "background": {
     "type": "Gradient",
     "shadow": 0
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6274,11 +6234,6 @@
    "background": {
     "type": "Gradient",
     "margin": 0
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6287,11 +6242,6 @@
    "background": {
     "type": "Gradient",
     "padding": 0
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6303,11 +6253,6 @@
     "padding": 12.6,
     "corner": 13.7,
     "shadow": 17.2
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6316,11 +6261,6 @@
    "background": {
     "type": "Gradient",
     "ratio": "16:9"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6329,11 +6269,6 @@
    "background": {
     "type": "Gradient",
     "ratio": "9:16"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6342,11 +6277,6 @@
    "background": {
     "type": "Color",
     "ratio": "1:1"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6356,11 +6286,6 @@
     "type": "Gradient",
     "ratio": "5:3",
     "margin": 33.5
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6370,11 +6295,6 @@
     "type": "Color",
     "color": "#FFF0F0F0",
     "shadowColor": "#C0FF0000"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6386,11 +6306,6 @@
     "margin": 20,
     "shadow": 100,
     "corner": 50
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6400,12 +6315,7 @@
     "type": "Gradient",
     "padding": 20
    },
-   "base": "images/border.png",
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
-   }
+   "base": "images/border.png"
   },
   {
    "name": "bg-smart-off",
@@ -6415,12 +6325,7 @@
     "padding": 20,
     "smartPadding": false
    },
-   "base": "images/border.png",
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
-   }
+   "base": "images/border.png"
   },
   {
    "name": "bg-image",
@@ -6431,8 +6336,8 @@
    },
    "tolerance": {
     "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+    "maxPixels": 3,
+    "why": "one column of the upscaled image brush (Skia's legacy bilinear stepping): one level on 3 pixels"
    }
   },
   {
@@ -6445,8 +6350,8 @@
    },
    "tolerance": {
     "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
+    "maxPixels": 3,
+    "why": "one column of the upscaled image brush (Skia's legacy bilinear stepping): one level on 3 pixels"
    }
   },
   {
@@ -6456,11 +6361,6 @@
     "type": "Wallpaper",
     "wallpaper": "images/wallpaper.png",
     "layout": "Fit"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6470,11 +6370,6 @@
     "type": "Wallpaper",
     "wallpaper": "images/wallpaper.png",
     "layout": "Stretch"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6484,11 +6379,6 @@
     "type": "Wallpaper",
     "wallpaper": "images/wallpaper.png",
     "layout": "Center"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6498,11 +6388,6 @@
     "type": "Wallpaper",
     "wallpaper": "images/wallpaper.png",
     "layout": "Tile"
-   },
-   "tolerance": {
-    "maxDelta": 1,
-    "maxPixels": 8,
-    "why": "the blurred canvas shadow's corners: one level on a few pixels"
    }
   },
   {
@@ -6541,8 +6426,8 @@
    },
    "tolerance": {
     "maxDelta": 5,
-    "maxPixels": 120,
-    "why": "annotations over the viewport's edge: ShareX chops their edges at the frame's clip"
+    "maxPixels": 100,
+    "why": "ShareX rasterises the annotations at their place in the frame (120, 120); analytic AA depends on where a path sits, so their edges differ by a level or so"
    }
   }
  ]

@@ -188,5 +188,60 @@ for motion, offset in itertools.product(["VerticalBars", "HorizontalBars"], [0, 
 for f in ["trim.gif", "../sharex/gifmaker-alpha-d33-loop-r3.gif", "../sharex/gifmaker-big-d100-once-r0.gif", "meta/full.gif", "palette.gif"]:
     add(f"giftrim-{f.split('/')[-1].replace('.', '_')}", "gif-trim", file=f)
 
+# The GIF trimmer's frames, preview and export (lossless, re-encode, crop, resize).
+# Each export: [first, end exclusive, reencode, crop x/y/w/h, size w/h].
+def full(w, h):
+    return [0, 0, w, h]
+
+
+reencode_sets = {
+    "trim.gif": (60, 40, 5),
+    "disp0.gif": (48, 36, 7),
+    "disp1.gif": (48, 36, 7),
+    "disp2.gif": (48, 36, 6),
+    "../sharex/gifmaker-alpha-d33-loop-r3.gif": None,
+}
+for f, dims in reencode_sets.items():
+    exports = []
+    if dims:
+        w, h, n = dims
+        for first, end in [(0, n), (1, n), (2, n - 1), (n - 1, n), (3, n)]:
+            exports.append([first, end, False, full(w, h), [w, h]])
+            exports.append([first, end, True, full(w, h), [w, h]])
+        exports += [
+            [0, n, False, [5, 3, w - 12, h - 9], [w - 12, h - 9]],
+            [1, n, False, full(w, h), [w * 2, h + 7]],
+            [0, n - 2, True, [7, 2, w // 2, h // 2], [w // 3, h // 3]],
+            [2, n, False, [0, 0, w // 2, h], [w, h * 3 // 2]],
+            [0, 1, True, [w - 1, h - 1, 1, 1], [3, 3]],
+            # out of range: ShareX throws
+            [0, n, False, [0, 0, w + 1, h], [w, h]],
+            [n - 1, n - 1, True, full(w, h), [w, h]],
+        ]
+    add(f"gifreencode-{f.split('/')[-1].replace('.', '_')}", "gif-reencode", file=f, exports=exports,
+        preview=20 if f == "disp1.gif" else 640)
+
+# FormatTime / TryParseTime (the trimmers' time boxes).
+add("vtrim-time", "video-trim-time",
+    seconds=[0, -5, 0.0004, 0.0005, 0.9999999, 1.5, 59.9995, 61.25, 3599.999, 3600, 86399.5, 360000.123, 1e-7,
+             12345.6789, 0.1 + 0.2, 2.675, 0.001, 0.0019999],
+    texts=["00:00:00.000", "1:02:03.5", " 01:02:03.25 ", "1:2:3", "01:60:00", "01:59:59.9999", "00:00:60", "-1:00:00",
+           "+1:00:00", "1:00:00,5", "1:00", "1:00:00:00", "", "  ", "a:b:c", "1:00:.5", "1:00:5.", "1:00:.",
+           "00001:05:07.125", "2147483647:00:00", "2147483648:00:00", "1:00:1e1", "1 :00:00", "1:00:00.5.5", "0:0:0",
+           "99999999999999999999:00:00", "0000000000000000000001:00:00", "\t0:00:01\n", "0:00:59.99999999999"])
+
+# The System tools' data side.
+add("clip-preview", "clipboard-preview")
+styles = [0, 1, 2, 0x80, 0x100, 0x300, 0x188, 0x10000, 0x20000, 0x30000, 0x40000, 0x80000, 0x00C00000, 0x00CF0000, 0x00880000,
+          0x80880000, 0x80000000, 0x40000000, 0x20000000, 0x10000000, 0x08000000, 0x02000000, 0x16CF0000, 0x14CF0000, 0x96000000,
+          0x94000000, 0x56010000, 0x06CF0000, 0x17CF0000, 0x84C80000, 0x00040100, 0x00200000, 0x00000800, 0x00000802, 0x08080088,
+          0x000C0100, 0x02200020, 0x00010110, 0xFFFFFFFF, 0x7FFFFFFF, 0x0000F000, 0x00000003, 0x48000000, 0x00C80000]
+add("inspect-styles", "inspect-styles", values=styles,
+    rects=[[0, 0, 0, 0], [10, 20, 300, 200], [-8, -8, 1936, 1056], [0, 0, 5, 0], [5, 5, 0, 0], [-32000, -32000, 160, 28]])
+
+# The background remover over synthetic models (make_bg_models.py writes them into inputs/bgmodels).
+for m in ["a-nchw-sigmoid", "b-nchw-minmax", "c-nhwc", "d-dynamic-2d"]:
+    add(f"bgremove-{m}", "bg-remove", model=f"bgmodels/{m}.onnx", images=["alpha_64x48.png", "opaque_97x61.png", "odd_33x77.png"])
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

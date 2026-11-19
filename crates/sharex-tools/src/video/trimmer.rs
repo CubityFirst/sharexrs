@@ -31,6 +31,70 @@ pub fn build_trim_arguments(input: &str, output: &str, start: f64, end: f64, pre
     a
 }
 
+/// `VideoTrimmerViewModel.FormatTime`: `hh:mm:ss.fff` of
+/// `TimeSpan.FromSeconds(max(0, seconds))` (ticks truncated); hours past 99
+/// keep their digits.
+pub fn format_time(seconds: f64) -> String {
+    let s = if seconds.is_nan() { 0.0 } else { seconds.max(0.0) };
+    // TimeSpan.FromSeconds throws past TimeSpan.MaxValue; the windows never get there.
+    let ticks = (s * 10_000_000.0).min(i64::MAX as f64) as i64;
+    let hours = ticks / 36_000_000_000;
+    let minutes = ticks / 600_000_000 % 60;
+    let secs = ticks / 10_000_000 % 60;
+    let millis = ticks / 10_000 % 1000;
+    format!("{hours:02}:{minutes:02}:{secs:02}.{millis:03}")
+}
+
+/// `int.TryParse(s, NumberStyles.None, Invariant)`: ASCII digits only.
+fn parse_int_none(s: &str) -> Option<i32> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let v: i64 = s.trim_start_matches('0').parse().unwrap_or(0);
+    // Leading zeros don't count towards overflow; a long run of digits does.
+    if s.trim_start_matches('0').len() > 10 || v > i32::MAX as i64 {
+        return None;
+    }
+    Some(v as i32)
+}
+
+/// `double.TryParse(s, NumberStyles.AllowDecimalPoint, Invariant)`: digits
+/// with at most one `.`, at least one digit.
+fn parse_double_decimal_point(s: &str) -> Option<f64> {
+    let mut dots = 0;
+    let mut digits = 0;
+    for b in s.bytes() {
+        match b {
+            b'0'..=b'9' => digits += 1,
+            b'.' => dots += 1,
+            _ => return None,
+        }
+    }
+    if digits == 0 || dots > 1 {
+        return None;
+    }
+    let t = if s.starts_with('.') { format!("0{s}") } else { s.to_string() };
+    t.trim_end_matches('.').parse().ok()
+}
+
+/// `VideoTrimmerViewModel.TryParseTime`: `h:mm:ss.fff` (hours any length,
+/// minutes 0-59, seconds below 60 with decimals), surrounding white space
+/// ignored.
+pub fn try_parse_time(text: &str) -> Option<f64> {
+    let parts: Vec<&str> = text.trim().split(':').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let hours = parse_int_none(parts[0])?;
+    let minutes = parse_int_none(parts[1])?;
+    let seconds = parse_double_decimal_point(parts[2])?;
+    if !(0..=59).contains(&minutes) || !(0.0..60.0).contains(&seconds) {
+        return None;
+    }
+    let v = hours as f64 * 3600.0 + minutes as f64 * 60.0 + seconds;
+    v.is_finite().then_some(v)
+}
+
 /// What `TrimAsync` checks before it runs FFmpeg.
 pub fn validate(input: &str, output: &str, start: f64, end: f64, duration: f64, precise: bool) -> Result<(), String> {
     if !start.is_finite() || !end.is_finite() || start < 0.0 || end <= start || end > duration {

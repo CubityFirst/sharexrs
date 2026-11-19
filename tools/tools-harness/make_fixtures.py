@@ -15,7 +15,7 @@ import zlib
 work, out = sys.argv[1], sys.argv[2]
 os.makedirs(out, exist_ok=True)
 
-INPUTS = ["opaque_97x61.png", "alpha_64x48.png", "odd_33x77.png", "photo_q90.jpg", "exif6.jpg", "lossless.webp", "trim.gif",
+INPUTS = ["opaque_97x61.png", "alpha_64x48.png", "odd_33x77.png", "photo_q90.jpg", "exif6.jpg", "lossless.webp", "trim.gif", "disp1.gif", "bgmodels/a-nchw-sigmoid.onnx",
           "meta/full.jpg", "meta/full.png"]
 EXPECTED = [
     "thumb-exif6-64x32-q90/exif6_th.jpg",
@@ -34,6 +34,11 @@ EXPECTED = [
     "monitor-gradient-ForwardDiagonal-2550.png",
     "monitor-motion-VerticalBars-37.25.png",
     "giftrim-trim_gif/1-3.gif",
+    "gifreencode-disp1_gif/frame4.sxrb",
+    "bgremove-a-nchw-sigmoid/0.sxrb",
+    "gifreencode-disp1_gif/export3.gif",
+    "gifreencode-disp1_gif/export10.gif",
+    "gifreencode-disp1_gif/export12.gif",
     "meta-full_jpg.json",
     "meta-full_png.json",
     "vargs-nofolder.json",
