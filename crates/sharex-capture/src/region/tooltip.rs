@@ -82,7 +82,9 @@ impl TipState {
     /// returns when to look again.
     pub fn tick(&mut self, now: Instant, pointer: (f64, f64)) -> Option<Instant> {
         if let Some((_, _, at)) = self.open {
-            return (now < at + FADE).then(|| now + Duration::from_millis(16));
+            // Frames until one is drawn past the fade (the host redraws
+            // only while this asks to).
+            return (now <= at + FADE + Duration::from_millis(32)).then(|| now + Duration::from_millis(16));
         }
         let (part, since) = self.hovered?;
         if self.suppressed {
