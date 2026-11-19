@@ -800,11 +800,11 @@ impl<'a> Canvas<'a> {
                     }
                 }
             }
-            Coverage::Mask(cells) => {
+            Coverage::Mask(cells, spans) => {
                 for (i, cell) in cells.iter().enumerate() {
                     if let Some((call, c)) = *cell {
                         let x = (i % w) as i32;
-                        pixel(self, x, (i / w) as i32, call, c, x);
+                        pixel(self, x, (i / w) as i32, call, c, spans[i]);
                     }
                 }
             }
