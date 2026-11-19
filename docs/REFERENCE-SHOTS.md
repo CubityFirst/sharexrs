@@ -247,3 +247,18 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/tools-system/`. Each
 | `monitor-test` | `monitor-test-gradient-dark.png`, `monitor-test-gradient-direction-dark.png`, `monitor-test-gradient-direction-light.png`, `monitor-test-gradient-light.png`, `monitor-test-grayscale-dark.png`, `monitor-test-grayscale-light.png`, `monitor-test-motion-dark.png`, `monitor-test-motion-direction-dark.png`, `monitor-test-motion-direction-light.png`, `monitor-test-motion-light.png`, `monitor-test-pattern-dark.png`, `monitor-test-pattern-light.png`, `monitor-test-pattern-menu-dark.png`, `monitor-test-pattern-menu-light.png`, `monitor-test-rgb-dark.png`, `monitor-test-rgb-light.png` | Own fullscreen client over the guarded pattern. Remaining selector, hidden-controls and motion variants are not all represented. |
 | `network-monitor` | — | Skipped. It starts ICMP automatically on window open. |
 | `borderless-window` | `borderless-window-empty-dark.png`, `borderless-window-empty-light.png` | Unselected window only. Live window enumeration and changing real window styles were excluded. |
+
+### Tools · Images · tools-images
+
+3 of 6 rows have new references. 22 PNGs and 22 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/tools-images/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `image-viewer` | `image-viewer-gif-dark.png`, `image-viewer-gif-light.png`, `image-viewer-single-dark.png`, `image-viewer-single-light.png`, `image-viewer-zoom-dark.png`, `image-viewer-zoom-light.png` | Generated standalone PNG/GIF. Multi-image navigation and drag variants remain. |
+| `background-remover` | `background-remover-compared-dark.png`, `background-remover-compared-light.png`, `background-remover-device-menu-dark.png`, `background-remover-device-menu-light.png`, `background-remover-empty-dark.png`, `background-remover-empty-light.png`, `background-remover-input-no-model-dark.png`, `background-remover-input-no-model-light.png`, `background-remover-model-menu-dark.png`, `background-remover-model-menu-light.png`, `background-remover-ready-dark.png`, `background-remover-ready-light.png` | Offline empty or generated input layouts only. Model-backed output requires a compatible generated ONNX fixture. |
+| `beautifier` | `beautifier-opened-dark.png`, `beautifier-opened-light.png`, `beautifier-preset-selected-dark.png`, `beautifier-preset-selected-light.png` | Generated image and default Background panel. Picker and preset variants remain. |
+| `image-effects-extra` | — | Only static local effect UI was eligible. Optional packager and popup variants remain. |
+| `image-tools-controls` | — | Existing base tool references remain. Specialised colour and control interactions were not covered. |
+| `editor-missing-states` | — | Existing image editor references remain. The system print dialog was excluded and Gamma faults were not injected. |
