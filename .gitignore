@@ -3,21 +3,10 @@
 # against ShareX; regenerate rather than commit.
 /shots
 
-# The image effects harness's .NET build output.
-/tools/effects-harness/bin
-/tools/effects-harness/obj
-
-# The recording harness's .NET build output.
-/tools/recording-harness/bin
-/tools/recording-harness/obj
-
-# The OCR harness's .NET build output.
-/tools/ocr-harness/bin
-/tools/ocr-harness/obj
-
-# The native recorder harness's .NET build output.
-/tools/native-recorder-harness/bin
-/tools/native-recorder-harness/obj
+# Every .NET harness's build output (tools/<harness>/bin, obj, and nested
+# projects such as tools/uploaders-harness/dotnet).
+/tools/**/bin/
+/tools/**/obj/
 
 # Staging for the release packages (scripts/package-linux.sh).
 /build
