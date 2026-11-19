@@ -206,7 +206,7 @@ fn render_color_view(content: Option<&str>, state: Option<&str>, text: Option<&s
         text.split(',').map(|p| p.trim().parse::<u8>().map_err(|_| "--text A, R, G, B".to_string())).collect::<Result<_, _>>()?
     };
     let [a, r, g, b] = argb[..] else { return Err("--text A, R, G, B".into()) };
-    let mut color = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
+    let mut color = [r, g, b, a];
     let (tab, hsv_model) = match state.unwrap_or("") {
         "" => (if style == ColorPopup::Dropdown { 1 } else { 0 }, false),
         "spectrum" => (0, false),

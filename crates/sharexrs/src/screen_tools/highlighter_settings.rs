@@ -219,10 +219,10 @@ impl SettingsControl {
                 2 => &mut o.middle_color,
                 _ => &mut o.always_color,
             };
-            let mut c32 = Color32::from_rgba_unmultiplied(target.r, target.g, target.b, target.a);
-            let (picked, keep) = controls::color_popup_with_alpha(ui, id(&format!("flyout{k}")), anchor, &mut c32, just_opened, true);
+            let mut rgba = [target.r, target.g, target.b, target.a];
+            let (picked, keep) = controls::color_popup_with_alpha(ui, id(&format!("flyout{k}")), anchor, &mut rgba, just_opened, true);
             if picked {
-                let [r, g, b, a] = c32.to_srgba_unmultiplied();
+                let [r, g, b, a] = rgba;
                 *target = Color::argb(a, r, g, b);
                 changed = true;
             }

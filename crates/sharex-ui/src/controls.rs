@@ -1321,20 +1321,20 @@ fn checkered_swatch(ui: &Ui, rect: Rect, color: Color32) -> [Part; 2] {
 /// (see [`crate::color_view`]; the button's press closes the popup and is
 /// read with [`crate::color_view::take_screen_pick`]). Returns whether the
 /// colour changed and whether the popup stays open.
-pub fn color_popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool) -> (bool, bool) {
+pub fn color_popup(ui: &Ui, id: Id, anchor: Rect, color: &mut crate::color_view::Rgba8, just_opened: bool) -> (bool, bool) {
     color_popup_styled(ui, id, anchor, color, just_opened, ColorPopup::Dropdown)
 }
 
 /// A `Flyout` under `anchor` holding a `ColorView` with
 /// `IsAlphaEnabled`/`IsAlphaVisible` = `alpha` (the mouse highlighter's
 /// colour buttons).
-pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, alpha: bool) -> (bool, bool) {
+pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut crate::color_view::Rgba8, just_opened: bool, alpha: bool) -> (bool, bool) {
     color_popup_styled(ui, id, anchor, color, just_opened, ColorPopup::Flyout { alpha, size: None })
 }
 
 /// The colour popup hosted as ShareX hosts that control's `ColorView`
 /// (see [`ColorPopup`]).
-pub fn color_popup_styled(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, style: ColorPopup) -> (bool, bool) {
+pub fn color_popup_styled(ui: &Ui, id: Id, anchor: Rect, color: &mut crate::color_view::Rgba8, just_opened: bool, style: ColorPopup) -> (bool, bool) {
     crate::color_view::popup(ui, id, anchor, color, just_opened, style)
 }
 

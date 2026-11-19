@@ -537,13 +537,14 @@ fn state_id(id: Id) -> Id {
     id.with("color-view-state")
 }
 
-/// `Color32` stores premultiplied colours; the view keeps the exact
-/// `[R, G, B, A]` and syncs only when the caller's colour really changed.
-fn unmultiplied(c: Color32) -> [u8; 4] {
-    c.to_srgba_unmultiplied()
-}
+/// A colour as the APIs here carry it: unmultiplied `[R, G, B, A]`, as
+/// Avalonia's `Color` and ShareX's settings (`#AARRGGBB`) hold it.
+/// `Color32` premultiplies (at A=166 a blue of 225 comes back as 224), so
+/// it is used only to paint ([`to_color32`]).
+pub type Rgba8 = [u8; 4];
 
-fn to_color32(c: [u8; 4]) -> Color32 {
+/// The colour to paint `c` with.
+pub fn to_color32(c: Rgba8) -> Color32 {
     Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3])
 }
 
@@ -572,19 +573,19 @@ impl ColorView {
         to_hex_string(c, self.alpha_enabled && self.alpha_visible, false)
     }
 
-    fn load(&self, ctx: &egui::Context, id: Id, color: Color32) -> State {
+    fn load(&self, ctx: &egui::Context, id: Id, color: Rgba8) -> State {
         let existing: Option<State> = ctx.data(|d| d.get_temp(state_id(id)));
         match existing {
             Some(mut s) => {
-                if to_color32(s.rgba) != color {
-                    s.rgba = unmultiplied(color);
+                if s.rgba != color {
+                    s.rgba = color;
                     s.hsv = Hsv::from_rgba(s.rgba);
                     s.hex = self.hex_of(s.rgba);
                 }
                 s
             }
             None => {
-                let mut rgba = unmultiplied(color);
+                let mut rgba = color;
                 if !self.alpha_enabled {
                     rgba[3] = 255;
                 }
@@ -595,11 +596,11 @@ impl ColorView {
 
     /// Draws the view with its top-left at `origin`, editing `color`.
     /// Returns whether the colour changed.
-    pub fn show(&self, ui: &mut Ui, origin: Pos2, id: Id, color: &mut Color32) -> bool {
+    pub fn show(&self, ui: &mut Ui, origin: Pos2, id: Id, color: &mut Rgba8) -> bool {
         let ctx = ui.ctx().clone();
         let px = Px::of(&ctx);
         let mut st = self.load(&ctx, id, *color);
-        let before = to_color32(st.rgba);
+        let before = st.rgba;
         let bounds = Rect::from_min_size(px.pos(origin), self.size_at(px));
         let saved_clip = ui.clip_rect();
         if self.size.is_some() {
@@ -623,7 +624,7 @@ impl ColorView {
             st.hex = self.hex_of(c);
         }
         ui.set_clip_rect(saved_clip);
-        let after = to_color32(st.rgba);
+        let after = st.rgba;
         ctx.data_mut(|d| d.insert_temp(state_id(id), st));
         if after != before {
             *color = after;
@@ -1257,14 +1258,14 @@ pub fn spectrum_pixels(pd: usize) -> Vec<[u8; 4]> {
 // ---------------------------------------------------------------------------
 
 /// `EditorRecentColors`: newest first, shared by every `ColorPickerPanel`.
-static RECENT_COLORS: Mutex<Vec<Color32>> = Mutex::new(Vec::new());
+static RECENT_COLORS: Mutex<Vec<Rgba8>> = Mutex::new(Vec::new());
 /// `EditorRecentColors.MaxCount`.
 const MAX_RECENT_COLORS: usize = 32;
 /// `ColorPickerPanel.RecentColorCount`.
 const RECENT_COLOR_COUNT: usize = 5;
 
 /// `EditorRecentColors.Add`.
-pub fn add_recent_color(c: Color32) {
+pub fn add_recent_color(c: Rgba8) {
     let mut list = RECENT_COLORS.lock().unwrap();
     list.retain(|x| *x != c);
     list.insert(0, c);
@@ -1272,7 +1273,7 @@ pub fn add_recent_color(c: Color32) {
 }
 
 /// `EditorRecentColors.Colors`.
-pub fn recent_colors() -> Vec<Color32> {
+pub fn recent_colors() -> Vec<Rgba8> {
     RECENT_COLORS.lock().unwrap().clone()
 }
 
@@ -1300,7 +1301,7 @@ pub fn panel_size(px: Px) -> Vec2 {
 /// colour picker button (40x32) and the five recent colours (28x28, 6
 /// apart). Returns whether the colour changed and whether the screen
 /// colour picker was asked for.
-pub fn color_picker_panel(ui: &mut Ui, origin: Pos2, id: Id, color: &mut Color32) -> (bool, bool) {
+pub fn color_picker_panel(ui: &mut Ui, origin: Pos2, id: Id, color: &mut Rgba8) -> (bool, bool) {
     let p = palette(ui.ctx());
     let px = Px::of(ui.ctx());
     let origin = px.pos(origin);
@@ -1335,7 +1336,7 @@ pub fn color_picker_panel(ui: &mut Ui, origin: Pos2, id: Id, color: &mut Color32
                     &painter,
                     &[
                         Part::Border { rect: cr, radius: 4.0, thickness: 0.0, background: Some(Brush::Checkered { colors: p.checkered, cell: 4.0 }), border: None },
-                        Part::Border { rect: cr, radius: 4.0, thickness: w, background: Some(Brush::Solid(*rc)), border: Some(k) },
+                        Part::Border { rect: cr, radius: 4.0, thickness: w, background: Some(Brush::Solid(to_color32(*rc))), border: Some(k) },
                     ],
                     1.0,
                 );
@@ -1452,7 +1453,7 @@ pub fn place(anchor: Rect, size: Vec2, top: bool, gap: f32, screen: Rect) -> Pos
 /// Draws the popup `id` with its top-left at `pos`: whether the colour
 /// changed, whether the screen colour picker was asked for, and the
 /// popup's rectangle.
-pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Color32, style: ColorPopup) -> (bool, bool, Rect) {
+pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Rgba8, style: ColorPopup) -> (bool, bool, Rect) {
     let p = palette(ctx);
     let f = fluent(ctx);
     let host = style.host(Px::of(ctx));
@@ -1484,9 +1485,8 @@ pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Color32, sty
 
 /// Sets popup `id`'s view to `tab` and the colour model (HSV when
 /// `hsv_model`), as a click on them would: for renders.
-/// `rgba` is the exact colour (`Color32` premultiplies it); the popup's
-/// colour should then be `Color32::from_rgba_unmultiplied` of it.
-pub fn preset(ctx: &egui::Context, id: Id, style: ColorPopup, rgba: [u8; 4], tab: usize, hsv_model: bool) {
+/// `rgba` is the popup's colour.
+pub fn preset(ctx: &egui::Context, id: Id, style: ColorPopup, rgba: Rgba8, tab: usize, hsv_model: bool) {
     let st = State { hsv: Hsv::from_rgba(rgba), rgba, tab: tab.min(2), hsv_model, hex: style.view().hex_of(rgba) };
     ctx.data_mut(|d| d.insert_temp(state_id(id.with("view")), st));
 }
@@ -1495,13 +1495,13 @@ pub fn preset(ctx: &egui::Context, id: Id, style: ColorPopup, rgba: [u8; 4], tab
 /// whether the colour changed and whether the popup stays open (Escape or
 /// a press outside it and `anchor` closes it, but not the press that
 /// opened it, `just_opened`).
-pub fn popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, style: ColorPopup) -> (bool, bool) {
+pub fn popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Rgba8, just_opened: bool, style: ColorPopup) -> (bool, bool) {
     let ctx = ui.ctx().clone();
     let host = style.host(Px::of(&ctx));
     let view_id = id.with("view");
     if just_opened && style == ColorPopup::Dropdown {
         // `OnHostPopupOpened`.
-        let opened = unmultiplied(*color);
+        let opened = *color;
         ctx.data_mut(|d| d.insert_temp(state_id(view_id).with("opened-with"), opened));
     }
     let pos = place(anchor, host.size, host.top, host.gap, crate::popup::bounds(&ctx, ctx.content_rect()));
@@ -1524,8 +1524,8 @@ pub fn popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bo
     }
     if !keep && style == ColorPopup::Dropdown {
         // `OnHostPopupClosed`: the colour it closes with is used.
-        let opened: Option<[u8; 4]> = ctx.data(|d| d.get_temp(state_id(view_id).with("opened-with")));
-        if opened.is_some_and(|o| to_color32(o) != *color) {
+        let opened: Option<Rgba8> = ctx.data(|d| d.get_temp(state_id(view_id).with("opened-with")));
+        if opened.is_some_and(|o| o != *color) {
             add_recent_color(*color);
         }
     }
@@ -1555,6 +1555,80 @@ fn paint_path_icon(painter: &egui::Painter, r: Rect, data: &str, view_box: &str,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs `view` for frames with the pointer at `at` (pressed on
+    /// `press`), handing the colour through `store` each frame as a caller
+    /// keeping it in its settings does.
+    fn drive(view: ColorView, color: &mut Rgba8, frames: &[(Option<Pos2>, Option<bool>)], store: &dyn Fn(Rgba8) -> Rgba8) -> egui::Context {
+        let ctx = egui::Context::default();
+        let id = Id::new("test-view");
+        for (t, (at, press)) in frames.iter().enumerate() {
+            let mut input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 600.0))), time: Some(t as f64 / 60.0), ..Default::default() };
+            if let Some(p) = at {
+                input.events.push(egui::Event::PointerMoved(*p));
+                if let Some(pressed) = press {
+                    input.events.push(egui::Event::PointerButton { pos: *p, button: egui::PointerButton::Primary, pressed: *pressed, modifiers: Default::default() });
+                }
+            }
+            let mut out = ctx.run_ui(input, |ui| {
+                let mut c = store(*color);
+                view.show(ui, pos2(10.0, 10.0), id, &mut c);
+                *color = store(c);
+            });
+            out.textures_delta.clear();
+        }
+        ctx
+    }
+
+    /// HIL2-02: from A=166 RGB 54,169,225, a press at the middle of the
+    /// spectrum tab's alpha slider gives A=128 and keeps the RGB exactly,
+    /// through a caller that stores the colour as `#AARRGGBB` between
+    /// frames (`Color32` premultiplied it: blue came back 224, then 223).
+    #[test]
+    fn alpha_slider_keeps_partial_alpha_rgb() {
+        let view = ColorView::default();
+        let store = |c: Rgba8| crate::accent::parse_hex_rgba(&crate::accent::to_hex(c)).unwrap();
+        let mut color = [54, 169, 225, 166];
+        let ctx = drive(view, &mut color, &[(None, None), (None, None)], &store);
+        assert_eq!(color, [54, 169, 225, 166], "opening changes nothing");
+        let alpha = ctx.read_response(Id::new("test-view").with("alpha")).expect("the alpha slider").rect;
+        let mid = alpha.center();
+        let frames = [(None, None), (Some(mid), None), (Some(mid), Some(true)), (Some(mid), Some(false)), (None, None), (None, None)];
+        let mut color = [54, 169, 225, 166];
+        drive(view, &mut color, &frames, &store);
+        assert_eq!(color, [54, 169, 225, 128]);
+    }
+
+    /// The view's state follows the caller's exact colour: every channel
+    /// value at partial alphas loads and comes back unchanged.
+    #[test]
+    fn view_round_trips_partial_alpha_colours() {
+        let ctx = egui::Context::default();
+        let view = ColorView::default();
+        let id = Id::new("round-trip");
+        for a in [1u8, 64, 128, 166, 254] {
+            for v in 0..=255u8 {
+                for c in [[v, 169, 225, a], [54, v, 225, a], [54, 169, v, a]] {
+                    let st = view.load(&ctx, id, c);
+                    assert_eq!(st.rgba, c);
+                    assert_eq!(st.hsv.to_rgba(), c, "{c:?}");
+                    ctx.data_mut(|d| d.insert_temp(state_id(id), st));
+                }
+            }
+        }
+        // A state left from an earlier colour syncs to an exact new one
+        // that premultiplies the same (blue 224 and 225 at A=166).
+        ctx.data_mut(|d| d.insert_temp(state_id(id), view.load(&egui::Context::default(), id, [54, 169, 224, 166])));
+        assert_eq!(view.load(&ctx, id, [54, 169, 225, 166]).rgba, [54, 169, 225, 166]);
+    }
+
+    #[test]
+    fn recent_colors_keep_partial_alpha() {
+        add_recent_color([54, 169, 224, 166]);
+        add_recent_color([54, 169, 225, 166]);
+        let r = recent_colors();
+        assert_eq!(&r[..2], &[[54, 169, 225, 166], [54, 169, 224, 166]]);
+    }
 
     #[test]
     fn hsv_round_trips_every_grey_and_primary() {

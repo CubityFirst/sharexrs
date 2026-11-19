@@ -918,7 +918,7 @@ fn accent_row(f: &mut Form, o: &sharex_settings::ApplicationThemeOptions) {
         f.w.color_open = !f.w.color_open;
     }
     if f.w.color_open {
-        let mut c = accent;
+        let mut c = appearance::accent_rgba(o);
         let (changed, keep) = controls::color_popup(f.ui, Id::new("settings-accent-popup"), rect, &mut c, just_opened);
         if changed {
             f.s.theme_options().AccentColorHex = sharex_ui::accent::to_hex(c);

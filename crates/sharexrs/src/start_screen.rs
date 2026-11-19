@@ -245,7 +245,8 @@ impl StartScreen {
         let accent = appearance::accent_color(&o);
         let row = Rect::from_min_size(pos2(x, y(l.accent_row)), vec2(inner_w, 40.0));
         for (i, hex) in ACCENTS.iter().enumerate() {
-            let c = sharex_ui::accent::parse_hex(hex).unwrap();
+            let rgba = sharex_ui::accent::parse_hex_rgba(hex).unwrap();
+            let c = sharex_ui::color_view::to_color32(rgba);
             let r = Rect::from_min_size(pos2(x + 36.0 * i as f32, controls_center(row, 34.0)), Vec2::splat(34.0));
             let resp = ui.interact(r, Id::new(("start-accent", i)), if can_edit { egui::Sense::click() } else { egui::Sense::hover() });
             let selected = c == accent;
@@ -262,7 +263,7 @@ impl StartScreen {
             }
             ui.painter().circle_filled(r.center(), 12.0, c.gamma_multiply(opacity));
             if can_edit && resp.clicked() && !selected {
-                settings.theme_options().AccentColorHex = sharex_ui::accent::to_hex(c);
+                settings.theme_options().AccentColorHex = sharex_ui::accent::to_hex(rgba);
                 out.appearance = true;
             }
         }
@@ -274,7 +275,7 @@ impl StartScreen {
             self.color_open = !self.color_open;
         }
         if self.color_open && can_edit {
-            let mut c = accent;
+            let mut c = appearance::accent_rgba(&o);
             let (changed, keep) = controls::color_popup(ui, Id::new("start-accent-popup"), cb, &mut c, just_opened);
             if changed {
                 settings.theme_options().AccentColorHex = sharex_ui::accent::to_hex(c);

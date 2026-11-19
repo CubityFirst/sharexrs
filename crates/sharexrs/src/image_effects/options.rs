@@ -209,15 +209,15 @@ impl OptionsPanel {
                     self.flyout = if self.flyout.as_ref() == Some(&key) { None } else { Some(key.clone()) };
                 }
                 if self.flyout.as_ref() == Some(&key) {
-                    let mut c32 = color32(&c);
+                    let mut rgba = [c.r, c.g, c.b, c.a];
                     // `ColorView` (`MinWidth="320"`, alpha, preview) in a `Flyout`.
-                    let (ch, keep) = controls::color_popup_styled(ui, id, br, &mut c32, resp.clicked(), controls::ColorPopup::Flyout { alpha: true, size: None });
+                    let (ch, keep) = controls::color_popup_styled(ui, id, br, &mut rgba, resp.clicked(), controls::ColorPopup::Flyout { alpha: true, size: None });
                     if !keep {
                         self.flyout = None;
                     }
                     if ch {
                         // `ToDrawing(picker.Color)`, alpha included.
-                        let [r, g, b, a] = c32.to_srgba_unmultiplied();
+                        let [r, g, b, a] = rgba;
                         return Some(Color::argb(a, r, g, b).to_json());
                     }
                 }
@@ -412,10 +412,10 @@ impl OptionsPanel {
             && let Some(stop) = g.colors.get_mut(i)
         {
             let anchor = Rect::from_min_size(area.response.rect.max - vec2(42.0, 40.0), vec2(42.0, 40.0));
-            let mut c32 = color32(&stop.color);
-            let (ch, keep) = controls::color_popup_styled(ui, Id::new(("gradient-stop-popup", name, i)), anchor, &mut c32, stop_color.is_some(), controls::ColorPopup::Flyout { alpha: true, size: None });
+            let mut rgba = [stop.color.r, stop.color.g, stop.color.b, stop.color.a];
+            let (ch, keep) = controls::color_popup_styled(ui, Id::new(("gradient-stop-popup", name, i)), anchor, &mut rgba, stop_color.is_some(), controls::ColorPopup::Flyout { alpha: true, size: None });
             if ch {
-                let [r, g2, b, a] = c32.to_srgba_unmultiplied();
+                let [r, g2, b, a] = rgba;
                 stop.color = Color::argb(a, r, g2, b);
                 changed = true;
             }

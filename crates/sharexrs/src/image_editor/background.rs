@@ -261,8 +261,8 @@ fn color32(c: [u8; 4]) -> Color32 {
     Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3])
 }
 
-fn hex(c: Color32) -> String {
-    let [r, g, b, a] = c.to_srgba_unmultiplied();
+fn hex(c: [u8; 4]) -> String {
+    let [r, g, b, a] = c;
     format!("#{a:02X}{r:02X}{g:02X}{b:02X}")
 }
 
@@ -512,7 +512,7 @@ impl Panel {
                     let tip = if k == 0 { ie::EditorView_Editgradientcolor1() } else { ie::EditorView_Editgradientcolor2() };
                     let resp = resp.on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.is_pointer_button_down_on() && ui.ctx().input(|i| i.pointer.primary_pressed()) {
-                        self.open_popup(target, preview, color32(if k == 0 { c1 } else { c2 }));
+                        self.open_popup(target, preview, if k == 0 { c1 } else { c2 });
                     }
                 }
                 y += 40.0 + 4.0 + 8.0;
@@ -546,7 +546,7 @@ impl Panel {
                 overlay(ui, preview, CornerRadius::same(5), &resp);
                 let resp = resp.on_hover_text(ie::EditorView_Editbackgroundcolor()).on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.is_pointer_button_down_on() && ui.ctx().input(|i| i.pointer.primary_pressed()) {
-                    self.open_popup(ColorTarget::Color, preview, color32(c));
+                    self.open_popup(ColorTarget::Color, preview, c);
                 }
             }
             Mode::Image => {
@@ -590,7 +590,7 @@ impl Panel {
         out
     }
 
-    fn open_popup(&mut self, target: ColorTarget, anchor: Rect, color: Color32) {
+    fn open_popup(&mut self, target: ColorTarget, anchor: Rect, color: [u8; 4]) {
         if self.popup == Some(target) && self.dropdown.open {
             self.close_popup();
             return;
@@ -614,12 +614,12 @@ impl Panel {
             ColorTarget::Gradient2 => (&mut o.BackgroundGradientColor2Hex, bg::GRADIENT2_FALLBACK),
             ColorTarget::Color => (&mut o.BackgroundColorHex, bg::COLOR_FALLBACK),
         };
-        let mut c = color32(bg::rgba(&bg::normalize_hex(field, fallback)));
+        let before = bg::rgba(&bg::normalize_hex(field, fallback));
+        let mut c = before;
         let anchor = self.popup_anchor.unwrap_or(Rect::NOTHING);
         let r: PopupResult = self.dropdown.show(ui, p, anchor, bounds, "bg-color", &mut c);
-        let new = hex(c);
-        if new != *field {
-            *field = new;
+        if c != before {
+            *field = hex(c);
             out.changed = true;
         }
         if r.pick_screen_color {
