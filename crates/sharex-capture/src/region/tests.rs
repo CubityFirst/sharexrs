@@ -408,3 +408,55 @@ fn region_capture_over_the_pattern_to_a_file() {
     }
     result.expect("captured").image.save(out).unwrap();
 }
+
+/// ShareX #9277: "Capture selected region" captures the selection (and
+/// added regions), or the hovered window when nothing is selected, and does
+/// nothing when there's neither.
+#[test]
+fn the_capture_selection_action_captures_the_selection_or_the_hovered_window() {
+    let options = || RegionCaptureOptions {
+        MultiRegionMode: true,
+        RegionCaptureActionX1Click: RegionCaptureAction::CaptureSelection,
+        ..Default::default()
+    };
+    let mut s = session_with(options());
+    drag(&mut s, (10.0, 10.0), (59.0, 59.0));
+    assert!(s.has_valid_selection());
+    let Outcome::Captured(r) = s.pointer_pressed(PointF::new(500.0, 500.0), Button::X1, none(), 1.0) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(10, 10, 50, 50));
+
+    // Nothing selected: the hovered window.
+    let w = SimpleWindowInfo { handle: 42, rect: Rect::new(300, 200, 400, 300), is_window: true };
+    let mut s = session(vec![w]);
+    s.options = options();
+    s.pointer_moved(PointF::new(650.0, 420.0), none());
+    let Outcome::Captured(r) = s.pointer_pressed(PointF::new(650.0, 420.0), Button::X1, none(), 1.0) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(300, 200, 400, 300));
+    assert_eq!(r.window_handle, 42);
+
+    // Nothing selected or hovered: nothing happens.
+    let mut s = session_with(options());
+    s.hover = RectF::default();
+    assert!(matches!(s.run_action(RegionCaptureAction::CaptureSelection), Outcome::Continue));
+}
+
+/// ShareX #9277: with an annotation tool active the side buttons run their
+/// actions too (`OnCaptureHostPointerPressed`).
+#[test]
+fn side_buttons_run_their_actions_with_an_annotation_tool_active() {
+    let mut s = session_with(RegionCaptureOptions {
+        MultiRegionMode: true,
+        RegionCaptureActionX2Click: RegionCaptureAction::CaptureSelection,
+        ..Default::default()
+    });
+    drag(&mut s, (10.0, 10.0), (59.0, 59.0));
+    s.activate_annotation_tool();
+    assert!(!s.region_tool_active);
+    let Outcome::Captured(r) = s.pointer_pressed(PointF::new(500.0, 500.0), Button::X2, none(), 1.0) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(10, 10, 50, 50));
+    // X1 is Capture fullscreen by default.
+    let mut s = session_with(RegionCaptureOptions::default());
+    s.activate_annotation_tool();
+    let Outcome::Captured(r) = s.pointer_pressed(PointF::new(500.0, 500.0), Button::X1, none(), 1.0) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(0, 0, 1024, 768));
+}
