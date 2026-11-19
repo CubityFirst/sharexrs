@@ -12,7 +12,7 @@
 //!   `--content Auto|GPU|CPU` the device, `--count` the guide button's
 //!   opacity in percent (its animation's phase in the shot), `--state
 //!   compared[:<ms>]` (the model run, the toast with that time),
-//!   `model-menu`, `device-menu`).
+//!   `model-menu`, `device-menu`, `busy`, `saved`, `splitter-held[:<pct>]`).
 //!
 //! Previews are made at once, on the drawing thread.
 
@@ -141,6 +141,22 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 }
                 "model-menu" | "model-empty-menu" => w.open_combo = Some("model"),
                 "device-menu" => w.open_combo = Some("device"),
+                // Built from source (no ShareX shot): Remove Background
+                // running (`IsProcessing`), the result saved (Save's toast
+                // over the source's path), the divider held at `<pct>`.
+                "busy" => w.processing = true,
+                "saved" | "splitter-held" => {
+                    w.remove_background(&egui::Context::default());
+                    w.notify.dismiss();
+                    if state == "saved" {
+                        let path = w.image_path.clone().unwrap_or_default();
+                        let text = sharex_strings::tools::BackgroundRemoverViewModel_Image_saved_file_path().replace("{0}", &path);
+                        w.notify.show(true, text, Some(sharex_ui::keys::app_icons::Save));
+                        w.notify.settle();
+                    } else {
+                        w.slider.position = arg.parse::<f64>().unwrap_or(50.0) / 100.0;
+                    }
+                }
                 other => return Err(format!("no background-remover state {other}")),
             }
             Box::new(w)
