@@ -59,3 +59,14 @@ Checks from [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) and the
 | DAT-04b | Data tools | Upload the generated folder index. | Skipped. The upload route needs a provider or loopback network. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
 | DAT-06b | Data tools | Analyze image, Load models and Test connection against a provider or mock. | Skipped. Requires network and a configured endpoint. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
 | SYS-04 | System tools | Network monitor pings, samples, events and log. | Skipped. Opening the window starts network probes. | Skipped for the same reason. | BLOCKED | [TOOLS.md](TOOLS.md#the-data-and-system-windows-in-sharexrs) |
+
+## Screen recording
+
+Checks from [SCREEN-RECORDING.md](SCREEN-RECORDING.md).
+
+| ID | Area | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|
+| REC-01 | Screen recording | Record `320,260,320,240` of the verified pattern with `-ScreenRecorderCustomRegion`, FFmpeg gdigrab, x264, no audio source, 30 fps, a 1 s configured start delay and a 2 s fixed duration. Save locally. | Wrote a 2.000 s H.264 video, 320×240, 60 video frames at 30 fps, with no audio stream. | Same streams, duration and file bytes. | PASS | Both `record-test.mp4` files were 21,980 bytes with SHA-256 `7267ca89ef92d74af18a01c33ab49f11465436cf5c89b2c70c2e3f7aa4102617`. Stream properties from local `ffprobe`. |
+| REC-04 | Screen recording | Actual WASAPI loopback, microphone device selection and low-latency capture, mixes and meters. | Skipped. Needs real audio input or recording. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
+| REC-05 | Screen recording | Capture a camera in the native recorder, device and mode selection, overlay, encoder and composition fallbacks. | Skipped. Needs a camera. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
+| REC-06 | Screen recording | Download FFmpeg. | Skipped. Requires a network download. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#finding-ffmpeg) |
