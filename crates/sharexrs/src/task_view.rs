@@ -948,6 +948,10 @@ impl TaskView {
                 let g = widgets::galley(ui, &text, title_font.clone(), p.text, title.width());
                 let x = title.min.x + ((title.width() - g.size().x) / 2.0).round();
                 painter.with_clip_rect(title.intersect(self.layout.area)).galley(pos2(x, title.min.y), g, p.text);
+                // `ToolTip.Tip`: `Details` (`TaskInfo.ToString()`), wrapped.
+                if hover_enabled {
+                    sharex_ui::tooltip::show(ui, title.intersect(self.layout.area), egui::Id::new(("task-title-tip", *id)), &task.info.text());
+                }
             }
 
             // `Border.thumbnail-preview`: the panel colour, rounded 4, clipped.
@@ -1079,6 +1083,15 @@ impl TaskView {
             }
             let url_w = (row.max.x.max(row.min.x + min_row) - x).max(0.0);
             cell_text(ui, &rows, &cells[6], cell_font.clone(), text_color, x, url_w, *row, cell_h);
+            // `ToolTip.Tip`: the file name cell's `Title`, the URL cell's
+            // `ListUrlToolTip` (none while it's empty).
+            if hover_enabled {
+                let visible = l.list.intersect(painter.clip_rect());
+                let name = Rect::from_min_size(pos2(row.min.x + STATUS_ICON_WIDTH, row.min.y), vec2(self.columns[0], row.height()));
+                sharex_ui::tooltip::show(ui, name.intersect(visible), egui::Id::new(("task-name-tip", *id)), &cells[0]);
+                let url = Rect::from_min_size(pos2(x, row.min.y), vec2(url_w, row.height()));
+                sharex_ui::tooltip::show(ui, url.intersect(visible), egui::Id::new(("task-url-tip", *id)), &cells[6]);
+            }
         }
 
         if let (Some(pane), Some(image)) = (l.preview_pane, l.preview_image) {

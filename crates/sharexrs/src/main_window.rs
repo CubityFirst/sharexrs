@@ -324,7 +324,8 @@ impl MainWindow {
             let dark = ui.ctx().theme() == egui::Theme::Dark;
             let theme_tip = if dark { s::ApplicationSettingsWindow_Dark() } else { s::ApplicationSettingsWindow_Light() };
             // The icon is drawn by `theme_toggle_icons` below, animated.
-            let r = widgets::caption_button(ui, "", 16.0, Caption::Normal).on_hover_text(theme_tip);
+            let r = widgets::caption_button(ui, "", 16.0, Caption::Normal);
+            sharex_ui::tooltip::show(ui, r.rect, ui.id().with("theme-toggle-tip"), theme_tip);
             theme_toggle_icons(ui, r.rect, dark, p.text);
             if r.clicked() {
                 actions.push(Action::ToggleTheme);
@@ -498,8 +499,7 @@ impl MainWindow {
             clip.galley(pos2(dx, widgets::center_y(cells, text_h_normal)), g, p.text_secondary);
             // `ToolTip.Tip="{Binding Description}"`.
             let tip_rect = Rect::from_min_max(pos2(dx, cells.min.y), cells.max).intersect(inner);
-            ui.interact(tip_rect, ui.id().with(("hotkey-tip", &tip.hotkey)), Sense::hover())
-                .on_hover_text(&tip.description);
+            sharex_ui::tooltip::show(ui, tip_rect, ui.id().with(("hotkey-tip", &tip.hotkey)), &tip.description);
             y += row_h;
         }
     }
