@@ -386,7 +386,7 @@ impl<'a> Worker<'a> {
             ui.open_folder_with_file(&path);
         }
         if jobs.contains(AfterCaptureTasks::AnalyzeImage) && self.data_type == EDataType::Image {
-            ui.analyze_image(&path);
+            ui.analyze_image(&path, &self.task);
         }
         if jobs.contains(AfterCaptureTasks::ScanQRCode) && self.data_type == EDataType::Image {
             ui.scan_qr_code_file(&path);

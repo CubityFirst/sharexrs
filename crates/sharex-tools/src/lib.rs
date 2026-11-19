@@ -35,6 +35,7 @@
 
 pub mod analyze_image;
 pub mod background_remover;
+pub mod capture_image;
 pub mod color;
 pub mod combiner;
 pub mod comparer;

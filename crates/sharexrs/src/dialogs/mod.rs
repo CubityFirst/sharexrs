@@ -22,11 +22,16 @@ pub mod debug_log;
 pub mod display_diagnostics;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod email_window;
 pub mod file_exist;
+pub mod forms;
 pub mod icon_pack_prompt;
 pub mod image_viewer;
+pub mod input_box;
 pub mod layout;
+pub mod message_dialog;
 pub mod notification;
+pub mod oauth_listener;
 pub mod output_box;
 pub mod print_window;
 pub mod qr_code;
@@ -36,6 +41,7 @@ pub mod response;
 pub mod text_upload;
 pub mod update;
 pub mod url_input;
+pub mod youtube_options;
 
 use std::path::PathBuf;
 
@@ -75,6 +81,9 @@ pub struct Spec {
     pub borderless: bool,
     /// `WindowState="Maximized"`.
     pub maximized: bool,
+    /// `MaxWidth` / `MaxHeight` (0: none).
+    pub max_width: f32,
+    pub max_height: f32,
 }
 
 impl Spec {
@@ -94,6 +103,8 @@ impl Spec {
             activate: true,
             borderless: false,
             maximized: false,
+            max_width: 0.0,
+            max_height: 0.0,
         }
     }
 
@@ -162,6 +173,8 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// `TaskHelpers.OpenRemoteStorageBrowser` (Destination settings' button).
+    OpenRemoteStorageBrowser,
     /// The image editor's colour popups' screen colour picker
     /// (`ScreenColorPickerWindow.PickAsync(owner)`): over the window, its
     /// colour handed back through [`Dialog::screen_color`].
@@ -226,6 +239,12 @@ pub enum Effect {
     /// the window's task settings, its message when FFmpeg is missing),
     /// then [`Dialog::trimmer_export`] with the path.
     TrimmerExport,
+    /// Inspect window's Pick window (true) / Pick control: the window
+    /// hidden, a picker overlay on each screen.
+    PickWindow(bool),
+    /// A picker overlay was clicked (`picked`) or cancelled: the overlays
+    /// closed, the window at the pointer handed to `owner`.
+    WindowPicked { owner: Option<WindowId>, picked: bool, top_level: bool },
     /// The after capture window's Continue (or copy): the task starts with
     /// the settings it chose.
     AfterCaptureAccepted(Box<after_capture::Accepted>),
@@ -293,6 +312,9 @@ pub enum UploadRequest {
     /// `UploadImage(image)` of a generated QR code (or of the notification's
     /// image).
     QrCodeImage(RgbaImage),
+    /// `TaskHelpers.OpenDirectoryIndexer`'s upload: a text upload of the
+    /// index, its file name taking the output's extension.
+    IndexFolder { source: String, output: sharex_tools::indexer::IndexerOutput, task: TaskSettings },
 }
 
 impl UploadRequest {
@@ -434,6 +456,17 @@ pub trait Dialog {
         None
     }
 
+    /// The window was made: its native handle (`TryGetPlatformHandle`).
+    fn opened(&mut self, _handle: Option<isize>) {}
+
+    /// Inspect window's picker answered with the window at the pointer.
+    fn window_picked(&mut self, _handle: isize, _top_level: bool) {}
+
+    /// A picker overlay: the window it picks for.
+    fn picker_owner(&self) -> Option<WindowId> {
+        None
+    }
+
     /// A theme of its own whatever the app's (`RequestedThemeVariant =
     /// ThemeManager.ShareXDark`: the notification window).
     fn theme(&self) -> Option<egui::Theme> {
@@ -523,6 +556,7 @@ impl App {
         if spec.activate {
             w.window.focus_window();
         }
+        dialog.opened(sharex_capture::platform::window_handle(&w.window));
         w.window.request_redraw();
         self.dialogs.push(DialogWindow { window: w, dialog });
         Ok(())
@@ -696,6 +730,7 @@ impl App {
                 Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
                 Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::OpenRemoteStorageBrowser => self.open_remote_storage_browser(event_loop),
                 Effect::PickScreenColorOverWindow => self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id)),
                 Effect::EditorCapture { fullscreen, task } => self.editor_capture(id, fullscreen, *task),
                 Effect::PickScreenColor => {
@@ -751,6 +786,12 @@ impl App {
                     message.default_button = 1;
                     if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::UpdateSignature) {
                         eprintln!("couldn't open the message box: {e}");
+                    }
+                }
+                Effect::PickWindow(top_level) => self.start_window_picking(event_loop, id, top_level),
+                Effect::WindowPicked { owner, picked, top_level } => {
+                    if let Some(owner) = owner {
+                        self.finish_window_picking(owner, picked, top_level);
                     }
                 }
                 Effect::ApplyAppearance => self.apply_appearance(),
@@ -810,7 +851,10 @@ impl App {
                 self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
             }
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
-            FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
+            FileService::AnalyzeImage => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+            }
             FileService::ShowImage => self.show_image_file(event_loop, &path),
         }
     }
@@ -838,6 +882,22 @@ impl App {
     /// the service's page when one is given.
     pub(crate) fn show_destination_settings(&mut self, event_loop: &ActiveEventLoop, service: Option<&str>) {
         self.open_dialog_window(event_loop, Box::new(destination_settings::DestinationSettingsWindow::new(service)));
+    }
+
+    /// `TaskHelpers.OpenRemoteStorageBrowser`: Amazon S3 and each usable
+    /// FTP/SFTP account; without any, the message saying how to set one up.
+    pub(crate) fn open_remote_storage_browser(&mut self, event_loop: &ActiveEventLoop) {
+        let allow_upload = !self.settings.system.disable_upload;
+        let providers = self.uploads.config.with(|c| sharex_uploaders::remote_storage::providers(c, allow_upload));
+        let dialog: Box<dyn Dialog> = if providers.is_empty() {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        } else {
+            Box::new(crate::remote_storage_browser::RemoteStorageBrowserWindow::new(providers, std::sync::Arc::new(crate::upload::SystemBrowser)))
+        };
+        self.open_dialog_window(event_loop, dialog);
     }
 
     /// A window of ours to own the clipboard's data.
@@ -882,6 +942,11 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
         .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
+    }
+    if spec.max_width > 0.0 || spec.max_height > 0.0 {
+        let w = if spec.max_width > 0.0 { spec.max_width } else { f32::MAX };
+        let h = if spec.max_height > 0.0 { spec.max_height } else { f32::MAX };
+        attrs = attrs.with_max_inner_size(LogicalSize::new(w, h));
     }
     if !spec.maximizable {
         attrs = attrs.with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE);

@@ -18,6 +18,7 @@ mod capture;
 mod capture_job;
 mod cli;
 mod controls_gallery;
+mod data_tools;
 mod dialogs;
 mod history;
 mod history_ui;
@@ -35,6 +36,7 @@ mod image_tools;
 mod image_effects;
 mod recording;
 mod region_render;
+mod remote_storage_browser;
 mod region_session;
 mod render;
 mod screen_tools;
@@ -46,6 +48,7 @@ mod shell;
 #[cfg(windows)]
 mod shortcut;
 mod sound;
+mod system_tools;
 mod start_screen;
 mod startup;
 mod task_actions;
@@ -53,6 +56,8 @@ mod task_editors;
 mod task_settings_window;
 mod task_view;
 mod tasks;
+#[cfg(test)]
+mod test_mock;
 mod test_pattern;
 mod print;
 mod thumbnail;
@@ -218,6 +223,7 @@ fn main() {
             rx.recv().unwrap_or_else(|_| Some(path.to_path_buf()))
         })));
     }
+    upload::app::set_dialog_hooks(proxy.clone());
     let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,
@@ -612,8 +618,16 @@ impl App {
             self.open_image_viewer(event_loop);
             return;
         }
+        if command == MenuCommand::Tool("MainMenuBuilder_RemoteStorageBrowser") {
+            self.open_remote_storage_browser(event_loop);
+            return;
+        }
         if let MenuCommand::Tool(key) = command
-            && (self.open_image_tool(event_loop, key, None) || self.open_video_tool(event_loop, key, None, None) || self.open_screen_tool(event_loop, key))
+            && (self.open_image_tool(event_loop, key, None)
+                || self.open_video_tool(event_loop, key, None, None)
+                || self.open_screen_tool(event_loop, key)
+                || self.open_data_tool(event_loop, key)
+                || self.open_system_tool(event_loop, key))
         {
             return;
         }
@@ -1452,6 +1466,9 @@ impl App {
         }
         if let Some(key) = video_tools::open::tool_for_hotkey(&job) {
             self.open_video_tool(event_loop, key, Some(task), None);
+            return;
+        }
+        if self.run_data_job(event_loop, &job, &task, None) || self.run_system_job(event_loop, &job, &task) {
             return;
         }
         match job {

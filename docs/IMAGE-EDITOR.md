@@ -812,6 +812,22 @@ transparent 0.12%, gradient 0.12%, image 0.13%. Side by side: Gradient
 chosen in both editors and copied: 880x640, CF_DIB identical but for the
 same 4 shadow-corner pixels (one level).
 
+The Image beautifier is this panel opened with the editor
+(`ShowEditorDialog(..., openBackgroundPanel: true)`: `IsSettingsPanelOpen`,
+the toolbar left where it is): `App::open_image_beautifier` for
+`TaskHelpers.OpenImageBeautifier` (Tools › Image beautifier and its hotkey
+pick a file first; `-ImageBeautifier <file>` and the task list's Beautify
+image don't; a missing or undecodable file does nothing), not in task mode,
+Continue's image through `RunImageTask`; and `beautify_capture` for the
+Beautify image after capture task (`TaskHelpers.BeautifyImage`: task mode,
+first of the after capture tasks, the task waits; cancelled, it stops).
+`--render image-editor --state beautifier[:<ratio>]` vs ShareX's
+`tools-images` shots (`-ImageBeautifier photo.png`, maximized, 1024x697):
+opened dark 0.16%, light 0.12%; 16:9 dark 0.15%, light 0.12%. Those shots
+showed the centred frame half a pixel up: the view's origin is rounded as
+Avalonia's layout rounds (`Math.Round`, ties to even), which changed none
+of the other editor shots.
+
 ### Toolbar customisation (`sharex_capture::toolbar_items`, `toolbar_editor.rs`)
 
 `ToolbarCustomizationItemViewModel`'s definitions, `CreateFromOptions`

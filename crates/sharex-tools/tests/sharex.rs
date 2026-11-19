@@ -274,3 +274,32 @@ fn ffmpeg_command_lines_match() {
     let ours = trimmer::build_trim_arguments("in clip.mp4", "out clip.mp4", 1.5, 4.25, true);
     assert_eq!(theirs, serde_json::json!(ours));
 }
+
+#[test]
+fn capture_encodings_match_prepare_image() {
+    use sharex_settings::{BMPBitDepth, EImageFormat, GIFQuality, RawEnum, TaskSettingsImage};
+    use sharex_tools::capture_image::{extension, prepare_image};
+    // A tool's image as the task holds it (straight RGBA), a bitmap again.
+    let src = imaging::load_image(input("alpha_64x48.png")).unwrap();
+    let bmp = Bitmap::from_straight(src.width(), src.height(), &src.to_straight());
+    let base = TaskSettingsImage { ImageAutoUseJPEG: false, ..Default::default() };
+    let cases = [
+        ("jpeg-premul-q90-Downsample422.jpg", TaskSettingsImage { ImageFormat: EImageFormat::JPEG, ImageJPEGSubsampling: RawEnum::name("Downsample422"), ImageAutoUseJPEG: true, ..base.clone() }),
+        ("gif-premul-Bit4.gif", TaskSettingsImage { ImageFormat: EImageFormat::GIF, ImageGIFQuality: GIFQuality::Bit4, ..base.clone() }),
+        ("bmp-premul-Automatic.bmp", TaskSettingsImage { ImageFormat: EImageFormat::BMP, ImageBMPBitDepth: BMPBitDepth::Automatic, ..base.clone() }),
+        ("webp-premul-lossless-e75.webp", TaskSettingsImage { ImageFormat: EImageFormat::WEBP, ImageWebPCompressionEffort: 75, ..base.clone() }),
+        ("webp-premul-lossy-q50.webp", TaskSettingsImage { ImageFormat: EImageFormat::WEBP, ImageWebPLossless: false, ImageWebPQuality: 50, ..base.clone() }),
+        // PNG over 1 KB: JPEG on white at the task's quality.
+        ("auto-premul-alpha.jpg", TaskSettingsImage { ImageAutoUseJPEGSize: 1, ..Default::default() }),
+    ];
+    for (name, settings) in cases {
+        let d = prepare_image(&bmp, &settings, false);
+        assert_eq!(name.rsplit('.').next(), Some(extension(&d.format)), "{name}: format");
+        assert!(d.data == expected(&format!("capture-{name}")), "{name}: bytes differ");
+    }
+    // PNG (the default depth): the same pixels and colour type.
+    let d = prepare_image(&bmp, &base, false);
+    let theirs = expected("capture-png-premul-Default.png");
+    assert_eq!(d.data[25], theirs[25]);
+    assert_eq!(decoded(&d.data), decoded(&theirs));
+}

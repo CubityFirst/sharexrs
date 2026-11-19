@@ -43,6 +43,27 @@ impl Uploads {
     }
 }
 
+/// The windows uploaders open from a task's thread
+/// (`EmailWindowIntegration.Show`, `YouTubeVideoOptionsWindowIntegration.Show`):
+/// asked of the event loop, the thread waits for the answer.
+pub fn set_dialog_hooks(proxy: winit::event_loop::EventLoopProxy<UserEvent>) {
+    use sharex_uploaders::destinations::{email, oauth_services};
+    let email_proxy = Mutex::new(proxy.clone());
+    email::set_email_ui(Some(Arc::new(move |to: &str, subject: &str, body: &str| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let fields = Box::new((to.to_owned(), subject.to_owned(), body.to_owned()));
+        email_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Email(fields, tx))).ok()?;
+        rx.recv().ok().flatten()
+    })));
+    let youtube_proxy = Mutex::new(proxy);
+    oauth_services::set_youtube_options_ui(Some(Arc::new(move |title: &str, description: &str, privacy: &sharex_uploaders::enums::YouTubeVideoPrivacy| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let options = Box::new((title.to_owned(), description.to_owned(), privacy.clone()));
+        youtube_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::YouTubeOptions(options, tx))).ok()?;
+        rx.recv().ok().flatten()
+    })));
+}
+
 impl App {
     fn upload_context(&self) -> UploadContext {
         let proxy = Mutex::new(self.proxy.clone());
@@ -166,13 +187,29 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
+            super::UiRequest::AnalyzeImage(path, task) => {
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+                return;
+            }
             super::UiRequest::FileExists(path, reply) => Box::new(dialogs::file_exist::FileExistWindow::new(&path, Some(reply))),
             super::UiRequest::PinToScreen(image, task) => {
                 self.pin_image(event_loop, *image, None, &task);
                 return;
             }
+            super::UiRequest::Email(fields, reply) => {
+                let (to, subject, body) = *fields;
+                Box::new(dialogs::email_window::EmailWindow::new(&to, &subject, &body, Some(reply)))
+            }
+            super::UiRequest::YouTubeOptions(options, reply) => {
+                let (title, description, privacy) = *options;
+                Box::new(dialogs::youtube_options::YouTubeOptionsWindow::new(&title, &description, &privacy, Some(reply)))
+            }
             super::UiRequest::Annotate(image, task, reply) => {
                 self.open_image_editor(event_loop, Some(*image), None, *task, Some(reply));
+                return;
+            }
+            super::UiRequest::Beautify(image, task, reply) => {
+                self.beautify_capture(event_loop, *image, *task, reply);
                 return;
             }
             super::UiRequest::ImageEffects(image, task, reply) => {
@@ -387,6 +424,7 @@ impl App {
                 ctx.files_confirmed = confirmed;
                 (manager::upload_files(&files, &task, &mut ctx), task)
             }
+            UploadRequest::IndexFolder { source, output, task } => (vec![manager::index_upload_task(source, output, task.clone(), &mut ctx)], task),
         };
         let confirm = ctx.confirm_files.take();
         self.start_upload_tasks(tasks);

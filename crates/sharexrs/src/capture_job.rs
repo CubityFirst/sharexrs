@@ -179,40 +179,19 @@ fn change_extension(name: &str, ext: &str) -> String {
     format!("{stem}.{ext}")
 }
 
-/// `TaskHelpers.PrepareImage`: PNG, or JPEG on white when the PNG is over
-/// `ImageAutoUseJPEGSize` KB (`ImageAutoUseJPEG`).
-pub fn prepare_image(image: &RgbaImage, task: &TaskSettings) -> Result<(Vec<u8>, &'static str), String> {
+/// `TaskHelpers.PrepareImage`: the image in the task's format (PNG, JPEG,
+/// WebP, GIF or BMP with its options), or a JPEG on white over
+/// `ImageAutoUseJPEGSize` KB (`ImageAutoUseJPEG`); the extension with it.
+/// `strip_png_color_space`: `PNGStripColorSpaceInformation`.
+pub fn prepare_image(image: &RgbaImage, task: &TaskSettings, strip_png_color_space: bool) -> Result<(Vec<u8>, &'static str), String> {
     let settings = task.ImageSettings.clone().unwrap_or_default();
-    let png = encode_png(image)?;
-    let limit = settings.ImageAutoUseJPEGSize.max(0) as u64 * 1000;
-    if settings.ImageAutoUseJPEG && png.len() as u64 > limit {
-        // `FillBackground(img, Color.White)` then `SaveJPEG`.
-        let rgb = image::RgbImage::from_fn(image.width(), image.height(), |x, y| {
-            let p = image.get_pixel(x, y);
-            let a = p[3] as u32;
-            let c = |v: u8| ((v as u32 * a + 255 * (255 - a) + 127) / 255) as u8;
-            image::Rgb([c(p[0]), c(p[1]), c(p[2])])
-        });
-        let mut out = Vec::new();
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, settings.ImageJPEGQuality.clamp(1, 100) as u8)
-            .encode_image(&rgb)
-            .map_err(|e| e.to_string())?;
-        return Ok((out, "jpg"));
+    let bmp = sharex_tools::imaging::Bitmap::from_straight(image.width(), image.height(), image.as_raw());
+    let d = sharex_tools::capture_image::prepare_image(&bmp, &settings, strip_png_color_space);
+    if d.data.is_empty() {
+        // `SaveImageAsStream` catches the encoder's failure and shows it.
+        return Err(format!("Image encoding failed: {:?}.", d.format));
     }
-    Ok((png, "png"))
-}
-
-/// `SkiaImageHelpers.SavePNG` with ShareX's encoder options (compression
-/// level 1, all filters) and the default bit depth: the bitmap as it is,
-/// which for screenshots is 32 bpp RGBA even when opaque.
-fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {
-    use image::ImageEncoder;
-    use image::codecs::png::{CompressionType, FilterType, PngEncoder};
-    let mut out = Vec::new();
-    PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive)
-        .write_image(image.as_raw(), image.width(), image.height(), image::ExtendedColorType::Rgba8)
-        .map_err(|e| e.to_string())?;
-    Ok(out)
+    Ok((d.data, sharex_tools::capture_image::extension(&d.format)))
 }
 
 /// What asks the user about a file that exists (`FileExistWindowIntegration.Show`):
@@ -276,6 +255,8 @@ pub struct ImageTask {
     pub folder: PathBuf,
     /// `AppPaths.ImageEffectsFolder` (`%ShareXImageEffects%` in effect paths).
     pub image_effects_folder: PathBuf,
+    /// `ApplicationConfig.PNGStripColorSpaceInformation`.
+    pub png_strip_color_space: bool,
 }
 
 impl ImageTask {
@@ -290,14 +271,28 @@ impl ImageTask {
         let file_name = file_name(&task, &mut counter, "bmp", &metadata);
         app.NameParserAutoIncrementNumber = counter;
         let folder = screenshots_folder(&task, app, screenshots_parent, &metadata);
-        Self { metadata, task, file_name, folder, image_effects_folder }
+        let png_strip_color_space = app.PNGStripColorSpaceInformation;
+        Self { metadata, task, file_name, folder, image_effects_folder, png_strip_color_space }
     }
 
-    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: add image
-    /// effects, copy the image to the clipboard (owned by `owner`), then save it.
+    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: beautify,
+    /// add image effects, annotate, copy the image to the clipboard (owned by `owner`), then save it.
     pub fn run(mut self, owner: Option<isize>, ui: Option<&dyn crate::upload::TaskUi>) -> Result<TaskOutcome, String> {
         let mut outcome = TaskOutcome::default();
         let job = self.task.AfterCaptureJob;
+        // `TaskHelpers.BeautifyImage(Image, Info.TaskSettings)`: cancelled,
+        // the task stops.
+        if job.contains(AfterCaptureTasks::BeautifyImage)
+            && let Some(ui) = ui
+        {
+            match ui.beautify_image(&self.metadata.image, &self.task) {
+                Some(image) => self.metadata.image = image,
+                None => {
+                    eprintln!("Beautify image: cancelled, the task stops.");
+                    return Ok(outcome);
+                }
+            }
+        }
         if job.contains(AfterCaptureTasks::AddImageEffects) {
             self.metadata.image =
                 self.apply_image_effects(ui).ok_or("Error: Applying image effects resulted empty image.")?;
@@ -330,7 +325,7 @@ impl ImageTask {
             ui.pin_to_screen(&self.metadata.image, &self.task);
         }
         if job.contains(AfterCaptureTasks::SaveImageToFile) || job.contains(AfterCaptureTasks::UploadImageToHost) {
-            let (data, ext) = prepare_image(&self.metadata.image, &self.task)?;
+            let (data, ext) = prepare_image(&self.metadata.image, &self.task, self.png_strip_color_space)?;
             let name = change_extension(&self.file_name, ext);
             if job.contains(AfterCaptureTasks::SaveImageToFile)
                 && let Some(path) = handle_exists_file(&self.folder.join(&name), &self.task)
@@ -409,6 +404,7 @@ mod tests {
             file_name: String::new(),
             folder: PathBuf::new(),
             image_effects_folder: PathBuf::new(),
+            png_strip_color_space: false,
         };
         let out = job.apply_image_effects(None).unwrap();
         assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
@@ -440,7 +436,7 @@ mod tests {
         s.SelectedImageEffectPreset = 0;
         let inverse = serde_json::json!({ "Name": "", "Effects": [{ "$type": "ShareX.ImageEffectsLib.Inverse, ShareX.ImageEffectsLib", "Enabled": true }] });
         let edited = vec![serde_json::json!({ "Name": "", "Effects": [] }), inverse];
-        let job = ImageTask { metadata: metadata(None, None), task, file_name: String::new(), folder: PathBuf::new(), image_effects_folder: PathBuf::new() };
+        let job = ImageTask { metadata: metadata(None, None), task, file_name: String::new(), folder: PathBuf::new(), image_effects_folder: PathBuf::new(), png_strip_color_space: false };
         let out = job.apply_image_effects(Some(&Ui(edited))).unwrap();
         assert_eq!(out.get_pixel(0, 0).0, [254, 253, 252, 255]);
         // Without a window (no UI), the task's own selection.
@@ -471,7 +467,7 @@ mod tests {
     #[test]
     fn small_images_are_rgba_png_and_big_noisy_ones_jpeg() {
         let task = TaskSettings::default();
-        let (png, ext) = prepare_image(&RgbaImage::from_pixel(10, 10, image::Rgba([9, 9, 9, 255])), &task).unwrap();
+        let (png, ext) = prepare_image(&RgbaImage::from_pixel(10, 10, image::Rgba([9, 9, 9, 255])), &task, false).unwrap();
         assert_eq!(ext, "png");
         assert_eq!(image::load_from_memory(&png).unwrap().color(), image::ColorType::Rgba8);
         let mut noisy = RgbaImage::new(1400, 1400);
@@ -480,6 +476,6 @@ mod tests {
             v = v.wrapping_mul(1_103_515_245).wrapping_add(12345);
             *p = image::Rgba([(v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8, 255]);
         }
-        assert_eq!(prepare_image(&noisy, &task).unwrap().1, "jpg");
+        assert_eq!(prepare_image(&noisy, &task, false).unwrap().1, "jpg");
     }
 }

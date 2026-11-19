@@ -250,5 +250,50 @@ add("inspect-styles", "inspect-styles", values=styles,
 for m in ["a-nchw-sigmoid", "b-nchw-minmax", "c-nhwc", "d-dynamic-2d"]:
     add(f"bgremove-{m}", "bg-remove", model=f"bgmodels/{m}.onnx", images=["alpha_64x48.png", "opaque_97x61.png", "odd_33x77.png"])
 
+# How a capture is encoded (TaskHelpers.PrepareImage over TaskSettingsImage):
+# every format and option, captures (opaque, unpremultiplied) and tools'
+# images (premultiplied, with alpha), and the automatic switch to JPEG.
+NO_AUTO = {"ImageAutoUseJPEG": False}
+CAP = [("big_420x300.png", "capture"), ("alpha_64x48.png", "premul")]
+
+
+def capture(name, file, kind, settings, strip=False):
+    add(f"capture-{name}", "capture", file=file, kind=kind, settings=settings, strip=strip)
+
+
+for (f, kind), depth in itertools.product(CAP, ["Default", "Automatic", "Bit32", "Bit24"]):
+    capture(f"png-{kind}-{depth}", f, kind, {**NO_AUTO, "ImageFormat": "PNG", "ImagePNGBitDepth": depth})
+for level, flt in itertools.product([0, 1, 6, 9], ["AllFilters", "None", "Sub", "Up", "Avg", "Paeth"]):
+    capture(f"png-level{level}-{flt}", "big_420x300.png", "capture",
+            {**NO_AUTO, "ImageFormat": "PNG", "ImagePNGCompressionLevel": level, "ImagePNGFilter": flt})
+for f, kind in CAP:
+    capture(f"png-{kind}-strip", f, kind, {**NO_AUTO, "ImageFormat": "PNG"}, strip=True)
+for (f, kind), q, sub in itertools.product(CAP, [90, 40, 100, 0], ["Downsample420", "Downsample422", "Downsample444"]):
+    capture(f"jpeg-{kind}-q{q}-{sub}", f, kind, {"ImageFormat": "JPEG", "ImageJPEGQuality": q, "ImageJPEGSubsampling": sub})
+for (f, kind), gq in itertools.product(CAP, ["Default", "Bit8", "Bit4", "Grayscale", "Adaptive"]):
+    capture(f"gif-{kind}-{gq}", f, kind, {**NO_AUTO, "ImageFormat": "GIF", "ImageGIFQuality": gq})
+for (f, kind), depth in itertools.product(CAP, ["Automatic", "Bit32", "Bit24"]):
+    capture(f"bmp-{kind}-{depth}", f, kind, {**NO_AUTO, "ImageFormat": "BMP", "ImageBMPBitDepth": depth})
+for (f, kind), effort in itertools.product(CAP, [100, 75, 50, 0]):
+    capture(f"webp-{kind}-lossless-e{effort}", f, kind,
+            {**NO_AUTO, "ImageFormat": "WEBP", "ImageWebPLossless": True, "ImageWebPCompressionEffort": effort})
+for (f, kind), q in itertools.product(CAP, [90, 50, 100, 0]):
+    capture(f"webp-{kind}-lossy-q{q}", f, kind, {**NO_AUTO, "ImageFormat": "WEBP", "ImageWebPLossless": False, "ImageWebPQuality": q})
+# ShareX's defaults (PNG, level 1, all filters, JPEG over 2048 KB), and an
+# undefined format (PNG).
+for f, kind in CAP + [("huge_1900x1100.png", "capture")]:
+    capture(f"default-{kind}-{f.split('.')[0]}", f, kind, {})
+capture("undefined-format", "big_420x300.png", "capture", {**NO_AUTO, "ImageFormat": 99})
+# The switch to JPEG: each format over the limit, at the JPEG quality or the
+# best that fits (ImageAutoJPEGQuality), a JPEG task (no switch), limits
+# either side of the file's size.
+for fmt, auto_q in itertools.product(["PNG", "WEBP", "GIF", "BMP"], [False, True]):
+    capture(f"auto-{fmt}-{'autoq' if auto_q else 'q90'}", "big_420x300.png", "capture",
+            {"ImageFormat": fmt, "ImageAutoUseJPEGSize": 20, "ImageAutoJPEGQuality": auto_q})
+capture("auto-jpeg-task", "big_420x300.png", "capture", {"ImageFormat": "JPEG", "ImageAutoUseJPEGSize": 1})
+capture("auto-premul-alpha", "alpha_64x48.png", "premul", {"ImageFormat": "PNG", "ImageAutoUseJPEGSize": 1})
+for kb in [1, 5, 10, 40, 80, 120, 200, 400]:
+    capture(f"auto-size-{kb}", "big_420x300.png", "capture", {"ImageFormat": "BMP", "ImageAutoUseJPEGSize": kb, "ImageAutoJPEGQuality": True})
+
 json.dump(cases, open(sys.argv[1], "w", newline="\n"), indent=1)
 print(len(cases), "cases")

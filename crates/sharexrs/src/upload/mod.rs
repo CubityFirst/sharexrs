@@ -55,10 +55,8 @@ pub trait TaskUi: Send + Sync {
     /// scanning the image.
     fn scan_qr_code_file(&self, _path: &std::path::Path) {}
     /// `TaskHelpers.AnalyzeImage(filePath, taskSettings)`: the Analyze
-    /// image window, which isn't ported yet.
-    fn analyze_image(&self, path: &std::path::Path) {
-        eprintln!("Analyze image window not ported yet: {}", path.display());
-    }
+    /// image window on the file.
+    fn analyze_image(&self, _path: &std::path::Path, _task: &TaskSettings) {}
     /// `LargeFileUploadWarningWindowIntegration.Show()`: (continue, don't
     /// show again). The task's thread waits for the answer.
     fn large_file_warning(&self) -> (bool, bool) {
@@ -89,6 +87,13 @@ pub trait TaskUi: Send + Sync {
         let _ = task;
         Some(image.clone())
     }
+    /// `TaskHelpers.BeautifyImage(image, taskSettings)`: the image editor
+    /// in task mode with its Background panel open; the task's thread
+    /// waits for the image (`None`: cancelled, the task stops).
+    fn beautify_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let _ = task;
+        Some(image.clone())
+    }
 }
 
 /// What the before upload window shows of a task (`TaskInfo`).
@@ -116,11 +121,25 @@ pub enum UiRequest {
     /// The image editor on a capture (the Annotate image after capture
     /// task); answered with the edited image when it closes.
     Annotate(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
+    /// The Image beautifier on a capture (the Beautify image after capture
+    /// task); answered with the image when it closes.
+    Beautify(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
+    /// The Analyze image window on a capture (the after capture task).
+    AnalyzeImage(std::path::PathBuf, Box<TaskSettings>),
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
     /// to write (`None`: cancelled).
     FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
+    /// `EmailWindowIntegration.Show(to, subject, body)`: answered with what
+    /// Send sends, or nothing.
+    Email(Box<sharex_uploaders::destinations::email::EmailFields>, mpsc::Sender<Option<sharex_uploaders::destinations::email::EmailFields>>),
+    /// `YouTubeVideoOptionsWindowIntegration.Show(title, description,
+    /// visibility)`: answered with what OK confirms, or nothing.
+    YouTubeOptions(
+        Box<sharex_uploaders::destinations::oauth_services::YouTubeOptions>,
+        mpsc::Sender<Option<sharex_uploaders::destinations::oauth_services::YouTubeOptions>>,
+    ),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -133,8 +152,12 @@ impl std::fmt::Debug for UiRequest {
             Self::QrCodeScanFile(p) => write!(f, "QrCodeScanFile({})", p.display()),
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
             Self::Annotate(..) => f.write_str("Annotate"),
+            Self::Beautify(..) => f.write_str("Beautify"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
+            Self::AnalyzeImage(p, _) => write!(f, "AnalyzeImage({})", p.display()),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
+            Self::Email(..) => f.write_str("Email"),
+            Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
         }
     }
 }
@@ -193,6 +216,12 @@ impl TaskUi for SystemUi {
         }
     }
 
+    fn analyze_image(&self, path: &std::path::Path, task: &TaskSettings) {
+        if let Some(r) = &self.requests {
+            r(UiRequest::AnalyzeImage(path.to_path_buf(), Box::new(task.clone())));
+        }
+    }
+
     fn scan_qr_code_file(&self, path: &std::path::Path) {
         if let Some(r) = &self.requests {
             r(UiRequest::QrCodeScanFile(path.to_path_buf()));
@@ -228,6 +257,13 @@ impl TaskUi for SystemUi {
         rx.recv().ok().flatten()
     }
 
+    fn beautify_image(&self, image: &image::RgbaImage, task: &TaskSettings) -> Option<image::RgbaImage> {
+        let Some(r) = &self.requests else { return Some(image.clone()) };
+        let (tx, rx) = mpsc::channel();
+        r(UiRequest::Beautify(Box::new(image.clone()), Box::new(task.clone()), tx));
+        rx.recv().ok().flatten()
+    }
+
     fn before_upload(&self, request: BeforeUpload) -> Option<TaskSettings> {
         let Some(r) = &self.requests else { return Some(request.task) };
         let (tx, rx) = mpsc::channel();
@@ -238,6 +274,21 @@ impl TaskUi for SystemUi {
 
 /// `URLHelpers.OpenURL`: a valid URL in the browser; anything else is
 /// "Invalid URL" (ShareX says so in a message box).
+/// Opens a URL (`URLHelpers.OpenURL`). Windows that open pages hold one,
+/// so tests record the pages instead of opening a browser.
+pub trait UrlOpener: Send + Sync {
+    fn open(&self, url: &str);
+}
+
+/// The system's browser ([`open_url`]).
+pub struct SystemBrowser;
+
+impl UrlOpener for SystemBrowser {
+    fn open(&self, url: &str) {
+        open_url(url);
+    }
+}
+
 pub fn open_url(url: &str) {
     if url.is_empty() {
         return;

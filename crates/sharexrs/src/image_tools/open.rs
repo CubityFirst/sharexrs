@@ -24,6 +24,8 @@ pub fn tool_for_hotkey(job: &HotkeyType) -> Option<&'static str> {
         HotkeyType::IconConverter => "MainMenuBuilder_IconConverter",
         HotkeyType::ImageEffects => "MainMenuBuilder_ImageEffects",
         HotkeyType::ImageEditor => "MainMenuBuilder_ImageEditor",
+        HotkeyType::ImageBeautifier => "MainMenuBuilder_ImageBeautifier",
+        HotkeyType::BackgroundRemover => "MainMenuBuilder_BackgroundRemover",
         _ => return None,
     })
 }
@@ -52,6 +54,16 @@ impl App {
             // `TaskHelpers.OpenImageEditor(taskSettings)`: no image.
             "MainMenuBuilder_ImageEditor" => {
                 self.open_image_editor(event_loop, None, None, task, None);
+                return true;
+            }
+            // `TaskHelpers.OpenImageBeautifier(taskSettings)`: a file picked first.
+            "MainMenuBuilder_ImageBeautifier" => {
+                self.open_image_beautifier(event_loop, None, Some(task));
+                return true;
+            }
+            // `TaskHelpers.OpenBackgroundRemover(taskSettings)`.
+            "MainMenuBuilder_BackgroundRemover" => {
+                self.open_background_remover(event_loop, task);
                 return true;
             }
             _ => return false,
