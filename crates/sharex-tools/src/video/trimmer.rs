@@ -119,6 +119,7 @@ pub fn progress_from_line(line: &str, duration: f64) -> Option<f64> {
 
 /// `TrimAsync`: runs FFmpeg (`-hide_banner -nostdin` + the arguments) into a
 /// hidden temporary file beside the output, moved over it on success.
+#[allow(clippy::too_many_arguments)]
 pub fn trim(
     ffmpeg: &std::path::Path,
     input: &str,
@@ -127,7 +128,28 @@ pub fn trim(
     end: f64,
     duration: f64,
     precise: bool,
+    progress: impl FnMut(f64),
+) -> Result<(), String> {
+    trim_cancellable(ffmpeg, input, output, start, end, duration, precise, progress, None)
+}
+
+/// The error a trim stopped by its cancellation flag returns
+/// (`OperationCanceledException`).
+pub const CANCELLED: &str = "The operation was canceled.";
+
+/// [`trim`] with `TrimAsync`'s cancellation: once `cancel` is set FFmpeg is
+/// killed, the temporary file deleted, and [`CANCELLED`] returned.
+#[allow(clippy::too_many_arguments)]
+pub fn trim_cancellable(
+    ffmpeg: &std::path::Path,
+    input: &str,
+    output: &str,
+    start: f64,
+    end: f64,
+    duration: f64,
+    precise: bool,
     mut progress: impl FnMut(f64),
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     validate(input, output, start, end, duration, precise)?;
     let ext = if precise { ".mp4".to_string() } else { crate::dotnet::extension(input).to_string() };
@@ -137,14 +159,35 @@ pub fn trim(
     let temporary = dir.join(format!(".sharex-trim-{nanos:032x}{ext}"));
     let args = build_trim_arguments(input, &temporary.to_string_lossy(), start, end, precise);
     let result = (|| -> Result<(), String> {
-        let mut child = std::process::Command::new(ffmpeg)
-            .args(["-hide_banner", "-nostdin"])
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        let mut command = std::process::Command::new(ffmpeg);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // `CreateNoWindow = true`.
+            command.creation_flags(0x0800_0000);
+        }
+        let mut child = command.args(["-hide_banner", "-nostdin"]).args(&args).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| e.to_string())?;
         let stderr = child.stderr.take();
+        let stdout = child.stdout.take();
+        let child = std::sync::Arc::new(std::sync::Mutex::new(child));
+        let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // Kills FFmpeg once the flag is set.
+        let watcher = cancel.map(|_| {
+            let (child, finished, cancelled) = (child.clone(), finished.clone(), cancelled.clone());
+            move |flag: &std::sync::atomic::AtomicBool| {
+                while !finished.load(std::sync::atomic::Ordering::Relaxed) {
+                    if flag.load(std::sync::atomic::Ordering::Relaxed) {
+                        cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                        if let Ok(mut c) = child.lock() {
+                            let _ = c.kill();
+                        }
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+            }
+        });
         let log = std::thread::spawn(move || {
             let mut s = String::new();
             if let Some(e) = stderr {
@@ -155,15 +198,25 @@ pub fn trim(
             }
             s
         });
-        if let Some(out) = child.stdout.take() {
-            for line in BufReader::new(out).lines().map_while(Result::ok) {
-                if let Some(p) = progress_from_line(&line, end - start) {
-                    progress(p);
+        let status = std::thread::scope(|scope| {
+            if let (Some(w), Some(flag)) = (watcher, cancel) {
+                scope.spawn(move || w(flag));
+            }
+            if let Some(out) = stdout {
+                for line in BufReader::new(out).lines().map_while(Result::ok) {
+                    if let Some(p) = progress_from_line(&line, end - start) {
+                        progress(p);
+                    }
                 }
             }
-        }
-        let status = child.wait().map_err(|e| e.to_string())?;
+            let status = child.lock().map_err(|e| e.to_string()).and_then(|mut c| c.wait().map_err(|e| e.to_string()));
+            finished.store(true, std::sync::atomic::Ordering::Relaxed);
+            status
+        })?;
         let log = log.join().unwrap_or_default();
+        if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(CANCELLED.into());
+        }
         if !status.success() {
             return Err(log.trim().to_string());
         }

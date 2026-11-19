@@ -802,6 +802,20 @@ impl App {
         }
     }
 
+    /// `TaskHelpers.CheckFFmpeg(taskSettings)` for the tools that need
+    /// FFmpeg (the video converter, thumbnailer and trimmer): its path, or
+    /// ShareX's warning and `None`.
+    pub(crate) fn check_ffmpeg(&mut self, event_loop: &ActiveEventLoop, task: &TaskSettings) -> Option<PathBuf> {
+        let capture = task.CaptureSettings.clone().unwrap_or_default();
+        match sharex_screen_recording::discovery::resolve_ffmpeg(&capture.FFmpegOptions) {
+            Ok(path) => Some(path),
+            Err(e) => {
+                self.recording_start_failed(event_loop, StartError::FFmpeg(e), &capture);
+                None
+            }
+        }
+    }
+
     /// `TaskHelpers.CheckFFmpeg`: FFmpeg isn't where the settings say.
     /// ShareX shows where it looked; ShareXrs doesn't ship FFmpeg, so it
     /// offers ShareX's FFmpeg downloader too ([`ffmpeg_options`]).

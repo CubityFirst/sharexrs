@@ -68,12 +68,21 @@ pub enum Part {
     /// renderer): `color` between `rect` (with `radius`) and `rect` deflated
     /// by `spread` (its radius reduced as much), clipped to `rect`.
     InsetShadow { rect: Rect, radius: f32, spread: f32, color: Color32 },
+    /// `DrawingContext.DrawRectangle(null, pen, rect, radius, radius)`: the
+    /// rounded rectangle `rect` itself (not deflated) stroked centred with
+    /// a `thickness` pen of `brush`, the brush relative to `rect`.
+    Stroke { rect: Rect, radius: f32, thickness: f32, brush: Brush },
+    /// `color` in `rect` outside the rounded rectangle `rect` with
+    /// `radius`: what a `PushClip(RoundedRect)` leaves of the content
+    /// beneath, drawn over content to clip its corners.
+    Outside { rect: Rect, radius: f32, color: Color32 },
 }
 
 impl Part {
     fn rect(&self) -> Rect {
         match *self {
-            Part::Border { rect, .. } | Part::InsetShadow { rect, .. } => rect,
+            Part::Border { rect, .. } | Part::InsetShadow { rect, .. } | Part::Outside { rect, .. } => rect,
+            Part::Stroke { rect, thickness, .. } => rect.expand(thickness / 2.0),
         }
     }
 }
@@ -81,6 +90,23 @@ impl Part {
 /// Draws one `Border` in `rect`.
 pub fn border(painter: &Painter, rect: Rect, radius: f32, thickness: f32, background: Option<Brush>, border: Option<Color32>) {
     paint(painter, &[Part::Border { rect, radius, thickness, background, border }], 1.0);
+}
+
+/// `DrawRectangle(null, new Pen(brush, thickness), rect, radius, radius)`.
+pub fn stroke(painter: &Painter, rect: Rect, radius: f32, thickness: f32, brush: Brush) {
+    paint(painter, &[Part::Stroke { rect, radius, thickness, brush }], 1.0);
+}
+
+/// `color` over the corners of `rect` that a rounded clip of `radius`
+/// would hide (see [`Part::Outside`]).
+pub fn clip_corners(painter: &Painter, rect: Rect, radius: f32, color: Color32) {
+    let r = radius.ceil() + 1.0;
+    for (x, y) in [(rect.min.x, rect.min.y), (rect.max.x - r, rect.min.y), (rect.min.x, rect.max.y - r), (rect.max.x - r, rect.max.y - r)] {
+        let corner = Rect::from_min_size(pos2(x, y), vec2(r, r));
+        // The shape is the whole rectangle; only this corner's pixels are drawn.
+        let clip = painter.with_clip_rect(corner.intersect(painter.clip_rect()));
+        paint(&clip, &[Part::Outside { rect, radius, color }], 1.0);
+    }
 }
 
 /// An ellipse filled with `color` in `rect` (`Ellipse`, as Skia draws an
@@ -203,6 +229,8 @@ fn to_pixels(p: Part, ppp: f32, origin: egui::Pos2) -> Part {
             Part::Border { rect: r(rect), radius: radius * ppp, thickness: thickness * ppp, background, border }
         }
         Part::InsetShadow { rect, radius, spread, color } => Part::InsetShadow { rect: r(rect), radius: radius * ppp, spread: spread * ppp, color },
+        Part::Stroke { rect, radius, thickness, brush } => Part::Stroke { rect: r(rect), radius: radius * ppp, thickness: thickness * ppp, brush },
+        Part::Outside { rect, radius, color } => Part::Outside { rect: r(rect), radius: radius * ppp, color },
     }
 }
 
@@ -231,6 +259,26 @@ fn hash_part(p: &Part, h: &mut DefaultHasher) {
             rect(r, h);
             f(radius, h);
             f(spread, h);
+            color.hash(h);
+        }
+        Part::Stroke { rect: r, radius, thickness, brush } => {
+            2u8.hash(h);
+            rect(r, h);
+            f(radius, h);
+            f(thickness, h);
+            match brush {
+                Brush::Solid(c) => (1u8, c).hash(h),
+                Brush::Diagonal(a, b) => (2u8, a, b).hash(h),
+                Brush::Checkered { colors, cell } => {
+                    (3u8, colors).hash(h);
+                    f(cell, h);
+                }
+            }
+        }
+        Part::Outside { rect: r, radius, color } => {
+            3u8.hash(h);
+            rect(r, h);
+            f(radius, h);
             color.hash(h);
         }
     }
@@ -390,6 +438,37 @@ fn rasterize(parts: &[Part], w: usize, h: usize) -> ColorImage {
                             if c > 0.0 {
                                 over(d, *color, c);
                             }
+                        }
+                    }
+                }
+            }
+            Part::Stroke { rect, radius, thickness, brush } => {
+                let path = RRect::new(rect, radius);
+                let outer = path.outset(thickness / 2.0, path.rad);
+                let inner = path.outset(-thickness / 2.0, path.rad);
+                for y in 0..h {
+                    for x in 0..w {
+                        let (fx, fy) = (x as f32, y as f32);
+                        let c = outer.coverage(fx, fy) - inner.coverage(fx, fy);
+                        if c > 0.0 {
+                            over(&mut px[y * w + x], brush_at(&brush, rect, fx, fy), c);
+                        }
+                    }
+                }
+            }
+            Part::Outside { rect, radius, color } => {
+                let shape = RRect::new(rect, radius);
+                let color = unpremul(color);
+                let (x0, y0) = (rect.min.x.floor().max(0.0) as usize, rect.min.y.floor().max(0.0) as usize);
+                let (x1, y1) = ((rect.max.x.ceil() as usize).min(w), (rect.max.y.ceil() as usize).min(h));
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let (fx, fy) = (x as f32, y as f32);
+                        // Only the pixels the rectangle covers, less the shape.
+                        let inside_rect = (((fx + 1.0).min(rect.max.x) - fx.max(rect.min.x)).max(0.0) * ((fy + 1.0).min(rect.max.y) - fy.max(rect.min.y)).max(0.0)).min(1.0);
+                        let c = inside_rect - shape.coverage(fx, fy);
+                        if c > 0.0 {
+                            over(&mut px[y * w + x], color, c);
                         }
                     }
                 }

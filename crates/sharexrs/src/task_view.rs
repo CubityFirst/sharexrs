@@ -120,6 +120,10 @@ pub enum TaskCommand {
     EditImage,
     /// `UploadInfoManager.ResizeImages`: the image resizer on the selected images.
     ResizeImages,
+    /// `UploadInfoManager.TrimVideo`: the video trimmer on the file.
+    TrimVideo,
+    /// `UploadInfoManager.TrimAnimatedGif`: the GIF trimmer on the file.
+    TrimAnimatedGif,
     /// `UploadInfoManager.AddImageEffects`: the Image effects window on the file.
     AddImageEffects,
     /// `UploadInfoManager.CombineImages(orientation)`: true for horizontally.
@@ -1424,8 +1428,8 @@ impl TaskView {
             item(s::MainWindow_EditImageInPhotoEditor(), icon::Layers, np("Photo editor"), ok && images > 0),
             item(s::MainWindow_EditImageInPixelEditor(), icon::PixelEditor, np("Pixel editor"), ok && images > 0),
             item(s::MainWindow_ResizeImage(), icon::Resize, TaskCommand::ResizeImages, ok && images > 0),
-            item(s::MainWindow_TrimVideo(), icon::Scissors, np("Video trimmer"), ok && sel.is_video_file),
-            item(s::MainWindow_TrimAnimatedGif(), icon::Scissors, np("GIF trimmer"), ok && is_gif),
+            item(s::MainWindow_TrimVideo(), icon::Scissors, TaskCommand::TrimVideo, ok && sel.is_video_file),
+            item(s::MainWindow_TrimAnimatedGif(), icon::Scissors, TaskCommand::TrimAnimatedGif, ok && is_gif),
             item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, np("Image beautifier"), ok && sel.is_image_file),
             item(s::MainWindow_AddImageEffects(), icon::MagicWand, TaskCommand::AddImageEffects, ok && sel.is_image_file),
             item(s::MainWindow_PinToScreen(), icon::Pin, TaskCommand::PinToScreen, ok && sel.is_image_file).gesture("Ctrl+P"),

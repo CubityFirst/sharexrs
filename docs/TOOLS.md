@@ -28,10 +28,10 @@ ported, and what each window will need.
 | `indexer` | `Indexer`, `IndexerText`/`Html`/`Xml`/`Json`, `FolderInfo`, `IndexerSettings`, `HtmlHelper`, `URLHelpers.HtmlEncode` | `index`, `index_at`, `scan`, `IndexerSettings` |
 | `metadata` | `MetadataService`, `MetadataReader`, `MetadataCollector`, `ImageMetadataReader`, `TiffMetadataReader`, `IccMetadataReader`, `XmpMetadataReader`, `IsoBaseMediaMetadataReader`, `MatroskaMetadataReader`, `RiffMetadataReader`, `AsfMetadataReader`, `MetadataStripper`, `MetadataViewModel` | `read`, `strip`, `can_strip`, `build_text`, `group`, `filter` |
 | `video::converter` | `VideoConverterOptions`, `VideoConverterViewModel.BuildArguments`, `VideoConversionOutputInfo` | `VideoConverterOptions::arguments`, `ConverterWindow::build_arguments`, `output_info` |
-| `video::trimmer` | `VideoTrimmerService`, `VideoTrimmerViewModel.FormatTime`/`TryParseTime` | `build_trim_arguments`, `validate`, `trim`, `format_time`, `try_parse_time` |
+| `video::trimmer` | `VideoTrimmerService`, `VideoTrimmerViewModel.FormatTime`/`TryParseTime` | `build_trim_arguments`, `validate`, `trim`, `trim_cancellable`, `format_time`, `try_parse_time` |
 | `video::thumbnailer` | `VideoThumbnailer`, `VideoThumbnailOptions`, `VideoInfo.ToString` | `take_thumbnails`, `combine`, `frame_arguments`, `timestamps` |
 | `video::gif_maker` | `AnimatedGifMakerService` | `create`, `create_bytes`, `create_preview_frames` |
-| `video::gif_trimmer` | `GifLosslessTrimmer`, `AnimatedGifTrimmerDocument` (timing, `Export` with its re-encode, `RenderFrame`), `SkiaAnimatedImage.GetFrame` over Skia's GIF codec, `AnimatedGifTrimmerViewModel`'s selection | `GifLosslessTrimmer`, `AnimatedGif::frame`, `AnimatedGifTrimmerDocument::{open, export, export_bytes, render_frame}`, `TrimSelection`, `crop_and_resize` |
+| `video::gif_trimmer` | `GifLosslessTrimmer`, `AnimatedGifTrimmerDocument` (timing, `Export` with its re-encode, `RenderFrame`), `SkiaAnimatedImage.GetFrame` over Skia's GIF codec, `AnimatedGifTrimmerViewModel`'s selection | `GifLosslessTrimmer`, `AnimatedGif::frame`, `AnimatedGifTrimmerDocument::{open, export, export_cancellable, export_bytes, render_frame}`, `TrimSelection`, `crop_and_resize` |
 | `monitor_test` | `MonitorTestPatternControl`, `MonitorTestViewModel` | `MonitorTest::render`, `advance_motion` |
 | `system::clipboard_viewer` | `ClipboardViewerData`, `ClipboardData`, `ClipboardHelpersEx.ImageFromClipboardDib`, `ClipboardViewerViewModel`'s texts | `ClipboardSnapshot::{set, formats, preview}`, `image_from_clipboard_dib`, `format_count_text`, `preview_details` |
 | `system::inspect_window` | `InspectWindowViewModel`, `InspectWindowService`'s list rules, `WindowStyles.ToString()` | `details`, `clipboard_text`, `window_styles_to_string`, `visible_windows`, `percent_to_opacity` |
@@ -280,8 +280,9 @@ lacks; since clippy never links, the script points `cc` at a stub
   `WindowOps`). `is_network_available` is read-only and Windows only (it
   says yes elsewhere for now). There's no "canvas/sheet splitter" tool in
   this ShareX version; the Image splitter is above.
-- **Video player** (Media Foundation): OS/UI-bound, ported with its
-  window. OCR is `sharex-ocr` (docs/OCR.md), the Remote storage browser's
+- **Playback** (the video player and trimmer: Media Foundation in ShareX)
+  is in the app (`video_tools::media`, "The Video windows in ShareXrs"
+  below). OCR is `sharex-ocr` (docs/OCR.md), the Remote storage browser's
   data side `sharex_uploaders::remote_storage` (docs/UPLOADERS.md), the
   screen tools are in "The Screen tools in ShareXrs".
 
@@ -348,6 +349,98 @@ the image viewer isn't ported), Avalonia's `ColorView` flyout (the shared
 HSV popup stands in, opaque), tooltips are egui's, a drop of several files
 on the splitter or icon converter takes the last one winit reports (ShareX
 the first), focus rings and keyboard navigation of the lists.
+
+## The Video windows in ShareXrs
+
+`crates/sharexrs/src/video_tools/` ports the six Video tool windows on the
+engines in `sharex_tools::video`, with the Images windows' shared blocks
+(`crate::image_tools`).
+
+| File | ShareX source | What's there |
+|---|---|---|
+| `mod.rs` | | the save dialog, `Image` with `Stretch="Uniform" StretchDirection="DownOnly"`, the action sound, wrapped text at Avalonia's block height (two Segoe UI 13 lines are 35 px, not 36), FFmpeg for playback |
+| `gif_maker.rs` | `AnimatedGifMakerWindow`, `AnimatedGifMakerViewModel` | the image list with moves, frame delay (`decimal`, step 100), loop and repeat count, the preview (`CreatePreviewFrames` 100 ms after a change) played by its timer at the delay, Create GIF... (save dialog, `Create` on a thread), the output and message panels |
+| `gif_trimmer.rs` | `AnimatedGifTrimmerWindow`, `AnimatedGifTrimmerViewModel`, `AnimatedGifTrimmerCropOverlay` | the document, first frame and 12 thumbnails loaded on a thread, stepping and playback at each frame's delay, the selection (`TrimSelection`; set start/end here, reset, the time boxes on Enter or focus loss), the crop box (draw, move, resize by edges and corners, ShareX's cursors) and output size, Lossless/Re-encode, Save trimmed GIF... with progress and Cancel (the engine's `export_cancellable`), the error message box (the loading bar stays until it's dismissed, as ShareX's modal box) |
+| `timeline.rs` | `AnimatedGifTrimmerTimeline`, `VideoTrimmerTimeline` | the filmstrip (12 cells, centre-cropped, bilinear), the shade outside the selection, the frame and handles in the accent gradient with the accent's halo, the playhead, the drags and keys |
+| `converter.rs` | `VideoConverterWindow`, `VideoConverterViewModel`, `TaskHelpers.RunVideoConversionAsync` | input, encoder (`Codec::ALL`), CRF slider or bitrate, output folder and name, Start/Stop with FFmpeg's progress (`FFmpegCliManager`), the result (`GetVideoConversionOutputInfo`), auto-open; options written into the task's `VideoConverterOptions` as they change; `CheckFFmpeg` before it opens |
+| `thumbnailer.rs` | `VideoThumbnailerWindow`, `VideoThumbnailerViewModel`, `TaskHelpers.OpenVideoThumbnailer` | the video, the options (written into `VideoThumbnailOptions` as they change, `to_json` as Json.NET orders it), Create thumbnails with progress, `OpenDirectory`, and `UploadThumbnails`' uploads; the default folder is the task's screenshots folder |
+| `media.rs` | `Controls/Media/WindowsMediaPlayer` | playback (below) |
+| `player.rs` | `VideoPlayerWindow`, `VideoPlayerViewModel` | the video at its display aspect on black, the empty/loading/error states, the translucent controls 12 px above the bottom (seek, open, frame steps, play/pause, time, mute, volume, fullscreen) hiding 3 s after the last move while playing, ShareX's keys, the title with the file name |
+| `trimmer.rs` | `VideoTrimmerWindow`, `VideoTrimmerViewModel`, `VideoTrimmerService`, `NativeVideoThumbnails` | the video in the preview, 12 filmstrip thumbnails (fitted to 160x90, even sizes), the selection on the timeline and in the time boxes, playback stopping at the selection's end, Lossless/Re-encode, Save trimmed video... (`CheckFFmpeg` first, then the forced extension) with FFmpeg's progress and Cancel (`trim_cancellable`) |
+| `open.rs` | `TaskHelpers.Open*`, `ToolsIntegration.Show*Window` | the Tools menu entries, the four hotkeys, `-VideoConverter`/`-VideoTrimmer`/`-AnimatedGifTrimmer <file>`, the task list's and history windows' Trim video and Trim animated GIF |
+| `render.rs` | | `--render gif-maker|gif-trimmer|video-converter|video-player|video-thumbnailer|video-trimmer` with the manifest's states (`--state`, `--files`, `--image`, `--count`, `--text`) |
+
+### Playback
+
+ShareX plays video with Media Foundation's `IMFMediaEngine` into a child
+window (Windows only; elsewhere it throws `PlatformNotSupportedException`),
+and builds the trimmer's filmstrip with an `IMFSourceReader`. ShareXrs
+does it on every platform with the FFmpeg the converter, thumbnailer and
+trimmer already run (`video_tools::media`): a probe (`ffmpeg -i`: duration,
+size, frame rate, display aspect, whether there's sound; no video or no
+finite duration is `VideoTrimmer_InvalidVideo`), one FFmpeg process piping
+RGBA frames from the position and another piping the first audio stream
+as float PCM to cpal (0.18.2, Apache-2.0: WASAPI, Core Audio through
+objc2, ALSA, so Linux builds need `libasound2-dev`). The frames follow the
+audio's playhead (the wall clock without sound). A seek restarts both at
+the exact time (FFmpeg's input seeking decodes to the frame, as
+`MediaEngineSeekMode.Normal`); paused, it decodes just that frame. A frame
+step seeks a frame forward or back; the end keeps the last frame and Play
+there starts from 0, as ShareX's. Without FFmpeg the player and trimmer
+say so in the playback error (ShareX needs none to play); the trimmer's
+Save runs `CheckFFmpeg` as ShareX's does.
+
+### Validation
+
+`scripts/video-tools-compare.sh [-dark|-light]` renders every state at the
+size of the `tools-video` shots (generated inputs in
+`phase2-32616/inputs`) and compares them. Pixels differing by more than 40:
+
+| Window | States (dark) | Light |
+|---|---|---|
+| GIF maker | empty 0.36%, three frames 0.29% | 0.33%, 0.20% |
+| GIF trimmer | empty 0.30%, loaded 0.29%, trimmed 0.29%, invalid 0.57% | 0.24%, 0.24%, 0.23%, 0.51% |
+| Video converter | empty 0.40%, input 0.52%, result 0.72% | 0.39%, 0.39%, 0.53% |
+| Video player | empty 0.09%, paused 6.42% | 0.09%, 6.42% |
+| Video thumbnailer | empty 0.47%, input 0.78%; format menu 0.90%, output location menu 1.90% | 0.37%, 0.66%; 4.22%, 3.39% |
+| Video trimmer | empty 0.27%, paused 1.52%, trimmed 4.56%, re-encode 4.56%, invalid 0.85% | 0.17%, 1.48%, 4.52%, 4.52%, 0.71% |
+
+What's left in the UI states is text anti-aliasing. The rest:
+
+- The video picture: Media Foundation's presenter scales and places the
+  frame (3 px higher in the player) where ShareXrs draws FFmpeg's frame
+  bilinearly; the trimmed states' shots also show the frame Media
+  Foundation stepped to (0.083 s) under a playhead of 0.249 s, and the
+  filmstrip cells are a frame apart here and there.
+- The invalid states' messages: Media Foundation's error text ("oldValue
+  has incorrect type…") against FFmpeg's (`VideoTrimmer_InvalidVideo`), and
+  the indeterminate bar's phase.
+- The converter's file size: the encoder's output is a few hundred bytes
+  different between runs of the same FFmpeg.
+- The dropdown shots are ShareX's popup windows on their own: their
+  transparent corners and edge come out dark in the capture.
+- The player's controls are a popup window in ShareX, which its client
+  capture leaves out: those renders hide them.
+
+Not captured by the reference batch (unvalidated): the GIF maker's
+selected, repeat-count and created states; the GIF trimmer's crop,
+resize/re-encode, saved and timeline drag; the converter's bitrate, no
+rate control, encoding, invalid and missing-FFmpeg states (the codec menu
+runs past the window's bottom in ShareX, which ShareXrs's in-window
+dropdowns can't); the player's muted, seek-pressed, fullscreen and invalid;
+the thumbnailer's custom output, progress, results and invalid; the
+trimmer's exporting, saved and timeline drag.
+
+Behaviour checked headlessly: a real conversion with a local FFmpeg
+(`converts_with_a_local_ffmpeg`), GIF trimmer loads, selections, crops
+and an export re-read (`gif_trimmer` tests), the converter's, thumbnailer's
+and trimmer's FFmpeg runs through `--render` (a contact sheet, a lossless
+trim). Not ported: tooltips are egui's; dropdowns stay inside the window
+(the converter's codec list is cut at its bottom); the player's controls
+are drawn in the window rather than a popup of their own; settings changed
+in a window opened by a hotkey with its own tools settings are kept for
+the session only (ShareXrs saves them into the default task settings, as
+the image combiner does).
 
 ## The Screen tools in ShareXrs
 

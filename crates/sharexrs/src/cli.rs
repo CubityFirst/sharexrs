@@ -400,16 +400,19 @@ impl App {
             HotkeyType::PinToScreen | HotkeyType::PinToScreenFromFile => self.pin_file(event_loop, std::path::Path::new(&file), Some(task)),
             // `AnnotateImageFromFile(filePath, safeTaskSettings)`.
             HotkeyType::ImageEditor => self.annotate_file(event_loop, std::path::Path::new(&file), Some(task)),
-            // The image and video tools on a file: their windows aren't
-            // ported.
+            // `OpenVideoConverter(filePath, …)`, `OpenVideoTrimmer(…, filePath)`,
+            // `OpenAnimatedGifTrimmer(filePath, …)`.
+            HotkeyType::VideoConverter | HotkeyType::VideoTrimmer | HotkeyType::AnimatedGifTrimmer => {
+                if let Some(key) = crate::video_tools::open::tool_for_hotkey(&job) {
+                    self.open_video_tool(event_loop, key, Some(task), Some(file.to_string_lossy().into_owned()));
+                }
+            }
+            // The image tools on a file: their windows aren't ported.
             HotkeyType::PhotoEditor
             | HotkeyType::PixelEditor
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects
             | HotkeyType::ImageViewer
-            | HotkeyType::VideoConverter
-            | HotkeyType::VideoTrimmer
-            | HotkeyType::AnimatedGifTrimmer
             | HotkeyType::HashCheck
             | HotkeyType::Metadata
             | HotkeyType::StripMetadata => eprintln!("{} with a file: not ported yet", job.name()),

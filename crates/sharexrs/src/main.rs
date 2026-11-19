@@ -36,6 +36,7 @@ mod remote_storage_browser;
 mod region_session;
 mod render;
 mod screen_tools;
+mod video_tools;
 mod scrolling_capture;
 mod settings_form;
 mod shell;
@@ -287,6 +288,9 @@ enum DialogPurpose {
     /// A question a command line asked (importing a custom uploader or an
     /// image effect).
     CommandLine(cli::CliQuestion),
+    /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
+    /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
+    Owned(winit::window::WindowId),
 }
 
 struct App {
@@ -550,7 +554,7 @@ impl App {
             return;
         }
         if let MenuCommand::Tool(key) = command
-            && (self.open_image_tool(event_loop, key, None) || self.open_screen_tool(event_loop, key))
+            && (self.open_image_tool(event_loop, key, None) || self.open_video_tool(event_loop, key, None, None) || self.open_screen_tool(event_loop, key))
         {
             return;
         }
@@ -1172,6 +1176,11 @@ impl App {
                 d.dialog.answered(result == DialogResult::Yes);
                 d.window.window.request_redraw();
             }
+        } else if let DialogPurpose::Owned(owner) = dialog.purpose {
+            if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == owner) {
+                d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
+                d.window.window.request_redraw();
+            }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
             self.cli_answered(question, result);
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
@@ -1293,6 +1302,10 @@ impl App {
         }
         if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
             self.open_image_tool(event_loop, key, Some(task));
+            return;
+        }
+        if let Some(key) = video_tools::open::tool_for_hotkey(&job) {
+            self.open_video_tool(event_loop, key, Some(task), None);
             return;
         }
         match job {

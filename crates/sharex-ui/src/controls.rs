@@ -603,6 +603,8 @@ pub struct TextBox<'a> {
     /// A `FontFamily`/`FontSize` of its own (the monospace response boxes);
     /// [`TextBox::font`] otherwise.
     pub font: Option<FontId>,
+    /// `TextAlignment="Center"`.
+    pub centered: bool,
 }
 
 impl Default for TextBox<'_> {
@@ -618,6 +620,7 @@ impl Default for TextBox<'_> {
             wrap: false,
             links: None,
             font: None,
+            centered: false,
         }
     }
 }
@@ -715,6 +718,9 @@ impl TextBox<'_> {
             .min_size(edit_rect.size())
             .password(self.password)
             .interactive(self.enabled);
+        if self.centered {
+            edit = edit.horizontal_align(egui::Align::Center);
+        }
         if !self.placeholder.is_empty() && empty {
             // `PART_Placeholder`: a `TextBlock` of its own (ShareX's SemiBold
             // Segoe UI), centred in the content like the text, in
@@ -1230,12 +1236,16 @@ pub fn list_item_background(painter: &egui::Painter, rect: Rect, radius: f32, ho
 }
 
 /// `ProgressBar` with `IsIndeterminate="True"` (Fluent's template): the
-/// `SystemControlHighlightAccentBrush` indicators sliding across a
-/// transparent track (`ProgressBarIndeterminateBackground`), clipped to
-/// `rect`. `t` is seconds since the bar appeared; Fluent's animation runs
-/// two indicators over a 2 s cycle.
+/// `SystemControlHighlightAccentBrush` indicators sliding across the
+/// `SystemControlBackgroundBaseLowBrush` track (the template's `Background`,
+/// which no `:indeterminate` style changes; ShareX's GIF and video
+/// trimmers' loading shots show it), clipped to `rect`. `t` is seconds
+/// since the bar appeared; Fluent's animation runs two indicators over a
+/// 2 s cycle.
 pub fn indeterminate_progress(painter: &egui::Painter, rect: Rect, t: f64) {
     let p = palette(painter.ctx());
+    let f = fluent(painter.ctx());
+    border::border(painter, rect, 3.0, 0.0, Some(Brush::Solid(f.base_low)), None);
     let w = rect.width();
     let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
     let phase = (t % 2.0) as f32 / 2.0;
@@ -1246,6 +1256,21 @@ pub fn indeterminate_progress(painter: &egui::Painter, rect: Rect, t: f64) {
     for (x, len) in [(first, 0.4 * w), (second, 0.6 * w)] {
         let r = Rect::from_min_size(pos2(rect.min.x + x, rect.min.y), vec2(len, rect.height()));
         border::border(&clip, r, 3.0, 0.0, Some(Brush::Solid(p.accent_start)), None);
+    }
+}
+
+/// `ProgressBar` with a value (Fluent's template): the
+/// `SystemControlBackgroundBaseLowBrush` track with `ControlCornerRadius`
+/// and the `PART_Indicator` (the accent, same corners) `fraction` of its
+/// width from the left, both clipped to the track.
+pub fn determinate_progress(painter: &egui::Painter, rect: Rect, fraction: f64) {
+    let p = palette(painter.ctx());
+    let f = fluent(painter.ctx());
+    border::border(painter, rect, 3.0, 0.0, Some(Brush::Solid(f.base_low)), None);
+    let w = (rect.width() as f64 * fraction.clamp(0.0, 1.0)) as f32;
+    if w > 0.0 {
+        let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+        border::border(&clip, Rect::from_min_size(rect.min, vec2(w, rect.height())), 3.0, 0.0, Some(Brush::Solid(p.accent_start)), None);
     }
 }
 
