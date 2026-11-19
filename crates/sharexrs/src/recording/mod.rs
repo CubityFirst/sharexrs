@@ -9,11 +9,10 @@
 //! runs [`run_ffmpeg_session`]; the finished file becomes a file task.
 //!
 //! ShareX's default recorder is its native one (`ScreenRecordUseNative`):
-//! on Windows it runs `sharex_native_recorder` (Media Foundation H.264/AAC
-//! or the adaptive GIF writer, `native.rs`), with FFmpeg grabbing the
-//! screen for it until Windows Graphics Capture is ported; its sound and
-//! camera wait for real WASAPI and camera capture. Elsewhere it falls back
-//! to the FFmpeg recorder, as before.
+//! on Windows it runs `sharex_native_recorder` (Windows Graphics Capture,
+//! WASAPI, the Media Foundation camera; Media Foundation H.264/AAC or the
+//! adaptive GIF writer, `native.rs`). Elsewhere it falls back to the
+//! FFmpeg recorder.
 
 pub mod bar;
 pub mod ffmpeg_options;
@@ -255,7 +254,6 @@ impl App {
         if uses_native(&capture) {
             let kind = if output == ScreenRecordOutput::GIF { "Adaptive GIF" } else { "H.264/AAC MP4" };
             eprintln!("Starting native screen recording. {kind}, FPS: {}", prepared.fps);
-            eprintln!("Windows Graphics Capture isn't ported yet: FFmpeg grabs the screen for the native recorder.");
         } else {
             if capture.ScreenRecordUseNative {
                 eprintln!("ShareX's native screen recorder is Windows only: recording with FFmpeg instead.");
@@ -497,7 +495,7 @@ impl App {
         }
         let Some(r) = self.recording.as_mut() else { return };
         let spawned = if uses_native(&prepared.capture) {
-            let session = native::session(prepared, r.output == ScreenRecordOutput::GIF);
+            let session = native::session(prepared, r.output == ScreenRecordOutput::GIF, r.capture_window);
             std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
                 let mut hooks = hooks;
                 let path = native::run(session, control, &mut hooks);

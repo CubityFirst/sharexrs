@@ -379,9 +379,8 @@ pub fn prepare_ffmpeg_recording(
 
 /// `StartRecording`'s checks for the native recorder (`useNative`): no
 /// FFmpeg options are involved, the frame rate is `GIFFPS` or
-/// `ScreenRecordFPS`, and only an MP4 needs an even size. ShareXrs adds one:
-/// FFmpeg must be there, since it grabs the screen for the native recorder
-/// until Windows Graphics Capture is ported.
+/// `ScreenRecordFPS`, and only an MP4 needs an even size. FFmpeg isn't
+/// needed (`ffmpeg_path` is kept when it was found).
 pub fn prepare_native_recording(
     output: ScreenRecordOutput,
     capture: &TaskSettingsCapture,
@@ -391,7 +390,8 @@ pub fn prepare_native_recording(
 ) -> Result<PreparedRecording, StartError> {
     let is_gif = output == ScreenRecordOutput::GIF;
     let fps = if is_gif { capture.GIFFPS } else { capture.ScreenRecordFPS };
-    let ffmpeg_path = ffmpeg_path.map_err(StartError::FFmpeg)?;
+    // The native recorder doesn't use FFmpeg (`CheckFFmpeg` is the FFmpeg recorder's).
+    let ffmpeg_path = ffmpeg_path.unwrap_or_default();
     let mut rect = intersect(capture_rectangle, screen_bounds);
     if !is_gif {
         rect = even_rectangle_size(rect);
@@ -617,6 +617,9 @@ mod tests {
         let gif = prepare_native_recording(ScreenRecordOutput::GIF, &capture, area, bounds, ok).unwrap();
         assert_eq!((gif.capture_rectangle.width, gif.fps, gif.use_gif_fps), (101, capture.GIFFPS, true));
         assert_eq!(gif.capture.FFmpegOptions.VideoCodec, capture.FFmpegOptions.VideoCodec);
+        // No FFmpeg check.
+        let missing = Err(crate::discovery::FFmpegCheckError::Missing(PathBuf::from("ffmpeg.exe")));
+        assert!(prepare_native_recording(ScreenRecordOutput::FFmpeg, &capture, area, bounds, missing).is_ok());
     }
 
     #[test]
