@@ -7,10 +7,14 @@ nothing is sent to the process.
 
 .EXAMPLE
 powershell -File scripts/wsmap.ps1 -Id 1234 -Top 20
+powershell -File scripts/wsmap.ps1 -Id 1234 -PagesOf sharexrs.exe -PagesOut pages.txt   # its resident pages (RVAs, hex)
 #>
 param(
     [Parameter(Mandatory = $true)][int]$Id,
-    [int]$Top = 20
+    [int]$Top = 20,
+    # A module whose resident pages to list, one RVA (hex) a line, in $PagesOut.
+    [string]$PagesOf = "",
+    [string]$PagesOut = ""
 )
 
 Add-Type -TypeDefinition @"
@@ -29,6 +33,7 @@ public static class WsMap {
     [DllImport("psapi.dll")] static extern bool QueryWorkingSet(IntPtr h, IntPtr buf, int size);
     [DllImport("psapi.dll", CharSet = CharSet.Unicode)] static extern uint GetMappedFileNameW(IntPtr h, IntPtr addr, System.Text.StringBuilder name, uint size);
     public class Row { public string Owner; public long Pages; public long Shared; }
+    public static List<long> Resident = new List<long>();
     // owner of an allocation base: a module name (from the caller) or the kind
     public static List<Row> Walk(int pid, Dictionary<long, string> modules) {
         IntPtr h = OpenProcess(0x0400 | 0x0010, false, pid);
@@ -44,6 +49,7 @@ public static class WsMap {
                 for (long i = 0; i < count; i++) {
                     ulong e = (ulong)Marshal.ReadInt64(buf, (int)(8 + i * 8));
                     long va = (long)(e & ~0xFFFUL);
+                    Resident.Add(va);
                     bool shared = ((e >> 8) & 1) == 1;
                     MBI m;
                     string owner = "?";
@@ -78,6 +84,12 @@ public static class WsMap {
 $mods = New-Object 'System.Collections.Generic.Dictionary[long,string]'
 foreach ($m in (Get-Process -Id $Id).Modules) { $mods[$m.BaseAddress.ToInt64()] = $m.ModuleName }
 $rows = [WsMap]::Walk($Id, $mods)
+if ($PagesOf) {
+    $m = (Get-Process -Id $Id).Modules | Where-Object { $_.ModuleName -eq $PagesOf } | Select-Object -First 1
+    $base = $m.BaseAddress.ToInt64()
+    [WsMap]::Resident | Where-Object { $_ -ge $base -and $_ -lt $base + $m.ModuleMemorySize } | Sort-Object |
+        ForEach-Object { "{0:x}" -f ($_ - $base) } | Set-Content -Encoding ascii $PagesOut
+}
 $total = ($rows | Measure-Object Pages -Sum).Sum
 "Working set: {0} MB" -f [math]::Round($total * 4KB / 1MB, 1)
 $rows | Sort-Object Pages -Descending | Select-Object -First $Top | ForEach-Object {

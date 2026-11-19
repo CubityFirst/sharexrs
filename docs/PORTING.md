@@ -441,10 +441,55 @@ wgpu's allocator report (blocks, largest allocations by label).
 committed memory by kind (mapped files named; `-Csv` to diff),
 `scripts/wsmap.ps1` its working set by module and file, and
 `scripts/memory-session.py` takes the table's points (`--phase cycles`
-for the open/close cycles, without the test pattern). A counting
+for the open/close cycles, without the test pattern). `wsmap.ps1
+-PagesOf sharexrs.exe -PagesOut <file>` lists the exe's resident pages
+and `scripts/image-pages.py` sorts them by PE section and by the
+translations they hold, language by language. A counting
 `#[global_allocator]` in the binary made rustc 1.96 crash
 (`STATUS_HEAP_CORRUPTION`) building it with thin LTO, hence the heap
 APIs.
+
+**Translations, by language** (2026-11-19). `sharex-strings` had one row
+per key: the key and 29 `Option<&str>`, one per language (480 bytes),
+2 MB of pointer tables in `.rdata` with every language's strings
+interleaved over ~3 MB more, so reading an English string touched pages
+holding the other 28 languages' too. Now each language is one blob of
+its strings in key order plus a table of `u32` ends (bit 31: not
+translated), generated into `OUT_DIR` and included whole; an accessor
+reads the current language's blob, then English's. The photo and pixel
+editors' modules, which nothing uses yet, aren't generated. ShareX's
+`.resx` have every key in every language, so English is never actually
+read in another language. No string changed: `every_string_unchanged`
+pins a dump of every key through `lookup` and the accessors in all 29
+languages (its length and FNV-1a hash taken from the old layout), and
+the two layouts' 9 MB dumps are byte-identical.
+
+Release builds, renamed portable copies, idle (MB, the exe image
+resident in KB):
+
+| | before | after |
+|---|---|---|
+| main window, English: working set | 165.7, 165.7, 166.0 | 169.4, 169.3, 165.3 |
+| main window, English: exe image | 12,116 (`.rdata` 3,008) | 11,980 (`.rdata` 2,884) |
+| main window, German: working set | 166.1 | 165.8, 165.6 |
+| main window, German: exe image | 12,136 (`.rdata` 3,024) | 12,000 (`.rdata` 2,896) |
+| main window, English: Japanese text resident | 80 KB | 0 |
+| tray only, English or German: exe image | 10,788 | 10,748 |
+
+So it's ~130 KB: the app reads a few hundred strings, and only the pages
+it reads are resident (232 KB of the old translation pages and 104 KB of
+its pointer tables with the main window; now 40 KB of blobs). The
+working set moves more than that between runs (the 169s have no more of
+the exe or the heap than the 165s), and a copy's first start ever has
+~13 MB more of its `.text` resident (in either layout). The exe is
+61,231,104 bytes before, 59,915,264 after (-1.3 MB: the pointer tables,
+their relocations, the two editors' strings). A release rebuild after
+touching the strings: the crate 19.4-20.2 s before, 2.3-3.9 s after
+(`strings.rs` 7.6 MB to 0.9 MB); with the exe 103-107 s, 88-92 s.
+`bench-window-open.py`, 14 starts each, medians: visible 626 / 634 ms,
+painted 709 / 712 ms, the log's startup time 623 / 627 ms (the same
+minimums; the new build's p90 is two slow starts, 830 and 1,165 ms, in
+a row while the machine was shared).
 
 ## Working on a tool (for agents)
 
