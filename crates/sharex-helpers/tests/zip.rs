@@ -5,6 +5,8 @@
 //!
 //! ShareX's results come from its Windows build (backslashes are separators
 //! there, drive letters root a path), so the comparisons run on Windows.
+// Elsewhere only the fixture writer runs: the comparisons' helpers go unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -121,7 +123,7 @@ fn extracts_as_sharex() {
         let root = scratch(name);
         let dest = root.join("dest");
         let filter = |_: &str, short: &str| sharex_helpers::file_helpers::check_extension(short, &["json", "xml"]);
-        let f: Option<&dyn Fn(&str, &str) -> bool> = if c["filter"] == "json-xml" { Some(&filter) } else { None };
+        let f: Option<zip_manager::EntryFilter> = if c["filter"] == "json-xml" { Some(&filter) } else { None };
         let got = zip_manager::extract(&fixtures().join(c["archive"].as_str().unwrap()), &dest, c["retain"].as_bool().unwrap(), f, c["max"].as_u64().unwrap());
         assert_eq!(got.is_ok(), r["ok"].as_bool().unwrap(), "{name}: {got:?} vs {}", r["message"]);
         if let Err(ExtractError::TooLarge(..)) = &got {

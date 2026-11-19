@@ -194,6 +194,10 @@ fn full_path(base: &Path, name: &str) -> PathBuf {
     out
 }
 
+/// Which entries [`extract`] takes: given the entry's full name and its
+/// name (`Func<ZipArchiveEntry, bool>`).
+pub type EntryFilter<'a> = &'a dyn Fn(&str, &str) -> bool;
+
 /// What [`extract`] did with each entry (for tests and logs).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Extracted {
@@ -213,7 +217,7 @@ pub fn extract(
     archive_path: &Path,
     destination: &Path,
     retain_directory_structure: bool,
-    filter: Option<&dyn Fn(&str, &str) -> bool>,
+    filter: Option<EntryFilter>,
     max_uncompressed_size: u64,
 ) -> Result<Vec<Extracted>, ExtractError> {
     let file = fs::File::open(archive_path)?;
@@ -226,7 +230,7 @@ pub fn extract_from<R: Read + Seek>(
     reader: R,
     destination: &Path,
     retain_directory_structure: bool,
-    filter: Option<&dyn Fn(&str, &str) -> bool>,
+    filter: Option<EntryFilter>,
     max_uncompressed_size: u64,
 ) -> Result<Vec<Extracted>, ExtractError> {
     let mut archive = zip::ZipArchive::new(reader)?;

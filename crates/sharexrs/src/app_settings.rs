@@ -1600,7 +1600,7 @@ mod tests {
             s::ApplicationSettingsWindow_ShowUploadWithShareXButtonInWindowsExplorerContextMenu(),
             s::ApplicationSettingsWindow_ShowShareXInSendToMenu(),
         ];
-        let mut frame = |events: Vec<egui::Event>, w: &mut ApplicationSettings, settings: &mut ApplicationConfig| {
+        let frame = |events: Vec<egui::Event>, w: &mut ApplicationSettings, settings: &mut ApplicationConfig| {
             let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(950.0, 720.0))), events, ..Default::default() };
             let mut out = ctx.run_ui(input, |ui| {
                 let _ = w.ui(ui, settings);
