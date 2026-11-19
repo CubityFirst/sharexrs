@@ -215,10 +215,12 @@ fn select_in_folder(path: &Path) -> Result<(), String> {
     std::process::Command::new("xdg-open").arg(folder).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// No recycle bin API outside Windows yet: deleted outright.
+/// `FileSystem.DeleteFile(..., RecycleOption.SendToRecycleBin)` is the
+/// Windows shell's (`SHFileOperation`): outside Windows it throws, and
+/// ShareX logs it and keeps the file. So does ShareXrs.
 #[cfg(not(windows))]
-fn recycle(path: &Path) -> Result<(), String> {
-    std::fs::remove_file(path).map_err(|e| e.to_string())
+fn recycle(_path: &Path) -> Result<(), String> {
+    Err("sending a file to the recycle bin requires Windows".into())
 }
 
 /// `NativeMethods.GetFileThumbnail`: the shell's thumbnail of a file

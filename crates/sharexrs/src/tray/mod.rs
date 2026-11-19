@@ -142,6 +142,31 @@ pub fn app_icon(size: u32) -> RgbaImage {
     image::imageops::resize(&image, size, size, image::imageops::FilterType::Triangle)
 }
 
+/// `TrayIconImage`'s and `Helpers.GetProgressIconBytes`' size: the small
+/// icon size (`SM_CXSMICON`) on Windows, 16 pixels elsewhere.
+pub fn glyph_icon_size() -> u32 {
+    #[cfg(windows)]
+    return Tray::icon_size();
+    #[cfg(not(windows))]
+    16
+}
+
+/// The OS's light/dark mode (`PlatformSettings.GetColorValues().ThemeVariant`),
+/// kept up to date by the app.
+static SYSTEM_LIGHT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The OS switched light/dark mode.
+pub fn set_system_light(light: bool) {
+    SYSTEM_LIGHT.store(light, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// `TrayIconImage.GetThemeIconColor`: black on a light taskbar (Windows)
+/// or in the OS's light mode (elsewhere), else white.
+pub fn glyph_color() -> egui::Color32 {
+    let light = if cfg!(windows) { sharex_capture::platform::light_taskbar() } else { SYSTEM_LIGHT.load(std::sync::atomic::Ordering::Relaxed) };
+    if light { egui::Color32::BLACK } else { egui::Color32::WHITE }
+}
+
 /// Whether the app's icon is the white one (`ShareXResources.UseWhiteIcon`,
 /// from `UseWhiteShareXIcon`).
 static WHITE_ICON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
