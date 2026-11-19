@@ -107,13 +107,16 @@ impl OverlayView {
 fn frozen_image(image: &image::RgbaImage, x: i32, y: i32, w: i32, h: i32) -> egui::ColorImage {
     let stride = image.width() as usize * 4;
     let raw = image.as_raw();
-    let mut pixels = Vec::with_capacity(w as usize * h as usize);
-    for row in y as usize..(y + h) as usize {
-        let start = row * stride + x as usize * 4;
-        let line = &raw[start..start + w as usize * 4];
-        pixels.extend(line.chunks_exact(4).map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3])));
-    }
-    egui::ColorImage::new([w as usize, h as usize], pixels)
+    let (w, h, x, y) = (w as usize, h as usize, x as usize, y as usize);
+    let pixels = sharex_skia::par::collect(w * h, w, |start, chunk| {
+        for (r, out) in chunk.chunks_mut(w).enumerate() {
+            let from = (y + start / w + r) * stride + x * 4;
+            for (slot, p) in out.iter_mut().zip(raw[from..from + w * 4].chunks_exact(4)) {
+                slot.write(Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]));
+            }
+        }
+    });
+    egui::ColorImage::new([w, h], pixels)
 }
 
 /// The `w` x `h` part of `pm` (premultiplied ARGB) at `x`, `y` as egui's
@@ -121,13 +124,16 @@ fn frozen_image(image: &image::RgbaImage, x: i32, y: i32, w: i32, h: i32) -> egu
 fn composite_image(pm: &sharex_skia::Pixmap, x: i32, y: i32, w: i32, h: i32) -> egui::ColorImage {
     let stride = pm.width() as usize;
     let data = pm.pixels();
-    let mut pixels = Vec::with_capacity(w as usize * h as usize);
-    for row in y as usize..(y + h) as usize {
-        let start = row * stride + x as usize;
-        let line = &data[start..start + w as usize];
-        pixels.extend(line.iter().map(|&c| Color32::from_rgba_premultiplied((c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8)));
-    }
-    egui::ColorImage::new([w as usize, h as usize], pixels)
+    let (w, h, x, y) = (w as usize, h as usize, x as usize, y as usize);
+    let pixels = sharex_skia::par::collect(w * h, w, |start, chunk| {
+        for (r, out) in chunk.chunks_mut(w).enumerate() {
+            let from = (y + start / w + r) * stride + x;
+            for (slot, &c) in out.iter_mut().zip(&data[from..from + w]) {
+                slot.write(Color32::from_rgba_premultiplied((c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8));
+            }
+        }
+    });
+    egui::ColorImage::new([w, h], pixels)
 }
 
 /// How much of `[d0, d1]` a `[3, 3]` dash pattern (shifted by `offset`)
@@ -820,6 +826,23 @@ mod tests {
         let got = frozen_image(&shot, x as i32, y as i32, w as i32, h as i32);
         assert_eq!(got.size, expected.size);
         assert_eq!(got.pixels, expected.pixels);
+    }
+
+    #[test]
+    fn a_screen_sized_frozen_image_split_over_threads_is_the_same() {
+        let shot = image::RgbaImage::from_fn(1500, 900, |x, y| image::Rgba([x as u8, y as u8, (x ^ y) as u8, [255, 7][(x % 2) as usize]]));
+        let (x, y, w, h) = (3, 5, 1400, 880);
+        let crop = image::imageops::crop_imm(&shot, x, y, w, h).to_image();
+        let expected = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], crop.as_raw());
+        assert_eq!(frozen_image(&shot, x as i32, y as i32, w as i32, h as i32).pixels, expected.pixels);
+        let pm = sharex_skia::Pixmap::from_rgba(shot.width(), shot.height(), shot.as_raw());
+        let premul: Vec<u8> = crop.pixels().flat_map(|p| {
+            let c = sharex_skia::blitter::premultiply_color(p[3] as u32, p[0] as u32, p[1] as u32, p[2] as u32);
+            [(c >> 16) as u8, (c >> 8) as u8, c as u8, (c >> 24) as u8]
+        }).collect();
+        let expected = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &premul);
+        assert_eq!(composite_image(&pm, x as i32, y as i32, w as i32, h as i32).pixels, expected.pixels);
+        assert_eq!(pm.clone(), pm);
     }
 
     #[test]

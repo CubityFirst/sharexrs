@@ -208,13 +208,16 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
     RgbaImage::from_raw(r.w as u32, r.h as u32, pixels)
 }
 
-/// BGRA pixels to RGBA with alpha 255, in place.
+/// BGRA pixels to RGBA with alpha 255, in place (a screen's worth split
+/// over threads).
 fn bgra_to_opaque_rgba(pixels: &mut [u8]) {
-    for p in pixels.chunks_exact_mut(4) {
-        let v = u32::from_le_bytes([p[0], p[1], p[2], p[3]]);
-        let rgba = (v & 0x0000_ff00) | ((v >> 16) & 0xff) | ((v & 0xff) << 16) | 0xff00_0000;
-        p.copy_from_slice(&rgba.to_le_bytes());
-    }
+    sharex_skia::par::for_each_chunk(pixels, 4, |_, chunk| {
+        for p in chunk.chunks_exact_mut(4) {
+            let v = u32::from_le_bytes([p[0], p[1], p[2], p[3]]);
+            let rgba = (v & 0x0000_ff00) | ((v >> 16) & 0xff) | ((v & 0xff) << 16) | 0xff00_0000;
+            p.copy_from_slice(&rgba.to_le_bytes());
+        }
+    });
 }
 
 /// `ScreenColorPickerWindow.TryUpdateMagnifier`: the screen DC's pixels in
