@@ -118,6 +118,15 @@ pub enum UiRequest {
     Annotate(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
+    /// `EmailWindowIntegration.Show(to, subject, body)`: answered with what
+    /// Send sends, or nothing.
+    Email(Box<sharex_uploaders::destinations::email::EmailFields>, mpsc::Sender<Option<sharex_uploaders::destinations::email::EmailFields>>),
+    /// `YouTubeVideoOptionsWindowIntegration.Show(title, description,
+    /// visibility)`: answered with what OK confirms, or nothing.
+    YouTubeOptions(
+        Box<sharex_uploaders::destinations::oauth_services::YouTubeOptions>,
+        mpsc::Sender<Option<sharex_uploaders::destinations::oauth_services::YouTubeOptions>>,
+    ),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -131,6 +140,8 @@ impl std::fmt::Debug for UiRequest {
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
             Self::Annotate(..) => f.write_str("Annotate"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
+            Self::Email(..) => f.write_str("Email"),
+            Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
         }
     }
 }

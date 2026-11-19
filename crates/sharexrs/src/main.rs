@@ -199,6 +199,7 @@ fn main() {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
     let uploads = upload::app::Uploads::load(&settings);
+    upload::app::set_dialog_hooks(proxy.clone());
     let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,

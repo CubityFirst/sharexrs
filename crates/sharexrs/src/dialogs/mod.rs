@@ -17,7 +17,12 @@ pub mod confirm;
 pub mod custom_uploaders;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod email_window;
+pub mod forms;
+pub mod input_box;
 pub mod layout;
+pub mod message_dialog;
+pub mod oauth_listener;
 pub mod print_window;
 pub mod qr_code;
 pub mod render;
@@ -25,6 +30,7 @@ pub mod response;
 pub mod text_upload;
 pub mod update;
 pub mod url_input;
+pub mod youtube_options;
 
 use std::path::PathBuf;
 
@@ -64,6 +70,9 @@ pub struct Spec {
     pub borderless: bool,
     /// `WindowState="Maximized"`.
     pub maximized: bool,
+    /// `MaxWidth` / `MaxHeight` (0: none).
+    pub max_width: f32,
+    pub max_height: f32,
 }
 
 impl Spec {
@@ -83,6 +92,8 @@ impl Spec {
             activate: true,
             borderless: false,
             maximized: false,
+            max_width: 0.0,
+            max_height: 0.0,
         }
     }
 
@@ -743,6 +754,11 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
         .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
+    }
+    if spec.max_width > 0.0 || spec.max_height > 0.0 {
+        let w = if spec.max_width > 0.0 { spec.max_width } else { f32::MAX };
+        let h = if spec.max_height > 0.0 { spec.max_height } else { f32::MAX };
+        attrs = attrs.with_max_inner_size(LogicalSize::new(w, h));
     }
     if !spec.maximizable {
         attrs = attrs.with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE);
