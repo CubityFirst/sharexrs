@@ -35,6 +35,7 @@ mod region_render;
 mod region_session;
 mod render;
 mod screen_tools;
+mod video_tools;
 mod scrolling_capture;
 mod settings_form;
 mod shell;
@@ -542,7 +543,7 @@ impl App {
             return;
         }
         if let MenuCommand::Tool(key) = command
-            && (self.open_image_tool(event_loop, key, None) || self.open_screen_tool(event_loop, key))
+            && (self.open_image_tool(event_loop, key, None) || self.open_video_tool(event_loop, key, None, None) || self.open_screen_tool(event_loop, key))
         {
             return;
         }
@@ -1285,6 +1286,10 @@ impl App {
         }
         if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
             self.open_image_tool(event_loop, key, Some(task));
+            return;
+        }
+        if let Some(key) = video_tools::open::tool_for_hotkey(&job) {
+            self.open_video_tool(event_loop, key, Some(task), None);
             return;
         }
         match job {

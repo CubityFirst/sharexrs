@@ -270,6 +270,7 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         s if crate::ocr_window::is_render_screen(s) => crate::ocr_window::render_dialog(s, o)?,
         s if crate::image_editor::is_render_screen(s) => crate::image_editor::render_dialog(s, o)?,
         s if crate::image_tools::render::is_render_screen(s) => crate::image_tools::render::render_dialog(s, o)?,
+        s if crate::video_tools::render::is_render_screen(s) => crate::video_tools::render::render_dialog(s, o)?,
         s if crate::image_effects::render::is_render_screen(s) => crate::image_effects::render::render_dialog(s, o)?,
         s if crate::screen_tools::render::is_render_screen(s) => crate::screen_tools::render::render_dialog(s, o)?,
         s if crate::scrolling_capture::render::is_render_screen(s) => crate::scrolling_capture::render::render_dialog(s, o)?,
@@ -302,6 +303,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
         || crate::ocr_window::is_render_screen(screen)
         || crate::image_editor::is_render_screen(screen)
         || crate::image_tools::render::is_render_screen(screen)
+        || crate::video_tools::render::is_render_screen(screen)
         || crate::image_effects::render::is_render_screen(screen)
         || crate::screen_tools::render::is_render_screen(screen)
         || crate::scrolling_capture::render::is_render_screen(screen)
