@@ -655,22 +655,11 @@ impl sharex_tools::system::network_monitor::Pinger for IcmpPinger {
         win::ping(host, timeout)
     }
 
-    /// The system `ping` (unprivileged ICMP needs it on macOS and Linux).
+    /// .NET's `Ping` on Unix: an ICMP socket where allowed, else the
+    /// system `ping` (`sharex_tools::system::unix_ping`).
     #[cfg(not(windows))]
     fn ping(&self, host: &str, timeout: std::time::Duration) -> sharex_tools::system::network_monitor::EchoReply {
-        use sharex_tools::system::network_monitor::EchoReply;
-        let secs = timeout.as_secs().max(1).to_string();
-        let wait = if cfg!(target_os = "macos") { (timeout.as_millis().max(1)).to_string() } else { secs };
-        let out = std::process::Command::new("ping").args(["-c", "1", "-W", &wait, host]).output();
-        match out {
-            Ok(o) if o.status.success() => {
-                let text = String::from_utf8_lossy(&o.stdout);
-                let ms = text.split("time=").nth(1).and_then(|t| t.split([' ', 'm']).next()).and_then(|v| v.parse::<f64>().ok());
-                EchoReply::Success { latency_ms: ms.unwrap_or(0.0) }
-            }
-            Ok(_) => EchoReply::TimedOut,
-            Err(e) => EchoReply::Failed(e.to_string()),
-        }
+        sharex_tools::system::unix_ping::ping(host, timeout)
     }
 }
 

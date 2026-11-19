@@ -4975,6 +4975,7 @@ dependencies = [
  "sharex-skia",
  "sharex-strings",
  "sharex-uploaders",
+ "socket2",
  "tiny-skia",
  "windows-sys 0.61.2",
 ]
