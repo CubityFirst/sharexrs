@@ -215,6 +215,12 @@ pub enum Effect {
     /// the window's task settings, its message when FFmpeg is missing),
     /// then [`Dialog::trimmer_export`] with the path.
     TrimmerExport,
+    /// Inspect window's Pick window (true) / Pick control: the window
+    /// hidden, a picker overlay on each screen.
+    PickWindow(bool),
+    /// A picker overlay was clicked (`picked`) or cancelled: the overlays
+    /// closed, the window at the pointer handed to `owner`.
+    WindowPicked { owner: Option<WindowId>, picked: bool, top_level: bool },
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -384,6 +390,17 @@ pub trait Dialog {
         None
     }
 
+    /// The window was made: its native handle (`TryGetPlatformHandle`).
+    fn opened(&mut self, _handle: Option<isize>) {}
+
+    /// Inspect window's picker answered with the window at the pointer.
+    fn window_picked(&mut self, _handle: isize, _top_level: bool) {}
+
+    /// A picker overlay: the window it picks for.
+    fn picker_owner(&self) -> Option<WindowId> {
+        None
+    }
+
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
     fn position(&self, work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
@@ -467,6 +484,7 @@ impl App {
         if spec.activate {
             w.window.focus_window();
         }
+        dialog.opened(sharex_capture::platform::window_handle(&w.window));
         w.window.request_redraw();
         self.dialogs.push(DialogWindow { window: w, dialog });
         Ok(())
@@ -687,6 +705,12 @@ impl App {
                     message.default_button = 1;
                     if let Err(e) = self.open_dialog(event_loop, message, crate::DialogPurpose::UpdateSignature) {
                         eprintln!("couldn't open the message box: {e}");
+                    }
+                }
+                Effect::PickWindow(top_level) => self.start_window_picking(event_loop, id, top_level),
+                Effect::WindowPicked { owner, picked, top_level } => {
+                    if let Some(owner) = owner {
+                        self.finish_window_picking(owner, picked, top_level);
                     }
                 }
                 Effect::MinimizeAndFlash => {

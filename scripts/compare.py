@@ -1,6 +1,6 @@
 """Compares a screenshot of ShareX with ShareXrs's rendering of the same screen.
 
-    python scripts/compare.py <sharex.png> <sharexrs.png> <out dir> [--threshold 40]
+    python scripts/compare.py <sharex.png> <sharexrs.png> <out dir> [--threshold 40] [--no-crop]
 
 Writes to <out dir>:
   side-by-side.png  ShareX left, ShareXrs right, same scale
@@ -11,7 +11,9 @@ and prints how much differs, and the bounding boxes of the differing areas.
 
 winshot.ps1 captures the client area, so both images start at the window's
 first pixel. Older -Frame captures with the 1px DWM border (a black or
-#202020 edge) have it cropped off first.
+#202020 edge) have it cropped off first; --no-crop keeps every row and
+column (a full-screen capture whose own edge pixels are black: the monitor
+test's patterns).
 """
 import sys
 from pathlib import Path
@@ -83,10 +85,14 @@ def main():
         i = args.index("--threshold")
         threshold = int(args[i + 1])
         del args[i : i + 2]
+    crop = "--no-crop" not in args
+    args = [a for a in args if a != "--no-crop"]
     a_path, b_path, out = args
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    a = crop_dwm_border(Image.open(a_path).convert("RGB"))
+    a = Image.open(a_path).convert("RGB")
+    if crop:
+        a = crop_dwm_border(a)
     b = Image.open(b_path).convert("RGB")
     print(f"ShareX   {a.size[0]}x{a.size[1]} (after cropping the DWM border)")
     print(f"ShareXrs {b.size[0]}x{b.size[1]}")

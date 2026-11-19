@@ -216,7 +216,7 @@ impl MetadataWindow {
         let ci = |s: &str| invariant_ignore_case_contains(s, f);
         let mut out: Vec<(String, Vec<&Entry>)> = Vec::new();
         for e in &self.entries {
-            if !f.is_empty() && !(ci(&e.value.group) || ci(&e.value.tag) || ci(&e.value.value)) {
+            if !(f.is_empty() || ci(&e.value.group) || ci(&e.value.tag) || ci(&e.value.value)) {
                 continue;
             }
             let key = ordinal_upper(&e.value.group);

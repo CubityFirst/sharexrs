@@ -43,6 +43,9 @@ pub fn real_analyzer() -> Analyzer {
     })
 }
 
+/// An analysis's answer and how long it took (ms).
+type Analysis = (Result<Option<String>, String>, u128);
+
 pub struct AnalyzeImageWindow {
     options: AIOptions,
     task: TaskSettings,
@@ -57,7 +60,7 @@ pub struct AnalyzeImageWindow {
     pub is_busy: bool,
     busy_since: Instant,
     analyzer: std::sync::Arc<Analyzer>,
-    rx: Option<mpsc::Receiver<(Result<Option<String>, String>, u128)>>,
+    rx: Option<mpsc::Receiver<Analysis>>,
     /// Options the options window saved.
     options_rx: Option<mpsc::Receiver<AIOptions>>,
     /// `OnOpened` → `InitializeAsync` has run.

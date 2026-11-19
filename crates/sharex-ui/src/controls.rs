@@ -330,11 +330,15 @@ pub struct ComboItem {
     /// The item `TextBlock`'s weight: ShareX's global SemiBold, or 400 for
     /// an `ItemTemplate` with `FontWeight="Normal"`.
     pub weight: u16,
+    /// A template's image cell (`Grid ColumnDefinitions="<cell>,*"
+    /// ColumnSpacing="8"`): this picture filling it, else [`ComboItem::icon`]
+    /// at the 13px font size, centred (the window lists' icons).
+    pub cell: Option<(f32, Option<egui::TextureId>)>,
 }
 
 impl ComboItem {
     pub fn text(text: impl Into<String>) -> Self {
-        Self { text: text.into(), icon: None, flag: None, weight: 600 }
+        Self { text: text.into(), icon: None, flag: None, weight: 600, cell: None }
     }
 
     /// An item whose template's `TextBlock` has `FontWeight="Normal"`.
@@ -348,6 +352,15 @@ impl ComboItem {
 
     fn has_image(&self) -> bool {
         self.icon.is_some() || self.flag.is_some()
+    }
+
+    /// The image column and its spacing.
+    fn image_width(&self) -> f32 {
+        match self.cell {
+            Some((c, _)) => c + 8.0,
+            None if self.has_image() => 24.0,
+            None => 0.0,
+        }
     }
 }
 
@@ -495,12 +508,30 @@ impl ComboBox {
 }
 
 fn item_width(ui: &Ui, i: &ComboItem) -> f32 {
-    text_width(ui, &i.text, i.font()) + if i.has_image() { 24.0 } else { 0.0 }
+    text_width(ui, &i.text, i.font()) + i.image_width()
 }
 
 /// One item: an optional 16px image cell and 8px spacing, then the text.
 fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
     let mut x = rect.min.x;
+    if let Some((c, image)) = item.cell {
+        let cell = Rect::from_min_size(pos2(x, center_y(rect, c)), Vec2::splat(c));
+        match (image, item.icon) {
+            (Some(tex), _) => {
+                ui.painter().image(tex, cell, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            }
+            (None, Some(icon)) => {
+                let s = 13.0;
+                let r = Rect::from_min_size(pos2(cell.min.x + ((c - s) / 2.0).round_ties_even(), cell.min.y + ((c - s) / 2.0).round_ties_even()), Vec2::splat(s));
+                icons::paint(ui.painter(), r, icon, palette(ui.ctx()).text_secondary);
+            }
+            _ => {}
+        }
+        let w = (rect.max.x - x - c - 8.0).max(0.0);
+        let text = elide(ui, &item.text, item.font(), w);
+        text_at(ui, rect, x + c + 8.0, &text, item.font(), color);
+        return;
+    }
     if item.has_image() {
         let cell = Rect::from_min_size(pos2(x, center_y(rect, 16.0)), Vec2::splat(16.0));
         if let Some(icon) = item.icon {
@@ -518,6 +549,19 @@ fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
         x += 24.0;
     }
     text_at(ui, rect, x, &item.text, item.font(), color);
+}
+
+/// `text` cut to `width` with an ellipsis (`TextTrimming="CharacterEllipsis"`).
+fn elide(ui: &Ui, text: &str, font: FontId, width: f32) -> String {
+    if text_width(ui, text, font.clone()) <= width {
+        return text.to_owned();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    (0..chars.len())
+        .rev()
+        .map(|n| chars[..n].iter().collect::<String>() + "…")
+        .find(|s| text_width(ui, s, font.clone()) <= width)
+        .unwrap_or_default()
 }
 
 /// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`: its
