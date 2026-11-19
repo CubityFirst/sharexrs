@@ -122,7 +122,7 @@ settings › Integration), under its own names:
 | What | ShareXrs's key or place | Command |
 |---|---|---|
 | Upload with ShareXrs | `*\shell\ShareXrs`, `Directory\shell\ShareXrs` | `"sharexrs.exe" "%1"` |
-| Edit with ShareXrs Image editor / Photo editor | `image\shell\ShareXrsImageEditor`, `ShareXrsPhotoEditor` | `-ImageEditor "%1"`, `-PhotoEditor "%1"` (both editors' windows aren't ported: logged) |
+| Edit with ShareXrs Image editor / Photo editor | `image\shell\ShareXrsImageEditor`, `ShareXrsPhotoEditor` | `-ImageEditor "%1"` (the image editor on the file), `-PhotoEditor "%1"` (the Photo editor is deferred: logged) |
 | `.sxcu` | `ShareXrs.sxcu` ("ShareXrs custom uploader", the program's icon) in `.sxcu\OpenWithProgids` | `-CustomUploader "%1"` |
 | `.sxie` | `ShareXrs.sxie` ("ShareXrs image effect") | `-ImageEffect "%1"` |
 | Browser extensions | `…\Chrome\NativeMessagingHosts\com.sharexrs.sharexrs`, `…\Mozilla\NativeMessagingHosts\ShareXrs` | `host-manifest-*.json` beside the program, naming `sharexrs-native-messaging.exe` |
@@ -256,9 +256,9 @@ user agent and go through the proxy setting.
   in-place updates (macOS app, Linux tarball) refuse to run without one. Leftovers of
   an update (`*.old`, `*.unpacked`) are removed at the next start.
 - **Not ported**: ShareX's dev-build download (`DownloadDevBuild`, from the
-  `ShareX/DevBuilds` repository; ShareXrs has none), the About window (its update
-  panel's states are `sharex_update::message::AboutUpdate`), and the AppVeyor and
-  XML checkers. ShareX's tray has no update entry.
+  `ShareX/DevBuilds` repository; ShareXrs has none) and the AppVeyor and XML
+  checkers. The About window runs the check and shows its panel
+  (`sharex_update::message::AboutUpdate`; APP-WINDOWS.md). ShareX's tray has no update entry.
 - **Validation**: `tools/update-harness` runs ShareX's own `GitHubUpdateChecker`,
   `FileDownloader` and `System.Version`, and ShareXrs, against the same mock GitHub
   API. 72 cases are identical: up to date, newer, older, revisions, both channels, 40

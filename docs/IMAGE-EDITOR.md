@@ -985,9 +985,9 @@ matched both of its ties.
 
 ### Not ported yet
 
-- The macOS and Linux wallpaper services; the Background sidebar's
-  open/close animation; ellipse and freehand regions (their toolbar items
-  only log).
+- The Background sidebar's open/close animation. (The macOS and Linux
+  wallpaper services are ported: PLATFORMS.md; region capture's ellipse
+  and freehand regions: PORTING.md, Region capture row.)
 - ShareX's print checked live (its print dialog doesn't show in this
   session); the print preview window wasn't compared.
 - Effects: the browser's item fade-in and the panel's open/close
