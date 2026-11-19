@@ -10,6 +10,7 @@
 //! `BeforeUploadWindowIntegration.Show`) answer through a channel the
 //! task's thread waits on.
 
+pub mod about;
 pub mod after_upload;
 pub mod before_upload;
 pub mod clipboard_upload;

@@ -9,6 +9,7 @@
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod main_commands;
 mod appearance;
 mod auto_capture;
 mod capture;
@@ -537,6 +538,20 @@ impl App {
                 self.show_stats(event_loop);
                 return;
             }
+            // `MainFormCommand.ScreenshotsFolder`, `Donate`, `X`, `Discord`, `About`.
+            Action::Nav(i @ (12 | 17 | 18 | 19), _) => {
+                match i {
+                    12 => self.open_screenshots_folder(),
+                    17 => self.open_link(main_commands::Link::Donate),
+                    18 => self.open_link(main_commands::Link::X),
+                    _ => self.open_link(main_commands::Link::Discord),
+                }
+                return;
+            }
+            Action::Nav(20, _) => {
+                self.show_about(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
@@ -627,6 +642,7 @@ impl App {
             MenuCommand::History => self.show_history(event_loop),
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
+            MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
         self.refresh_menus();

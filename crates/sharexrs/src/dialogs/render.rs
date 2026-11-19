@@ -139,6 +139,24 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         }
         // The selected pack comes from `--state legacy` (see `render`).
         "icon-pack-prompt" => Box::new(super::icon_pack_prompt::IconPackPromptWindow),
+        // `--state checking|up-to-date|available|failed|disabled`.
+        "about" => {
+            use sharex_update::checker::UpdateStatus;
+            let state = o.state.as_deref().unwrap_or("checking");
+            let mut w = super::about::AboutWindow::new("ShareXrs 22.4".into(), state == "disabled", None);
+            let status = match state {
+                "up-to-date" => Some(UpdateStatus::UpToDate),
+                "available" => Some(UpdateStatus::UpdateAvailable),
+                "failed" => Some(UpdateStatus::UpdateCheckFailed),
+                _ => None,
+            };
+            if let Some(status) = status {
+                let mut c = update_checker("installed");
+                c.status = status;
+                w.checked(c);
+            }
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -307,6 +325,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "large-file"
             | "file-exists"
             | "icon-pack-prompt"
+            | "about"
             | "before-upload"
             | "after-upload"
             | "qr-code"
