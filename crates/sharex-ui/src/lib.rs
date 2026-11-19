@@ -29,6 +29,7 @@ pub mod menu;
 pub mod icons;
 pub mod offscreen;
 pub mod theme;
+pub mod tooltip;
 pub mod widgets;
 
 pub use theme::{Density, Palette, palette};

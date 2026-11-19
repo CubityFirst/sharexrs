@@ -193,6 +193,10 @@ impl RegionSession {
         }
         for o in &me.overlays {
             platform::overlay_presented(&o.window.window);
+            // `WindowGeometryLog.Record(this, "Region capture", ScreenBounds,
+            // imageSize)`: one overlay per monitor here, each its part.
+            let m = o.view.monitor;
+            crate::window_geometry_log::record(&o.window.window, "Region capture", m, (m.w.max(0) as u32, m.h.max(0) as u32));
         }
         me.update_cursor(event_loop);
         Ok(me)

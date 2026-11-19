@@ -91,13 +91,25 @@ pub struct AboutWindow {
     checker: Option<GitHubUpdateChecker>,
     /// The `BrandText` under the logo.
     pub brand: String,
+    /// `ShareXClickerControl`: the logo's hidden game.
+    pub clicker: super::about_clicker::Clicker,
+    /// The logo has the keyboard (`_logoImage.Focus()` after a click).
+    logo_focused: bool,
 }
 
 impl AboutWindow {
     /// `disable_update_check`: `SystemOptions.DisableUpdateCheck`; `check`
     /// delivers the finished check.
     pub fn new(product: String, disable_update_check: bool, check: Option<Receiver<GitHubUpdateChecker>>) -> Self {
-        Self { product, update: AboutUpdate::new(disable_update_check, None), check: if disable_update_check { None } else { check }, checker: None, brand: "ShareXrs".into() }
+        Self {
+            product,
+            update: AboutUpdate::new(disable_update_check, None),
+            check: if disable_update_check { None } else { check },
+            checker: None,
+            brand: "ShareXrs".into(),
+            clicker: super::about_clicker::Clicker::new(),
+            logo_focused: false,
+        }
     }
 
     /// The check finished.
@@ -192,6 +204,7 @@ impl Dialog for AboutWindow {
         let p = palette(ui.ctx());
         let full = super::layout::background(ui);
         let mut out = Vec::new();
+        self.clicker.tick();
 
         // The panel.
         let panel = Rect::from_min_size(full.min, vec2(PANEL_WIDTH, full.height()));
@@ -199,11 +212,29 @@ impl Dialog for AboutWindow {
         let inner = panel.shrink(PANEL_PADDING);
         let cx = inner.center().x;
         let logo_box = Rect::from_min_size(pos2(cx - LOGO_BOX.0 / 2.0, inner.min.y), vec2(LOGO_BOX.0, LOGO_BOX.1));
-        crate::app_icon::paint(ui, Rect::from_min_size(pos2(cx - LOGO / 2.0, logo_box.min.y + LOGO_TOP), Vec2::splat(LOGO)));
+        let logo = Rect::from_min_size(pos2(cx - LOGO / 2.0, logo_box.min.y + LOGO_TOP), Vec2::splat(LOGO));
+        crate::app_icon::paint(ui, self.clicker.logo_rect(logo));
+        // `OnLogoPointerPressed` / `OnLogoKeyDown` (Enter, Space).
+        let lr = ui.interact(logo, ui.id().with("clicker-logo"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if lr.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed()) {
+            let at = ui.input(|i| i.pointer.press_origin()).unwrap_or(logo.center());
+            self.clicker.click_logo(at);
+            self.logo_focused = true;
+        } else if ui.input(|i| i.pointer.any_pressed()) {
+            self.logo_focused = false;
+        }
+        if self.logo_focused && ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Space)) {
+            self.clicker.click_logo(logo.center());
+        }
+        // `HideAboutText`: the brand, product, details and copyright.
+        let about_text = !self.clicker.activated;
         let bf = font(50.0, 700);
         let brand = self.brand.as_str();
         let bw = text_width(ui, brand, bf.clone());
-        ui.painter().galley(pos2((cx - bw / 2.0).round(), logo_box.min.y + BRAND_TOP), galley(ui, brand, bf, p.text, f32::INFINITY), p.text);
+        if about_text {
+            ui.painter().galley(pos2((cx - bw / 2.0).round(), logo_box.min.y + BRAND_TOP), galley(ui, brand, bf, p.text, f32::INFINITY), p.text);
+        }
+        self.clicker.stats(ui, logo_box);
         let mut y = logo_box.max.y + ROW_SPACING;
         let centred = |ui: &egui::Ui, y: f32, text: &str, f: egui::FontId, color| {
             let lh = line_height(ui, &f);
@@ -215,9 +246,12 @@ impl Dialog for AboutWindow {
             }
             lh * lines.len().max(1) as f32
         };
-        y += centred(ui, y, &self.product, font(21.0, 600), p.text_secondary) + ROW_SPACING;
+        if about_text {
+            y += centred(ui, y, &self.product, font(21.0, 600), p.text_secondary) + ROW_SPACING;
+        }
         // The update panel (`StackPanel Spacing="6"`).
         match &self.update {
+            _ if !about_text => {}
             AboutUpdate::Hidden => {}
             AboutUpdate::Text { text, checking } => {
                 if *checking {
@@ -242,7 +276,17 @@ impl Dialog for AboutWindow {
         let cf = font(12.0, 400);
         let lines = wrap_lines(ui, s::AboutWindow_Copyright(), &cf, inner.width()).len().max(1);
         let ch = line_height(ui, &cf) * lines as f32;
-        centred(ui, inner.max.y - ch, s::AboutWindow_Copyright(), cf, p.text_secondary);
+        if about_text {
+            centred(ui, inner.max.y - ch, s::AboutWindow_Copyright(), cf, p.text_secondary);
+        }
+
+        // The store in place of the sections (`ClickerHost`).
+        if self.clicker.store_visible {
+            let column = Rect::from_min_max(pos2(panel.max.x, full.min.y), full.max);
+            self.clicker.store(ui, column);
+            self.clicker.overlay(ui, full);
+            return out;
+        }
 
         // The sections, centred in the scroll viewer.
         let view = Rect::from_min_max(
@@ -281,6 +325,7 @@ impl Dialog for AboutWindow {
         }
         ui.set_clip_rect(painter_clip);
         super::layout::scroll_bar(ui, view, size.y, scroll, 16.0);
+        self.clicker.overlay(ui, full);
         out
     }
 }

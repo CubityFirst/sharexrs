@@ -62,6 +62,8 @@ pub struct ActionsToolbarWindow {
     /// Files dragged over it (`DropOverlay`).
     pub dragging: bool,
     pub title: String,
+    /// The tooltip shown in its popup (`Effect::Tooltip`).
+    tip: Option<(String, Rect)>,
     /// The settings' saved position and the topmost flag, read at open.
     position: sharex_settings::types::Point,
     topmost: bool,
@@ -77,6 +79,7 @@ impl ActionsToolbarWindow {
             actions: settings.ActionsToolbarList.clone(),
             dragging: false,
             title: BRAND.to_owned(),
+            tip: None,
             position: settings.ActionsToolbarPosition,
             topmost: settings.ActionsToolbarStayTopMost,
             width: 0.0,
@@ -178,6 +181,11 @@ impl Dialog for ActionsToolbarWindow {
             border::border(ui.painter(), title, 4.0, 0.0, Some(Brush::Solid(p.control_background_hover)), None);
         }
         ui.painter().galley(pos2(title.min.x + TITLE_PADDING, center_y(title, line_height(ui, &tf))), galley(ui, &self.title, tf, p.text_secondary, f32::INFINITY), p.text_secondary);
+        // `ToolTip.SetTip(TitleHandle, ActionsToolbarWindow_Tip)`, `Top`, -4.
+        let mut tip: Option<(String, Rect)> = None;
+        if sharex_ui::tooltip::is_open(ui, title, ui.id().with("title-tip"), s::ActionsToolbarWindow_Tip()) {
+            tip = Some((s::ActionsToolbarWindow_Tip().to_owned(), title));
+        }
         if tr.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed()) && !locked {
             out.push(Effect::DragWindow);
         }
@@ -211,11 +219,20 @@ impl Dialog for ActionsToolbarWindow {
             // Centred as layout rounding places it (8.5 to even: 8).
             let off = ((BUTTON - 17.0) / 2.0).round_ties_even();
             icons::paint(ui.painter(), Rect::from_min_size(rect.min + Vec2::splat(off), Vec2::splat(17.0)), find_menu_icon(a), p.accent_icon);
+            // `ToolTip.SetTip(button, action.GetLocalizedDescription())`.
+            let label = a.localized_description();
+            if sharex_ui::tooltip::is_open(ui, rect, ui.id().with(("action-tip", i)), &label) {
+                tip = Some((label, rect));
+            }
             if r.clicked() {
                 // `TaskHelpers.ExecuteJob(action)`.
                 out.push(Effect::RunJob(a.clone()));
             }
             x += BUTTON + SPACING;
+        }
+        if tip != self.tip {
+            self.tip = tip.clone();
+            out.push(Effect::Tooltip(tip));
         }
 
         if self.dragging {

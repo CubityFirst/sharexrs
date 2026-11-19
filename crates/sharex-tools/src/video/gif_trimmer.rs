@@ -299,6 +299,8 @@ struct GifFrame {
     indices: Vec<u8>,
     required: Option<usize>,
     has_alpha: bool,
+    /// The graphic control's delay, in hundredths of a second.
+    delay: u16,
 }
 
 impl GifFrame {
@@ -368,6 +370,7 @@ impl AnimatedGif {
                 indices: frame.buffer.to_vec(),
                 required: None,
                 has_alpha: false,
+                delay: frame.delay,
             });
         }
         if frames.is_empty() {
@@ -387,6 +390,12 @@ impl AnimatedGif {
     /// The frame `GetFrame(index)` starts from (`SKCodecFrameInfo.RequiredFrame`).
     pub fn required_frame(&self, index: usize) -> Option<usize> {
         self.frames[index].required
+    }
+
+    /// `SKCodecFrameInfo.Duration`: Wuffs' frame duration in milliseconds
+    /// (the delay's hundredths of a second; 0 when unset).
+    pub fn duration_ms(&self, index: usize) -> u32 {
+        self.frames[index].delay as u32 * 10
     }
 
     /// `SkFrameHolder::setAlphaAndRequiredFrame` (GIF frames always blend
@@ -476,7 +485,7 @@ impl AnimatedGif {
     /// `SkCodec::getPixels` with `SKCodecOptions(frame, priorFrame)` over the
     /// prior frame's pixels: a prior frame that restores to the background
     /// clears its rectangle first.
-    fn decode_frame(&self, index: usize, prior: Option<usize>, dst: &mut Bitmap) {
+    pub fn decode_frame(&self, index: usize, prior: Option<usize>, dst: &mut Bitmap) {
         if self.frames[index].required.is_some() {
             if let Some(p) = prior {
                 let pf = &self.frames[p];

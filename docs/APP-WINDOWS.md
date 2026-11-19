@@ -13,10 +13,12 @@ shots (`G:/scripts/sharexrs-ref/shots/sharex/app/`, listed in
 | Icon pack prompt | `Presentation/IconPackPrompt` | `dialogs/icon_pack_prompt.rs` | `ShowOnceWithMainWindow`: when the main window first opens, with `ShowIconPackPrompt` and not `-sandbox`. Picking a card applies the pack at once; closing clears the flag and saves |
 | About | `Presentation/About` | `dialogs/about.rs`, `main_commands.rs` | The sidebar. Opening it checks for updates on a thread (`sharex-update`) unless `DisableUpdateCheck`; a newer version shows the link to the update message |
 | Debug log | `Presentation/DebugLog`, `HelpersLib/Logger.cs` | `dialogs/debug_log.rs`, `logger.rs` | Debug › Show debug log. `logger::init` puts a pipe in place of stderr (`SetStdHandle`, `dup2`): every `eprintln!` line is kept with ShareX's `yyyy-MM-dd HH:mm:ss.fff - ` prefix, appended to `Logs/ShareX-Log-yyyy-MM.txt` (not with `DisableLogging`) and passed on to the real stderr. Loaded assemblies lists the modules loaded from the program's folder |
-| Display diagnostics | `Presentation/DisplayDiagnostics` | `dialogs/display_diagnostics.rs` | Debug › Display diagnostics. The report has what every platform knows (ShareX's `CollectAvaloniaOnly` plus the virtual screen, monitors, `AppendArrangement`, cursor, this window, capture settings); ShareX's Windows-only probes aren't ported (DPI awareness and compatibility layers, display modes, devices and per-monitor DPI, taskbars, graphics adapters, the region capture's window log) |
-| Notification toast | `Presentation/Notification` | `dialogs/notification.rs` | `TaskManager` on a finished task (`ShowToastNotificationAfterTaskCompleted`, not on a fullscreen window with `DisableNotificationsOnFullscreen`), an upload error, and `ShowNotificationTip`: minimized to the tray (first time), hotkeys toggled, the quick colour picker. One at a time; dark whatever the theme; never activated |
+| Display diagnostics | `Presentation/DisplayDiagnostics`, `HelpersLib/Native/DisplayConfigHelper`, `HelpersLib/Helpers/WindowGeometryLog` | `dialogs/display_diagnostics.rs`, `display_native.rs`, `window_geometry_log.rs` | Debug › Display diagnostics. On Windows, ShareX's `Collect` over a snapshot of Windows' answers (read-only): the thread/process DPI awareness, system DPI, compatibility layers, the Windows edition and build, the GDI virtual screen, each monitor's device, `QueryDisplayConfig` target (name, connection, refresh, HDR), adapter, display mode, effective/angular/raw DPI and scale factor, the taskbars and other app bars, the adapters and drivers, the physical cursor, this window, and the region capture overlays' geometry log, with ShareX's findings; "Avalonia" reads "winit". Elsewhere `CollectAvaloniaOnly`. The report builder is tested on synthetic snapshots |
+| Notification toast | `Presentation/Notification` | `dialogs/notification.rs` | `TaskManager` on a finished task (`ShowToastNotificationAfterTaskCompleted`, not on a fullscreen window with `DisableNotificationsOnFullscreen`), an upload error, and `ShowNotificationTip`: minimized to the tray (first time), hotkeys toggled, the quick colour picker. One at a time; dark whatever the theme; never activated. `SpecificMonitor` by its device name (`MONITORINFOEX.szDevice`), else the primary; the file dragged out 20 px from a left press (Copy | Move, the fade held); its buttons' tooltips in a popup window (`dialogs/tooltip_window.rs`, `Effect::Tooltip`) |
+| Tooltip popup | `ToolTip` (`PopupRoot`) | `dialogs/tooltip_window.rs` | The toast's buttons and the Actions toolbar's title and actions: `PlacementMode.Top`, `VerticalOffset="-4"`, below at the monitor's top, click-through, never activated, fading in; closed with its owner |
 | After capture | `Presentation/AfterCapture` | `dialogs/after_capture.rs` | `UploadManager.RunImageTask` and `ScreenRecordManager.FinishRecording` with `ShowAfterCaptureWindow`: Continue starts the task with the goal's tasks and the file name; a recording is renamed first |
-| Image viewer | `HelpersLib/Presentation/ImageViewer` | `dialogs/image_viewer.rs` | A thumbnail's click and the list's preview (the task list's images), history's Show image, the after capture, before/after upload, clipboard and QR code windows' previews, Tools › Image viewer and its hotkey (a file picked first), `-ImageViewer <file>` |
+| Image viewer | `HelpersLib/Presentation/ImageViewer` | `dialogs/image_viewer.rs` | A thumbnail's click and the list's preview (the task list's images), history's Show image, the after capture, before/after upload, clipboard and QR code windows' previews, Tools › Image viewer and its hotkey (a file picked first), `-ImageViewer <file>`. A GIF or animated WebP plays at full size (`PlayAnimation`, `animation.rs`), keeping the zoom |
+| About's clicker | `EasterEggs/ShareXClicker` | `clicker.rs`, `dialogs/about_clicker.rs` | Clicking About's logo (or Enter/Space on it): the game, its stats under the logo, floating texts and particles, the store in place of the links at 10 lifetime logos |
 | Workflows menu | `MainMenuBuilder.BuildWorkflowsMenu` | `main_menu.rs` | The sidebar and the tray, from `HotkeysConfig` (the tray's without "Add workflows…"); a click runs the hotkey's task |
 | Tray Recent items | `BuildRecentItemsMenu`, `RecentTask` | `main_menu.rs`, `tasks.rs` | With `RecentTasksSave` and `RecentTasksShowInTrayMenu` |
 | Tool grid edit mode | `MainWindow.PopulateGridMenuCategories` | `sharex_ui::menu` | Tools › Edit (sidebar and tray): every tool with its switch; `HiddenTools` saved at once |
@@ -34,9 +36,9 @@ shots (`G:/scripts/sharexrs-ref/shots/sharex/app/`, listed in
 
 - `file-exists` (`--text <path>`, `--state empty`, `--state name=<text>`)
 - `icon-pack-prompt` (`--state legacy`)
-- `about` (`--state checking|up-to-date|available|failed|disabled`, `--text` product, `--content` brand)
+- `about` (`--state checking|up-to-date|available|failed|disabled|clicker|clicker-store`, `--text` product, `--content` brand)
 - `debug-log` (`--files <log.txt>`, `--text` startup path, `--state upload-confirm`)
-- `display-diagnostics` (two synthetic monitors)
+- `display-diagnostics` (two synthetic monitors, a synthetic Windows snapshot: `sample_snapshot`)
 - `notification` (`--state tray-minimized`, or `--image`/`--text` for a task's; `--content hover`, `hover:<n>`, `tip:<n>`); borderless, on black: compare with `compare.py --no-crop`
 - `after-capture` (`--image`, `--files <recording>`, `--text` file name, `--content <AfterCaptureJob>`, `--state goal:<n>`)
 - `image-viewer` (`--image` or `--files a,b --count <shown>`, `--width/--height`)
@@ -105,10 +107,24 @@ Side by side with ShareX, same profile settings:
 13. Actions toolbar: first position (bottom right of the pointer's monitor), drag, lock, stay on top, open at startup, middle click close, file drop upload, editor changes reflected live, `ActionsToolbarPosition` saved.
 14. Output box on a failing FFmpeg command line.
 15. Missing file: Edit image on a task whose file was deleted.
+16. Tooltip popups: hover a toast button and an Actions toolbar action and its title for 400 ms: the tooltip opens above it in its own window (below at the top of a monitor), passes clicks through, moves to the next button at once (100 ms), closes with the toast.
+17. Toast drag: press the toast's image and drag 20 px into Explorer: the file is copied (Ctrl: moved), the toast doesn't fade during the drag and fades afterwards if the duration ended, no click action runs; `SpecificMonitor` with a second monitor's `\\.\DISPLAYn`.
+18. Image viewer: an animated GIF and an animated WebP play at their delays (a 0/1 cs delay at 100 ms), keep playing while zoomed, stop on navigation and on close.
+19. Display diagnostics on a mixed-DPI, two-monitor machine (and with HDR): compare every section with ShareX's report on the same machine; Refresh after a region capture lists the overlay(s) under "Recent capture windows" (one per monitor in ShareXrs, one spanning window in ShareX).
+20. About's clicker: logo clicks (and Enter/Space after one), the sound, the stats and goal, the store at 10, buying x1/x10/Max, milestone boosts at 10/25/50/100, the particles and floating texts.
+21. Task list drag (thumbnails and list): drag a task's file into Explorer and into another app (copy), Escape cancels; the button's release opens nothing; the main window shows no-drop outside the combine zones and doesn't show its upload overlay for its own drag.
+22. Combine drop zones: drag an image card over another image card: "Combine images" with Horizontal/Vertical, the zone under the pointer lit in the accent; drop on each: the combiner's result as ShareX's (source first); none over itself, a non-image or the list view.
+23. Task list playback and thumbnails: hover an animated GIF/WebP card (plays, stops on leave), select one in the list view (plays in the preview pane), a capture with only Upload/Copy (its thumbnail from the image while it works), an MP4/MKV task (the shell's thumbnail with the play badge).
+24. Tooltips: a thumbnail title (the URL or file path, wrapped), the list's file name and URL cells, the theme toggle, a hotkey description; 400 ms, at once after another within 100 ms, closed by a press.
+25. History windows: drag selected rows/cards into Explorer (the release after it doesn't open or reselect), a URL-only image row's preview (ShareX downloads it; use a local test server), close/reopen both windows after moving/resizing/maximizing (and with Remember window off), type in both search boxes (suggestions, Up/Down/Enter/Escape, a click), the date pickers' flyouts (wheel, click, accept, dismiss, Escape, a press outside; the filter follows), Stats hover tooltips on the split bar/calendar/hour chart and rows, Stats › Share (an image task with the whole page).
 
 ## Untested elsewhere
 
-macOS and Linux build and lint, nothing was run there: the stderr capture
+macOS and Linux build and lint, nothing was run there. Dragging files out
+(task list, history windows, toast) isn't available outside Windows yet
+(logged; ShareX gets macOS's and X11's drag sources from Avalonia); the
+tooltip popup's click-through, the display diagnostics' screens-only
+report and the GIF playback weren't run there either. Also untested: the stderr capture
 (`dup2`), the toast and toolbar's borderless topmost windows, the popup
 menus (no window regions outside Windows: the whole work-area window takes
 the pointer), the image viewer's full screen, rfd's pickers.

@@ -265,6 +265,9 @@ pub enum TaskEvent {
     /// "Don't show this message again" in the large file warning:
     /// `ShowLargeFileSizeWarning = 0`.
     LargeFileWarningOff,
+    /// `ImageReady`: the task's image after its after capture tasks, for
+    /// its thumbnail while it's still working (`RefreshFromOwnedImage`).
+    ImageReady { id: u64, image: std::sync::Arc<image::RgbaImage> },
     /// A thumbnail or preview was decoded (`RefreshThumbnailAsync`).
     Image { id: u64, version: u64, kind: ImageKind, image: Option<image::RgbaImage> },
 }
@@ -459,7 +462,7 @@ impl TaskManager {
                 self.finish(*id, report, max_recent);
                 Some(*id)
             }
-            TaskEvent::DestinationSettingsRequested { .. } | TaskEvent::LargeFileWarningOff | TaskEvent::Image { .. } => None,
+            TaskEvent::DestinationSettingsRequested { .. } | TaskEvent::LargeFileWarningOff | TaskEvent::Image { .. } | TaskEvent::ImageReady { .. } => None,
         }
     }
 

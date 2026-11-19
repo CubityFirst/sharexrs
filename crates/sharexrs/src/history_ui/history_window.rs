@@ -74,6 +74,17 @@ struct Preview {
     image: Option<image::RgbaImage>,
     /// The box the texture was drawn for, and the texture.
     texture: Option<((u32, u32), egui::TextureHandle)>,
+    /// A URL-only image being downloaded (`PreviewHttpClient`), cancelled
+    /// when another item is selected (`_previewCancellation`).
+    download: Option<(mpsc::Receiver<Option<image::RgbaImage>>, sharex_uploaders::http::CancellationToken)>,
+}
+
+impl Drop for Preview {
+    fn drop(&mut self) {
+        if let Some((_, cancel)) = &self.download {
+            cancel.cancel();
+        }
+    }
 }
 
 pub struct HistoryWindow {
@@ -116,6 +127,16 @@ pub struct HistoryWindow {
     settings_changed: bool,
     /// A row to scroll into view (`ScrollIntoView`).
     scroll_into_view: Option<usize>,
+    /// `RememberWindowState`: the saved state and the window's bounds.
+    placement: super::window_state::Tracker,
+    /// Dragging the selected files out of the list.
+    drag: common::ListDrag,
+    /// The From (0) or To (1) date picker's open flyout.
+    date_flyout: Option<(usize, super::date_picker::DateFlyout)>,
+    /// `--render ... --state date-flyout`: open the From picker's flyout.
+    render_date_flyout: bool,
+    /// The search box's process name suggestions.
+    suggestions: common::Suggestions,
 }
 
 impl HistoryWindow {
@@ -155,6 +176,11 @@ impl HistoryWindow {
             sync: false,
             settings_changed: false,
             scroll_into_view: None,
+            placement: super::window_state::Tracker::new(&settings.window_state),
+            drag: common::ListDrag::default(),
+            date_flyout: None,
+            render_date_flyout: false,
+            suggestions: common::Suggestions::default(),
             settings,
         }
     }
@@ -439,12 +465,23 @@ impl HistoryWindow {
                 self.advanced_open = true;
                 self.apply_filter();
             }
+            Some("date-flyout") => {
+                self.advanced_open = true;
+                self.render_date_flyout = true;
+                self.apply_filter();
+            }
             Some("favorites") => {
                 self.settings.favorites = true;
                 self.apply_filter();
             }
             Some("search") => {
                 self.search = o.text.clone().unwrap_or_default();
+                self.apply_filter();
+            }
+            // The search box's drop-down after typing `--text`.
+            Some("suggestions") => {
+                self.search = o.text.clone().unwrap_or_default();
+                self.suggestions.typed(&self.search, &self.process_names);
                 self.apply_filter();
             }
             Some("stats") => self.modal = Some(Modal::Stats(sharex_history::stats::output_stats(&self.items))),
@@ -549,7 +586,7 @@ impl HistoryWindow {
         let y = rect.min.y + 8.0;
         let mut x = rect.min.x + 1.0 + 8.0;
         let search_rect = Rect::from_min_size(pos2(x, y), vec2(250.0, 40.0));
-        if live && common::search_box(ui, search_rect, Id::new("history-search"), &mut self.search) {
+        if live && common::search_box_with_suggestions(ui, search_rect, Id::new("history-search"), &mut self.search, &self.process_names, &mut self.suggestions) {
             if self.settings.remember_search_text {
                 self.settings.search_text = self.search.clone();
             }
@@ -679,6 +716,7 @@ impl HistoryWindow {
         let mut clicked: Option<(usize, Modifiers, bool)> = None;
         let mut double = false;
         let mut right: Option<(usize, egui::Pos2)> = None;
+        let mut pressed: Option<(usize, egui::Pos2)> = None;
         for row in first..self.filtered.len() {
             let y = list.min.y + row as f32 * ROW_HEIGHT - self.scroll;
             if y > list.max.y {
@@ -713,7 +751,11 @@ impl HistoryWindow {
                 painter.with_clip_rect(cell.intersect(list)).galley(pos2(cell.min.x, center_y(cell, cl)), g, color);
             }
             if let Some(r) = resp {
-                if r.clicked() {
+                // `OnHistoryPointerPressed`: a left press on an item arms the drag.
+                if r.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed()) {
+                    pressed = ui.input(|i| i.pointer.press_origin()).map(|p| (row, p));
+                }
+                if r.clicked() && !self.drag.started() {
                     clicked = Some((row, ui.input(|i| i.modifiers), true));
                 }
                 if r.double_clicked() {
@@ -726,6 +768,28 @@ impl HistoryWindow {
         }
         // Fluent's collapsed scroll bar, its track 16px short of each end.
         crate::dialogs::layout::scroll_bar(ui, list, content_h, self.scroll, 16.0);
+        if let Some((row, pos)) = pressed {
+            self.drag.press(pos);
+            // The `ListBox` selects on the press.
+            let id = self.items[self.filtered[row]].id;
+            if !self.selected.contains(&id) && !ui.input(|i| i.modifiers.command || i.modifiers.shift) {
+                self.select_only(row);
+            }
+        }
+        if live {
+            let (pos, down, released) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.pointer.primary_released()));
+            if self.drag.moved(pos, down) {
+                // `OnHistoryPointerMoved`: the selected items' existing files.
+                let files = common::drag_files(self.selected_indexes().into_iter().map(|i| &self.items[i]));
+                self.drag.start(!files.is_empty());
+                if !files.is_empty() {
+                    self.effects.push(Effect::DragFiles(files));
+                }
+            }
+            if released && self.drag.released() {
+                clicked = None;
+            }
+        }
         if let Some((row, m, _)) = clicked {
             let id = self.items[self.filtered[row]].id;
             if m.command {
@@ -842,8 +906,14 @@ impl HistoryWindow {
         changed |= before != self.advanced.filter_date;
         y += 32.0 + 8.0;
         for (k, date) in [self.advanced.from, self.advanced.to].into_iter().enumerate() {
-            date_picker(ui, Rect::from_min_size(pos2(inner_x, y), vec2(296.0, 40.0)), date);
-            let _ = k;
+            let r = Rect::from_min_size(pos2(inner_x, y), vec2(296.0, 40.0));
+            date_picker(ui, r, date);
+            // `OnFlyoutButtonClicked`: the flyout on this date.
+            let opened = live && ui.interact(r, Id::new(("history-adv-date-picker", k)), egui::Sense::click()).is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed());
+            if opened || (k == 0 && std::mem::take(&mut self.render_date_flyout)) {
+                let flyout = super::date_picker::DateFlyout::new(Id::new(("history-date-flyout", k)), r, date.naive().date());
+                self.date_flyout = Some((k, flyout));
+            }
             y += 40.0 + 8.0;
         }
         y -= 8.0;
@@ -865,10 +935,30 @@ impl HistoryWindow {
         };
         border::border(ui.painter(), area, 4.0, 1.0, Some(Brush::Checkered { colors: p.checkered, cell: 15.0 }), Some(p.border));
         if self.preview.as_ref().is_none_or(|pv| pv.id != item.id) {
-            self.preview = Some(Preview { id: item.id, image: load_preview(&item), texture: None });
+            let image = load_preview(&item);
+            // Else the URL, when it looks like an image (not in `--render`:
+            // no network there).
+            let download = (image.is_none() && !self.sync).then(|| preview_url(&item)).flatten().map(|url| {
+                let (tx, rx) = mpsc::channel();
+                let cancel = sharex_uploaders::http::CancellationToken::new();
+                let token = cancel.clone();
+                let ctx = ui.ctx().clone();
+                std::thread::spawn(move || {
+                    let _ = tx.send(download_preview(&url, token));
+                    ctx.request_repaint();
+                });
+                (rx, cancel)
+            });
+            self.preview = Some(Preview { id: item.id, image, texture: None, download });
         }
         let inner = area.shrink(1.0);
         let pv = self.preview.as_mut().unwrap();
+        if let Some((rx, _)) = &pv.download
+            && let Ok(image) = rx.try_recv()
+        {
+            pv.image = image;
+            pv.download = None;
+        }
         match &pv.image {
             Some(img) => {
                 let size = (inner.width().max(1.0) as u32, inner.height().max(1.0) as u32);
@@ -982,7 +1072,7 @@ fn date_picker(ui: &Ui, rect: Rect, date: DateTime) {
 }
 
 /// `UpdatePreviewAsync`'s source: the local file when it's an image, else
-/// the URL when it looks like one (downloaded; not here: logged).
+/// the URL when it looks like one ([`preview_url`]).
 fn load_preview(item: &HistoryItem) -> Option<image::RgbaImage> {
     use sharex_helpers::file_helpers::is_image_file;
     let path = item.file_path.as_deref().unwrap_or("");
@@ -992,9 +1082,71 @@ fn load_preview(item: &HistoryItem) -> Option<image::RgbaImage> {
     None
 }
 
+/// The URL `UpdatePreviewAsync` downloads when there's no local image:
+/// `FileHelpers.IsImageFile(item.URL)`.
+fn preview_url(item: &HistoryItem) -> Option<String> {
+    let path = item.file_path.as_deref().unwrap_or("");
+    let local = !path.trim().is_empty() && common::file_exists(path) && sharex_helpers::file_helpers::is_image_file(path);
+    let url = item.url.as_deref().unwrap_or("");
+    (!local && !url.trim().is_empty() && sharex_helpers::file_helpers::is_image_file(url)).then(|| url.to_owned())
+}
+
+/// `PreviewHttpClient.GetByteArrayAsync(url, token)` (a plain `HttpClient`:
+/// its 100 s timeout, a failed status throws) and `new Bitmap(stream)`.
+/// Failures are logged (`DebugHelper.WriteException`).
+fn download_preview(url: &str, cancel: sharex_uploaders::http::CancellationToken) -> Option<image::RgbaImage> {
+    use sharex_uploaders::http;
+    let request = http::HttpRequest { method: sharex_uploaders::HttpMethod::GET, url: url.to_owned(), headers: Vec::new(), content: None };
+    let options = http::RequestOptions { timeout: Some(Duration::from_secs(100)), cancel, read_body: true, factory_client: false, ..Default::default() };
+    match http::send(request, options) {
+        Ok(r) if r.is_success() => match image::load_from_memory(r.response_data.as_deref().unwrap_or_default()) {
+            Ok(img) => Some(img.to_rgba8()),
+            Err(e) => {
+                eprintln!("history preview {url}: {e}");
+                None
+            }
+        },
+        Ok(r) => {
+            eprintln!("history preview {url}: Response status code does not indicate success: {} ({}).", r.status_code, r.status_description);
+            None
+        }
+        Err(sharex_uploaders::http::HttpError::Cancelled) => None,
+        Err(e) => {
+            eprintln!("history preview {url}: {e}");
+            None
+        }
+    }
+}
+
 impl Dialog for HistoryWindow {
+    /// `ApplySavedWindowState`: the saved size and maximized state.
     fn spec(&self) -> Spec {
-        Spec::sized(crate::rs_title(s::HistoryWindows_ShareX_History()), WIDTH, HEIGHT, MIN_WIDTH, MIN_HEIGHT)
+        let remember = self.settings.remember_window_state;
+        let (w, h) = if remember { self.placement.saved.size_or(WIDTH, HEIGHT) } else { (WIDTH, HEIGHT) };
+        Spec {
+            maximized: remember && self.placement.saved.maximized,
+            ..Spec::sized(crate::rs_title(s::HistoryWindows_ShareX_History()), w, h, MIN_WIDTH, MIN_HEIGHT)
+        }
+    }
+
+    /// The saved position, when a screen contains it.
+    fn position(&self, _work_area: sharex_capture::Rect, _size: (u32, u32)) -> Option<(i32, i32)> {
+        if !self.settings.remember_window_state || self.sync {
+            return None;
+        }
+        self.placement.saved.position(&super::window_state::screens())
+    }
+
+    fn moved(&mut self, x: i32, y: i32, _cx: &mut Cx) {
+        if let Some(size) = self.placement.size {
+            self.placement.normal_bounds(size, Some((x, y)));
+        } else if !self.placement.maximized {
+            self.placement.location = Some((x, y));
+        }
+    }
+
+    fn resized(&mut self, maximized: bool, _cx: &mut Cx) {
+        self.placement.maximized = maximized;
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Vec<Effect> {
@@ -1017,10 +1169,12 @@ impl Dialog for HistoryWindow {
         self.keys(ui);
         let p = palette(ui.ctx());
         let full = ui.max_rect();
+        // `SaveNormalWindowSize` on `Resized`.
+        self.placement.normal_bounds((full.width(), full.height()), None);
         ui.painter().rect_filled(full, 0.0, p.background_main);
         // `Grid Margin="10,0,10,10" RowSpacing="10"`.
         let content = Rect::from_min_max(pos2(full.min.x + 10.0, full.min.y), pos2(full.max.x - 10.0, full.max.y - 10.0));
-        let live = self.modal.is_none() && self.menu.is_none() && self.columns_menu.is_none();
+        let live = self.modal.is_none() && self.menu.is_none() && self.columns_menu.is_none() && self.date_flyout.is_none();
         let had_menu = self.menu.is_some() || self.columns_menu.is_some();
         self.toolbar(ui, Rect::from_min_size(content.min, vec2(content.width(), common::TOOLBAR_HEIGHT)), live);
         let top = content.min.y + common::TOOLBAR_HEIGHT + 10.0;
@@ -1088,6 +1242,24 @@ impl Dialog for HistoryWindow {
                 self.settings_changed = true;
             } else if closed || pressed_outside {
                 self.columns_menu = None;
+            }
+        }
+
+        // A date picker's flyout: `SelectedDateChanged` → `OnDateFilterChanged`.
+        if let Some((k, flyout)) = self.date_flyout.as_mut() {
+            match flyout.show(ui, full) {
+                super::date_picker::Out::Open => {}
+                super::date_picker::Out::Dismiss => self.date_flyout = None,
+                super::date_picker::Out::Accept(d) => {
+                    let picked = DateTime::new(d.and_hms_opt(0, 0, 0).unwrap_or_default(), self.advanced.from.kind());
+                    if *k == 0 {
+                        self.advanced.from = picked;
+                    } else {
+                        self.advanced.to = picked;
+                    }
+                    self.date_flyout = None;
+                    self.schedule_filter();
+                }
             }
         }
 
@@ -1166,7 +1338,14 @@ impl Dialog for HistoryWindow {
         std::mem::take(&mut self.effects)
     }
 
+    /// `OnClosing` → `SaveWindowState`.
     fn closed(&mut self, cx: &mut Cx) -> Vec<Effect> {
+        if self.settings.remember_window_state {
+            self.settings.window_state = self.placement.save();
+            if self.list_width > 0.0 {
+                self.settings.history_list_width = self.list_width as f64;
+            }
+        }
         self.save_settings(cx);
         Vec::new()
     }
@@ -1180,4 +1359,52 @@ pub fn render_dialog(_name: &str, o: &Options) -> Result<Box<dyn Dialog>, String
     let mut w = HistoryWindow::new(&ApplicationConfig::default());
     w.render_state(&egui::Context::default(), o);
     Ok(Box::new(w))
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+
+    /// A 127.0.0.1 server answering one request with `status` and `body`.
+    fn serve_once(status: &str, body: Vec<u8>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let status = status.to_owned();
+        std::thread::spawn(move || {
+            if let Ok((mut s, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let _ = s.read(&mut buf);
+                let head = format!("HTTP/1.1 {status}\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = s.write_all(head.as_bytes());
+                let _ = s.write_all(&body);
+            }
+        });
+        format!("http://127.0.0.1:{port}/shot.png")
+    }
+
+    fn png() -> Vec<u8> {
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(3, 2, image::Rgba([9, 8, 7, 255])).write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn a_url_only_image_is_downloaded_for_the_preview() {
+        let url = serve_once("200 OK", png());
+        let item = HistoryItem { url: Some(url.clone()), file_path: Some(String::new()), ..Default::default() };
+        assert_eq!(preview_url(&item).as_deref(), Some(url.as_str()));
+        let img = download_preview(&url, sharex_uploaders::http::CancellationToken::new()).unwrap();
+        assert_eq!(img.dimensions(), (3, 2));
+        assert_eq!(img.get_pixel(1, 1).0, [9, 8, 7, 255]);
+    }
+
+    #[test]
+    fn a_failed_download_shows_no_preview() {
+        let url = serve_once("404 Not Found", Vec::new());
+        assert!(download_preview(&url, sharex_uploaders::http::CancellationToken::new()).is_none());
+        // Not an image URL: nothing is downloaded.
+        let item = HistoryItem { url: Some("http://127.0.0.1:1/page.html".into()), ..Default::default() };
+        assert_eq!(preview_url(&item), None);
+    }
 }
