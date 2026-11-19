@@ -90,6 +90,24 @@ fn main() {
         writeln!(out, "}}").unwrap();
     }
 
+    // For the tests: every module's keys, its `lookup` and its accessors.
+    writeln!(out, "\n#[cfg(test)]\n#[allow(clippy::type_complexity)]").unwrap();
+    writeln!(
+        out,
+        "pub(crate) static MODULES: &[(&str, fn(&str) -> Option<&'static str>, &[(&str, Option<fn() -> &'static str>)])] = &["
+    )
+    .unwrap();
+    for (project, by_lang) in &projects {
+        let module = module_name(project);
+        writeln!(out, "    ({module:?}, {module}::lookup, &[").unwrap();
+        for key in by_lang[""].keys() {
+            let accessor = if is_ident(key) { format!("Some({module}::{key})") } else { "None".into() };
+            writeln!(out, "        ({key:?}, {accessor}),").unwrap();
+        }
+        writeln!(out, "    ]),").unwrap();
+    }
+    writeln!(out, "];").unwrap();
+
     let dest = Path::new(&std::env::var("OUT_DIR").unwrap()).join("strings.rs");
     std::fs::write(dest, out).unwrap();
 }
