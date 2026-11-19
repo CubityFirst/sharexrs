@@ -27,13 +27,25 @@ use crate::region_session::RegionSession;
 use crate::tray::{self, TrayEvent};
 use window::AutoCaptureWindow;
 
+/// Where a selected region goes.
+#[derive(Default, Clone, Copy)]
+enum SelectFor {
+    /// `ApplicationConfig.AutoCaptureRegion` (the auto capture window).
+    #[default]
+    AutoCapture,
+    /// A task's `CaptureSettings.CaptureCustomRegion` (Task settings ›
+    /// Capture › Select region...).
+    Task(crate::app_windows::TaskTarget),
+}
+
 /// `AutoCaptureWindowIntegration._window`, its region capture and its
 /// tray icon.
 #[derive(Default)]
 pub struct AutoCapture {
     window: Option<WindowId>,
-    /// `SelectRegionAsync`'s overlay.
+    /// `SelectRegionAsync`'s overlay, and what the region is for.
     selecting: Option<Box<RegionSession>>,
+    select_for: SelectFor,
     /// `_trayIcon` while the window is hidden to the tray.
     tray: Option<tray::Tray>,
 }
@@ -110,7 +122,30 @@ impl App {
             return;
         }
         let Some((_, w)) = self.auto_window() else { return };
-        let mut task = w.task.clone();
+        let task = w.task.clone();
+        self.open_region_selection(event_loop, task, SelectFor::AutoCapture);
+    }
+
+    /// Task settings' Select region...: `GetRectangleRegionAsync` with the
+    /// edited task's region options; the region goes into its
+    /// `CaptureCustomRegion` and the window shows it.
+    pub(crate) fn select_region_for_task(&mut self, event_loop: &ActiveEventLoop, target: crate::app_windows::TaskTarget) {
+        if self.auto_capture.selecting.is_some() {
+            return;
+        }
+        let s = &self.settings;
+        let task = match target {
+            crate::app_windows::TaskTarget::Default => s.settings.DefaultTaskSettings.clone(),
+            crate::app_windows::TaskTarget::Hotkey(i) => match s.hotkeys.Hotkeys.get(i) {
+                Some(h) => h.TaskSettings.clone(),
+                None => return,
+            },
+        };
+        self.open_region_selection(event_loop, task, SelectFor::Task(target));
+    }
+
+    /// The region capture, select only, with `task`'s region options.
+    fn open_region_selection(&mut self, event_loop: &ActiveEventLoop, mut task: TaskSettings, select_for: SelectFor) {
         let defaults = &self.settings.settings.DefaultTaskSettings;
         task.CaptureSettings = Some(crate::scrolling_capture::capture_settings(&task, defaults));
         task.UseDefaultCaptureSettings = false;
@@ -123,8 +158,11 @@ impl App {
             RegionSession::open(event_loop, gpu, request, dark)
         });
         match opened {
-            Ok(s) => self.auto_capture.selecting = Some(Box::new(s)),
-            Err(e) => eprintln!("auto capture: {e}"),
+            Ok(s) => {
+                self.auto_capture.selecting = Some(Box::new(s));
+                self.auto_capture.select_for = select_for;
+            }
+            Err(e) => eprintln!("select region: {e}"),
         }
     }
 
@@ -193,11 +231,29 @@ impl App {
                 self.auto_capture.selecting = None;
                 self.last_regions = result.regions.clone();
                 let r = result.screen_rectangle;
-                self.settings.settings.AutoCaptureRegion = Rectangle::new(r.x, r.y, r.w, r.h);
-                if let Some(id) = self.auto_capture.window
-                    && let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id)
-                {
-                    d.window.window.request_redraw();
+                let rect = Rectangle::new(r.x, r.y, r.w, r.h);
+                match self.auto_capture.select_for {
+                    SelectFor::AutoCapture => {
+                        self.settings.settings.AutoCaptureRegion = rect;
+                        if let Some(id) = self.auto_capture.window
+                            && let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id)
+                        {
+                            d.window.window.request_redraw();
+                        }
+                    }
+                    SelectFor::Task(target) => {
+                        let s = &mut self.settings;
+                        let task = match target {
+                            crate::app_windows::TaskTarget::Default => Some(&mut s.settings.DefaultTaskSettings),
+                            crate::app_windows::TaskTarget::Hotkey(i) => s.hotkeys.Hotkeys.get_mut(i).map(|h| &mut h.TaskSettings),
+                        };
+                        if let Some(task) = task {
+                            task.CaptureSettings.get_or_insert_default().CaptureCustomRegion = rect;
+                        }
+                        if let Some(t) = &self.task_window {
+                            t.window.window.request_redraw();
+                        }
+                    }
                 }
             }
         }

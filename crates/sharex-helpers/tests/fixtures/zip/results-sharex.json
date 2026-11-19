@@ -1,0 +1,270 @@
+{
+  "results": [
+    {
+      "name": "backup-import",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/ApplicationConfig.json",
+          "data": "ew0KICAiU2hvd1RyYXkiOiB0cnVlDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/HotkeysConfig.json",
+          "data": "ew0KICAiSG90a2V5cyI6IFtdDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/UploadersConfig.json",
+          "data": "ew0KICAiSW1ndXJBY2NvdW50VHlwZSI6ICJBbm9ueW1vdXMiDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "backup-all",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/ApplicationConfig.json",
+          "data": "ew0KICAiU2hvd1RyYXkiOiB0cnVlDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/History.db",
+          "data": "U1FMaXRlIGZvcm1hdCAzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/HotkeysConfig.json",
+          "data": "ew0KICAiSG90a2V5cyI6IFtdDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/UploadersConfig.json",
+          "data": "ew0KICAiSW1ndXJBY2NvdW50VHlwZSI6ICJBbm9ueW1vdXMiDQp9",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "hostile-import",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/Upper.JSON",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/back/"
+        },
+        {
+          "path": "dest/back/slash.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/dots/"
+        },
+        {
+          "path": "dest/dots/same.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/folder/"
+        },
+        {
+          "path": "dest/folder/nested/"
+        },
+        {
+          "path": "dest/folder/nested/inner.json",
+          "data": "eyJhIjoxfQ==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/legacy.xml",
+          "data": "PHgvPg==",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "hostile-all",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/Upper.JSON",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/back/"
+        },
+        {
+          "path": "dest/back/slash.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/dots/"
+        },
+        {
+          "path": "dest/dots/same.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/folder/"
+        },
+        {
+          "path": "dest/folder/nested/"
+        },
+        {
+          "path": "dest/folder/nested/inner.json",
+          "data": "eyJhIjoxfQ==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/legacy.xml",
+          "data": "PHgvPg==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/noext",
+          "data": "eA==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/notes.txt",
+          "data": "dGV4dA==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/trail.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "hostile-flat",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/Upper.JSON",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/drive.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/escape.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/escape2.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/inner.json",
+          "data": "eyJhIjoxfQ==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/legacy.xml",
+          "data": "PHgvPg==",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/rooted.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/same.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        },
+        {
+          "path": "dest/slash.json",
+          "data": "e30=",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "sizes-at-limit",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/a.json",
+          "data": "MDEyMzQ1Njc4OQ==",
+          "mtime": "2026-11-19 10:20:30"
+        }
+      ]
+    },
+    {
+      "name": "sizes-over-limit",
+      "ok": false,
+      "error": "Exception",
+      "message": "The uncompressed size of this archive exceeds the maximum allowed file size.\r\n\r\nArchive uncompressed file size: 20 B\r\nMaximum allowed file size: 19 B",
+      "tree": []
+    },
+    {
+      "name": "not-a-zip",
+      "ok": false,
+      "error": "InvalidDataException",
+      "message": "End of Central Directory record could not be found.",
+      "tree": []
+    },
+    {
+      "name": "sharexrs-export-import",
+      "ok": true,
+      "tree": [
+        {
+          "path": "dest/"
+        },
+        {
+          "path": "dest/ApplicationConfig.json",
+          "data": "ew0KICAiU2hvd1RyYXkiOiB0cnVlDQp9",
+          "mtime": "2026-11-19 02:26:34"
+        },
+        {
+          "path": "dest/HotkeysConfig.json",
+          "data": "ew0KICAiSG90a2V5cyI6IFtdDQp9",
+          "mtime": "2026-11-19 02:26:34"
+        },
+        {
+          "path": "dest/UploadersConfig.json",
+          "data": "ew0KICAiSW1ndXJBY2NvdW50VHlwZSI6ICJBbm9ueW1vdXMiDQp9",
+          "mtime": "2026-11-19 02:26:34"
+        }
+      ]
+    }
+  ]
+}

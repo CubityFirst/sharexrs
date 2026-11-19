@@ -188,6 +188,8 @@ impl App {
         if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }
+        // `ApplyCore`: `_hotkeyHost?.UpdateTrayIcon()`.
+        self.apply_tray_icon_setting();
         self.init_task_view_settings();
         self.refresh_menus();
         self.apply_update_settings();
@@ -216,15 +218,32 @@ impl App {
                         tray.set_visible(v);
                     }
                 }
-                Effect::TrayIcon => {
-                    self.tray_progress = -2;
-                    self.update_tray_icon(-1);
-                }
+                // `ApplicationSettingsRuntime.UpdateTrayIcon` (`MainForm.UpdateTrayIcon`).
+                Effect::TrayIcon => self.apply_tray_icon_setting(),
                 Effect::Restart => self.restart(event_loop),
                 Effect::OpenFolder(path) => open_path(&path),
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                 Effect::QuickTaskMenuEditor => self.show_quick_task_editor(event_loop),
+                Effect::ExportSettings { settings, history } => {
+                    if let Some(path) = crate::settings_backup::pick_export_path() {
+                        if let Some(w) = &mut self.settings_window {
+                            w.state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
+                            w.window.window.request_redraw();
+                        }
+                        self.export_settings(path, settings, history);
+                    }
+                }
+                Effect::ImportSettings => {
+                    if let Some(path) = crate::settings_backup::pick_import_path() {
+                        if let Some(w) = &mut self.settings_window {
+                            w.state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
+                            w.window.window.request_redraw();
+                        }
+                        self.import_settings(path);
+                    }
+                }
+                Effect::ResetSettings => self.ask_reset_settings(event_loop),
                 Effect::PrintSettings => {
                     // `ShowImagePrintSettings`: the active monitor, preview only.
                     let screens = sharex_capture::screenshot::screens();
@@ -557,8 +576,10 @@ impl App {
                 let mut ffmpeg = false;
                 let mut watch = false;
                 let mut image_effects = false;
+                let mut select_region = false;
                 for e in effects {
                     match e {
+                        task_settings_window::Effect::SelectRegion => select_region = true,
                         task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                         task_settings_window::Effect::WatchFoldersChanged => watch = true,
@@ -567,6 +588,10 @@ impl App {
                 }
                 if watch {
                     self.update_watch_folders();
+                }
+                if select_region {
+                    self.select_region_for_task(event_loop, target);
+                    return;
                 }
                 if image_effects {
                     let hotkey = match target {
