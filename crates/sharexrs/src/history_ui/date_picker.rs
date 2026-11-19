@@ -20,6 +20,16 @@
 //! notch (`ScrollSize` = the item height), a click picks an item, Enter or
 //! the accept button commits, Escape, the dismiss button or a press outside
 //! closes it unchanged.
+//!
+//! The column under the pointer (`PART_*Host:pointerover`) shows its up and
+//! down `RepeatButton`s (`--control-dump datepicker-presenter-hover`): 22
+//! tall across the column at its top and bottom, the presenter's
+//! background, `DateTimePickerFlyoutButtonBackgroundPointerOver`/`Pressed`
+//! (`#19`/`#33` white or black) over it, a 10x5 `Viewbox` of an 18x9
+//! chevron (`M 0,9 L 9,0 L 18,9`, `M 0,0 L 9,9 L 18,0`, 1 px, flat caps)
+//! in the foreground; `Delay` 300 and `Interval` 100 ms: held, it scrolls
+//! after the delay and every interval, and the release on it scrolls once
+//! more (`ScrollUp`/`ScrollDown`: one item).
 
 use chrono::{Datelike, NaiveDate};
 use egui::{Color32, Id, Order, Pos2, Rect, Stroke, Ui, pos2, vec2};
@@ -40,6 +50,10 @@ const POPUP_OFFSET: f32 = -193.5;
 const DAY: (f32, f32) = (1.0, 78.0);
 const MONTH: (f32, f32) = (80.0, 137.0);
 const YEAR: (f32, f32) = (218.0, 77.0);
+/// The up/down `RepeatButton`s' height, and their `Delay`/`Interval`.
+const SCROLL_BUTTON_HEIGHT: f32 = 22.0;
+const REPEAT_DELAY: f64 = 0.3;
+const REPEAT_INTERVAL: f64 = 0.1;
 
 /// What the flyout did this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,6 +79,8 @@ pub struct DateFlyout {
     pub day: u32,
     /// The press that opened it: its release isn't a pick.
     opened_this_press: bool,
+    /// An up (-1) or down (1) button held: its column and when it repeats next.
+    repeat: Option<(Column, i32, f64)>,
 }
 
 pub fn days_in_month(year: i32, month: u32) -> u32 {
@@ -74,7 +90,7 @@ pub fn days_in_month(year: i32, month: u32) -> u32 {
 
 impl DateFlyout {
     pub fn new(id: Id, anchor: Rect, date: NaiveDate) -> Self {
-        Self { id, anchor, year: date.year(), month: date.month(), day: date.day(), opened_this_press: true }
+        Self { id, anchor, year: date.year(), month: date.month(), day: date.day(), opened_this_press: true, repeat: None }
     }
 
     pub fn date(&self) -> NaiveDate {
@@ -115,6 +131,41 @@ impl DateFlyout {
             .into_iter()
             .find(|(_, (x, w))| local.x >= *x && local.x < x + w)
             .map(|(c, _)| c)
+    }
+
+    /// `column`'s up (-1) and down (1) buttons, in a presenter at `r`.
+    fn scroll_buttons(r: Rect, column: Column) -> [(i32, Rect); 2] {
+        let (x, w) = match column {
+            Column::Day => DAY,
+            Column::Month => MONTH,
+            Column::Year => YEAR,
+        };
+        let up = Rect::from_min_size(pos2(r.min.x + x, r.min.y + 1.0), vec2(w, SCROLL_BUTTON_HEIGHT));
+        let down = Rect::from_min_size(pos2(r.min.x + x, r.min.y + 1.0 + PICKER_HEIGHT - SCROLL_BUTTON_HEIGHT), vec2(w, SCROLL_BUTTON_HEIGHT));
+        [(-1, up), (1, down)]
+    }
+
+    /// The up/down button under `pos`, if its column is the hovered one.
+    fn scroll_button_at(r: Rect, pos: Pos2) -> Option<(Column, i32)> {
+        let column = Self::column_at(r, pos)?;
+        Self::scroll_buttons(r, column).into_iter().find(|(_, b)| b.contains(pos)).map(|(dir, _)| (column, dir))
+    }
+
+    /// `RepeatButton`: a press arms it (`StartTimer`), each tick after the
+    /// delay and every interval scrolls while it's still pressed, and the
+    /// release over it (`Button.Click`) scrolls once more.
+    fn repeat_tick(&mut self, now: f64, pointer: Option<Pos2>, r: Rect) -> Option<f64> {
+        let (column, dir, next) = self.repeat?;
+        let over = pointer.and_then(|p| Self::scroll_button_at(r, p)) == Some((column, dir));
+        if now < next {
+            return Some(next);
+        }
+        if over {
+            self.step(column, dir);
+        }
+        let next = next + REPEAT_INTERVAL;
+        self.repeat = Some((column, dir, next));
+        Some(next)
     }
 
     /// The item `offset` rows from the selected one in `column`, if any.
@@ -202,6 +253,26 @@ impl DateFlyout {
         for x in [DAY.0 + DAY.1, MONTH.0 + MONTH.1] {
             painter.rect_filled(Rect::from_min_size(pos2(r.min.x + x, picker.min.y), vec2(1.0, PICKER_HEIGHT)), 0.0, spacer);
         }
+        // The hovered column's up/down buttons.
+        let down_now = ui.input(|i| i.pointer.primary_down());
+        if let Some(column) = hover_col {
+            let bg = sharex_ui::tooltip::background(dark);
+            let glyph = if dark { Color32::WHITE } else { Color32::BLACK };
+            for (dir, b) in Self::scroll_buttons(r, column) {
+                painter.rect_filled(b, 0.0, bg);
+                if pointer.is_some_and(|pos| b.contains(pos)) {
+                    let alpha = if down_now && self.repeat.is_some_and(|(c, d, _)| c == column && d == dir) { 0x33 } else { 0x19 };
+                    let over = if dark { Color32::from_rgba_unmultiplied(255, 255, 255, alpha) } else { Color32::from_rgba_unmultiplied(0, 0, 0, alpha) };
+                    painter.rect_filled(b, 0.0, over);
+                }
+                // The 18x9 chevron scaled into its 10x5 `Viewbox`, centred
+                // (Avalonia's layout rounding).
+                let s = 10.0 / 18.0;
+                let o = pos2(b.min.x + ((b.width() - 10.0) / 2.0).round_ties_even(), b.min.y + ((b.height() - 5.0) / 2.0).round_ties_even());
+                let pts = if dir < 0 { [(0.0, 9.0), (9.0, 0.0), (18.0, 9.0)] } else { [(0.0, 0.0), (9.0, 9.0), (18.0, 0.0)] };
+                painter.add(egui::Shape::line(pts.iter().map(|(x, y)| o + vec2(x * s, y * s)).collect(), Stroke::new(s, glyph)));
+            }
+        }
         // The accept/dismiss row.
         let row_top = picker.max.y;
         painter.rect_filled(Rect::from_min_size(pos2(picker.min.x, row_top), vec2(picker.width(), 1.0)), 0.0, spacer);
@@ -246,6 +317,23 @@ impl DateFlyout {
         if pressed && pointer.is_some_and(|pos| !r.contains(pos)) {
             return Out::Dismiss;
         }
+        let now = ui.input(|i| i.time);
+        if pressed
+            && !self.opened_this_press
+            && let Some((column, dir)) = pointer.and_then(|pos| Self::scroll_button_at(r, pos))
+        {
+            self.repeat = Some((column, dir, now + REPEAT_DELAY));
+        }
+        if let Some(next) = self.repeat_tick(now, pointer, r) {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((next - now).max(0.0)));
+        }
+        if released && let Some((column, dir, _)) = self.repeat.take() {
+            // `Button.Click` on a release over it.
+            if pointer.and_then(|pos| Self::scroll_button_at(r, pos)) == Some((column, dir)) {
+                self.step(column, dir);
+            }
+            return Out::Open;
+        }
         if released {
             if std::mem::take(&mut self.opened_this_press) {
                 return Out::Open;
@@ -256,6 +344,9 @@ impl DateFlyout {
             }
             if dismiss.contains(pos) {
                 return Out::Dismiss;
+            }
+            if Self::scroll_button_at(r, pos).is_some() {
+                return Out::Open;
             }
             if let Some(c) = Self::column_at(r, pos) {
                 let offset = ((pos.y - (r.min.y + HIGHLIGHT_TOP)) / ITEM_HEIGHT).floor() as i32;
@@ -288,6 +379,28 @@ mod tests {
         assert_eq!((f.month, f.day), (12, 1));
         f.step(Column::Year, -3000);
         assert_eq!(f.year, 1);
+    }
+
+    #[test]
+    fn the_up_and_down_buttons_repeat_after_the_delay() {
+        let mut f = DateFlyout::new(Id::new("t"), Rect::from_min_size(pos2(0.0, 0.0), vec2(296.0, 40.0)), NaiveDate::from_ymd_opt(2026, 11, 19).unwrap());
+        let r = Rect::from_min_size(pos2(0.0, 0.0), vec2(WIDTH, HEIGHT));
+        // The day column's up button: x 1..79, y 1..23; the month's down: x 80..217, y 334..356.
+        assert_eq!(DateFlyout::scroll_button_at(r, pos2(40.0, 10.0)), Some((Column::Day, -1)));
+        assert_eq!(DateFlyout::scroll_button_at(r, pos2(100.0, 340.0)), Some((Column::Month, 1)));
+        assert_eq!(DateFlyout::scroll_button_at(r, pos2(100.0, 200.0)), None);
+        let up = Some(pos2(40.0, 10.0));
+        f.repeat = Some((Column::Day, -1, 10.0 + REPEAT_DELAY));
+        // Nothing before the delay; then a step a tick, every 100 ms.
+        assert_eq!(f.repeat_tick(10.1, up, r), Some(10.3));
+        assert_eq!(f.day, 19);
+        f.repeat_tick(10.3, up, r);
+        assert_eq!(f.day, 18);
+        f.repeat_tick(10.4, up, r);
+        assert_eq!(f.day, 17);
+        // Off the button: the timer runs but doesn't scroll.
+        f.repeat_tick(10.5, Some(pos2(40.0, 200.0)), r);
+        assert_eq!(f.day, 17);
     }
 
     #[test]
