@@ -102,6 +102,66 @@ pub const ALL: [CodeMenuEntryFilename; 37] = [
     e("n", s::ReplCodeMenuEntry_n_New_line, None),
 ];
 
+/// `CodeMenuEntryPixelInfo`: a pixel info variable (`Value`, without the
+/// `$`) and what it is. It has no categories.
+#[derive(Clone, Copy)]
+pub struct CodeMenuEntryPixelInfo {
+    pub value: &'static str,
+    description: fn() -> &'static str,
+}
+
+impl std::fmt::Debug for CodeMenuEntryPixelInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "${}", self.value)
+    }
+}
+
+impl CodeMenuEntryPixelInfo {
+    /// `Prefix`.
+    pub const PREFIX: &'static str = "$";
+
+    /// `ToPrefixString()`: `$` and the value.
+    pub fn to_prefix_string(&self) -> String {
+        format!("{}{}", Self::PREFIX, self.value)
+    }
+
+    pub fn description(&self) -> &'static str {
+        (self.description)()
+    }
+}
+
+const fn px(value: &'static str, description: fn() -> &'static str) -> CodeMenuEntryPixelInfo {
+    CodeMenuEntryPixelInfo { value, description }
+}
+
+/// `CodeMenuEntryPixelInfo`'s public static fields, in their order (what
+/// `GetFields(Public | Static)` lists: the private `$r`, `$g`, `$b` kept for
+/// old patterns aren't in it).
+pub const PIXEL_INFO: [CodeMenuEntryPixelInfo; 22] = [
+    px("r255", s::CodeMenuEntryPixelInfo_Red_255),
+    px("g255", s::CodeMenuEntryPixelInfo_Green_255),
+    px("b255", s::CodeMenuEntryPixelInfo_Blue_255),
+    px("r1", s::CodeMenuEntryPixelInfo_Red_normalized),
+    px("g1", s::CodeMenuEntryPixelInfo_Green_normalized),
+    px("b1", s::CodeMenuEntryPixelInfo_Blue_normalized),
+    px("hex", s::CodeMenuEntryPixelInfo_Hex_lowercase),
+    px("rhex", s::CodeMenuEntryPixelInfo_Red_hex_lowercase),
+    px("ghex", s::CodeMenuEntryPixelInfo_Green_hex_lowercase),
+    px("bhex", s::CodeMenuEntryPixelInfo_Blue_hex_lowercase),
+    px("HEX", s::CodeMenuEntryPixelInfo_Hex_uppercase),
+    px("rHEX", s::CodeMenuEntryPixelInfo_Red_hex_uppercase),
+    px("gHEX", s::CodeMenuEntryPixelInfo_Green_hex_uppercase),
+    px("bHEX", s::CodeMenuEntryPixelInfo_Blue_hex_uppercase),
+    px("c100", s::CodeMenuEntryPixelInfo_Cyan_100),
+    px("m100", s::CodeMenuEntryPixelInfo_Magenta_100),
+    px("y100", s::CodeMenuEntryPixelInfo_Yellow_100),
+    px("k100", s::CodeMenuEntryPixelInfo_Key_100),
+    px("name", s::CodeMenuEntryPixelInfo_Color_name),
+    px("x", s::CodeMenuEntryPixelInfo_X_position),
+    px("y", s::CodeMenuEntryPixelInfo_Y_position),
+    px("n", s::CodeMenuEntryPixelInfo_New_line),
+];
+
 /// `entries.GroupBy(entry => entry.Category)`: the groups in the order
 /// their first entry comes, each with its entries in order; `None` is the
 /// group without a category.
@@ -129,5 +189,12 @@ mod tests {
         assert_eq!(groups[1].1.len(), 15);
         assert_eq!(ALL.iter().filter(|e| e.value == "i").count(), 1);
         assert_eq!(CodeMenuEntryFilename::get("rna").unwrap().to_prefix_string(), "%rna");
+    }
+
+    #[test]
+    fn pixel_info_leaves_out_the_private_fields() {
+        assert_eq!(PIXEL_INFO.first().unwrap().to_prefix_string(), "$r255");
+        assert_eq!(PIXEL_INFO.last().unwrap().to_prefix_string(), "$n");
+        assert!(!PIXEL_INFO.iter().any(|e| matches!(e.value, "r" | "g" | "b")));
     }
 }

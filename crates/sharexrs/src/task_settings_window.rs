@@ -167,6 +167,9 @@ pub struct TaskSettingsWindow {
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
+    /// The variable menus of the name pattern, pixel info and upload info
+    /// boxes (`_activeCodeMenu`).
+    pub variables: crate::variable_menu::VariableMenus,
     effects: Vec<Effect>,
 }
 
@@ -203,6 +206,7 @@ impl TaskSettingsWindow {
             notification_editor: None,
             toolbar_editor: None,
             color_open: false,
+            variables: Default::default(),
             effects: Vec::new(),
         }
     }
@@ -297,7 +301,7 @@ impl TaskSettingsWindow {
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
             let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
-            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
+            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.variables.is_open() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
             self.scroll[page] = self.scroll[page].clamp(0.0, max);
@@ -306,6 +310,7 @@ impl TaskSettingsWindow {
             }
         }
         self.show_menu(ui, full, ctx, had_menu);
+        self.variables.show(ui, full);
         self.show_editors(ui, full, ctx);
         std::mem::take(&mut self.effects)
     }
@@ -646,6 +651,14 @@ impl Form<'_, '_, '_> {
         resp.clicked().then_some(br)
     }
 
+    /// A `Row` (or a box alone) with a variable menu (`NamePatternText`,
+    /// `PixelInfoText`, `UploadInfoText`). Returns whether the text changed.
+    fn variable_text(&mut self, label: Option<&str>, key: &str, kind: crate::variable_menu::VariableKind, value: &mut String, enabled: bool) -> bool {
+        let (changed, tb) = self.text_row_with_box(label.map(|l| (l, LABEL_W)), value, enabled, false);
+        let inserted = self.w.variables.attach(self.ui.ctx(), key, kind, tb, value);
+        changed || inserted
+    }
+
     /// A `Row` whose editor is a hint (`TextBlock.hint`): the preview rows.
     fn hint_row(&mut self, label: &str, text: &str) {
         self.text(label);
@@ -931,6 +944,7 @@ fn map_entries<A: Clone, B: Clone>(entries: Vec<MenuEntry<A>>, map: &dyn Fn(A) -
             gesture: e.gesture,
             badge: e.badge,
             id: e.id,
+            tooltip: e.tooltip,
         })
         .collect()
 }
@@ -1284,7 +1298,7 @@ fn page_region_capture(f: &mut Form) {
         chk!(f, s::TaskSettingsWindow_ShowPositionAndSizeInfo(), CaptureSettings.RegionCaptureOptions.ShowInfo);
         let custom = chk!(f, s::TaskSettingsWindow_UseCustomInfoText(), CaptureSettings.RegionCaptureOptions.UseCustomInfoText);
         let mut v = sec!(f, CaptureSettings).RegionCaptureOptions.CustomInfoText.clone();
-        if f.text_row(None, &mut v, custom, false) {
+        if f.variable_text(None, "region-info", crate::variable_menu::VariableKind::PixelInfo, &mut v, custom) {
             sec!(f, CaptureSettings).RegionCaptureOptions.CustomInfoText = v.replace("\r\n", "$n").replace('\n', "$n");
         }
         let mag = chk!(f, s::TaskSettingsWindow_ShowMagnifierNearCursor(), CaptureSettings.RegionCaptureOptions.ShowMagnifier);
@@ -1438,10 +1452,17 @@ fn page_file_naming(f: &mut Form) {
             }
             p.parse(pattern)
         };
-        text!(f, s::TaskSettingsWindow_CaptureOrClipboardUpload(), true, UploadSettings.NameFormatPattern);
+        use crate::variable_menu::VariableKind as V;
+        let mut v = sec!(f, UploadSettings).NameFormatPattern.clone();
+        if f.variable_text(Some(s::TaskSettingsWindow_CaptureOrClipboardUpload()), "capture-name", V::NamePattern(&["n", "t", "pn"]), &mut v, true) {
+            sec!(f, UploadSettings).NameFormatPattern = v;
+        }
         let pv = preview(&sec!(f, UploadSettings).NameFormatPattern.clone(), false);
         f.hint_row(s::TaskSettingsWindow_Preview(), &pv);
-        text!(f, s::TaskSettingsWindow_WindowCapture(), true, UploadSettings.NameFormatPatternActiveWindow);
+        let mut v = sec!(f, UploadSettings).NameFormatPatternActiveWindow.clone();
+        if f.variable_text(Some(s::TaskSettingsWindow_WindowCapture()), "window-name", V::NamePattern(&["n"]), &mut v, true) {
+            sec!(f, UploadSettings).NameFormatPatternActiveWindow = v;
+        }
         let pv = preview(&sec!(f, UploadSettings).NameFormatPatternActiveWindow.clone(), true);
         f.hint_row(s::TaskSettingsWindow_Preview(), &pv);
         chk!(f, s::TaskSettingsWindow_UseNamePatternForFileUploads(), UploadSettings.FileUploadUseNamePattern);
@@ -1523,7 +1544,7 @@ fn page_tools(f: &mut Form) {
             (s::TaskSettingsWindow_InfoText(), "InfoText"),
         ] {
             let mut v = jstr(&o, key);
-            if f.text_row(Some((label, LABEL_W)), &mut v, true, false) {
+            if f.variable_text(Some(label), &format!("picker-{key}"), crate::variable_menu::VariableKind::PixelInfo, &mut v, true) {
                 jset(&mut o, key, Value::String(v));
             }
         }
@@ -1948,9 +1969,9 @@ fn page_advanced(f: &mut Form) {
     f.enabled_card(Section::Advanced, &mut |f| {
         f.title(s::TaskSettingsWindow_AfterUpload());
         chk!(f, s::TaskSettingsWindow_ResultForceHTTPS(), AdvancedSettings.ResultForceHTTPS);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_ClipboardContentFormat()), true, AdvancedSettings.ClipboardContentFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_BalloonTipContentFormat()), true, AdvancedSettings.BalloonTipContentFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_OpenURLFormat()), true, AdvancedSettings.OpenURLFormat);
+        upload_info_row(f, s::TaskSettingsWindow_ClipboardContentFormat(), 0);
+        upload_info_row(f, s::TaskSettingsWindow_BalloonTipContentFormat(), 1);
+        upload_info_row(f, s::TaskSettingsWindow_OpenURLFormat(), 2);
         num!(f, &format!("{}:", s::TaskSettingsWindow_AutoShortenURLLength()), i32::MIN, i32::MAX, true, AdvancedSettings.AutoShortenURLLength);
         chk!(f, s::TaskSettingsWindow_AutoCloseAfterUploadForm(), AdvancedSettings.AutoCloseAfterUploadForm);
     });
@@ -1959,6 +1980,26 @@ fn page_advanced(f: &mut Form) {
         num!(f, &format!("{}:", s::TaskSettingsWindow_NamePatternMaxLength()), i32::MIN, i32::MAX, true, AdvancedSettings.NamePatternMaxLength);
         num!(f, &format!("{}:", s::TaskSettingsWindow_NamePatternMaxTitleLength()), i32::MIN, i32::MAX, true, AdvancedSettings.NamePatternMaxTitleLength);
     });
+}
+
+/// `UploadInfoText` for `ClipboardContentFormat`, `BalloonTipContentFormat`
+/// and `OpenURLFormat`.
+fn upload_info_row(f: &mut Form, title: &str, k: usize) {
+    let adv = sec!(f, AdvancedSettings);
+    let mut v = match k {
+        0 => adv.ClipboardContentFormat.clone(),
+        1 => adv.BalloonTipContentFormat.clone(),
+        _ => adv.OpenURLFormat.clone(),
+    };
+    let key = ["clipboard-content", "balloon-tip", "open-url"][k];
+    if f.variable_text(Some(&format!("{title}:")), key, crate::variable_menu::VariableKind::UploadInfo, &mut v, true) {
+        let adv = sec!(f, AdvancedSettings);
+        match k {
+            0 => adv.ClipboardContentFormat = v,
+            1 => adv.BalloonTipContentFormat = v,
+            _ => adv.OpenURLFormat = v,
+        }
+    }
 }
 
 /// A `List<string>` as "a, b, c".

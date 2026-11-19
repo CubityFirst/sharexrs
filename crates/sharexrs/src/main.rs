@@ -55,6 +55,7 @@ mod task_actions;
 mod task_editors;
 mod task_settings_window;
 mod task_view;
+mod variable_menu;
 mod tasks;
 #[cfg(test)]
 mod test_mock;
