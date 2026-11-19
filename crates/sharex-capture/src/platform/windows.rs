@@ -225,7 +225,91 @@ pub fn cursor_image(background: &RgbaImage, origin: (i32, i32)) -> Option<Cursor
     if unsafe { GetCursorInfo(&mut info) } == 0 || info.flags != CURSOR_SHOWING {
         return None;
     }
-    let handle = info.hCursor;
+    cursor_image_of(info.hCursor, (info.ptScreenPos.x, info.ptScreenPos.y), background, origin)
+}
+
+/// [`cursor_image`] of the standard cursor `IDC_*` `id` (`LoadCursor`) as
+/// if the pointer were at `position` (desktop pixels), for checking the
+/// drawing against ShareX's (`tools/tools-harness --cursors`).
+pub fn system_cursor_image(id: u16, position: (i32, i32), background: &RgbaImage, origin: (i32, i32)) -> Option<CursorImage> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::LoadCursorW;
+    // SAFETY: a shared system cursor (MAKEINTRESOURCE id), not destroyed.
+    let handle = unsafe { LoadCursorW(std::ptr::null_mut(), id as usize as *const u16) };
+    if handle.is_null() {
+        return None;
+    }
+    cursor_image_of(handle, position, background, origin)
+}
+
+/// `CursorData` of the cursor `handle` at `position`, `ToBitmap(background,
+/// offset)` placed at `DrawPosition - offset`.
+fn cursor_image_of(handle: HICON, position: (i32, i32), background: &RgbaImage, origin: (i32, i32)) -> Option<CursorImage> {
+    let (hotspot, size) = cursor_geometry(handle);
+    let draw_at = (position.0 - hotspot.0 - origin.0, position.1 - hotspot.1 - origin.1);
+    let image = from_icon(handle, size, background, draw_at)?;
+    Some(CursorImage { image, position: draw_at })
+}
+
+/// `CursorData.DrawCursor(hdc, offset)` on a screenshot taken at `origin`:
+/// the pointer as it shows now, drawn with `DrawIconEx` onto the pixels as
+/// `Screenshot.CaptureRectangleGDI` draws it onto the capture's DC (false
+/// when it's hidden).
+pub fn draw_cursor_gdi(image: &mut RgbaImage, origin: (i32, i32)) -> bool {
+    let mut info: CURSORINFO = unsafe { std::mem::zeroed() };
+    info.cbSize = size_of::<CURSORINFO>() as u32;
+    // SAFETY: a sized CURSORINFO.
+    if unsafe { GetCursorInfo(&mut info) } == 0 || info.flags != CURSOR_SHOWING {
+        return false;
+    }
+    draw_cursor_gdi_of(image, info.hCursor, (info.ptScreenPos.x, info.ptScreenPos.y), origin)
+}
+
+/// [`draw_cursor_gdi`] of the standard cursor `id` at `position`, for the
+/// comparison with ShareX's.
+pub fn draw_system_cursor_gdi(image: &mut RgbaImage, id: u16, position: (i32, i32), origin: (i32, i32)) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::LoadCursorW;
+    // SAFETY: a shared system cursor, not destroyed.
+    let handle = unsafe { LoadCursorW(std::ptr::null_mut(), id as usize as *const u16) };
+    !handle.is_null() && draw_cursor_gdi_of(image, handle, position, origin)
+}
+
+fn draw_cursor_gdi_of(image: &mut RgbaImage, handle: HICON, position: (i32, i32), origin: (i32, i32)) -> bool {
+    let (hotspot, size) = cursor_geometry(handle);
+    let at = (position.0 - hotspot.0 - origin.0, position.1 - hotspot.1 - origin.1);
+    let (w, h) = (image.width() as i32, image.height() as i32);
+    let src = image.clone();
+    let drawn = draw_native(w, h, None, |dc| {
+        // SAFETY: the DIB section of `dc`, filled with the screenshot, then
+        // the icon drawn over it.
+        unsafe {
+            use windows_sys::Win32::Graphics::Gdi::SetDIBitsToDevice;
+            let mut bi: BITMAPINFO = std::mem::zeroed();
+            bi.bmiHeader = BITMAPINFOHEADER {
+                biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB,
+                ..std::mem::zeroed()
+            };
+            let bgra: Vec<u8> = src.pixels().flat_map(|p| [p[2], p[1], p[0], 255]).collect();
+            SetDIBitsToDevice(dc, 0, 0, w as u32, h as u32, 0, 0, 0, h as u32, bgra.as_ptr().cast(), &bi, DIB_RGB_COLORS);
+            DrawIconEx(dc, at.0, at.1, handle, size.0, size.1, 0, std::ptr::null_mut(), DI_NORMAL);
+        }
+    });
+    let Some(mut drawn) = drawn else { return false };
+    // `WindowsImageInterop.Capture`: a screenshot is opaque.
+    for p in drawn.pixels_mut() {
+        p[3] = 255;
+    }
+    *image = drawn;
+    true
+}
+
+/// The cursor's hotspot and drawing size (0x0: its own) as `CursorData`
+/// reads them, scaled by the accessibility cursor size.
+fn cursor_geometry(handle: HICON) -> ((i32, i32), (i32, i32)) {
     let multiplier = cursor_size_multiplier();
     let default_size = multiplier == 1.0;
     let mut hotspot = (0, 0);
@@ -259,9 +343,7 @@ pub fn cursor_image(background: &RgbaImage, origin: (i32, i32)) -> Option<Cursor
             DestroyIcon(copy);
         }
     }
-    let draw_at = (info.ptScreenPos.x - hotspot.0 - origin.0, info.ptScreenPos.y - hotspot.1 - origin.1);
-    let image = from_icon(handle, size, background, draw_at)?;
-    Some(CursorImage { image, position: draw_at })
+    (hotspot, size)
 }
 
 /// `WindowsImageInterop.FromIcon`: the icon drawn on black and on white,

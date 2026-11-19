@@ -293,3 +293,8 @@ pub fn set_desktop_icons_visibility(_show: bool) -> bool {
 pub fn is_active_window_fullscreen(_screens: &[Screen]) -> bool {
     false
 }
+
+/// The pointer isn't drawn into screenshots outside Windows yet.
+pub fn draw_cursor_gdi(_image: &mut RgbaImage, _origin: (i32, i32)) -> bool {
+    false
+}

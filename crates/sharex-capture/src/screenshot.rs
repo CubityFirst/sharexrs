@@ -144,10 +144,9 @@ impl Screenshot {
             return None;
         }
         let mut image = platform::capture_rectangle(rect)?;
-        if self.capture_cursor
-            && let Some(cursor) = platform::cursor_image(&image, (rect.x, rect.y))
-        {
-            draw_cursor(&mut image, &cursor);
+        // `CaptureRectangleGDI`: `CursorData.DrawCursor(dc, rect.Location)`.
+        if self.capture_cursor {
+            platform::draw_cursor_gdi(&mut image, (rect.x, rect.y));
         }
         Some(image)
     }
@@ -222,22 +221,16 @@ pub fn cursor_image(image: &RgbaImage, origin: (i32, i32)) -> Option<CursorImage
     platform::cursor_image(image, origin)
 }
 
-/// Draws `cursor` over `image` (source over), as the region capture inserts
-/// the pointer as an image annotation.
+/// Draws `cursor` over the opaque `image` as the region capture shows the
+/// pointer: `CursorData.ToBitmap` (premultiplied) drawn with
+/// `SKCanvas.DrawBitmap` (source over), as `DrawCursor(SKBitmap)` does.
 pub fn draw_cursor(image: &mut RgbaImage, cursor: &CursorImage) {
-    let (ox, oy) = cursor.position;
-    for (x, y, p) in cursor.image.enumerate_pixels() {
-        let (tx, ty) = (ox + x as i32, oy + y as i32);
-        if tx < 0 || ty < 0 || tx as u32 >= image.width() || ty as u32 >= image.height() || p[3] == 0 {
-            continue;
-        }
-        let d = image.get_pixel_mut(tx as u32, ty as u32);
-        let a = p[3] as u32;
-        for c in 0..3 {
-            d[c] = ((p[c] as u32 * a + d[c] as u32 * (255 - a) + 127) / 255) as u8;
-        }
-        d[3] = 255;
-    }
+    use sharex_skia::raster::{Bitmap, Canvas};
+    let mut frame = Bitmap::from_straight(image.width(), image.height(), image.as_raw());
+    let pointer = Bitmap::from_straight(cursor.image.width(), cursor.image.height(), cursor.image.as_raw());
+    Canvas::new(&mut frame).draw_bitmap(&pointer, cursor.position.0 as f32, cursor.position.1 as f32, None);
+    // Opaque: the premultiplied bytes are the colours.
+    *image = RgbaImage::from_raw(image.width(), image.height(), frame.into_data()).unwrap_or_default();
 }
 
 /// Where each monitor is in the desktop the screenshot is cut from, given
@@ -371,5 +364,39 @@ mod tests {
         draw_cursor(&mut image, &cursor);
         assert_eq!(image.get_pixel(3, 3), &Rgba([128, 128, 128, 255]));
         assert_eq!(image.get_pixel(2, 2), &Rgba([0, 0, 0, 255]));
+    }
+}
+
+/// The pointer drawn into a frame as ShareXrs draws it, for comparing with
+/// ShareX's drawing (`tools/tools-harness --cursors <dir>`): with
+/// `SHAREXRS_CURSOR_OUT=<dir>`, writes `<name>.png` for each standard
+/// cursor with its hotspot at (32, 32) of the 64x64 pattern frame.
+#[cfg(all(test, windows))]
+mod cursor_frames {
+    use super::*;
+
+    #[test]
+    fn standard_cursors_into_the_pattern() {
+        let Ok(out) = std::env::var("SHAREXRS_CURSOR_OUT") else { return };
+        std::fs::create_dir_all(&out).unwrap();
+        let pattern = |x: i32, y: i32| -> image::Rgba<u8> {
+            if x % 64 == 0 || y % 64 == 0 {
+                return image::Rgba([255, 255, 255, 255]);
+            }
+            let checker = ((x / 16) + (y / 16)) % 2 == 0;
+            image::Rgba([(x % 256) as u8, (y % 256) as u8, if checker { 200 } else { 70 }, 255])
+        };
+        let frame = RgbaImage::from_fn(64, 64, |x, y| pattern(x as i32 + 100, y as i32 + 100));
+        for (name, id) in [("arrow", 32512u16), ("ibeam", 32513), ("cross", 32515), ("hand", 32649), ("sizeall", 32646), ("no", 32648)] {
+            // The region capture's way.
+            let mut img = frame.clone();
+            let cursor = platform::system_cursor_image(id, (32, 32), &img, (0, 0)).expect("a cursor");
+            draw_cursor(&mut img, &cursor);
+            img.save(format!("{out}/{name}-bitmap.png")).unwrap();
+            // A screenshot's way.
+            let mut img = frame.clone();
+            assert!(platform::draw_system_cursor_gdi(&mut img, id, (32, 32), (0, 0)));
+            img.save(format!("{out}/{name}-gdi.png")).unwrap();
+        }
     }
 }

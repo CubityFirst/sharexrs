@@ -320,21 +320,11 @@ impl TransparentCapture<'_> {
     }
 }
 
-/// `CursorData.DrawCursor(bitmap, offset)` on a premultiplied bitmap:
-/// source over.
+/// `CursorData.DrawCursor(bitmap, offset)`: `ToBitmap` drawn with
+/// `SKCanvas.DrawBitmap` (source over).
 fn draw_cursor_premul(bmp: &mut Premul, cursor: &crate::CursorImage) {
-    let (ox, oy) = cursor.position;
-    for (x, y, p) in cursor.image.enumerate_pixels() {
-        let (tx, ty) = (ox + x as i32, oy + y as i32);
-        if tx < 0 || ty < 0 || tx as u32 >= bmp.width() || ty as u32 >= bmp.height() || p[3] == 0 {
-            continue;
-        }
-        let s = premul(p.0);
-        let d = bmp.pixel(tx as u32, ty as u32);
-        let inv = 255 - s[3] as u32;
-        let blend = |a: u8, b: u8| (a as u32 + (b as u32 * inv + 127) / 255).min(255) as u8;
-        bmp.set_pixel(tx as u32, ty as u32, [blend(s[0], d[0]), blend(s[1], d[1]), blend(s[2], d[2]), blend(s[3], d[3])]);
-    }
+    let pointer = Bitmap::from_straight(cursor.image.width(), cursor.image.height(), cursor.image.as_raw());
+    sharex_skia::raster::Canvas::new(bmp).draw_bitmap(&pointer, cursor.position.0 as f32, cursor.position.1 as f32, None);
 }
 
 #[cfg(test)]
