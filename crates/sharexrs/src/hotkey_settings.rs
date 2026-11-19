@@ -369,10 +369,14 @@ impl HotkeySettingsWindow {
             }
             x += w + 6.0;
         }
-        for (i, key) in [icon::ChevronUp, icon::ChevronDown].into_iter().enumerate() {
+        for (i, (key, tip)) in [(icon::ChevronUp, s::HotkeySettingsWindow_MoveUp()), (icon::ChevronDown, s::HotkeySettingsWindow_MoveDown())].into_iter().enumerate() {
             let br = Rect::from_min_size(pos2(x, by), Vec2::splat(ROW_BUTTON));
             if icon_button(ui, br, Id::new(("hk-move", i)), key, 16.0, can_move && live).clicked() {
                 clicked = Some(4 + i);
+            }
+            // `ToolTip.Tip` (not on a disabled button, as Avalonia's).
+            if can_move && live {
+                sharex_ui::tooltip::show(ui, br, Id::new(("hk-move-tip", i)), tip);
             }
             x += ROW_BUTTON + 6.0;
         }
@@ -530,6 +534,9 @@ impl HotkeySettingsWindow {
         if customized {
             let mark = Rect::from_min_size(pos2(chevron.min.x - 7.0 - 14.0, center_y(c, 14.0)), Vec2::splat(14.0));
             icons::paint(ui.painter(), mark, icon::Edit, p.accent_icon);
+            if live {
+                sharex_ui::tooltip::show(ui, mark, Id::new(("hk-custom-tip", i)), s::HotkeySettingsWindow_ThisTaskHasCustomSettings());
+            }
         }
         let name_rect = Rect::from_min_max(pos2(c.min.x + 18.0 + 7.0, c.min.y), pos2(chevron.min.x - 7.0 - mark_w - 7.0, c.max.y));
         controls::label(ui, name_rect, &job.localized_description(), font(13.0, 400), p.text_secondary);
@@ -539,6 +546,9 @@ impl HotkeySettingsWindow {
         // `Button.row-icon-button`: Edit task settings.
         if icon_button(ui, edit_rect, Id::new(("hk-edit", i)), icon::Edit, 17.0, live).clicked() {
             action = Some(RowAction::Edit);
+        }
+        if live {
+            sharex_ui::tooltip::show(ui, edit_rect, Id::new(("hk-edit-tip", i)), s::HotkeySettingsWindow_EditTaskSettings());
         }
         // `Button.hotkey-capture`: Padding 16,4, the hotkey centred.
         let hk_resp = Button::compact(Thickness::hv(16.0, 4.0)).show(ui, hk_rect, Id::new(("hk-key", i)), "", live);
@@ -561,6 +571,15 @@ impl HotkeySettingsWindow {
         // its stretched height.
         let st = Rect::from_min_size(pos2(status_rect.min.x + ((32.0f32 - 19.0) / 2.0).round_ties_even(), status_rect.min.y + (ROW_BUTTON - 19.0) / 2.0), Vec2::splat(19.0));
         icons::paint(ui.painter(), st, key, color);
+        // `ToolTip.Tip="{Binding StatusText}"` on the 32x34 status cell.
+        if live {
+            let status = match h.HotkeyInfo.status {
+                HotkeyStatus::Registered => s::HotkeySettingsWindow_Registered(),
+                HotkeyStatus::Failed => s::HotkeySettingsWindow_RegistrationFailed(),
+                HotkeyStatus::NotConfigured => s::HotkeySettingsWindow_NotConfigured(),
+            };
+            sharex_ui::tooltip::show(ui, status_rect, Id::new(("hk-status-tip", i)), status);
+        }
         if action.is_none() && live && resp.clicked() {
             action = Some(RowAction::Select);
         }
