@@ -1298,7 +1298,7 @@ impl App {
             }
         } else if matches!(dialog.purpose, DialogPurpose::ResetSettings) {
             if result == DialogResult::Yes {
-                self.reset_settings();
+                self.reset_settings(event_loop);
             }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
             self.cli_answered(question, result);

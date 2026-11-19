@@ -179,7 +179,7 @@ impl App {
                 // `Reload()` and `UpdateApplicationAsync()`.
                 self.load_all_settings();
                 appearance::change_language(&self.settings.settings.Language);
-                self.reload_application();
+                self.reload_application(event_loop);
                 s::ApplicationSettingsWindow_BackupImportedFrom().replace("{0}", &path)
             }
             (Err(e), import) => {
@@ -213,7 +213,8 @@ impl App {
     /// The rest of `ResetAsync` after Yes: `SettingManager.ResetSettings()`
     /// (each file deleted and loaded again without its backups), saved,
     /// then the language, `Reload()` and `UpdateApplicationAsync()`.
-    pub(crate) fn reset_settings(&mut self) {
+    pub(crate) fn reset_settings(&mut self, event_loop: &ActiveEventLoop) {
+        self.unregister_old_hotkeys();
         let paths = self.settings.paths.clone();
         if let Some(p) = paths.application_config_file() {
             let _ = std::fs::remove_file(p);
@@ -232,7 +233,7 @@ impl App {
         }
         self.save_uploaders_config(true);
         appearance::change_language(&self.settings.settings.Language);
-        self.reload_application();
+        self.reload_application(Some(event_loop));
         if let Some(w) = &mut self.settings_window {
             w.state.reload(&self.settings.settings);
             w.state.busy = false;
@@ -241,8 +242,16 @@ impl App {
         }
     }
 
+    /// `HotkeyManager.UpdateHotkeys` unregisters the hotkeys it had before
+    /// taking the new list; the new list replaces the old one here, so they
+    /// go first.
+    fn unregister_old_hotkeys(&mut self) {
+        self.hotkeys.unregister_all(&mut self.settings.hotkeys.Hotkeys, false);
+    }
+
     /// `SettingManager.LoadAllSettings()`.
     fn load_all_settings(&mut self) {
+        self.unregister_old_hotkeys();
         self.settings.load_application_config(true);
         self.reload_uploaders_config(true);
         self.settings.load_hotkeys_config(true);
@@ -259,12 +268,16 @@ impl App {
     /// settings (`ApplyCore`), the hotkeys registered again, the watch
     /// folders, the menus; and the theme options, which ShareX's
     /// `ThemeManager` follows as they change.
-    fn reload_application(&mut self) {
+    fn reload_application(&mut self, event_loop: Option<&ActiveEventLoop>) {
         self.apply_appearance();
         self.apply_settings();
         let disabled = self.settings.settings.DisableHotkeys;
-        let _ = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
+        let failed = self.hotkeys.update_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         self.refresh_hotkey_tips();
+        // `UpdateHotkeys(..., showFailedHotkeys: !IgnoreHotkeyWarning)`.
+        if let (Some(failed), Some(el)) = (failed.filter(|_| !self.ignore_hotkey_warning), event_loop) {
+            self.queue_dialog(el, MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning), DialogPurpose::Information);
+        }
         self.update_watch_folders();
         self.tray_progress = -2;
         self.update_tray_icon(-1);
