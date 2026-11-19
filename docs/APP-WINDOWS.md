@@ -143,3 +143,12 @@ report and the GIF playback weren't run there either. Also untested: the stderr 
 (`dup2`), the toast and toolbar's borderless topmost windows, the popup
 menus (no window regions outside Windows: the whole work-area window takes
 the pointer), the image viewer's full screen, rfd's pickers.
+
+## Upstream 30d1682
+
+- Escape closes About, Debug log (after its upload confirmation), Display
+  diagnostics, Stats, Destination settings and Custom uploader settings
+  (after the syntax test) (#9304). Checked live in both apps.
+- The theme button's sun is ShareX's pixel-aligned icon (#9274): 0 of 400
+  pixels differ from the new ShareX's at 125%, once aligned (the icon sits
+  3 px apart there: the caption buttons' 125% layout).

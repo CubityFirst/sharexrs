@@ -311,3 +311,22 @@ colour flyout, the variable menus' focus behaviour.
   scroll bar, popups past the window's edge. ShareX's capture pass has no
   shots of those states (`shared-controls`, `menu-past-client`), so they
   weren't built.
+
+## Upstream 30d1682
+
+- Escape closes Application settings, Task settings and Hotkey settings
+  (ShareX #9304), after what each has open: the clipboard format editor;
+  the action, watch folder, toolbar and notification button editors; the
+  reset confirmation. A hotkey being recorded still takes Escape. Open
+  menus, dropdowns and colour popups take it first. Checked live in both
+  apps; `escape_closes_the_window_once_nothing_else_takes_it`.
+- The clipboard format editor's Save needs a description and a format
+  (#9305): "Description can't be empty." / "Format can't be empty." under
+  the variables (13px Normal, `TaskMode.Cancel.Border`), that box focused
+  with its text selected. `--render settings-clipboard-formats --state
+  add,no-formats,description-empty --scale 1.25 --width 1188 --height 900`
+  vs `upstream-30d1682/clipboard-format-description-empty-dark.png`:
+  0.90% (the nav's 125% spacing and text anti-aliasing), the error row
+  0.24%. `save_needs_a_description_and_a_format`.
+- Region capture's Mouse 4/5 click lists "Capture selected region"
+  (#9277).

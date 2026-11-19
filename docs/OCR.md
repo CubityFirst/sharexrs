@@ -333,3 +333,7 @@ The plan it followed:
 
 - macOS/Linux engine runs (untested).
 
+## Upstream 30d1682
+
+- Escape backs out of the service editor, then closes the window, only
+  without modifiers (#9276).

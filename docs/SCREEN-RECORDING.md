@@ -647,3 +647,13 @@ to downscaled H.264 (needs a GPU without HEVC), the camera's
 video-processor composition fallback (GPU copies), multi-monitor adapters,
 the FFmpeg frame source against the real screen, and every non-Windows
 path (the crate builds there; the recorder isn't used).
+
+## Upstream 30d1682
+
+- With no output device, system audio that doesn't open is logged and left
+  out; the recording goes on with the microphone or none (#9288,
+  `audio::open_or_skip`; `no_output_device_records_without_system_audio`).
+- The recording frame and bar stay tool windows (#9242): winit rewrites
+  `GWL_EXSTYLE` as it shows a window, which dropped `WS_EX_TOOLWINDOW`; the
+  overlay subclass adds it back on `WM_STYLECHANGING`.
+- FFmpeg options closes on Escape after its reset confirmation (#9304).

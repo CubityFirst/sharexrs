@@ -336,3 +336,15 @@ ShareX (`Editor` after capture, `Tool` with an image, `Presets` from settings):
    `package::package`; then `-ImageEffect` and drag and drop.
 6. Validate with `--render image-effects[-state]` against the captures and
    `scripts/compare.py`, as every other window.
+
+## Upstream 30d1682
+
+- A flags property (`ImageSides`: Torn edge, Wave edge, Auto crop's Sides)
+  is a `WrapPanel` of check boxes, one per single-bit flag (#9287), sized as
+  Avalonia measures them (rounded up to device pixels). `--render
+  image-effects --content add:TornEdge --scale 1.25 --width 1475 --height
+  950` vs `upstream-30d1682/effects-torn-edge-sides-dark.png`: options panel
+  0.35% (the check boxes at the same pixels).
+- Escape closes the Image effects window (after its menus and flyouts)
+  and the packager (its Close is `IsCancel`); the confirmation's No
+  already answered Escape (#9304). Checked live in both.
