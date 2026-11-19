@@ -293,12 +293,15 @@ impl Dialog for ImageResizerWindow {
         let size_text = format!("{} × {}", self.width, self.height);
         let path = self.preview_file();
         let loading = self.job.busy.then(|| self.job.busy_since.elapsed().as_secs_f64());
-        super::preview_pane(ui, right, &path, &size_text, self.preview.as_mut(), loading, !self.list.items.is_empty());
+        let pressed = super::preview_pane(ui, right, &path, &size_text, self.preview.as_mut(), loading, !self.list.items.is_empty());
         let text = s::ImageResizerWindow_Resize_image();
         let bw = super::icon_text_button_width(ui, text);
         let br = Rect::from_min_size(pos2(bottom.max.x - bw, bottom.min.y), vec2(bw, super::BUTTON_HEIGHT));
         if super::icon_text_button(ui, br, Id::new("resizer-resize"), icon::Resize, text, self.can_resize()).clicked() {
             return self.resize();
+        }
+        if pressed {
+            return super::show_preview(self.preview.as_ref(), &path);
         }
         Vec::new()
     }

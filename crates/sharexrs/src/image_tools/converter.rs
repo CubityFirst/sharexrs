@@ -417,12 +417,15 @@ impl Dialog for ImageConverterWindow {
         let path = self.preview_file();
         let loading = self.job.busy.then(|| self.job.busy_since.elapsed().as_secs_f64());
         let size = self.preview_size.clone();
-        super::preview_pane(ui, right, &path, &size, self.preview.as_mut(), loading, !self.list.items.is_empty());
+        let pressed = super::preview_pane(ui, right, &path, &size, self.preview.as_mut(), loading, !self.list.items.is_empty());
         let text = s::ImageConverterWindow_Convert_images();
         let bw = super::icon_text_button_width(ui, text);
         let br = Rect::from_min_size(pos2(bottom.max.x - bw, bottom.min.y), vec2(bw, super::BUTTON_HEIGHT));
         if super::icon_text_button(ui, br, Id::new("converter-convert"), icon::Refresh, text, self.can_convert()).clicked() {
             return self.convert();
+        }
+        if pressed {
+            return super::show_preview(self.preview.as_ref(), &path);
         }
         Vec::new()
     }

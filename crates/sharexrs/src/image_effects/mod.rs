@@ -489,6 +489,16 @@ impl ImageEffectsWindow {
         }
     }
 
+    /// `Path.GetFileName(FilePath)`, or `ImageEffectsWindow_Preview_name`
+    /// without a file: the viewer's name for the preview.
+    fn preview_display_name(&self) -> String {
+        if self.file_path.trim().is_empty() {
+            sharex_strings::image_effects_lib::ImageEffectsWindow_Preview_name().to_owned()
+        } else {
+            std::path::Path::new(&self.file_path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+        }
+    }
+
     /// The preview (`Border` on `ShareX.Brush.Checkered`, the image
     /// `Stretch="Uniform" StretchDirection="DownOnly"`, the error badge).
     fn preview_area(&mut self, ui: &Ui, rect: Rect, live: bool) {
@@ -500,8 +510,8 @@ impl ImageEffectsWindow {
             let tex = pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32));
             ui.painter().with_clip_rect(inner.intersect(ui.clip_rect())).image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
             if live && ui.interact(inner, Id::new("effects-preview"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                // `ImageViewerWindowIntegration.ShowImage`: not ported.
-                self.pending_effects.push(Effect::NotPorted("Image viewer (the preview's click)"));
+                // `ImageViewerWindowIntegration.ShowImage(imageData, displayName, this)`.
+                self.pending_effects.push(Effect::ShowImageNamed(pic.image.clone(), self.preview_display_name()));
             }
         }
         if self.job.busy && !self.job.sync {

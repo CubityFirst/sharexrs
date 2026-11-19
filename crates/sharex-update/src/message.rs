@@ -82,7 +82,7 @@ impl UpdateMessage {
 
 /// The About window's update panel (`AboutWindow`): shown unless
 /// `DisableUpdateCheck`, "Checking for updates..." while the check runs,
-/// then the result. The window isn't ported yet; this is what it shows.
+/// then the result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AboutUpdate {
     /// `UpdatePanel.IsVisible = false`.

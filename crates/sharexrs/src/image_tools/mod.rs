@@ -567,7 +567,9 @@ impl Picture {
 /// `ProgressBar` while loading, and the `ImageComparisonSlider` (only a
 /// `RightImage`, `StretchDirection="DownOnly"`) inside `Margin="12"`; the
 /// 54px image icon when there are no images.
-pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: Option<&mut Picture>, loading: Option<f64>, has_images: bool) {
+/// Returns whether the preview was pressed (`OnPreviewPointerPressed`: the
+/// `Margin="12"` border over it, a hand cursor, the left button).
+pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: Option<&mut Picture>, loading: Option<f64>, has_images: bool) -> bool {
     let p = palette(ui.ctx());
     panel(ui, rect);
     let inner = rect.shrink(1.0);
@@ -586,8 +588,11 @@ pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: O
         text_at(ui, pos2(row.max.x - size_w, center_y(row, line_height(ui, &sf))), size_text, sf, p.text_secondary);
     }
     let body = Rect::from_min_max(pos2(inner.min.x, header.max.y), inner.max);
+    let mut pressed = false;
     if let Some(pic) = preview {
         slider::ComparisonSlider::draw_single(ui, body.shrink(12.0), pic, slider::Stretch::DownOnly);
+        let r = ui.interact(body.shrink(12.0), ui.id().with("preview-press"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        pressed = r.hovered() && ui.input(|i| i.pointer.primary_pressed());
     } else if !has_images {
         let s = 54.0;
         let ir = Rect::from_min_size(pos2(body.min.x + ((body.width() - s) / 2.0).round_ties_even(), body.min.y + ((body.height() - s) / 2.0).round_ties_even()), Vec2::splat(s));
@@ -598,6 +603,14 @@ pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: O
         controls::indeterminate_progress(ui.painter(), bar, t);
         ui.ctx().request_repaint();
     }
+    pressed
+}
+
+/// `ImageViewerWindowIntegration.ShowImage(png, Path.GetFileName(PreviewFilePath), this)`:
+/// the preview in the image viewer, named after its file.
+pub fn show_preview(preview: Option<&Picture>, path: &str) -> Vec<crate::dialogs::Effect> {
+    let name = Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    preview.map(|p| vec![crate::dialogs::Effect::ShowImageNamed(p.image.clone(), name)]).unwrap_or_default()
 }
 
 /// `Border.tool-panel` with the message (`TextWrapping="Wrap"`, secondary):
@@ -755,4 +768,24 @@ pub fn color_picker(ui: &Ui, rect: Rect, id: Id, color: &mut Color32, enabled: b
     }
     ui.ctx().data_mut(|d| d.insert_temp(open_id, open));
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A pressed preview opens the image viewer on it, named after its file.
+    #[test]
+    fn the_preview_goes_to_the_image_viewer() {
+        let pic = Picture::new(image::RgbaImage::from_pixel(3, 2, image::Rgba([1, 2, 3, 255])));
+        let effects = show_preview(Some(&pic), &Path::new("folder").join("shot.png").to_string_lossy());
+        match effects.as_slice() {
+            [crate::dialogs::Effect::ShowImageNamed(image, name)] => {
+                assert_eq!(name, "shot.png");
+                assert_eq!(image, &pic.image);
+            }
+            _ => panic!("expected the image viewer"),
+        }
+        assert!(show_preview(None, "x.png").is_empty());
+    }
 }
