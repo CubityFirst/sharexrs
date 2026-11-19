@@ -70,3 +70,14 @@ Checks from [SCREEN-RECORDING.md](SCREEN-RECORDING.md).
 | REC-04 | Screen recording | Actual WASAPI loopback, microphone device selection and low-latency capture, mixes and meters. | Skipped. Needs real audio input or recording. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
 | REC-05 | Screen recording | Capture a camera in the native recorder, device and mode selection, overlay, encoder and composition fallbacks. | Skipped. Needs a camera. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#left-for-a-desktop-session) |
 | REC-06 | Screen recording | Download FFmpeg. | Skipped. Requires a network download. | Skipped for the same reason. | BLOCKED | [SCREEN-RECORDING.md](SCREEN-RECORDING.md#finding-ffmpeg) |
+
+## Scrolling capture
+
+Checks from [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked).
+
+| ID | Area | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|
+| SCR-01 | Scrolling capture | Use PageDown, ScrollDelay 375 ms, AutoUpload off, over `--test-pattern --scroll 300,120,420,480`. Select the generated page with a click at `500,300`. | “Capture failed” after the first 420×480 viewport. No stitched page. | Same result and dimensions. | PASS | `SX/scrolling-page-down-dark.png`, `RS/scrolling-page-down-dark.png`. Covers the failure path only. The pre-overlay screen guard matched 0.9509 of samples with the generated page over the backdrop. |
+| SCR-02 | Scrolling capture | Inspect the unzoomed 420×480 viewport preview from SCR-01 on the 125% display. | Displays the image at 525×600 physical pixels inside the preview. | Displays the image at 420×480 physical pixels inside the preview. | FAIL | Same shots as SCR-01. Compare the image rectangle within each window, excluding surrounding panel. |
+| SCR-03 | Scrolling capture | Scroll by `WM_VSCROLL`. | The supplied test pattern page handles wheel and keys and has no native scroll bar to receive this message. | Same fixture limitation. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
+| SCR-04 | Scrolling capture | Open Help. | Skipped. Opens a web page. | Skipped for the same reason. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
