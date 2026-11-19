@@ -732,7 +732,7 @@ impl App {
             Some(g) => Ok(g),
             None => Gpu::new().map(|g| &*self.gpu.insert(g)),
         }
-        .and_then(|gpu| TransparentRegion::open(event_loop, gpu, &screens, bounds));
+        .and_then(|gpu| TransparentRegion::open(event_loop, gpu, &screens, bounds, options.ActiveMonitorMode));
         match opened {
             Ok(region) => self.transparent = Some(Transparent { region, task, hidden }),
             Err(e) => {

@@ -929,3 +929,34 @@ pub fn search_window(title: &str) -> isize {
         .find(|w| w.title.to_lowercase().contains(&needle))
         .map_or(0, |w| w.handle)
 }
+
+/// `Helpers.LockCursorToWindow`'s `NativeMethods.ClipCursor`: keeps the
+/// pointer inside the window's rectangle (`GetWindowRect`), or frees it.
+pub fn clip_cursor_to_window(handle: Option<isize>) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ClipCursor, GetWindowRect};
+    match handle {
+        Some(h) => {
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            // SAFETY: `r` is a valid RECT to fill and then read.
+            unsafe {
+                if GetWindowRect(h as HWND, &mut r) != 0 && r.right > r.left && r.bottom > r.top {
+                    ClipCursor(&r);
+                }
+            }
+        }
+        // SAFETY: a null rectangle frees the pointer.
+        None => unsafe {
+            ClipCursor(std::ptr::null());
+        },
+    }
+}
+
+/// `GetClipCursor`: the rectangle the pointer is kept in (the virtual
+/// screen when it's free).
+pub fn cursor_clip() -> Rect {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClipCursor;
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    // SAFETY: `r` is a valid RECT to fill.
+    unsafe { GetClipCursor(&mut r) };
+    Rect::new(r.left, r.top, r.right - r.left, r.bottom - r.top)
+}

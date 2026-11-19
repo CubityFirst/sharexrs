@@ -58,6 +58,8 @@ pub struct TransparentRegion {
     selection: Option<Rect>,
     /// Where the pointer is, desktop pixels.
     pointer: Option<(i32, i32)>,
+    /// `lockCursorToWindow` (active monitor mode).
+    cursor_lock: Option<sharex_capture::CursorLock>,
 }
 
 /// `CaptureHelpers.CreateRectangle`: the rectangle between two pixels,
@@ -109,6 +111,7 @@ impl TransparentRegion {
         #[allow(unused_variables)] gpu: &sharex_ui::gpu::Gpu,
         screens: &[Screen],
         screen_bounds: Rect,
+        lock_cursor: bool,
     ) -> Result<Self, String> {
         let mut surfaces = Vec::new();
         for screen in screens.iter().filter(|s| !s.bounds.intersect(&screen_bounds).is_empty()) {
@@ -158,7 +161,11 @@ impl TransparentRegion {
             suppress_right_release: false,
             selection: None,
             pointer: platform::cursor_position(),
+            cursor_lock: None,
         };
+        if lock_cursor {
+            me.cursor_lock = me.surfaces.first().map(|s| sharex_capture::CursorLock::new(platform::window_handle(s.window())));
+        }
         let crosshair = sharex_capture::region::cursors::CustomCursor::Crosshair;
         for i in 0..me.surfaces.len() {
             me.draw(i);
@@ -297,6 +304,11 @@ impl TransparentRegion {
                         }
                     }
                     _ => {}
+                }
+            }
+            WindowEvent::Focused(focused) => {
+                if let Some(lock) = self.cursor_lock.as_mut() {
+                    lock.focused(focused);
                 }
             }
             #[cfg(not(windows))]

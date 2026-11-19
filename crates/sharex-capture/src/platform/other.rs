@@ -238,3 +238,7 @@ pub fn search_window(title: &str) -> isize {
         .or_else(|| windows.iter().find(|w| w.title.to_lowercase().contains(&needle)))
         .map_or(0, |w| w.handle)
 }
+
+/// ShareX locks the pointer to the overlay on Windows only
+/// (`Helpers.LockCursorToWindow`).
+pub fn clip_cursor_to_window(_handle: Option<isize>) {}

@@ -74,3 +74,43 @@ pub struct CursorImage {
     pub image: image::RgbaImage,
     pub position: (i32, i32),
 }
+
+/// `Helpers.LockCursorToWindow`: while the window is active the pointer
+/// stays inside it (Windows; elsewhere nothing, as in ShareX). The overlay
+/// in active monitor mode holds one; dropping it frees the pointer (the
+/// window closed).
+#[derive(Debug)]
+pub struct CursorLock {
+    handle: Option<isize>,
+    locked: bool,
+}
+
+impl CursorLock {
+    pub fn new(handle: Option<isize>) -> Self {
+        Self { handle, locked: false }
+    }
+
+    /// `Activated` / `Deactivated`.
+    pub fn focused(&mut self, focused: bool) {
+        if focused && self.handle.is_some() {
+            platform::clip_cursor_to_window(self.handle);
+            self.locked = true;
+        } else if !focused && self.locked {
+            platform::clip_cursor_to_window(None);
+            self.locked = false;
+        }
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.locked
+    }
+}
+
+impl Drop for CursorLock {
+    /// `Closed`.
+    fn drop(&mut self) {
+        if self.locked {
+            platform::clip_cursor_to_window(None);
+        }
+    }
+}
