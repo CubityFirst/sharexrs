@@ -29,6 +29,10 @@ cargo run --release -p sharex-tools --example tools_validate -- tools/tools-harn
 remover cases need ONNX Runtime on the Rust side too: set `ORT_DYLIB_PATH`
 to ShareX's `onnxruntime.dll` (they're skipped without it).
 
+Every harness run rewrites `inputs/`, whatever the case prefix. The
+metadata cases read the files' modified times, so after running only some
+prefixes, run `meta-` again before comparing it.
+
 The last step runs every case through the Rust port, writes `<work>/sharexrs/*`
 and `<work>/report.md`: per tool, how many cases are exact (byte for byte, or
 the same values), pixel-exact (same decoded pixels, different encoder bytes),
