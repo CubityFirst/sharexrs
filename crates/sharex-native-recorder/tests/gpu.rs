@@ -89,6 +89,16 @@ fn camera_samples_match_memory_frames() {
         return;
     }
     let time = Arc::new(SystemTime);
+    // The camera overlay needs the D3D11 video processor, which a software
+    // device (CI's runners) can create media on without: skip there too.
+    {
+        let probe = SyntheticCamera::new(time.clone(), 160, 120, 30.0, CameraPixelFormat::Nv12);
+        let overlay = GpuMedia::new(&o, 320, 240, 0).and_then(|mut m| m.create_camera_overlay(probe.mode(), &o));
+        if let Err(e) = overlay {
+            eprintln!("skipped: no D3D11 video processor for the camera overlay ({e})");
+            return;
+        }
+    }
     for (format, bottom_up) in [(CameraPixelFormat::Nv12, false), (CameraPixelFormat::Yuy2, false), (CameraPixelFormat::Rgb32, false), (CameraPixelFormat::Rgb32, true)] {
         let (w, h) = (160, 120);
         let mut cam = SyntheticCamera::new(time.clone(), w, h, 30.0, format);
