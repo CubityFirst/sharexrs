@@ -603,6 +603,8 @@ pub struct TextBox<'a> {
     /// A `FontFamily`/`FontSize` of its own (the monospace response boxes);
     /// [`TextBox::font`] otherwise.
     pub font: Option<FontId>,
+    /// `TextAlignment="Center"`.
+    pub centered: bool,
 }
 
 impl Default for TextBox<'_> {
@@ -618,6 +620,7 @@ impl Default for TextBox<'_> {
             wrap: false,
             links: None,
             font: None,
+            centered: false,
         }
     }
 }
@@ -715,6 +718,9 @@ impl TextBox<'_> {
             .min_size(edit_rect.size())
             .password(self.password)
             .interactive(self.enabled);
+        if self.centered {
+            edit = edit.horizontal_align(egui::Align::Center);
+        }
         if !self.placeholder.is_empty() && empty {
             // `PART_Placeholder`: a `TextBlock` of its own (ShareX's SemiBold
             // Segoe UI), centred in the content like the text, in

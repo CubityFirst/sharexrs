@@ -10,6 +10,9 @@ use sharex_skia::raster::{Canvas, Rect, Sampling};
 
 const INVALID: &str = "AnimatedGifTrimmer_InvalidGif";
 
+/// `EndOfStreamException`'s message (.NET's `IO_EOF_ReadBeyondEOF`).
+const END_OF_STREAM: &str = "Unable to read beyond the end of the stream.";
+
 fn invalid() -> String {
     sharex_strings::tools::lookup(INVALID).unwrap_or("Invalid GIF").to_string()
 }
@@ -58,13 +61,13 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn byte(&mut self) -> Result<u8, String> {
-        let b = *self.d.get(self.pos).ok_or("end of stream")?;
+        let b = *self.d.get(self.pos).ok_or(END_OF_STREAM)?;
         self.pos += 1;
         Ok(b)
     }
     fn take(&mut self, n: usize) -> Result<&[u8], String> {
         if self.pos + n > self.d.len() {
-            return Err("end of stream".into());
+            return Err(END_OF_STREAM.into());
         }
         let s = &self.d[self.pos..self.pos + n];
         self.pos += n;
@@ -72,7 +75,7 @@ impl Reader<'_> {
     }
     fn skip(&mut self, n: usize) -> Result<(), String> {
         if n > self.d.len() - self.pos {
-            return Err("end of stream".into());
+            return Err(END_OF_STREAM.into());
         }
         self.pos += n;
         Ok(())
@@ -527,6 +530,10 @@ pub struct AnimatedGifTrimmerDocument {
     starts: Vec<i64>,
 }
 
+/// The error an export stopped by its cancellation flag returns
+/// (`OperationCanceledException`).
+pub const CANCELLED: &str = "The operation was canceled.";
+
 /// What `Export` did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExportResult {
@@ -619,7 +626,23 @@ impl AnimatedGifTrimmerDocument {
         reencode: bool,
         crop: CropRect,
         size: (i32, i32),
+        progress: Option<&mut dyn FnMut(f64)>,
+    ) -> Result<ExportResult, String> {
+        self.export_bytes_cancellable(first, end_exclusive, reencode, crop, size, progress, None)
+    }
+
+    /// [`Self::export_bytes`] that stops with [`CANCELLED`] once `cancel`
+    /// is set (`cancellationToken.ThrowIfCancellationRequested` per frame).
+    #[allow(clippy::too_many_arguments)]
+    pub fn export_bytes_cancellable(
+        &self,
+        first: usize,
+        end_exclusive: usize,
+        reencode: bool,
+        crop: CropRect,
+        size: (i32, i32),
         mut progress: Option<&mut dyn FnMut(f64)>,
+        cancel: Option<&std::sync::atomic::AtomicBool>,
     ) -> Result<ExportResult, String> {
         if end_exclusive > self.frame_count() || first >= end_exclusive {
             return Err("Specified argument was out of the range of valid values. (Parameter 'firstFrame')".into());
@@ -636,7 +659,7 @@ impl AnimatedGifTrimmerDocument {
             return Ok(ExportResult::NeedsReencode);
         }
         if reencode {
-            return Ok(ExportResult::Written(self.reencode(first, end_exclusive, crop, size, transform, &mut progress)));
+            return Ok(ExportResult::Written(self.reencode(first, end_exclusive, crop, size, transform, &mut progress, cancel)?));
         }
         let out = self.gif.copy(&self.bytes, first, end_exclusive)?;
         if let Some(p) = progress.as_mut() {
@@ -664,6 +687,24 @@ impl AnimatedGifTrimmerDocument {
         size: (i32, i32),
         progress: Option<&mut dyn FnMut(f64)>,
     ) -> Result<bool, String> {
+        self.export_cancellable(source_path, output, first, end_exclusive, reencode, crop, size, progress, None)
+    }
+
+    /// [`Self::export`] that stops with [`CANCELLED`], writing nothing,
+    /// once `cancel` is set.
+    #[allow(clippy::too_many_arguments)]
+    pub fn export_cancellable(
+        &self,
+        source_path: &str,
+        output: &str,
+        first: usize,
+        end_exclusive: usize,
+        reencode: bool,
+        crop: CropRect,
+        size: (i32, i32),
+        progress: Option<&mut dyn FnMut(f64)>,
+        cancel: Option<&std::sync::atomic::AtomicBool>,
+    ) -> Result<bool, String> {
         let full = |p: &str| std::path::absolute(p).map(|p| p.to_string_lossy().to_lowercase()).unwrap_or_default();
         if full(source_path) == full(output) {
             return Err(lookup("AnimatedGifTrimmer_SourceOverwrite", "The output file can't be the source GIF."));
@@ -672,7 +713,7 @@ impl AnimatedGifTrimmerDocument {
         if !out_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("gif")) {
             return Err(lookup("AnimatedGifTrimmer_OutputExtension", "The output file must be a GIF."));
         }
-        let bytes = match self.export_bytes(first, end_exclusive, reencode, crop, size, progress)? {
+        let bytes = match self.export_bytes_cancellable(first, end_exclusive, reencode, crop, size, progress, cancel)? {
             ExportResult::Written(b) => b,
             ExportResult::NeedsReencode => return Ok(false),
         };
@@ -704,10 +745,14 @@ impl AnimatedGifTrimmerDocument {
         size: (i32, i32),
         transform: bool,
         progress: &mut Option<&mut dyn FnMut(f64)>,
-    ) -> Vec<u8> {
+        cancel: Option<&std::sync::atomic::AtomicBool>,
+    ) -> Result<Vec<u8>, String> {
         let mut creator =
             crate::gif::AnimatedGifCreator::new(self.gif.delay(first) * 10, self.gif.repeat_count, self.gif.looping);
         for i in first..end_exclusive {
+            if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed)) {
+                return Err(CANCELLED.into());
+            }
             let frame = self.image.frame(i);
             let frame = if transform { crop_and_resize(&frame, crop, size) } else { frame };
             let image = imaging::quantize(&frame, GifQuality::Adaptive);
@@ -716,7 +761,7 @@ impl AnimatedGifTrimmerDocument {
                 p((i - first + 1) as f64 / (end_exclusive - first) as f64 * 100.0);
             }
         }
-        creator.finish()
+        Ok(creator.finish())
     }
 
     /// `FirstFrameMatches`: the cut's first frame equals the source frame.
@@ -909,6 +954,18 @@ impl TrimSelection {
         let name = crate::dotnet::file_name(input);
         let stem = name.rfind('.').map_or(name, |i| &name[..i]);
         format!("{stem}-trimmed.gif")
+    }
+
+    /// `ExportAsync`'s call with its cancellation token.
+    pub fn export_cancellable(
+        &self,
+        doc: &AnimatedGifTrimmerDocument,
+        source_path: &str,
+        output: &str,
+        progress: Option<&mut dyn FnMut(f64)>,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> Result<bool, String> {
+        doc.export_cancellable(source_path, output, self.start_index, self.end_index, self.reencode, self.crop, self.output_size(), progress, Some(cancel))
     }
 
     /// `ExportAsync`'s call: [`AnimatedGifTrimmerDocument::export`] with this

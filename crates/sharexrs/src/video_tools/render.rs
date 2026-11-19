@@ -13,17 +13,22 @@
 //!   `progress` (at `--count` of 9), `results` (a real run into `--text`,
 //!   uploads off), `invalid` (a run on a file FFmpeg can't read)).
 //!
+//! - `gif-trimmer` (`--image <gif>`, `--state trimmed` (frames 2 to 5),
+//!   `crop` (a crop of the middle half), `resize-reencode` (half size),
+//!   `exporting` (at `--count` percent), `saved` (written to `--text`),
+//!   `invalid`; `--select N` steps to frame N).
+//!
 //! Previews are made at once, on the drawing thread.
 
 use sharex_settings::TaskSettings;
 use sharex_tools::video::converter::Codec;
 
-use super::{converter, gif_maker, thumbnailer};
+use super::{converter, gif_maker, gif_trimmer, thumbnailer};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "gif-maker" | "video-converter" | "video-thumbnailer")
+    matches!(name, "gif-maker" | "gif-trimmer" | "video-converter" | "video-thumbnailer")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -96,6 +101,16 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 }
                 other => return Err(format!("no video-thumbnailer state {other}")),
             }
+            Box::new(w)
+        }
+        "gif-trimmer" => {
+            let mut w = gif_trimmer::AnimatedGifTrimmerWindow::new(TaskSettings::default(), None);
+            w.set_sync();
+            if let Some(p) = &o.image {
+                w.load_input(&p.to_string_lossy());
+                w.poll(&egui::Context::default());
+            }
+            w.render_state(state, o.select.first().copied(), o.count as f64, o.text.as_deref())?;
             Box::new(w)
         }
         other => return Err(format!("no video tool window {other}")),

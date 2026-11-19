@@ -6,9 +6,11 @@
 
 pub mod converter;
 pub mod gif_maker;
+pub mod gif_trimmer;
 pub mod open;
 pub mod render;
 pub mod thumbnailer;
+pub mod timeline;
 
 use egui::{Color32, Rect, Ui, pos2};
 
@@ -34,4 +36,12 @@ pub fn draw_image(ui: &Ui, area: Rect, pic: &mut Picture) -> Rect {
     let tex = pic.texture(ui.ctx(), size);
     ui.painter().image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     dest
+}
+
+/// `TaskHelpers.PlayNotificationSoundAsync(NotificationSound.ActionCompleted,
+/// taskSettings)`: the action sound, unless the task turns it off.
+pub fn action_sound(task: &sharex_settings::TaskSettings) {
+    if task.GeneralSettings.as_ref().is_none_or(|g| g.PlaySoundAfterAction) {
+        crate::sound::play_action_completed();
+    }
 }
