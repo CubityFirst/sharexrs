@@ -695,6 +695,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
             for &i in &cleared {
                 hotkeys[i].HotkeyInfo = sharex_settings::HotkeyInfo::default();
             }
+            // `--state custom:N`: hotkey N overrides its after capture tasks,
+            // so it shows the "custom settings" mark.
+            if let Some(i) = dialog.state.as_deref().and_then(|st| st.strip_prefix("custom:")).and_then(|n| n.parse::<usize>().ok())
+                && let Some(h) = hotkeys.get_mut(i)
+            {
+                h.TaskSettings.UseDefaultAfterCaptureJob = false;
+            }
             let mut state = crate::hotkey_settings::HotkeySettingsWindow::default();
             state.selected = select.first().copied();
             state.reset_confirmation = hk_reset;
