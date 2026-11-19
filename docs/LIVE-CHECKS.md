@@ -456,3 +456,49 @@ ShareXrs uses `81fab7e` for this group.
 | DROP3-02 | 120 (125%) | With `DisableUpload=true`, repeat with the scratch source's Unicode text `Pass 3 generated drop text`. | Dims the client and shows the Release to upload text card and text description. | Same card, text, icon and dimming. | PASS | `pass3-drop-text-hover-dark.png` in SX and RS. Both drops returned OLE Copy. |
 | DROP3-03 | 120 (125%) | Complete DROP3-01 and DROP3-02 by releasing the generated file and text on the main client with `DisableUpload=true`. | Opens an upload-disabled modal after each release. | Shows a task toast and logs the upload-disabled warning after each release. No modal appears. | FAIL | `SX/pass3-drop-disabled-modal-{991798,5579242}-dark.png`. ShareXrs logged the warning twice and showed a separate toast HWND each time. The drag runs used disabled uploads before the loopback mock started. |
 | UPL3-01 | 120 (125%) | Custom uploader settings › Test › Text uploader. Use the sole generated uploader, with a form POST to `http://127.0.0.1:38353/pass3`. Configure `{select}` with Alpha and Beta, `{inputbox}` with a title and default, and `{outputbox}` plus `{response}` as the result expression. Submit the test sample, select Beta, enter `generated parser input` and dismiss the output box. | Shows the two choices, the selected default input and the generated output text. Response shows `http://127.0.0.1:38353/result`. | Same choices, prompts, request and response. The Select client is 250×123 versus 250×128 px. | PASS | `pass3-uploader-{select-initial,inputbox,outputbox,response}-dark.png` in SX and RS. The mock received two identical bodies, `choice=Beta&input=generated+parser+input`. |
+
+
+### Pass 3 coverage and teardown
+
+Pass 3 recorded **24 PASS, 2 FAIL and 2 BLOCKED**. Fourteen of the
+fifteen requested Pass 1 re-checks passed. DAT-04a remains blocked by
+the picker startup location. The two failures came from the new
+drop and hotkey tooltip checks. VID-11 retains its accepted status.
+The eight Pass 2 failures under separate repair were excluded.
+
+One recording preflight and two scrolling startup grabs failed their
+pattern thresholds and were deleted unviewed. Successful recording
+and save regions passed at 1.0000. The valid FFmpeg baseline was
+repeated after the initial fixture interpreted `None` as a nonexistent
+DirectShow device name. It produced no media on that attempt. The
+corrected fixture used an empty audio source and both old output files
+contained only video. The first ShareX invalid-trimmer attempt showed
+`oldValue has incorrect type for this property`. The configured repeat
+produced the Media Foundation code recorded above.
+
+ShareXrs Scrolling capture initially stayed minimized after forwarding
+the CLI job with the pattern in front. Forwarding the job again reached
+the verified overlay on the completed run. A subsequent reset attempt
+did not present a safe selection target in time. Its test window and
+pending overlay were closed by HWND. The reference save task completed
+with its default filename. The optional custom-name repeat was canceled
+when focus could not be verified. The loopback File test rejected
+`FormURLEncoded` before sending a request, so the reported parser check
+uses the Text test. The fixture's startup icon prompt and app dialogs
+omitted by the input window list were handled with the verified window
+identity.
+
+The original ShareX PID 36232 and the portable test instances exited
+through `-ExitShareX`. All 13 original portable profile files matched
+their SHA-256 backup before restart. The reference restarted without
+arguments as **PID 53424**. A temporary `AutoCheckUpdate=false` value
+suppressed its startup check, then the exact original config bytes
+were restored. The startup hotkey warning was dismissed and the main
+window was the only remaining reference window. The final verification
+found 12 unchanged hashes and the original monthly log bytes followed
+by 2,663 bytes from startup.
+
+The scratch profiles, backup, pattern, drag source and loopback server
+were removed or exited. The clipboard offered zero formats. The 97
+new PrintWindow PNGs and their DPI sidecars passed hash verification.
+Both offline builds and the macOS Clippy check completed.
