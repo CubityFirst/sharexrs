@@ -60,6 +60,36 @@ fn smtp_error(message: impl Into<String>) -> UploadError {
     UploadError::Exception(message.into())
 }
 
+/// Whether a TLS handshake failed on the server's certificate, in the
+/// words each platform's TLS uses: SChannel ("The certificate chain was
+/// issued by an authority that is not trusted", "The target principal name
+/// is incorrect"), Security.framework ("The certificate was not trusted")
+/// and OpenSSL ("certificate verify failed").
+fn is_certificate_error(detail: &str) -> bool {
+    let d = detail.to_ascii_lowercase();
+    d.contains("certificate") || d.contains("principal name")
+}
+
+#[cfg(test)]
+mod certificate_error_tests {
+    use super::is_certificate_error;
+
+    #[test]
+    fn certificate_failures_are_told_from_others() {
+        for cert in [
+            "The certificate chain was issued by an authority that is not trusted. (os error -2146762487)",
+            "The target principal name is incorrect. (os error -2146893022)",
+            "The certificate was not trusted.",
+            "error:0A000086:SSL routines:tls_post_process_server_certificate:certificate verify failed",
+        ] {
+            assert!(is_certificate_error(cert), "{cert}");
+        }
+        for other in ["An existing connection was forcibly closed by the remote host. (os error 10054)", "connection reset", "timed out"] {
+            assert!(!is_certificate_error(other), "{other}");
+        }
+    }
+}
+
 const INVALID_ADDRESS: &str = "The specified string is not in the form required for an e-mail address.";
 
 /// `new MailAddress(text)` for plain addresses (`local@domain`); a list
@@ -444,9 +474,18 @@ pub fn send_mail(settings: &EmailSettings, to: &str, subject: &str, body: &str, 
         .danger_accept_invalid_hostnames(ACCEPT_INVALID_CERTS.load(Ordering::SeqCst))
         .build()
         .map_err(|e| smtp_error(e.to_string()))?;
-    let tls = connector
-        .connect(&settings.smtp_server, stream)
-        .map_err(|_| smtp_error("Failure sending mail. The remote certificate is invalid according to the validation procedure."))?;
+    let tls = connector.connect(&settings.smtp_server, stream).map_err(|e| {
+        // .NET's `SmtpClient` says the certificate is invalid only when it
+        // is (`AuthenticationException`); any other handshake failure (the
+        // connection reset, a timeout) is just "Failure sending mail.".
+        let detail = e.to_string();
+        eprintln!("Email: TLS handshake with {} failed: {detail}", settings.smtp_server);
+        if is_certificate_error(&detail) {
+            smtp_error("Failure sending mail. The remote certificate is invalid according to the validation procedure.")
+        } else {
+            smtp_error("Failure sending mail.")
+        }
+    })?;
     s = Smtp { reader: BufReader::new(Conn::Tls(Box::new(tls))) };
     let ehlo = s.send(&format!("EHLO {client_domain}"))?;
     let auth_login = ehlo.lines.iter().any(|l| {
