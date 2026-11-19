@@ -160,7 +160,9 @@ enum MenuCmd {
     Task(HotkeyType),
     AfterCapture(&'static str),
     AfterUpload(&'static str),
-    Destination,
+    /// A destination (`BuildDestinationsMenu(settings)`'s command on the
+    /// edited task settings).
+    Destination(crate::main_menu::MenuCommand),
 }
 
 /// The window's own state (`TaskSettingsViewModel`, the page builder's
@@ -463,7 +465,9 @@ impl TaskSettingsWindow {
                         t.AfterUploadJob = v;
                     }
                 }
-                MenuCmd::Destination => self.effects.push(Effect::NotPorted("destinations")),
+                MenuCmd::Destination(c) => {
+                    crate::menu_settings::apply(t, &c);
+                }
             }
         }
         if out.closed || outside || out.command.is_some() {
@@ -923,10 +927,14 @@ fn page_task(f: &mut Form) {
         }
         let text = format!("{}...", s::TaskSettingsWindow_Destinations());
         if let Some(anchor) = f.menu_button(None, "destinations", icon::Destinations, &text, 300.0, true, o) {
-            let entries = crate::main_menu::destinations_menu(&crate::main_menu::MenuState::default());
+            // `MainMenuBuilder.BuildDestinationsMenu(settings)` on the edited
+            // task settings.
+            let mut state = crate::main_menu::MenuState::default();
+            crate::menu_settings::fill(&mut state, f.s.task);
+            let entries = crate::main_menu::destinations_menu(&state);
             // `CreateDestinationMenuItem` takes the entry's `Header` alone:
             // no accent on the selected service's name, as the main menu has.
-            let entries = destination_items(map_entries(entries, &|_| MenuCmd::Destination));
+            let entries = destination_items(map_entries(entries, &MenuCmd::Destination));
             f.w.menu = Some(Flyout::menu(Id::new("destinations-flyout"), entries, anchor, Placement::BottomEdgeAlignedLeft));
         }
     });
@@ -987,6 +995,9 @@ fn destination_items<C: Clone>(entries: Vec<MenuEntry<C>>) -> Vec<MenuEntry<C>> 
         .into_iter()
         .map(|mut e| {
             e.accent = None;
+            // Neither `StaysOpenOnClick` nor `BoldWhenChecked` carry over.
+            e.stays_open = false;
+            e.bold_when_checked = false;
             // `CreateAccentMenuIcon`: 16px in an 18-wide box, in Fluent's
             // 16x16 icon `Viewbox`.
             if let sharex_ui::menu::MenuIcon::Key(k) = e.icon {
