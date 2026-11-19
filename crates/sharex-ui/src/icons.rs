@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use egui::{Color32, ColorImage, Painter, Rect, TextureHandle, TextureOptions, Ui, Vec2, pos2};
+use egui::{Color32, ColorImage, Painter, Pos2, Rect, TextureHandle, TextureOptions, Ui, Vec2, pos2};
 use include_dir::{Dir, include_dir};
 
 static ICONS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/icons");
@@ -92,6 +92,26 @@ pub fn image(key: &str, side: u32, color: Color32) -> Option<image::RgbaImage> {
         *dst = image::Rgba(p.to_srgba_unmultiplied());
     }
     Some(out)
+}
+
+/// Whether icon `key` drawn in `rect` paints the pixel under `pos`: Avalonia
+/// hit-tests a control without a background (ShareX's `IconPresenter`, a
+/// `Grid` with no `Background`) only where it draws, so an outline icon is
+/// "under the pointer" on its strokes, not between them, and a tooltip set
+/// on it opens only there.
+pub fn painted_at(ctx: &egui::Context, key: &str, rect: Rect, pos: Pos2) -> bool {
+    if !rect.contains(pos) {
+        return false;
+    }
+    let ppp = ctx.pixels_per_point();
+    let side = (rect.width() * ppp).round().max(1.0) as u32;
+    type Masks = Arc<Mutex<HashMap<(String, u32, IconPack), Option<Arc<image::RgbaImage>>>>>;
+    let masks: Masks = ctx.data_mut(|d| d.get_temp_mut_or_default::<Masks>(egui::Id::new("sharex-icon-masks")).clone());
+    let mask = masks.lock().unwrap().entry((key.to_string(), side, pack())).or_insert_with(|| image(key, side, Color32::WHITE).map(Arc::new)).clone();
+    let Some(mask) = mask else { return false };
+    let x = (((pos.x - rect.min.x) * ppp).floor() as u32).min(side - 1);
+    let y = (((pos.y - rect.min.y) * ppp).floor() as u32).min(side - 1);
+    mask.get_pixel(x, y)[3] > 0
 }
 
 type Cache = Arc<Mutex<HashMap<(String, u32, IconPack, bool, Option<[u8; 3]>), Option<(TextureHandle, bool)>>>>;
@@ -308,6 +328,18 @@ pub fn show(ui: &mut Ui, key: &str, size: f32, color: Color32) -> egui::Response
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An outline icon is hit on its strokes only (HOT3-02).
+    #[test]
+    fn an_outline_icon_is_hit_on_its_strokes() {
+        let ctx = egui::Context::default();
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), Vec2::splat(19.0));
+        let key = crate::keys::app_icons::CircleDashed;
+        assert!(!painted_at(&ctx, key, rect, pos2(9.5, 9.5)));
+        let rim = (0..19).flat_map(|x| (0..19).map(move |y| pos2(x as f32 + 0.5, y as f32 + 0.5))).filter(|p| painted_at(&ctx, key, rect, *p)).count();
+        assert!(rim > 0 && rim < 19 * 19 / 2, "{rim}");
+        assert!(!painted_at(&ctx, key, rect, pos2(30.0, 9.5)));
+    }
 
     #[test]
     fn every_modern_icon_rasterizes() {
