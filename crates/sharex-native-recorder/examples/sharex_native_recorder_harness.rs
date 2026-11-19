@@ -17,6 +17,7 @@ mod synthetic;
 mod compare;
 
 #[path = "harness_hardware/mod.rs"]
+#[cfg_attr(not(windows), allow(dead_code))]
 mod hardware;
 
 use std::path::Path;

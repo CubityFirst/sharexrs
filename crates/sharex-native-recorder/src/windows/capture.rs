@@ -377,6 +377,8 @@ mod tests {
 
     #[test]
     fn a_closed_window_is_refused() {
+        // WinRT needs this thread in the MTA, as the recording worker is (`open` joins it).
+        let _com = ComSession::start(false).unwrap();
         let mut o = RecordingOptions::new("a.mp4");
         // A handle no window has.
         o.window_handle = 0x7FFF_FFF0;

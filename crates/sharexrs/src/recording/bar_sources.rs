@@ -373,12 +373,14 @@ mod tests {
 
     #[test]
     fn preview_tile_as_sharex() {
-        let mut c = TaskSettingsCapture::default();
-        c.ScreenRecordCameraWidthPercent = 20;
-        c.ScreenRecordCameraMargin = 16;
-        c.ScreenRecordCameraPosition = CameraOverlayPosition::BottomRight;
-        c.ScreenRecordCameraShape = CameraOverlayShape::Rectangle;
-        c.ScreenRecordCameraResolution = CameraCaptureResolution::Size1280x720;
+        let mut c = TaskSettingsCapture {
+            ScreenRecordCameraWidthPercent: 20,
+            ScreenRecordCameraMargin: 16,
+            ScreenRecordCameraPosition: CameraOverlayPosition::BottomRight,
+            ScreenRecordCameraShape: CameraOverlayShape::Rectangle,
+            ScreenRecordCameraResolution: CameraCaptureResolution::Size1280x720,
+            ..Default::default()
+        };
         assert_eq!(layout_tile(&c, (1920, 1080)), sharex_capture::Rect::new(1920 - 16 - 384, 1080 - 16 - 216, 384, 216));
         c.ScreenRecordCameraResolution = CameraCaptureResolution::Size640x480;
         assert_eq!(layout_tile(&c, (1920, 1080)).h, 288);

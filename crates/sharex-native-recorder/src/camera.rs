@@ -182,6 +182,7 @@ pub const DECODED_FORMATS: [CameraPixelFormat; 3] = [CameraPixelFormat::Nv12, Ca
 /// `ReadSelectedFormat`'s defaults: the stride (`MF_MT_DEFAULT_STRIDE` when
 /// set and non-zero, else `bitmap_stride`), the YUV matrix (BT.709 above 576
 /// lines) and the range (limited).
+#[allow(clippy::too_many_arguments)]
 pub fn selected_mode(name: &str, format: CameraPixelFormat, frame_size: u64, frame_rate: u64, default_stride: Option<u32>, bitmap_stride: i32, yuv_matrix: Option<u32>, nominal_range: Option<u32>) -> CameraMode {
     let (width, height) = ((frame_size >> 32) as i32, frame_size as i32);
     let fps = (frame_rate >> 32) as f64 / (frame_rate as u32).max(1) as f64;
@@ -379,12 +380,12 @@ mod tests {
         assert_eq!(mode_score(&mode(CameraSubtype::Yuy2, 1280, 720, 60, 1), req, 30), Some(2.0));
         // 30000/1001.
         let s = mode_score(&mode(CameraSubtype::Nv12, 1280, 720, 30000, 1001), req, 30).unwrap();
-        assert_eq!(s, ((30.0 - 30000.0 / 1001.0) as f64).abs() / 30.0);
+        assert_eq!(s, (30.0f64 - 30000.0 / 1001.0).abs() / 30.0);
         // A zero denominator counts as 1.
         assert_eq!(mode(CameraSubtype::Nv12, 2, 2, 15, 0).fps(), 15.0);
         // 640x480 for 720p: log of the area ratio twice plus the aspect difference plus the rate.
         let s = mode_score(&mode(CameraSubtype::Rgb32, 640, 480, 15, 1), req, 30).unwrap();
-        assert_eq!(s, ((640.0 * 480.0) / (1280.0 * 720.0) as f64).ln().abs() * 2.0 + (640.0 / 480.0 - 1280.0 / 720.0 as f64).abs() + 0.5);
+        assert_eq!(s, ((640.0f64 * 480.0) / (1280.0 * 720.0)).ln().abs() * 2.0 + (640.0f64 / 480.0 - 1280.0 / 720.0).abs() + 0.5);
         // Skipped: odd, tiny, too large, other subtypes.
         assert_eq!(mode_score(&mode(CameraSubtype::Nv12, 1281, 720, 30, 1), req, 30), None);
         assert_eq!(mode_score(&mode(CameraSubtype::Nv12, 0, 720, 30, 1), req, 30), None);

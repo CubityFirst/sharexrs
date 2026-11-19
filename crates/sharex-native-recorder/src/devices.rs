@@ -120,10 +120,8 @@ mod tests {
     /// Read-only enumeration: whatever the machine has, including nothing.
     #[test]
     fn enumeration_tolerates_any_result() {
-        for list in [microphones(), system_audio_devices()] {
-            if let Ok(devices) = list {
-                assert!(devices.iter().all(|d| !d.id.is_empty()));
-            }
+        for devices in [microphones(), system_audio_devices()].into_iter().flatten() {
+            assert!(devices.iter().all(|d| !d.id.is_empty()));
         }
         if let Ok(cameras) = cameras() {
             assert!(cameras.iter().all(|c| !c.id.is_empty()));

@@ -18,7 +18,6 @@ use std::thread::JoinHandle;
 
 use windows::Win32::Foundation::{CloseHandle, HANDLE, RPC_E_CHANGED_MODE, WAIT_OBJECT_0};
 use windows::Win32::Media::Audio::*;
-use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
 use windows::Win32::System::Com::{CLSCTX_ALL, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateGuid, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, STGM_READ};
 use windows::Win32::System::Threading::{AvRevertMmThreadCharacteristics, AvSetMmThreadCharacteristicsW, CreateEventW, INFINITE, SetEvent, WaitForMultipleObjects};
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
@@ -143,9 +142,9 @@ fn describe(device: &IMMDevice) -> windows::core::Result<AudioCaptureDevice> {
         let id = raw.to_string();
         CoTaskMemFree(Some(raw.0 as *const _));
         let store = device.OpenPropertyStore(STGM_READ)?;
-        let mut value = store.GetValue(&PKEY_Device_FriendlyName)?;
+        // The PROPVARIANT clears itself when dropped.
+        let value = store.GetValue(&PKEY_Device_FriendlyName)?;
         let name = value.to_string();
-        let _ = PropVariantClear(&mut value as *mut _ as *mut _);
         Ok(AudioCaptureDevice { id: id.map_err(|_| windows::core::Error::from_hresult(windows::Win32::Foundation::E_FAIL))?, name })
     }
 }

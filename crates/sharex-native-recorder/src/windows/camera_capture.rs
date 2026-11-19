@@ -130,6 +130,10 @@ struct State {
     started: bool,
 }
 
+// SAFETY: Media Foundation's source reader and samples are free threaded; the state is only
+// used under its lock.
+unsafe impl Send for State {}
+
 type Shared = Arc<Mutex<State>>;
 
 fn lock(s: &Shared) -> std::sync::MutexGuard<'_, State> {
