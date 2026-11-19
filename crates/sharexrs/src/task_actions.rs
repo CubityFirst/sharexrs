@@ -76,6 +76,10 @@ impl App {
     pub(super) fn init_task_view(&mut self) {
         let settings = self.view_settings();
         self.state.tasks.set_settings(settings);
+        let store = self.uploads.config.clone();
+        self.state.tasks.amazon_s3_valid = Some(std::sync::Arc::new(move || {
+            store.try_with(|c| sharex_uploaders::validator::file(&sharex_settings::FileDestination::AmazonS3, c)).unwrap_or(false)
+        }));
         let c = &self.settings.settings;
         let max = c.RecentTasksMaxCount.clamp(1, 100) as usize;
         let recent: Vec<RecentTask> =
@@ -296,6 +300,10 @@ impl App {
             }
             TaskAction::OpenFile(path) => {
                 shell::open_file(&path);
+            }
+            TaskAction::OpenUrl(url) => crate::upload::open_url(&url),
+            TaskAction::UploadClipboard => {
+                self.upload_menu_command(event_loop, &crate::main_menu::MenuCommand::UploadClipboard);
             }
             TaskAction::SettingsChanged => self.store_view_settings(),
             TaskAction::CloseWindow => {}
@@ -562,6 +570,19 @@ impl App {
                 }
             }
             TaskCommand::DeleteSelectedFiles => self.delete_selected_files(event_loop, ids),
+            TaskCommand::DeleteRemotely if ids.len() == 1 && first.amazon_s3_file && !first.result.url.is_empty() && self.amazon_s3_valid() => {
+                if self.dialog.is_some() {
+                    return;
+                }
+                let message = MessageBox::yes_no(
+                    format!("ShareXrs - {}", s::MainWindow_RemoteDeletion()),
+                    s::MainWindow_DeleteItemRemotelyConfirmation(),
+                    crate::message_box::MessageBoxIcon::None,
+                );
+                if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::DeleteRemotely(first.result.url.clone())) {
+                    eprintln!("couldn't open the message box: {e}");
+                }
+            }
             TaskCommand::StopUpload => self.stop_tasks(&ids),
             TaskCommand::NotPorted(name) => eprintln!("{name}: not ported yet"),
             // `action.RunAsync(filePath)`, not awaited by anything.
@@ -574,6 +595,31 @@ impl App {
             // Carried out by the task area itself, or not applicable.
             _ => {}
         }
+    }
+
+    /// `UploadersConfigValidator.Validate(FileDestination.AmazonS3, …)` on a
+    /// loaded config (`UploadersConfigOrNull`).
+    pub(crate) fn amazon_s3_valid(&self) -> bool {
+        self.state.tasks.amazon_s3_valid.as_ref().is_some_and(|valid| valid())
+    }
+
+    /// `DeleteSelectedItemRemotelyAsync` after its question: the object
+    /// behind `url` deleted on a thread (`TryGetObjectKey`,
+    /// `DeleteObjectAsync`), then the tip.
+    pub(crate) fn delete_remotely(&mut self, url: String) {
+        let Some(settings) = self.uploads.config.try_with(|c| c.AmazonS3Settings.clone()) else { return };
+        let proxy = self.proxy.clone();
+        std::thread::spawn(move || {
+            let ok = delete_amazon_s3_object(settings, &url);
+            let _ = proxy.send_event(crate::UserEvent::RemoteDeleted(ok));
+        });
+    }
+
+    /// `ShowNotificationTip(isSuccess ? RemoteDeleteSucceeded : RemoteDeleteFailed, "ShareX - " + RemoteDeletion)`.
+    pub(crate) fn remote_deleted(&mut self, ok: bool) {
+        let text = if ok { s::MainWindow_RemoteDeleteSucceeded() } else { s::MainWindow_RemoteDeleteFailed() };
+        let title = format!("ShareXrs - {}", s::MainWindow_RemoteDeletion());
+        self.pending_notification = Some(crate::dialogs::notification::NotificationConfig::tip(&self.default_general(), text, &title, -1));
     }
 
     /// `DeleteSelectedFiles`: after `TaskHelpers.ConfirmFileDelete`.
@@ -684,5 +730,53 @@ fn response_data(info: &TaskInfo) -> crate::dialogs::response::ResponseData {
         errors: r.errors.join("\r\n\r\n"),
         response: r.response.clone(),
         response_info: r.response_info.as_deref().cloned(),
+    }
+}
+
+/// `new AmazonS3(settings)`, `TryGetObjectKey(url)` and `DeleteObjectAsync`:
+/// whether the object was deleted (exceptions are logged).
+pub(crate) fn delete_amazon_s3_object(settings: sharex_uploaders::config::AmazonS3Settings, url: &str) -> bool {
+    let mut uploader = sharex_uploaders::destinations::amazon_s3::AmazonS3::new(settings);
+    let Some(key) = uploader.try_get_object_key(url) else { return false };
+    match uploader.delete_object(&key) {
+        Ok(ok) => ok,
+        Err(e) => {
+            eprintln!("{e}");
+            false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_mock::{Mock, rewritten, server_error, text_ok};
+
+    fn s3() -> sharex_uploaders::config::AmazonS3Settings {
+        sharex_uploaders::config::AmazonS3Settings {
+            AccessKeyID: Some("AKIDEXAMPLE".into()),
+            SecretAccessKey: sharex_uploaders::dpapi::Secret::new("not-a-real-secret"),
+            Endpoint: Some("s3.eu-west-2.amazonaws.com".into()),
+            Bucket: Some("my-bucket".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn delete_remotely_sends_a_signed_delete_for_the_object_key() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        mock.reset(serde_json::json!({ "responses": [text_ok("")] }));
+        assert!(super::delete_amazon_s3_object(s3(), "https://s3.eu-west-2.amazonaws.com/my-bucket/shots/a%20b.png"));
+        let log = mock.log();
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].method, "DELETE");
+        assert!(log[0].target.ends_with("/my-bucket.s3.eu-west-2.amazonaws.com/shots/a%20b.png"), "{}", log[0].target);
+        assert!(log[0].header("Authorization").is_some_and(|a| a.starts_with("AWS4-HMAC-SHA256 ")));
+        // A failure, and a URL outside the bucket (no request).
+        mock.reset(serde_json::json!({ "responses": [server_error()] }));
+        assert!(!super::delete_amazon_s3_object(s3(), "https://s3.eu-west-2.amazonaws.com/my-bucket/x.png"));
+        mock.reset(serde_json::json!({ "responses": [] }));
+        assert!(!super::delete_amazon_s3_object(s3(), "https://example.com/my-bucket/x.png"));
+        assert!(mock.log().is_empty());
     }
 }

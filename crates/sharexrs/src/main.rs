@@ -129,6 +129,8 @@ pub enum UserEvent {
     AutoCaptureTray(TrayEvent),
     /// A settings export or import finished its archive.
     SettingsBackup(Box<settings_backup::Done>),
+    /// `DeleteSelectedItemRemotelyAsync` finished: whether it succeeded.
+    RemoteDeleted(bool),
 }
 
 fn main() {
@@ -326,6 +328,8 @@ enum DialogPurpose {
     CommandLine(cli::CliQuestion),
     /// Application settings' "Would you like to reset ShareX settings?".
     ResetSettings,
+    /// `DeleteSelectedItemRemotelyAsync`'s question: Yes deletes this URL's object.
+    DeleteRemotely(String),
     /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
     /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
     Owned(winit::window::WindowId),
@@ -1352,6 +1356,10 @@ impl App {
                 d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
                 d.window.window.request_redraw();
             }
+        } else if let DialogPurpose::DeleteRemotely(url) = &dialog.purpose {
+            if result == DialogResult::Yes {
+                self.delete_remotely(url.clone());
+            }
         } else if matches!(dialog.purpose, DialogPurpose::ResetSettings) {
             if result == DialogResult::Yes {
                 self.reset_settings(event_loop);
@@ -1750,6 +1758,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Wake => {}
             UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
             UserEvent::SettingsBackup(done) => self.backup_finished(event_loop, *done),
+            UserEvent::RemoteDeleted(ok) => self.remote_deleted(ok),
         }
     }
 

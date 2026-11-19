@@ -617,6 +617,95 @@ impl AmazonS3 {
     pub fn preview_url(&self) -> String {
         self.get_upload_path("example.png").map(|p| self.generate_url(&p)).unwrap_or_default()
     }
+
+    /// `TryGetObjectKey`: the object key of a URL under the object base URL
+    /// (same scheme, host and port, a path below the base's), unescaped
+    /// (`Uri.UnescapeDataString`). Both go through `System.Uri`'s
+    /// normalisation first (lower-case scheme and host, default ports
+    /// dropped, dot segments removed).
+    pub fn try_get_object_key(&self, url: &str) -> Option<String> {
+        let object = split_absolute_uri(&http::dotnet_absolute_uri(url).ok()?)?;
+        let base = split_absolute_uri(&http::dotnet_absolute_uri(&self.object_base_url()).ok()?)?;
+        if object.0 != base.0 {
+            return None;
+        }
+        let base_path = base.1.trim_end_matches('/');
+        let escaped = object.1.strip_prefix(base_path)?.strip_prefix('/')?;
+        if escaped.is_empty() {
+            return None;
+        }
+        let key = unescape_data_string(escaped);
+        (!key.is_empty()).then_some(key)
+    }
+}
+
+/// A normalised absolute URI split into `scheme://host[:port]` and its
+/// `AbsolutePath` (without the query).
+fn split_absolute_uri(uri: &str) -> Option<(String, String)> {
+    let after_scheme = uri.find("://")? + 3;
+    let path_at = uri[after_scheme..].find('/').map_or(uri.len(), |i| after_scheme + i);
+    let origin = &uri[..path_at];
+    // The user info isn't part of the comparison (`IdnHost`, `Port`).
+    let origin = match origin[after_scheme..].rfind('@') {
+        Some(i) => format!("{}{}", &origin[..after_scheme], &origin[after_scheme + i + 1..]),
+        None => origin.to_owned(),
+    };
+    let rest = &uri[path_at..];
+    let path = rest.split('?').next().unwrap_or_default();
+    Some((origin, if path.is_empty() { "/".to_owned() } else { path.to_owned() }))
+}
+
+/// `Uri.UnescapeDataString`: every `%XX` decoded, as UTF-8 (invalid
+/// sequences stay escaped).
+fn unescape_data_string(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            // A run of escapes, decoded together so multi-byte UTF-8 holds.
+            let mut run = Vec::new();
+            let mut j = i;
+            while j + 3 <= bytes.len() && bytes[j] == b'%' {
+                let Ok(b) = u8::from_str_radix(&s[j + 1..j + 3], 16) else { break };
+                run.push(b);
+                j += 3;
+            }
+            if run.is_empty() {
+                out.push('%');
+                i += 1;
+                continue;
+            }
+            let mut k = 0;
+            while k < run.len() {
+                let rest = &run[k..];
+                match std::str::from_utf8(rest) {
+                    Ok(t) => {
+                        out.push_str(t);
+                        k = run.len();
+                    }
+                    Err(e) => {
+                        let valid = e.valid_up_to();
+                        out.push_str(std::str::from_utf8(&rest[..valid]).unwrap_or_default());
+                        k += valid;
+                        if k < run.len() {
+                            let bad = e.error_len().unwrap_or(rest.len() - valid).max(1);
+                            for b in &run[k..k + bad] {
+                                out.push_str(&format!("%{b:02X}"));
+                            }
+                            k += bad;
+                        }
+                    }
+                }
+            }
+            i = j;
+        } else {
+            let ch = s[i..].chars().next().unwrap_or_default();
+            out.push(ch);
+            i += ch.len_utf8();
+        }
+    }
+    out
 }
 
 /// `Path.GetFileNameWithoutExtension`.
@@ -777,6 +866,26 @@ mod tests {
             ObjectPrefix: Some("/shots/".into()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn object_keys_from_urls() {
+        let s3 = AmazonS3::new(settings());
+        let key = |u: &str| s3.try_get_object_key(u);
+        assert_eq!(key("https://s3.eu-west-2.amazonaws.com/my-bucket/shots/a%20b.png").as_deref(), Some("shots/a b.png"));
+        assert_eq!(key("HTTPS://S3.EU-WEST-2.amazonaws.com:443/my-bucket/shots/%C3%A9.png?x=1").as_deref(), Some("shots/é.png"));
+        assert_eq!(key("https://s3.eu-west-2.amazonaws.com/my-bucket/"), None);
+        assert_eq!(key("https://s3.eu-west-2.amazonaws.com/my-bucketx/a.png"), None);
+        assert_eq!(key("http://s3.eu-west-2.amazonaws.com/my-bucket/a.png"), None);
+        assert_eq!(key("https://s3.eu-west-2.amazonaws.com:8443/my-bucket/a.png"), None);
+        assert_eq!(key("https://other.example/my-bucket/a.png"), None);
+        assert_eq!(key("not a url"), None);
+        let mut cname = settings();
+        cname.UseCustomCNAME = true;
+        cname.CustomDomain = Some("cdn.example.com/files".into());
+        let s3 = AmazonS3::new(cname);
+        assert_eq!(s3.try_get_object_key("https://cdn.example.com/files/x/y%2Bz.png").as_deref(), Some("x/y+z.png"));
+        assert_eq!(unescape_data_string("a%ZZ%e2%82%ac%FF"), "a%ZZ€%FF");
     }
 
     #[test]
