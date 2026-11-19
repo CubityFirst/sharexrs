@@ -36,6 +36,8 @@ pub struct FileExistWindow {
     pub new_name: String,
     reply: Option<Sender<Option<PathBuf>>>,
     opened: bool,
+    /// `OnOpened`'s `SelectAll` (off for a `--render` of a typed name).
+    pub select_on_open: bool,
 }
 
 impl FileExistWindow {
@@ -48,6 +50,7 @@ impl FileExistWindow {
             unique_file_path: sharex_helpers::file_helpers::unique_file_path(file_path),
             reply,
             opened: false,
+            select_on_open: true,
         }
     }
 
@@ -199,7 +202,7 @@ impl Dialog for FileExistWindow {
         if !self.opened {
             // `OnOpened`: focused, all selected.
             self.opened = true;
-            super::text_upload::focus_text_box(ui, box_id, &self.new_name, true);
+            super::text_upload::focus_text_box(ui, box_id, &self.new_name, self.select_on_open);
         }
         TextBox { padding: Thickness::hv(8.0, 5.0), ..TextBox::default() }.show(ui, box_rect, box_id, &mut self.new_name);
         y = box_rect.max.y + ROW_SPACING;

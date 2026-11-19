@@ -132,7 +132,10 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.assume_exists();
             match o.state.as_deref() {
                 Some("empty") => w.new_name.clear(),
-                Some(s) if s.starts_with("name=") => w.new_name = s["name=".len()..].to_owned(),
+                Some(s) if s.starts_with("name=") => {
+                    w.new_name = s["name=".len()..].to_owned();
+                    w.select_on_open = false;
+                }
                 _ => {}
             }
             Box::new(w)
@@ -143,7 +146,13 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         "about" => {
             use sharex_update::checker::UpdateStatus;
             let state = o.state.as_deref().unwrap_or("checking");
-            let mut w = super::about::AboutWindow::new("ShareXrs 22.4".into(), state == "disabled", None);
+            // `--text`/`--content`: the product name and brand (ShareX's, to
+            // compare with its shots).
+            let product = o.text.clone().unwrap_or_else(|| "ShareXrs 22.4".into());
+            let mut w = super::about::AboutWindow::new(product, state == "disabled", None);
+            if let Some(brand) = &o.content {
+                w.brand = brand.clone();
+            }
             let status = match state {
                 "up-to-date" => Some(UpdateStatus::UpToDate),
                 "available" => Some(UpdateStatus::UpdateAvailable),
@@ -169,8 +178,14 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
                 r"Image saved to file: C:\ShareXrs\Screenshots\2026-11\ShareX_test.png",
                 "URL opened: https://example.invalid/",
             ];
-            let text: String = lines.iter().enumerate().map(|(i, l)| format!("2026-11-19 09:00:{:02}.{:03} - {l}\r\n", i * 3, i * 37)).collect();
-            let mut w = super::debug_log::DebugLogWindow::with_text(text, Some(r"C:\ShareXrs\Logs\ShareX-Log-2026-11.txt".into()), r"C:\ShareXrs\".into());
+            // `--files <log.txt>`: that log instead.
+            let text: String = match o.files.first() {
+                Some(f) => std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?,
+                None => lines.iter().enumerate().map(|(i, l)| format!("2026-11-19 09:00:{:02}.{:03} - {l}\r\n", i * 3, i * 37)).collect(),
+            };
+            // `--text`: the startup path.
+            let startup = o.text.clone().unwrap_or_else(|| r"C:\ShareXrs\".into());
+            let mut w = super::debug_log::DebugLogWindow::with_text(text, Some(r"C:\ShareXrs\Logs\ShareX-Log-2026-11.txt".into()), startup);
             w.confirm_upload = o.state.as_deref() == Some("upload-confirm");
             Box::new(w)
         }

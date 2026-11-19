@@ -89,13 +89,15 @@ pub struct AboutWindow {
     /// The running check (`CheckUpdateAsync`).
     check: Option<Receiver<GitHubUpdateChecker>>,
     checker: Option<GitHubUpdateChecker>,
+    /// The `BrandText` under the logo.
+    pub brand: String,
 }
 
 impl AboutWindow {
     /// `disable_update_check`: `SystemOptions.DisableUpdateCheck`; `check`
     /// delivers the finished check.
     pub fn new(product: String, disable_update_check: bool, check: Option<Receiver<GitHubUpdateChecker>>) -> Self {
-        Self { product, update: AboutUpdate::new(disable_update_check, None), check: if disable_update_check { None } else { check }, checker: None }
+        Self { product, update: AboutUpdate::new(disable_update_check, None), check: if disable_update_check { None } else { check }, checker: None, brand: "ShareXrs".into() }
     }
 
     /// The check finished.
@@ -125,7 +127,12 @@ impl AboutWindow {
     }
 
     fn row_height(ui: &egui::Ui) -> f32 {
-        line_height(ui, &Self::label_font()).max(line_height(ui, &Self::link_font()))
+        line_height(ui, &Self::label_font()).max(Self::link_height(ui))
+    }
+
+    /// The link's box: its text in Fluent's 1px (transparent) border.
+    fn link_height(ui: &egui::Ui) -> f32 {
+        line_height(ui, &Self::link_font()) + 2.0
     }
 
     /// The sections' size: each `StackPanel Margin="0,0,8,14"`, its heading
@@ -137,7 +144,7 @@ impl AboutWindow {
         for section in sections {
             let mut w = text_width(ui, section.title, Self::heading_font());
             for (_, url) in &section.items {
-                w = w.max(LABEL_COLUMN + text_width(ui, url, Self::link_font()));
+                w = w.max(LABEL_COLUMN + text_width(ui, url, Self::link_font()) + 2.0);
             }
             size.x = size.x.max(w + 8.0);
             size.y += 8.0 + heading + 4.0 + (row + 4.0) * section.items.len() as f32 + 14.0;
@@ -150,8 +157,9 @@ impl AboutWindow {
     fn link(ui: &egui::Ui, pos: egui::Pos2, id: Id, text: &str) -> egui::Response {
         let p = palette(ui.ctx());
         let lf = Self::link_font();
-        let rect = Rect::from_min_size(pos, vec2(text_width(ui, text, lf.clone()), line_height(ui, &lf)));
-        let r = ui.interact(rect, id, Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        let outer = Rect::from_min_size(pos, vec2(text_width(ui, text, lf.clone()) + 2.0, Self::link_height(ui)));
+        let r = ui.interact(outer, id, Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        let rect = outer.shrink(1.0);
         let color = if r.is_pointer_button_down_on() { p.accent_fill_dark[0] } else { p.accent_start };
         let g = galley(ui, text, lf.clone(), color, f32::INFINITY);
         // The underline: a pixel under the baseline.
@@ -193,7 +201,7 @@ impl Dialog for AboutWindow {
         let logo_box = Rect::from_min_size(pos2(cx - LOGO_BOX.0 / 2.0, inner.min.y), vec2(LOGO_BOX.0, LOGO_BOX.1));
         crate::app_icon::paint(ui, Rect::from_min_size(pos2(cx - LOGO / 2.0, logo_box.min.y + LOGO_TOP), Vec2::splat(LOGO)));
         let bf = font(50.0, 700);
-        let brand = "ShareXrs";
+        let brand = self.brand.as_str();
         let bw = text_width(ui, brand, bf.clone());
         ui.painter().galley(pos2((cx - bw / 2.0).round(), logo_box.min.y + BRAND_TOP), galley(ui, brand, bf, p.text, f32::INFINITY), p.text);
         let mut y = logo_box.max.y + ROW_SPACING;
@@ -221,7 +229,7 @@ impl Dialog for AboutWindow {
                 centred(ui, y, text, font(13.0, 400), p.text_secondary);
             }
             AboutUpdate::Button(text) => {
-                let w = text_width(ui, text, Self::link_font());
+                let w = text_width(ui, text, Self::link_font()) + 2.0;
                 if Self::link(ui, pos2(cx - (w / 2.0).round(), y), ui.id().with("update"), text).clicked()
                     && let Some(checker) = self.checker.clone()
                 {
@@ -244,6 +252,10 @@ impl Dialog for AboutWindow {
         let sections = sections();
         let size = Self::sections_size(ui, &sections);
         let scroll = super::layout::scroll_offset(ui, ui.id().with("sections"), view, size.y);
+        // The rows' star column takes the width the scroll viewer offers its
+        // content, 32px short of the viewport (ShareX's UI Automation bounds:
+        // a 552-wide list in a 584-wide viewer), so the centred list sits 16px in.
+        let size = vec2(size.x.max(view.width() - 32.0), size.y);
         let x = view.min.x + ((view.width() - size.x) / 2.0).max(0.0).round_ties_even();
         let mut y = view.min.y + ((view.height() - size.y) / 2.0).max(0.0).round_ties_even() - scroll;
         let painter_clip = ui.clip_rect();
@@ -259,7 +271,7 @@ impl Dialog for AboutWindow {
                 let r = Rect::from_min_size(pos2(x, y), vec2(size.x, row));
                 let g = galley(ui, label, lf.clone(), p.text_secondary, LABEL_COLUMN);
                 ui.painter().galley(pos2(x, center_y(r, line_height(ui, &lf))), g, p.text_secondary);
-                let link_y = center_y(r, line_height(ui, &Self::link_font()));
+                let link_y = center_y(r, Self::link_height(ui));
                 if Self::link(ui, pos2(x + LABEL_COLUMN, link_y), ui.id().with(("link", si, ii)), url).clicked() {
                     out.push(Effect::OpenUrl((*url).to_owned()));
                 }

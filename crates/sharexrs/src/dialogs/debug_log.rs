@@ -36,17 +36,24 @@ pub struct DebugLogWindow {
     pub confirm_upload: bool,
     /// Follows the logger (off for `--render`).
     live: bool,
+    /// How much of the logger's text (with its `\r\n`s) is in.
+    logged: usize,
+    /// Scrolled to the end once (`CaretIndex = Text.Length`).
+    scrolled: bool,
 }
 
 impl DebugLogWindow {
     pub fn new() -> Self {
         let (text, version) = crate::logger::since(u64::MAX, 0);
-        Self { text, version, log_file: crate::logger::log_file(), startup_path: startup_path(), confirm_upload: false, live: true }
+        let logged = text.len();
+        let text = text.replace("\r\n", "\n");
+        Self { text, version, log_file: crate::logger::log_file(), startup_path: startup_path(), confirm_upload: false, live: true, logged, scrolled: false }
     }
 
     /// A window over `text` that doesn't follow the logger (`--render`).
     pub fn with_text(text: String, log_file: Option<std::path::PathBuf>, startup_path: String) -> Self {
-        Self { text, version: 0, log_file, startup_path, confirm_upload: false, live: false }
+        let text = text.replace("\r\n", "\n");
+        Self { text, version: 0, log_file, startup_path, confirm_upload: false, live: false, logged: 0, scrolled: false }
     }
 
     fn button_font() -> egui::FontId {
@@ -123,9 +130,10 @@ impl Dialog for DebugLogWindow {
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut Cx) -> Vec<Effect> {
         if self.live {
-            let (added, version) = crate::logger::since(self.version, self.text.len());
+            let (added, version) = crate::logger::since(self.version, self.logged);
             if version != self.version {
-                self.text.push_str(&added);
+                self.logged += added.len();
+                self.text.push_str(&added.replace("\r\n", "\n"));
                 self.version = version;
             }
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
@@ -159,7 +167,7 @@ impl Dialog for DebugLogWindow {
                     1 => {
                         let text = self.text.trim();
                         if !text.is_empty() {
-                            out.push(Effect::CopyText(text.to_owned()));
+                            out.push(Effect::CopyText(text.replace('\n', "\r\n")));
                         }
                     }
                     _ => {
@@ -199,25 +207,40 @@ impl Dialog for DebugLogWindow {
             out.push(Effect::OpenFile(std::path::PathBuf::from(&self.startup_path)));
         }
 
-        // The log (`TextBox` in a `tool-panel` with `Padding="1"`).
+        // The log (`TextBox` in a `tool-panel` with `Padding="1"`): its
+        // `Padding="9"` around a scroll viewer whose collapsed bars overlay
+        // the text.
         let panel = Rect::from_min_max(pos2(left, bar.max.y + ROW_SPACING), pos2(right, foot.min.y - ROW_SPACING));
         tool_panel(ui, panel);
+        // `BorderThickness="0"`: the text box's own background, no border.
         let box_rect = panel.shrink(2.0);
+        let fill = if ui.rect_contains_pointer(box_rect) { p.control_background_hover } else { p.control_background };
+        sharex_ui::border::border(ui.painter(), box_rect, 4.0, 0.0, Some(sharex_ui::border::Brush::Solid(fill)), None);
+        let view = box_rect.shrink(9.0);
         let id = ui.id().with("log");
-        let tb = TextBox { padding: Thickness::all(9.0), multiline: true, read_only: true, plain: true, font: Some(mono(12.0)), ..TextBox::default() };
-        let mut scroll_ui = ui.new_child(egui::UiBuilder::new().max_rect(box_rect));
-        scroll_ui.set_clip_rect(box_rect.intersect(ui.clip_rect()));
-        let response = egui::ScrollArea::both()
+        let tb = TextBox { padding: Thickness::all(0.0), multiline: true, read_only: true, plain: true, font: Some(mono(12.0)), ..TextBox::default() };
+        let content = ui.fonts_mut(|f| f.layout_no_wrap(self.text.clone(), mono(12.0), p.text)).size();
+        let content = vec2(content.x.ceil(), content.y.ceil());
+        let mut scroll_ui = ui.new_child(egui::UiBuilder::new().max_rect(view));
+        scroll_ui.set_clip_rect(view.intersect(ui.clip_rect()));
+        let mut area = egui::ScrollArea::both()
             .id_salt(id.with("scroll"))
             .auto_shrink([false, false])
             .stick_to_bottom(true)
-            .show(&mut scroll_ui, |ui| {
-                let size = ui.fonts_mut(|f| f.layout_no_wrap(self.text.clone(), mono(12.0), p.text)).size();
-                let rect = Rect::from_min_size(ui.min_rect().min, vec2(size.x + 18.0, size.y + 18.0).max(box_rect.size()));
-                ui.allocate_rect(rect, Sense::hover());
-                tb.show(ui, rect, id, &mut self.text)
-            })
-            .inner;
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+        if !self.scrolled {
+            // `CaretIndex = Text.Length`: the end is in view.
+            self.scrolled = true;
+            area = area.vertical_scroll_offset((content.y - view.height()).max(0.0));
+        }
+        let out_area = area.show(&mut scroll_ui, |ui| {
+            let rect = Rect::from_min_size(ui.min_rect().min, content.max(view.size()));
+            ui.allocate_rect(rect, Sense::hover());
+            tb.show(ui, rect, id, &mut self.text)
+        });
+        let offset = out_area.state.offset;
+        let response = out_area.inner;
+        overlay_scroll_bars(ui, view, content, offset);
         // `OnLogDoubleTapped`: a URL under the caret opens.
         if response.double_clicked()
             && let Some(range) = egui::text_edit::TextEditState::load(ui.ctx(), id).and_then(|s| s.cursor.char_range())
@@ -262,11 +285,35 @@ impl Dialog for DebugLogWindow {
                 if !self.text.is_empty() {
                     // `UploadManager.UploadText(text)`.
                     let task = sharex_settings::TaskSettings::default_task_settings(&cx.settings.DefaultTaskSettings);
-                    out.push(Effect::Upload(Box::new(UploadRequest::Text { text: self.text.clone(), task, allow_custom_text: false })));
+                    out.push(Effect::Upload(Box::new(UploadRequest::Text { text: self.text.replace('\n', "\r\n"), task, allow_custom_text: false })));
                 }
             }
         }
         out
+    }
+}
+
+/// Fluent's collapsed scroll bars over `view` (16px bars, a 2px thumb 4px
+/// in from the outer edge, the line buttons' 16px at each end of the
+/// track), where the content overflows.
+fn overlay_scroll_bars(ui: &egui::Ui, view: Rect, content: Vec2, offset: Vec2) {
+    let color = sharex_ui::theme::fluent(ui.ctx()).chrome_disabled_low;
+    let (both_x, both_y) = (content.x > view.width(), content.y > view.height());
+    if both_y {
+        let bottom = if both_x { view.max.y - 16.0 } else { view.max.y };
+        let track = (bottom - 16.0) - (view.min.y + 16.0);
+        let len = (track * view.height() / content.y).max(20.0).min(track);
+        let max = content.y - view.height();
+        let y = view.min.y + 16.0 + (track - len) * (offset.y / max).clamp(0.0, 1.0);
+        ui.painter().rect_filled(Rect::from_min_size(pos2(view.max.x - 4.0, y.round()), vec2(2.0, len.round())), 1.0, color);
+    }
+    if both_x {
+        let right = if both_y { view.max.x - 16.0 } else { view.max.x };
+        let track = (right - 16.0) - (view.min.x + 16.0);
+        let len = (track * view.width() / content.x).max(20.0).min(track);
+        let max = content.x - view.width();
+        let x = view.min.x + 16.0 + (track - len) * (offset.x / max).clamp(0.0, 1.0);
+        ui.painter().rect_filled(Rect::from_min_size(pos2(x.round(), view.max.y - 4.0), vec2(len.round(), 2.0)), 1.0, color);
     }
 }
 
