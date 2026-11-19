@@ -73,6 +73,9 @@ pub enum Event {
     Tray(TrayEvent),
     /// FFmpeg's download ended.
     FFmpegDownloaded,
+    /// `FFmpegUpdateChecker.GetLatestDownloadURL(true)` answered (FFmpeg
+    /// goes to the path): the downloader window opens.
+    FFmpegUrl(std::path::PathBuf, Option<String>),
     /// The native recorder failed: ShareX's message box.
     NativeError(String),
 }
@@ -568,6 +571,7 @@ impl App {
             }
             Event::Tray(e) => self.recording_tray_event(event_loop, e),
             Event::FFmpegDownloaded => self.ffmpeg_downloaded(event_loop),
+            Event::FFmpegUrl(target, url) => self.open_ffmpeg_downloader(event_loop, target, url),
             Event::State(..) | Event::Countdown(_) | Event::Progress(_) => {
                 let Some(Phase::Recording(a)) = self.recording.as_mut().map(|r| &mut r.phase) else { return };
                 let f = &mut a.frame.frame;
