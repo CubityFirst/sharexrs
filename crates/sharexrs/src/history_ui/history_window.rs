@@ -131,6 +131,10 @@ pub struct HistoryWindow {
     placement: super::window_state::Tracker,
     /// Dragging the selected files out of the list.
     drag: common::ListDrag,
+    /// The From (0) or To (1) date picker's open flyout.
+    date_flyout: Option<(usize, super::date_picker::DateFlyout)>,
+    /// `--render ... --state date-flyout`: open the From picker's flyout.
+    render_date_flyout: bool,
 }
 
 impl HistoryWindow {
@@ -172,6 +176,8 @@ impl HistoryWindow {
             scroll_into_view: None,
             placement: super::window_state::Tracker::new(&settings.window_state),
             drag: common::ListDrag::default(),
+            date_flyout: None,
+            render_date_flyout: false,
             settings,
         }
     }
@@ -454,6 +460,11 @@ impl HistoryWindow {
         match o.state.as_deref() {
             Some("advanced") => {
                 self.advanced_open = true;
+                self.apply_filter();
+            }
+            Some("date-flyout") => {
+                self.advanced_open = true;
+                self.render_date_flyout = true;
                 self.apply_filter();
             }
             Some("favorites") => {
@@ -886,8 +897,14 @@ impl HistoryWindow {
         changed |= before != self.advanced.filter_date;
         y += 32.0 + 8.0;
         for (k, date) in [self.advanced.from, self.advanced.to].into_iter().enumerate() {
-            date_picker(ui, Rect::from_min_size(pos2(inner_x, y), vec2(296.0, 40.0)), date);
-            let _ = k;
+            let r = Rect::from_min_size(pos2(inner_x, y), vec2(296.0, 40.0));
+            date_picker(ui, r, date);
+            // `OnFlyoutButtonClicked`: the flyout on this date.
+            let opened = live && ui.interact(r, Id::new(("history-adv-date-picker", k)), egui::Sense::click()).is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed());
+            if opened || (k == 0 && std::mem::take(&mut self.render_date_flyout)) {
+                let flyout = super::date_picker::DateFlyout::new(Id::new(("history-date-flyout", k)), r, date.naive().date());
+                self.date_flyout = Some((k, flyout));
+            }
             y += 40.0 + 8.0;
         }
         y -= 8.0;
@@ -1196,7 +1213,7 @@ impl Dialog for HistoryWindow {
         ui.painter().rect_filled(full, 0.0, p.background_main);
         // `Grid Margin="10,0,10,10" RowSpacing="10"`.
         let content = Rect::from_min_max(pos2(full.min.x + 10.0, full.min.y), pos2(full.max.x - 10.0, full.max.y - 10.0));
-        let live = self.modal.is_none() && self.menu.is_none() && self.columns_menu.is_none();
+        let live = self.modal.is_none() && self.menu.is_none() && self.columns_menu.is_none() && self.date_flyout.is_none();
         let had_menu = self.menu.is_some() || self.columns_menu.is_some();
         self.toolbar(ui, Rect::from_min_size(content.min, vec2(content.width(), common::TOOLBAR_HEIGHT)), live);
         let top = content.min.y + common::TOOLBAR_HEIGHT + 10.0;
@@ -1264,6 +1281,24 @@ impl Dialog for HistoryWindow {
                 self.settings_changed = true;
             } else if closed || pressed_outside {
                 self.columns_menu = None;
+            }
+        }
+
+        // A date picker's flyout: `SelectedDateChanged` → `OnDateFilterChanged`.
+        if let Some((k, flyout)) = self.date_flyout.as_mut() {
+            match flyout.show(ui, full) {
+                super::date_picker::Out::Open => {}
+                super::date_picker::Out::Dismiss => self.date_flyout = None,
+                super::date_picker::Out::Accept(d) => {
+                    let picked = DateTime::new(d.and_hms_opt(0, 0, 0).unwrap_or_default(), self.advanced.from.kind());
+                    if *k == 0 {
+                        self.advanced.from = picked;
+                    } else {
+                        self.advanced.to = picked;
+                    }
+                    self.date_flyout = None;
+                    self.schedule_filter();
+                }
             }
         }
 

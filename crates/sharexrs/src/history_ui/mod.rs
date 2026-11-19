@@ -4,6 +4,7 @@
 //! `OpenStats` open them (`HistoryIntegration`). docs/HISTORY.md maps them.
 
 pub mod common;
+pub mod date_picker;
 pub mod history_window;
 pub mod image_history_window;
 pub mod stats_window;
