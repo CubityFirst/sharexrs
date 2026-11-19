@@ -2551,6 +2551,7 @@ impl Dialog for EditorWindow {
                 OptionItem::BorderColor => s.set_selected_color(&hex, t),
                 OptionItem::FillColor => s.set_fill_color(&hex, t),
                 OptionItem::TextColor => s.set_text_color(&hex, t),
+                OptionItem::Shadow => s.set_shadow_color(&hex),
                 _ => {}
             }),
             PickTarget::NewImage => {

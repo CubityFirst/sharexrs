@@ -168,12 +168,14 @@ impl MonitorTestWindow {
         }
         if self.color_open == Some(k) {
             let mut value = c;
-            let (changed, keep) = controls::color_popup(ui, id, rect, &mut value, just);
+            // `<Flyout Placement="Bottom"><cp:ColorView Width="320" Height="320"/></Flyout>`.
+            let (changed, keep) = controls::color_popup_styled(ui, id, rect, &mut value, just, controls::ColorPopup::Flyout { alpha: true, size: Some(egui::vec2(320.0, 320.0)) });
             if !keep {
                 self.color_open = None;
             }
             if changed {
-                return Some([value.r(), value.g(), value.b(), 255]);
+                let [r, g, b, _] = value.to_srgba_unmultiplied();
+                return Some([r, g, b, 255]);
             }
         }
         None

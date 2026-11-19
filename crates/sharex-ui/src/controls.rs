@@ -1310,49 +1310,31 @@ fn checkered_swatch(ui: &Ui, rect: Rect, color: Color32) -> [Part; 2] {
     ]
 }
 
-/// The colour popup under `anchor` (ColorPickerDropdown's `Popup`,
-/// `VerticalOffset="4"`: panel background, 1px border, 8px corners).
-/// Avalonia's `ColorView` isn't ported: egui's HSV picker stands in for it.
-/// Returns whether the colour changed and whether the popup stays open.
+/// `ColorPickerDropdown`'s colour popup under `anchor` (`Placement="Bottom"`,
+/// `VerticalOffset="4"`: panel background, 1px border, 8px corners, 4px
+/// padding) holding its `ColorPickerPanel`: Avalonia's `ColorView` on its
+/// palette tab, the screen colour picker button and the recent colours
+/// (see [`crate::color_view`]; the button's press closes the popup and is
+/// read with [`crate::color_view::take_screen_pick`]). Returns whether the
+/// colour changed and whether the popup stays open.
 pub fn color_popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool) -> (bool, bool) {
-    color_popup_with_alpha(ui, id, anchor, color, just_opened, false)
+    color_popup_styled(ui, id, anchor, color, just_opened, ColorPopup::Dropdown)
 }
 
-/// [`color_popup`] with an alpha slider (`ColorView` with
-/// `IsAlphaEnabled`/`IsAlphaVisible`).
+/// A `Flyout` under `anchor` holding a `ColorView` with
+/// `IsAlphaEnabled`/`IsAlphaVisible` = `alpha` (the mouse highlighter's
+/// colour buttons).
 pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, alpha: bool) -> (bool, bool) {
-    let p = palette(ui.ctx());
-    let mut changed = false;
-    let pos = pos2(anchor.min.x, anchor.max.y + 4.0);
-    let area = egui::Area::new(id.with("color-popup")).order(Order::Foreground).fixed_pos(pos).fade_in(false).show(ui.ctx(), |ui| {
-        egui::Frame::new()
-            .fill(p.background_panel)
-            .stroke(Stroke::new(1.0, p.border))
-            .corner_radius(CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(8))
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-                ui.spacing_mut().slider_width = 240.0;
-                let mode = if alpha { egui::widgets::color_picker::Alpha::OnlyBlend } else { egui::widgets::color_picker::Alpha::Opaque };
-                changed |= egui::widgets::color_picker::color_picker_color32(ui, color, mode);
-            });
-    });
-    crate::popup::register(ui.ctx(), area.response.layer_id, area.response.rect, 8.0);
-    let ctx = ui.ctx();
-    let mut keep = !ctx.input(|i| i.key_pressed(Key::Escape));
-    if !keep {
-        crate::popup::closed_by_escape(ctx);
-    }
-    if !just_opened
-        && ctx.input(|i| i.pointer.any_pressed())
-        && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())
-        && !area.response.rect.contains(pos)
-        && !anchor.contains(pos)
-    {
-        keep = false;
-    }
-    (changed, keep)
+    color_popup_styled(ui, id, anchor, color, just_opened, ColorPopup::Flyout { alpha, size: None })
 }
+
+/// The colour popup hosted as ShareX hosts that control's `ColorView`
+/// (see [`ColorPopup`]).
+pub fn color_popup_styled(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, style: ColorPopup) -> (bool, bool) {
+    crate::color_view::popup(ui, id, anchor, color, just_opened, style)
+}
+
+pub use crate::color_view::ColorPopup;
 
 /// `Border.section-card`, `.settings-list`, `.tile`: panel background,
 /// 1px border, `radius` corners.

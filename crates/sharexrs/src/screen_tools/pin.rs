@@ -689,7 +689,8 @@ impl Dialog for PinOptionsWindow {
             let target = if which == 0 { &mut self.o.border_color } else { &mut self.o.background_color };
             let mut c32 = Color32::from_rgba_unmultiplied(target.r, target.g, target.b, target.a);
             let anchor = if which == 0 { Rect::from_min_size(pos2(c.max.x - 53.0, c.min.y + 13.0 + lh + 10.0 + 126.0), vec2(40.0, 40.0)) } else { bg_anchor };
-            let (changed, keep) = controls::color_popup(ui, Id::new(("pin-color", which)), anchor, &mut c32, false);
+            // `<Flyout><cp:ColorView/></Flyout>`: the view's defaults (alpha on).
+            let (changed, keep) = controls::color_popup_styled(ui, Id::new(("pin-color", which)), anchor, &mut c32, false, controls::ColorPopup::Flyout { alpha: true, size: None });
             if changed {
                 let [r, g, b, a] = c32.to_srgba_unmultiplied();
                 *target = sharex_tools::color::Color::argb(a, r, g, b);
