@@ -743,17 +743,24 @@ impl RemoteStorageBrowserWindow {
         let location = Rect::from_min_max(pos2(x0 + lw + GAP, y), pos2(up.min.x - GAP, y + CONTROL_H));
         let mut text = self.location.clone();
         TextBox { padding: Thickness::hv(8.0, 6.0), read_only: true, ..TextBox::default() }.show(ui, location, Id::new("remote-storage-location"), &mut text);
-        let up_r = Self::toolbar_button(ui, up, Id::new("remote-storage-up"), icon::ArrowUp, None, self.can_go_up());
-        if up_r.on_hover_text(t::RemoteStorageBrowser_Up()).clicked() {
+        // `ToolTip.Tip`s (a disabled control gets no pointer events, so no tip).
+        let tip = |ui: &Ui, rect: Rect, key: &str, text: &str, enabled: bool| {
+            if enabled {
+                sharex_ui::tooltip::show(ui, rect, Id::new(("remote-storage-tip", key)), text);
+            }
+        };
+        tip(ui, up, "up", t::RemoteStorageBrowser_Up(), self.can_go_up());
+        tip(ui, refresh, "refresh", t::RemoteStorageBrowser_Refresh(), !busy);
+        tip(ui, search, "search", t::RemoteStorageBrowser_SearchCurrentFolder(), !busy);
+        if Self::toolbar_button(ui, up, Id::new("remote-storage-up"), icon::ArrowUp, None, self.can_go_up()).clicked() {
             self.go_up();
         }
-        let refresh_r = Self::toolbar_button(ui, refresh, Id::new("remote-storage-refresh"), icon::Refresh, None, !busy);
-        if refresh_r.on_hover_text(t::RemoteStorageBrowser_Refresh()).clicked() {
+        if Self::toolbar_button(ui, refresh, Id::new("remote-storage-refresh"), icon::Refresh, None, !busy).clicked() {
             self.browse(self.current_path.clone());
         }
         let before = self.search.clone();
         let tb = TextBox { padding: Thickness::new(32.0, 0.0, 8.0, 0.0), placeholder: t::RemoteStorageBrowser_SearchCurrentFolder(), enabled: !busy, ..TextBox::default() };
-        tb.show(ui, search, Id::new("remote-storage-search"), &mut self.search).on_hover_text(t::RemoteStorageBrowser_SearchCurrentFolder());
+        tb.show(ui, search, Id::new("remote-storage-search"), &mut self.search);
         icons::paint(ui.painter(), Rect::from_min_size(pos2(search.min.x + 10.0, center_y(search, 16.0)), Vec2::splat(16.0)), icon::Search, p.text);
         if self.search != before {
             self.apply_filter();

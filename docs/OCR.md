@@ -301,7 +301,12 @@ saved on close. `--render ocr --state zoom|pan --count <percent>` and
 `--state splitter --count <px>` draw them (built from source, no shot).
 
 Not yet: the window's remembered size and place (`OCROptions.WindowState`),
-the copied badge as a tooltip (egui's), zoom/pan checked live against ShareX.
+zoom/pan checked live against ShareX. The region tooltips are the shared
+Fluent tooltip (`sharex_ui::tooltip::show_now`): the region's text opens at
+once at the pointer, closed and reopened with Copied to clipboard on a
+click (`SetHoveredRegion`, `ShowCopied`); `--render ocr --hover X,Y --tip`
+draws one (without `--tip` a render leaves it out, as a capture of
+ShareX's window doesn't have its popup).
 
 The plan it followed:
 

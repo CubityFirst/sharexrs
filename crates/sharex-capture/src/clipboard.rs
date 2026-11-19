@@ -1,7 +1,8 @@
 //! `ShareX.HelpersLib/Helpers/ClipboardHelpers.CopyImage`: on Windows a
 //! "PNG" (with transparency) and an opaque 24 bpp CF_DIB on white, which
-//! is what Office and Windows clipboard history expect; elsewhere the
-//! system's image format (arboard).
+//! is what Office and Windows clipboard history expect; on macOS
+//! `public.png` and Avalonia's in-process type, as Avalonia.Native writes
+//! ShareX's image item; elsewhere arboard's `image/png`.
 
 use image::RgbaImage;
 
@@ -56,7 +57,12 @@ pub fn copy_image(image: &RgbaImage, owner: Option<isize>) -> Result<(), String>
         let owner = owner.ok_or("no window to own the clipboard")?;
         crate::platform::set_clipboard_image(owner, &png_bytes(image)?, &dib_bytes(image))
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = owner;
+        set_macos_image(&png_bytes(image)?)
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     {
         let _ = owner;
         let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
@@ -68,6 +74,38 @@ pub fn copy_image(image: &RgbaImage, owner: Option<isize>) -> Result<(), String>
             })
             .map_err(|e| e.to_string())
     }
+}
+
+/// The extra type Avalonia.Native writes with every pasteboard item
+/// (`GetAvnCustomDataType`: `net.avaloniaui.inproc.uti.n<pid>`, an empty
+/// string).
+#[cfg(any(target_os = "macos", test))]
+fn avalonia_inproc_type(pid: u32) -> String {
+    format!("net.avaloniaui.inproc.uti.n{pid}")
+}
+
+/// `AvaloniaClipboard.SetImage` on macOS, as Avalonia.Native leaves the
+/// pasteboard: cleared, then one item. ShareX's item has the bitmap and the
+/// raw `image/png` bytes, but `TryConvertFormatToUti` turns `image/png` into
+/// `public.png` (it isn't a UTI, so `typeWithMIMEType:`), the bitmap's type
+/// too, and `FindDataFormat` serves `public.png` from the bitmap: so the
+/// item is `public.png` (the image as PNG) and Avalonia's in-process type.
+#[cfg(target_os = "macos")]
+fn set_macos_image(png: &[u8]) -> Result<(), String> {
+    use objc2::runtime::ProtocolObject;
+    use objc2_app_kit::{NSPasteboard, NSPasteboardItem, NSPasteboardTypePNG, NSPasteboardWriting};
+    use objc2_foundation::{NSArray, NSData, NSString};
+    let pasteboard = NSPasteboard::generalPasteboard();
+    pasteboard.clearContents();
+    let item = NSPasteboardItem::new();
+    // SAFETY: AppKit's constant.
+    let png_type = unsafe { NSPasteboardTypePNG };
+    if !item.setData_forType(&NSData::with_bytes(png), png_type) {
+        return Err("NSPasteboardItem setData:forType: failed".into());
+    }
+    item.setString_forType(&NSString::from_str(""), &NSString::from_str(&avalonia_inproc_type(std::process::id())));
+    let objects = NSArray::from_retained_slice(&[ProtocolObject::<dyn NSPasteboardWriting>::from_retained(item)]);
+    if pasteboard.writeObjects(&objects) { Ok(()) } else { Err("NSPasteboard writeObjects: failed".into()) }
 }
 
 /// `ClipboardHelpers.CopyText`: the text as CF_UNICODETEXT on Windows.
@@ -321,6 +359,11 @@ pub fn image_from_dib(data: &[u8]) -> Option<RgbaImage> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn avalonias_inproc_type_names_the_process() {
+        assert_eq!(avalonia_inproc_type(4242), "net.avaloniaui.inproc.uti.n4242");
+    }
+
     #[test]
     fn dibs_read_back_as_written() {
         let mut image = RgbaImage::from_pixel(3, 2, image::Rgba([10, 20, 30, 255]));

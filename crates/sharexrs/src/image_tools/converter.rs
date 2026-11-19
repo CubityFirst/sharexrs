@@ -277,10 +277,18 @@ impl ImageConverterWindow {
             let r = Rect::from_min_size(pos2(p.min.x, sy), vec2(p.width(), h));
             Self::wrapped_label(ui, Rect::from_min_size(r.min, vec2(110.0, h)), s::ImageConverterWindow_WebPCompressionEffort());
             let control = Rect::from_min_max(pos2(r.min.x + 120.0, r.min.y), r.max);
+            // `ToolTip.Tip` on the label and the slider (the value's column
+            // is `MinWidth="40"` after `ColumnSpacing="10"`).
+            let hint = s::ImageConverterWindow_WebPCompressionEffortHint();
+            sharex_ui::tooltip::show(ui, Rect::from_min_size(r.min, vec2(110.0, h)), Id::new("converter-effort-label-tip"), hint);
+            sharex_ui::tooltip::show(ui, Rect::from_min_max(control.min, pos2(control.max.x - 50.0, control.max.y)), Id::new("converter-effort-tip"), hint);
             super::slider_row(ui, control, 0.0, "", Id::new("converter-effort"), &mut self.webp_effort, (0.0, 100.0), super::semibold_font(), &super::format_0, true);
         }
-        let stack = |ui: &mut Ui, label: &str, wrap: bool, key: &str, items: Vec<String>, sel: &mut usize, sy: &mut f32| {
+        // A label over its combo box; `tip` is both's `ToolTip.Tip` ("" none).
+        let stack = |ui: &mut Ui, label: &str, wrap: bool, key: &str, items: Vec<String>, sel: &mut usize, sy: &mut f32, tip: &str| {
             let h = if wrap { Self::wrapped_label_height(ui, label, p.width()) } else { nl };
+            sharex_ui::tooltip::show(ui, Rect::from_min_size(pos2(p.min.x, *sy), vec2(p.width(), h)), Id::new((key, "label-tip")), tip);
+            sharex_ui::tooltip::show(ui, Rect::from_min_size(pos2(p.min.x, *sy + h + 8.0), vec2(p.width(), 40.0)), Id::new((key, "tip")), tip);
             if wrap {
                 Self::wrapped_label(ui, Rect::from_min_size(pos2(p.min.x, *sy), vec2(p.width(), h)), label);
             } else {
@@ -295,9 +303,9 @@ impl ImageConverterWindow {
         let mut sy = y;
         if self.is(OutputFormat::Png) {
             let depths = vec![hs::PNGBitDepth_Automatic().to_string(), hs::PNGBitDepth_Bit32().to_string(), hs::PNGBitDepth_Bit24().to_string()];
-            stack(ui, s::ImageConverterWindow_PNGBitDepth(), false, "converter-png-depth", depths, &mut self.png_depth, &mut sy);
+            stack(ui, s::ImageConverterWindow_PNGBitDepth(), false, "converter-png-depth", depths, &mut self.png_depth, &mut sy, "");
             let levels: Vec<String> = (0..10).map(|l| l.to_string()).collect();
-            stack(ui, s::ImageConverterWindow_PNGCompressionLevel(), true, "converter-png-level", levels, &mut self.png_compression_level, &mut sy);
+            stack(ui, s::ImageConverterWindow_PNGCompressionLevel(), true, "converter-png-level", levels, &mut self.png_compression_level, &mut sy, s::ImageConverterWindow_PNGCompressionHint());
             let filters = vec![
                 s::ImageConverterWindow_PNGFilterAutomatic().to_string(),
                 s::ImageConverterWindow_PNGFilterNone().to_string(),
@@ -306,11 +314,11 @@ impl ImageConverterWindow {
                 s::ImageConverterWindow_PNGFilterAverage().to_string(),
                 s::ImageConverterWindow_PNGFilterPaeth().to_string(),
             ];
-            stack(ui, s::ImageConverterWindow_PNGFilter(), false, "converter-png-filter", filters, &mut self.png_filter, &mut sy);
+            stack(ui, s::ImageConverterWindow_PNGFilter(), false, "converter-png-filter", filters, &mut self.png_filter, &mut sy, "");
         }
         if self.is(OutputFormat::Bmp) {
             let depths = vec![hs::BMPBitDepth_Automatic().to_string(), hs::BMPBitDepth_Bit32().to_string(), hs::BMPBitDepth_Bit24().to_string()];
-            stack(ui, s::ImageConverterWindow_BMPBitDepth(), false, "converter-bmp-depth", depths, &mut self.bmp_depth, &mut sy);
+            stack(ui, s::ImageConverterWindow_BMPBitDepth(), false, "converter-bmp-depth", depths, &mut self.bmp_depth, &mut sy, "");
         }
         if self.is(OutputFormat::Gif) {
             let qualities = vec![
@@ -320,7 +328,7 @@ impl ImageConverterWindow {
                 hs::GIFQuality_Grayscale().to_string(),
                 hs::GIFQuality_Adaptive().to_string(),
             ];
-            stack(ui, s::ImageConverterWindow_Quality(), false, "converter-gif-quality", qualities, &mut self.gif_quality, &mut sy);
+            stack(ui, s::ImageConverterWindow_Quality(), false, "converter-gif-quality", qualities, &mut self.gif_quality, &mut sy, "");
         }
         y += r2 + 10.0;
         if self.is(OutputFormat::Jpeg) {
@@ -330,7 +338,7 @@ impl ImageConverterWindow {
                 s::ImageConverterWindow_JPEGSubsampling422().to_string(),
                 s::ImageConverterWindow_JPEGSubsampling444().to_string(),
             ];
-            stack(ui, s::ImageConverterWindow_JPEGSubsampling(), true, "converter-subsampling", items, &mut self.subsampling, &mut sy);
+            stack(ui, s::ImageConverterWindow_JPEGSubsampling(), true, "converter-subsampling", items, &mut self.subsampling, &mut sy, s::ImageConverterWindow_JPEGSubsamplingHint());
         }
         y += r3 + 10.0;
         if self.has_background() {

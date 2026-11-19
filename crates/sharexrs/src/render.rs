@@ -17,7 +17,10 @@
 //! pixels (Avalonia keeps popups on the monitor's work area, not in the
 //! window: for ShareX at 62,5 on a 1024x720 work area, `-62,-5,962,715`).
 //! `--hover` moves the pointer there and lets 0.7s pass, so submenus open
-//! as they do after `MenuShowDelay`.
+//! as they do after `MenuShowDelay`. On a window screen, `--tip` with
+//! `--hover` keeps the pointer there past `ToolTip.ShowDelay` and the fade,
+//! so the control's tooltip shows (`sharex_ui::tooltip`; inside the window,
+//! where ShareX's is a popup window of its own).
 //!
 //! `tray-menu` draws the tray menu (`BuildTrayMenu`) as ShareX opens it
 //! with the pointer at `--at X,Y` (default 682,563) on a `--width` x
@@ -103,6 +106,13 @@ fn theme_settings(dark: bool, accent: Option<&str>, legacy: bool, compact: bool)
 /// Runs `ui` for enough frames to settle, with the pointer at `hover` and a
 /// click at each of `clicks` (one every few frames), then draws it.
 pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], ui: &mut dyn FnMut(&mut egui::Ui)) -> image::RgbaImage {
+    render_frames_held(screen, hover, clicks, 0, ui)
+}
+
+/// [`render_frames`] with the pointer resting at `hover` for `hold` more
+/// frames (60 a second) before drawing: `--tip` holds it past
+/// `ToolTip.ShowDelay` and the fade, so the hovered control's tooltip shows.
+pub(crate) fn render_frames_held(screen: &mut Offscreen, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], hold: usize, ui: &mut dyn FnMut(&mut egui::Ui)) -> image::RgbaImage {
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,
@@ -130,11 +140,14 @@ pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, c
     } else {
         run(screen, vec![egui::Event::PointerGone]);
     }
-    for _ in 0..3 {
+    for _ in 0..3 + hold {
         run(screen, Vec::new());
     }
     screen.draw()
 }
+
+/// `--tip`'s hold: `ToolTip.ShowDelay` and the fade in, with a margin.
+pub(crate) const TIP_HOLD_FRAMES: usize = ((sharex_ui::tooltip::SHOW_DELAY + sharex_ui::tooltip::FADE) * 60.0) as usize + 6;
 
 /// ShareX's default hotkeys, registered except those at `failed`.
 /// A context menu on its own, cropped to its popup and put on black as a
@@ -402,6 +415,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--viewer-only" => dialog.viewer_only = true,
             "--db" => dialog.db = Some(val()?.into()),
             "--state" => dialog.state = Some(val()?),
+            "--tip" => dialog.tip = true,
             "--unregistered" => {
                 unregistered = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
             }

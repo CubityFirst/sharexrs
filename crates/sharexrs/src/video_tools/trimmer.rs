@@ -430,7 +430,9 @@ impl Dialog for VideoTrimmerWindow {
         let ow = tools::icon_text_button_width(ui, open);
         let orect = Rect::from_min_size(pos2(q.max.x - ow, q.min.y), vec2(ow, tools::BUTTON_HEIGHT));
         let display = if self.input_file_path.is_empty() { s::VideoTrimmer_ChooseVideo() } else { &self.input_file_path };
-        tools::path_text(ui, Rect::from_min_max(pos2(q.min.x + hw + 12.0, q.min.y), pos2(orect.min.x - 12.0, q.max.y)), display);
+        let path_rect = Rect::from_min_max(pos2(q.min.x + hw + 12.0, q.min.y), pos2(orect.min.x - 12.0, q.max.y));
+        tools::path_tip(ui, path_rect, Id::new("video-trimmer-path-tip"), &self.input_file_path);
+        tools::path_text(ui, path_rect, display);
         if tools::icon_text_button(ui, orect, Id::new("video-trimmer-open"), icon::FolderOpen, open, self.can_browse()).clicked()
             && let Some(f) = rfd::FileDialog::new()
                 .set_title(open)
@@ -453,6 +455,8 @@ impl Dialog for VideoTrimmerWindow {
         for (k, (text, checked)) in [(s::VideoTrimmer_Lossless(), !self.precise), (s::VideoTrimmer_Precise(), self.precise)].into_iter().enumerate() {
             let rb = RadioButton { text, text_font: nf.clone(), text_color: Some(p.text), padding_left: 8.0, enabled: self.can_browse() };
             let w = 20.0 + 8.0 + text_width(ui, text, nf.clone());
+            let hint = if k == 0 { s::VideoTrimmer_CopyHint() } else { s::VideoTrimmer_PreciseHint() };
+            tools::tip(ui, Rect::from_min_size(pos2(x, q.min.y), vec2(w, q.height())), Id::new(("video-trimmer-mode-tip", k)), hint, self.can_browse());
             if rb.show(ui, Rect::from_min_size(pos2(x, q.min.y), vec2(w, q.height())), Id::new(("video-trimmer-mode", k)), checked).clicked() {
                 self.precise = k == 1;
             }
@@ -473,6 +477,7 @@ impl Dialog for VideoTrimmerWindow {
                 export_clicked = true;
             }
         }
+        tools::tip(ui, folder, Id::new("video-trimmer-show-output-tip"), s::VideoTrimmer_ShowOutput(), !self.output_file_path.is_empty());
         if tools::icon_button(ui, folder, Id::new("video-trimmer-show-output"), icon::FolderOpen, !self.output_file_path.is_empty()).clicked() {
             effects.push(Effect::OpenFolderWithFile(self.output_file_path.clone().into()));
         }
@@ -523,7 +528,10 @@ impl Dialog for VideoTrimmerWindow {
         let total = 40.0 * 3.0 + 2.0 * 8.0 + 16.0 + times_w;
         let mut x = q.min.x + ((q.width() - total) / 2.0).round_ties_even();
         let play_icon = if self.player.is_playing() { icon::Pause } else { icon::Play };
+        let play_text = if self.player.is_playing() { s::AnimatedGifTrimmer_Pause() } else { s::AnimatedGifTrimmer_Play() };
+        let transport_tips = [s::AnimatedGifTrimmer_PreviousFrame(), play_text, s::AnimatedGifTrimmer_NextFrame()];
         for (k, key) in [icon::StepBack, play_icon, icon::StepForward].into_iter().enumerate() {
+            tools::tip(ui, Rect::from_min_size(pos2(x, y), vec2(40.0, 40.0)), Id::new(("video-trimmer-transport-tip", k)), transport_tips[k], can_edit);
             if tools::icon_button(ui, Rect::from_min_size(pos2(x, y), vec2(40.0, 40.0)), Id::new(("video-trimmer-transport", k)), key, can_edit).clicked() {
                 match k {
                     0 => self.player.step_frame(false),
@@ -602,6 +610,7 @@ impl Dialog for VideoTrimmerWindow {
                     self.set_end(v);
                 }
             }
+            tools::tip(ui, br, Id::new(("video-trimmer-set-tip", k)), if k == 0 { s::VideoTrimmer_SetStart() } else { s::VideoTrimmer_SetEnd() }, can_edit);
             if tools::icon_button(ui, br, Id::new(("video-trimmer-set", k)), key, can_edit).clicked() {
                 if k == 0 {
                     self.set_start(self.position);
@@ -615,6 +624,7 @@ impl Dialog for VideoTrimmerWindow {
         let lw = text_width(ui, dur_label, nf.clone());
         tools::row_label(ui, Rect::from_min_size(row.min, vec2(lw, 40.0)), dur_label);
         tools::text_at(ui, pos2(x + lw + 6.0, center_y(row, line_height(ui, &nf))), &dur_text, nf.clone(), p.text);
+        tools::tip(ui, Rect::from_min_size(pos2(q.max.x - 40.0, y), vec2(40.0, 40.0)), Id::new("video-trimmer-reset-tip"), s::VideoTrimmer_Reset(), can_edit);
         if tools::icon_button(ui, Rect::from_min_size(pos2(q.max.x - 40.0, y), vec2(40.0, 40.0)), Id::new("video-trimmer-reset"), icon::Reset, can_edit).clicked() {
             self.reset();
         }
