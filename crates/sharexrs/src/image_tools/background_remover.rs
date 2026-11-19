@@ -603,7 +603,10 @@ mod tests {
         // A file that doesn't decode leaves the image as it was.
         w.load_image(&fixture("in-bgmodels-a-nchw-sigmoid.onnx").to_string_lossy());
         assert_eq!(w.image_path.as_deref(), Some(png.to_string_lossy().as_ref()));
-        assert_eq!(suggested_file_name(Some(r"C:\x\photo.jpg")), "photo-output.png");
+        // A path in this platform's form (a backslash isn't a separator off
+        // Windows, for .NET's Path either).
+        let photo = std::path::Path::new("x").join("photo.jpg");
+        assert_eq!(suggested_file_name(Some(&photo.to_string_lossy())), "photo-output.png");
         assert_eq!(suggested_file_name(None), "image-output.png");
         assert!(!w.can_save());
     }
