@@ -17,6 +17,7 @@ pub mod confirm;
 pub mod custom_uploaders;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod file_exist;
 pub mod layout;
 pub mod print_window;
 pub mod qr_code;

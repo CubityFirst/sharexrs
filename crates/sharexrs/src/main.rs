@@ -199,6 +199,16 @@ fn main() {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
     let uploads = upload::app::Uploads::load(&settings);
+    // `TaskHelpers.HandleExistsFile`'s window, for the tasks' threads.
+    {
+        let proxy = std::sync::Mutex::new(proxy.clone());
+        capture_job::set_file_exists_asker(Some(Arc::new(move |path: &std::path::Path| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let _ = proxy.lock().expect("event proxy").send_event(UserEvent::Ui(upload::UiRequest::FileExists(path.to_path_buf(), tx)));
+            // A window that never answers leaves the path as it was.
+            rx.recv().unwrap_or_else(|_| Some(path.to_path_buf()))
+        })));
+    }
     let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,

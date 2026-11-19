@@ -166,6 +166,7 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
+            super::UiRequest::FileExists(path, reply) => Box::new(dialogs::file_exist::FileExistWindow::new(&path, Some(reply))),
             super::UiRequest::PinToScreen(image, task) => {
                 self.pin_image(event_loop, *image, None, &task);
                 return;

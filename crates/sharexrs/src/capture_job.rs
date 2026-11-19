@@ -215,16 +215,40 @@ fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// `TaskHelpers.HandleExistsFile`. Asking (the default) needs ShareX's
-/// file exists window, not ported yet: a unique name is used instead.
+/// What asks the user about a file that exists (`FileExistWindowIntegration.Show`):
+/// the path to write, or `None` when cancelled. The app installs one that
+/// opens the file exists window and waits for it.
+pub type FileExistsAsker = std::sync::Arc<dyn Fn(&Path) -> Option<PathBuf> + Send + Sync>;
+
+static FILE_EXISTS_ASKER: std::sync::Mutex<Option<(FileExistsAsker, std::thread::ThreadId)>> = std::sync::Mutex::new(None);
+
+/// Installs the asker; called on the event loop's thread, which is never
+/// made to wait for it.
+pub fn set_file_exists_asker(asker: Option<FileExistsAsker>) {
+    let ui_thread = std::thread::current().id();
+    *FILE_EXISTS_ASKER.lock().expect("file exists asker") = asker.map(|a| (a, ui_thread));
+}
+
+/// `TaskHelpers.HandleExistsFile`: the path to write `path` to, or `None`
+/// (an empty path in ShareX) when the task shouldn't write it. Asking (the
+/// default) opens the file exists window and waits; without one (tests,
+/// or on the event loop's own thread) a unique name is used.
 pub fn handle_exists_file(path: &Path, task: &TaskSettings) -> Option<PathBuf> {
-    if !path.exists() {
+    if !path.is_file() {
         return Some(path.to_path_buf());
     }
-    match task.ImageSettings.as_ref().map(|s| &s.FileExistAction) {
-        Some(FileExistAction::Overwrite) => Some(path.to_path_buf()),
-        Some(FileExistAction::Cancel) => None,
-        _ => Some(unique_file_path(path)),
+    match task.ImageSettings.as_ref().map(|s| s.FileExistAction.clone()).unwrap_or(FileExistAction::Ask) {
+        // No case of ShareX's switch: the path as it is.
+        FileExistAction::Overwrite | FileExistAction::Unknown(_) => Some(path.to_path_buf()),
+        FileExistAction::Cancel => None,
+        FileExistAction::UniqueName => Some(unique_file_path(path)),
+        FileExistAction::Ask => {
+            let asker = FILE_EXISTS_ASKER.lock().expect("file exists asker").clone();
+            match asker {
+                Some((ask, ui_thread)) if ui_thread != std::thread::current().id() => ask(path),
+                _ => Some(unique_file_path(path)),
+            }
+        }
     }
 }
 

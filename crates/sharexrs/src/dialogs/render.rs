@@ -124,6 +124,19 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             let files = (0..o.count.max(11)).map(|i| PathBuf::from(format!("{i}.png"))).collect();
             Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::MultiUpload { files, task: Box::new(task) }))
         }
+        // `--text`: the existing file's path; `--state empty` clears the
+        // new name, `--state name=<text>` types one.
+        "file-exists" => {
+            let path = o.text.clone().unwrap_or_else(|| r"C:\ShareX\Screenshots\2026-11\ShareX_test.png".into());
+            let mut w = super::file_exist::FileExistWindow::new(std::path::Path::new(&path), None);
+            w.assume_exists();
+            match o.state.as_deref() {
+                Some("empty") => w.new_name.clear(),
+                Some(s) if s.starts_with("name=") => w.new_name = s["name=".len()..].to_owned(),
+                _ => {}
+            }
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -290,6 +303,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "print-preview"
             | "multi-upload"
             | "large-file"
+            | "file-exists"
             | "before-upload"
             | "after-upload"
             | "qr-code"

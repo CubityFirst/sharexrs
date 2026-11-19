@@ -139,6 +139,36 @@ impl Button {
         }
         r
     }
+
+    /// The foreground a custom `Content` inherits in the state `r` shows
+    /// (`TextBlock`s and icons without a `Foreground` of their own), for a
+    /// button drawn with empty text.
+    pub fn foreground(&self, ui: &Ui, r: &Response, enabled: bool, behind: Color32) -> Color32 {
+        let p = palette(ui.ctx());
+        let f = fluent(ui.ctx());
+        let (over, pressed) = states(r, enabled);
+        if !enabled {
+            let fg = if self.primary { p.accent_foreground } else { f.base_medium_low };
+            border::group_content(fg, p.control_background, DISABLED_OPACITY, behind)
+        } else if self.primary {
+            p.accent_foreground
+        } else if over || pressed {
+            f.base_high
+        } else {
+            p.text
+        }
+    }
+
+    /// A custom content colour (a `TextBlock` or icon with its own
+    /// `Foreground`) as it shows in the button: disabled, the presenter is
+    /// drawn at 35% over the control background.
+    pub fn content(&self, ui: &Ui, enabled: bool, color: Color32, behind: Color32) -> Color32 {
+        if enabled {
+            color
+        } else {
+            border::group_content(color, palette(ui.ctx()).control_background, DISABLED_OPACITY, behind)
+        }
+    }
 }
 
 /// `CheckBox` (Fluent template, ShareX's colours): a 20x20 box with 3px
