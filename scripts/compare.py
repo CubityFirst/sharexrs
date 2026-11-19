@@ -11,9 +11,8 @@ and prints how much differs, and the bounding boxes of the differing areas.
 
 winshot.ps1 captures the client area, so both images start at the window's
 first pixel. Older -Frame captures with the 1px DWM border (a black or
-#202020 edge) have it cropped off first; --no-crop keeps every row and
-column (a full-screen capture whose own edge pixels are black: the monitor
-test's patterns).
+#202020 edge) have it cropped off first; `--no-crop` keeps every pixel
+(borderless windows on black, such as ShareX's notification).
 """
 import sys
 from pathlib import Path
@@ -86,7 +85,8 @@ def main():
         threshold = int(args[i + 1])
         del args[i : i + 2]
     crop = "--no-crop" not in args
-    args = [a for a in args if a != "--no-crop"]
+    if not crop:
+        args.remove("--no-crop")
     a_path, b_path, out = args
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)

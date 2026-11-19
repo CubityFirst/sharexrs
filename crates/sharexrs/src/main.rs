@@ -9,6 +9,9 @@
 mod app_icon;
 mod app_settings;
 mod app_windows;
+mod logger;
+mod main_commands;
+mod quick_task;
 mod appearance;
 mod auto_capture;
 mod capture;
@@ -33,6 +36,7 @@ mod image_tools;
 mod image_effects;
 mod recording;
 mod region_render;
+mod remote_storage_browser;
 mod region_session;
 mod render;
 mod screen_tools;
@@ -51,6 +55,8 @@ mod task_editors;
 mod task_settings_window;
 mod task_view;
 mod tasks;
+#[cfg(test)]
+mod test_mock;
 mod test_pattern;
 mod print;
 mod thumbnail;
@@ -154,6 +160,8 @@ fn main() {
     if instance.is_single_instance && !instance.is_first_instance {
         return;
     }
+    // `DebugHelper.Init(AppPaths.LogsFilePath)`.
+    logger::init(logger::log_file_path(&paths.logs_folder(), system.disable_logging));
     // What an earlier update left behind (the replaced app or files).
     sharex_update::install::init();
     // `Program.Run`: the settings (`SettingManager.LoadInitialSettings`),
@@ -202,6 +210,17 @@ fn main() {
         let _ = hotkey_proxy.send_event(UserEvent::Hotkey(id));
     }));
     let uploads = upload::app::Uploads::load(&settings);
+    // `TaskHelpers.HandleExistsFile`'s window, for the tasks' threads.
+    {
+        let proxy = std::sync::Mutex::new(proxy.clone());
+        capture_job::set_file_exists_asker(Some(Arc::new(move |path: &std::path::Path| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let _ = proxy.lock().expect("event proxy").send_event(UserEvent::Ui(upload::UiRequest::FileExists(path.to_path_buf(), tx)));
+            // A window that never answers leaves the path as it was.
+            rx.recv().unwrap_or_else(|_| Some(path.to_path_buf()))
+        })));
+    }
+    upload::app::set_dialog_hooks(proxy.clone());
     let updates = update::Updates::new(proxy.clone(), settings.paths.portable);
     let mut app = App {
         gpu: None,
@@ -255,6 +274,11 @@ fn main() {
         scrolling: Default::default(),
         auto_capture: Default::default(),
         desktop_icons: None,
+        icon_pack_prompt: false,
+        pending_notification: None,
+        quick_task: None,
+        pending_quick_task: None,
+        toolbar_menu: None,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -277,6 +301,9 @@ enum DialogPurpose {
     /// A message that only needs reading (`CaptureCustomWindow`'s window
     /// not found).
     Information,
+    /// `TaskHelpers.ConfirmFileDelete` for one file (the notification's
+    /// Delete file).
+    DeletePath(std::path::PathBuf),
     /// Custom uploader settings' "Clear all..." confirmation.
     ClearCustomUploaders,
     /// FFmpeg is missing (`CheckFFmpeg`): Yes downloads it.
@@ -383,6 +410,17 @@ struct App {
     /// `CaptureAutoHideDesktopIcons`: the icons hidden for the capture
     /// running, shown again when it ends (or when this is dropped).
     desktop_icons: Option<sharex_capture::screenshot::DesktopIconsHidden>,
+    /// `IconPackPromptWindow.ShowOnceWithMainWindow`: shown when the main
+    /// window first opens.
+    icon_pack_prompt: bool,
+    /// A toast to show once the event loop is at hand.
+    pending_notification: Option<dialogs::notification::NotificationConfig>,
+    /// The quick task menu, while a capture waits on it.
+    quick_task: Option<quick_task::QuickTaskMenu>,
+    /// A capture for the quick task menu, once the event loop is at hand.
+    pending_quick_task: Option<capture_job::ImageTask>,
+    /// The Actions toolbar's title menu, while it's open.
+    toolbar_menu: Option<main_commands::ToolbarMenu>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -447,6 +485,9 @@ impl App {
         self.main = Some(w);
         #[cfg(target_os = "macos")]
         tray::set_dock_icon(true);
+        if std::mem::take(&mut self.icon_pack_prompt) && self.settings.settings.ShowIconPackPrompt {
+            self.open_dialog_window(event_loop, Box::new(dialogs::icon_pack_prompt::IconPackPromptWindow));
+        }
         Ok(())
     }
 
@@ -526,12 +567,33 @@ impl App {
                 self.show_stats(event_loop);
                 return;
             }
+            // `MainFormCommand.ScreenshotsFolder`, `Donate`, `X`, `Discord`, `About`.
+            Action::Nav(i @ (12 | 17 | 18 | 19), _) => {
+                match i {
+                    12 => self.open_screenshots_folder(),
+                    17 => self.open_link(main_commands::Link::Donate),
+                    18 => self.open_link(main_commands::Link::X),
+                    _ => self.open_link(main_commands::Link::Discord),
+                }
+                return;
+            }
+            Action::Nav(20, _) => {
+                self.show_about(event_loop);
+                return;
+            }
             Action::Nav(i, _) => eprintln!("sidebar entry {i}: not ported yet"),
             Action::Menu(command) => {
                 self.menu_command(event_loop, command, false);
                 return;
             }
             Action::Task(_) => {}
+            // `SetToolVisibility`: saved at once.
+            Action::HiddenTools(hidden) => {
+                self.settings.settings.HiddenTools = hidden;
+                if let Err(e) = self.settings.save_application_config(false) {
+                    eprintln!("couldn't save the settings: {e}");
+                }
+            }
         }
         w.window.request_redraw();
     }
@@ -545,6 +607,14 @@ impl App {
         if command == MenuCommand::Tool("MainMenuBuilder_OCR") {
             let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
             self.ocr_capture(task, auto_hide);
+            return;
+        }
+        if command == MenuCommand::Tool("MainMenuBuilder_ImageViewer") {
+            self.open_image_viewer(event_loop);
+            return;
+        }
+        if command == MenuCommand::Tool("MainMenuBuilder_RemoteStorageBrowser") {
+            self.open_remote_storage_browser(event_loop);
             return;
         }
         if let MenuCommand::Tool(key) = command
@@ -620,6 +690,41 @@ impl App {
             MenuCommand::History => self.show_history(event_loop),
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
+            MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
+            // `TaskHelpers.ToggleActionsToolbar`.
+            MenuCommand::ActionsToolbar => self.toggle_actions_toolbar(event_loop),
+            MenuCommand::RunWorkflow(i) => {
+                // `TaskHelpers.ExecuteJob(workflow.TaskSettings)`.
+                if let Some(h) = self.settings.hotkeys.Hotkeys.get(i) {
+                    let task = h.TaskSettings.safe_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.run_job(event_loop, task.Job.clone(), task, Some(i));
+                }
+                return;
+            }
+            MenuCommand::RecentCopy(i) => {
+                if let Some(t) = self.state.tasks.manager.recent.get(i) {
+                    let text = t.text().to_owned();
+                    if let Err(e) = sharex_capture::clipboard::copy_text(&text, self.clipboard_owner()) {
+                        eprintln!("Clipboard copy text failed: {e}");
+                    }
+                }
+            }
+            MenuCommand::RecentOpen(i) => {
+                if let Some(t) = self.state.tasks.manager.recent.get(i).cloned() {
+                    // `RecentTask.Open`.
+                    if !t.shortened_url.is_empty() {
+                        upload::open_url(&t.shortened_url);
+                    } else if !t.url.is_empty() {
+                        upload::open_url(&t.url);
+                    } else if !t.file_path.is_empty() {
+                        shell::open_file(std::path::Path::new(&t.file_path));
+                    }
+                }
+            }
+            // `TaskHelpers.OpenDebugLog`.
+            MenuCommand::DebugLog => self.open_dialog_window(event_loop, Box::new(dialogs::debug_log::DebugLogWindow::new())),
+            // `DisplayDiagnosticsWindowIntegration.Show`.
+            MenuCommand::DisplayDiagnostics => self.open_dialog_window(event_loop, Box::new(dialogs::display_diagnostics::DisplayDiagnosticsWindow::new())),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
         self.refresh_menus();
@@ -635,6 +740,12 @@ impl App {
         m.screenshot_delay_just_once = s.ScreenshotDelayJustOnce;
         m.hotkeys_disabled = s.DisableHotkeys;
         menu_settings::fill(m, &s.DefaultTaskSettings);
+        // `BuildWorkflowsMenu`: the hotkeys as they are.
+        m.workflows = main_menu::workflows_from_hotkeys(&self.settings.hotkeys.Hotkeys);
+        m.workflows_only_show_edited = s.WorkflowsOnlyShowEdited;
+        m.hidden_tools = s.HiddenTools.clone();
+        self.refresh_recent_items();
+        let m = &mut self.state.menu_state;
         m.list_windows = true;
         // `DesktopScreen.AllScreens`.
         m.monitors = sharex_capture::screenshot::screens()
@@ -895,8 +1006,14 @@ impl App {
         }
         self.hide_to_tray();
         if self.settings.settings.FirstTimeMinimizeToTray {
-            // `ShowNotificationTip`: notifications aren't ported yet.
-            eprintln!("{}", sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray());
+            // `ShowNotificationTip(ShareXIsMinimizedToTheSystemTray, "ShareX", 8000)`.
+            let tip = dialogs::notification::NotificationConfig::tip(
+                &self.default_general(),
+                sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray(),
+                "ShareXrs",
+                8000,
+            );
+            self.pending_notification = Some(tip);
             self.settings.settings.FirstTimeMinimizeToTray = false;
         }
         if let Err(e) = self.settings.save_all() {
@@ -1089,6 +1206,8 @@ impl App {
         self.update_watch_folders();
         self.highlighter_activate_on_startup(event_loop);
         eprintln!("WatchFolderManager started.");
+        // `IconPackPromptWindow.ShowOnceWithMainWindow` (not in a sandbox).
+        self.icon_pack_prompt = self.settings.settings.ShowIconPackPrompt && !self.settings.paths.sandbox;
         if let Some(failed) = failed.filter(|_| !self.ignore_hotkey_warning) {
             let message = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
             match self.open_dialog(event_loop, message, DialogPurpose::HotkeysFailed) {
@@ -1165,6 +1284,13 @@ impl App {
         let startup = matches!(dialog.purpose, DialogPurpose::HotkeysFailed);
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
+        } else if let DialogPurpose::DeletePath(path) = &dialog.purpose {
+            if result == DialogResult::Yes {
+                if dialog.message.checked {
+                    self.settings.settings.ShowFileDeleteConfirmation = false;
+                }
+                shell::delete_file_to_recycle_bin(path);
+            }
         } else if let DialogPurpose::DownloadFFmpeg(path) = &dialog.purpose {
             if result == DialogResult::Yes {
                 self.download_ffmpeg(path.clone());
@@ -1298,6 +1424,14 @@ impl App {
         if self.run_screen_job(event_loop, &job, &task, None) {
             return;
         }
+        if job == HotkeyType::ToggleActionsToolbar {
+            self.toggle_actions_toolbar(event_loop);
+            return;
+        }
+        if job == HotkeyType::ImageViewer {
+            self.open_image_viewer(event_loop);
+            return;
+        }
         if let Some(key) = image_tools::open::tool_for_hotkey(&job) {
             self.open_image_tool(event_loop, key, Some(task));
             return;
@@ -1396,6 +1530,7 @@ impl App {
         }
         self.refresh_menus();
         self.state.menu_state.uploads_enabled = !self.state.uploads_disabled;
+        self.refresh_recent_items();
         let entries = main_menu::tray_menu(&self.state.menu_state);
         let screens = sharex_capture::screenshot::screens();
         let cursor = sharex_capture::screenshot::cursor_position().unwrap_or_default();
@@ -1405,7 +1540,11 @@ impl App {
             Some(g) => Ok(g),
             None => Gpu::new().map(|g| &*self.gpu.insert(g)),
         }
-        .and_then(|gpu| TrayMenu::open(event_loop, gpu, &screens, cursor, entries, theme, open));
+        .and_then(|gpu| TrayMenu::open(event_loop, gpu, &screens, cursor, entries, theme, open))
+        .map(|mut m| {
+            m.set_hidden_tools(self.settings.settings.HiddenTools.clone());
+            m
+        });
         match menu {
             Ok(m) => self.tray_menu = Some(m),
             Err(e) => eprintln!("couldn't open the tray menu: {e}"),
@@ -1429,15 +1568,19 @@ impl App {
         self.hotkeys.toggle_hotkeys(&mut self.settings.hotkeys.Hotkeys, disabled);
         self.refresh_hotkey_tips();
         self.refresh_menus();
-        // ShareX shows this as a notification, which isn't ported yet.
-        eprintln!(
-            "{}",
-            if disabled {
+        // `PlayNotificationSoundAsync(ActionCompleted)` and the tip.
+        let general = self.default_general();
+        if general.PlaySoundAfterAction {
+            sound::play_action_completed();
+        }
+        if general.ShowToastNotificationAfterTaskCompleted {
+            let text = if disabled {
                 sharex_strings::sharex::TaskHelpers_ToggleHotkeys_Hotkeys_disabled_()
             } else {
                 sharex_strings::sharex::TaskHelpers_ToggleHotkeys_Hotkeys_enabled_()
-            }
-        );
+            };
+            self.pending_notification = Some(dialogs::notification::NotificationConfig::tip(&general, text, "ShareXrs", -1));
+        }
     }
 }
 
@@ -1635,8 +1778,21 @@ impl ApplicationHandler<UserEvent> for App {
             }
             return;
         }
+        if self.quick_task.as_ref().is_some() && self.quick_task_event(event_loop, id, event.clone()) {
+            return;
+        }
+        if self.toolbar_menu.as_ref().is_some() && self.toolbar_menu_event(event_loop, id, event.clone()) {
+            return;
+        }
         if let Some(menu) = self.tray_menu.as_mut().filter(|m| m.owns(id)) {
             let out = menu.window_event(event);
+            if let Some(hidden) = menu.take_hidden_tools() {
+                self.settings.settings.HiddenTools = hidden;
+                self.state.menu_state.hidden_tools = self.settings.settings.HiddenTools.clone();
+                if let Err(e) = self.settings.save_application_config(false) {
+                    eprintln!("couldn't save the settings: {e}");
+                }
+            }
             if out.closed {
                 self.close_tray_menu();
             }
@@ -1723,6 +1879,15 @@ impl ApplicationHandler<UserEvent> for App {
             self.exit(event_loop);
             return;
         }
+        if let Some(config) = self.pending_notification.take() {
+            self.show_notification(event_loop, config);
+        }
+        if let Some(job) = self.pending_quick_task.take() {
+            self.show_quick_task_menu(event_loop, job);
+        }
+        for d in std::mem::take(&mut self.pending_dialogs) {
+            self.open_dialog_window(event_loop, d);
+        }
         if let Some(d) = &self.dialog
             && d.window.repaint_at.is_some_and(|at| at <= Instant::now())
         {
@@ -1755,6 +1920,11 @@ impl ApplicationHandler<UserEvent> for App {
             auto_capture,
             self.main.as_ref().and_then(|w| w.repaint_at),
             self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
+            self.quick_task_due(now),
+            self.toolbar_menu.as_mut().and_then(|m| {
+                m.redraw_if_due(now);
+                m.repaint_at()
+            }),
             region,
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),

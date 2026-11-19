@@ -139,6 +139,36 @@ impl Button {
         }
         r
     }
+
+    /// The foreground a custom `Content` inherits in the state `r` shows
+    /// (`TextBlock`s and icons without a `Foreground` of their own), for a
+    /// button drawn with empty text.
+    pub fn foreground(&self, ui: &Ui, r: &Response, enabled: bool, behind: Color32) -> Color32 {
+        let p = palette(ui.ctx());
+        let f = fluent(ui.ctx());
+        let (over, pressed) = states(r, enabled);
+        if !enabled {
+            let fg = if self.primary { p.accent_foreground } else { f.base_medium_low };
+            border::group_content(fg, p.control_background, DISABLED_OPACITY, behind)
+        } else if self.primary {
+            p.accent_foreground
+        } else if over || pressed {
+            f.base_high
+        } else {
+            p.text
+        }
+    }
+
+    /// A custom content colour (a `TextBlock` or icon with its own
+    /// `Foreground`) as it shows in the button: disabled, the presenter is
+    /// drawn at 35% over the control background.
+    pub fn content(&self, ui: &Ui, enabled: bool, color: Color32, behind: Color32) -> Color32 {
+        if enabled {
+            color
+        } else {
+            border::group_content(color, palette(ui.ctx()).control_background, DISABLED_OPACITY, behind)
+        }
+    }
 }
 
 /// `CheckBox` (Fluent template, ShareX's colours): a 20x20 box with 3px
@@ -597,8 +627,11 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     // Below the combo box, else above it, else wherever it fits best.
     let below = screen.max.y - anchor.max.y;
     let above = anchor.min.y - screen.min.y;
+    // With no items the popup is just its padding (the background remover's
+    // empty model list: 14 px).
+    let least = if items.is_empty() { full } else { row_h + 14.0 };
     let (top, height) = if full <= below || below >= above {
-        (anchor.max.y, full.min(below).max(row_h + 14.0))
+        (anchor.max.y, full.min(below).max(least))
     } else {
         let h = full.min(above);
         (anchor.min.y - h, h)
@@ -1303,6 +1336,60 @@ pub fn wrap_lines(ui: &Ui, text: &str, font: &FontId, width: f32) -> Vec<String>
             }
         }
         lines.push(line);
+    }
+    lines
+}
+
+/// [`wrap_lines`] with the line break opportunity Avalonia's text layout
+/// also takes after a hyphen (UAX #14's HY class, not before a digit), as
+/// in a long path: `C:\a\sharexrs-` / `ref\b.png`.
+pub fn wrap_lines_at_hyphens(ui: &Ui, text: &str, font: &FontId, width: f32) -> Vec<String> {
+    let fits = |s: &str| text_width(ui, s.trim_end_matches(' '), font.clone()) <= width;
+    let mut lines = Vec::new();
+    for para in text.split('\n') {
+        // Segments, each ending at a break opportunity.
+        let chars: Vec<char> = para.chars().collect();
+        let mut segments: Vec<String> = Vec::new();
+        let mut seg = String::new();
+        for (i, &c) in chars.iter().enumerate() {
+            seg.push(c);
+            let next = chars.get(i + 1).copied();
+            let after_space = c == ' ' && next != Some(' ');
+            let after_hyphen = c == '-' && next.is_some_and(|n| !n.is_ascii_digit() && n != ' ');
+            if after_space || after_hyphen {
+                segments.push(std::mem::take(&mut seg));
+            }
+        }
+        if !seg.is_empty() {
+            segments.push(seg);
+        }
+        let mut line = String::new();
+        for seg in segments {
+            let candidate = format!("{line}{seg}");
+            if fits(&candidate) {
+                line = candidate;
+                continue;
+            }
+            if !line.is_empty() {
+                lines.push(line.trim_end_matches(' ').to_owned());
+                line.clear();
+            }
+            if fits(&seg) {
+                line = seg;
+                continue;
+            }
+            // A segment wider than the line breaks between characters.
+            for c in seg.chars() {
+                let next = format!("{line}{c}");
+                if !line.is_empty() && !fits(&next) {
+                    lines.push(std::mem::take(&mut line));
+                    line.push(c);
+                } else {
+                    line = next;
+                }
+            }
+        }
+        lines.push(line.trim_end_matches(' ').to_owned());
     }
     lines
 }

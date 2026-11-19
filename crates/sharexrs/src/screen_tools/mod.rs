@@ -238,7 +238,9 @@ impl App {
                         sharex_strings::sharex::TaskHelpers_OpenQuickScreenColorPicker_Copied_to_clipboard___0_(),
                         &[text.as_str().into()],
                     );
-                    eprintln!("Notification not ported yet: ShareXrs - {}: {message}", sharex_strings::sharex::ScreenColorPicker());
+                    let general = self.default_general();
+                    let title = format!("ShareXrs - {}", sharex_strings::sharex::ScreenColorPicker());
+                    self.pending_notification = Some(crate::dialogs::notification::NotificationConfig::tip(&general, &message, &title, -1));
                 }
             }
             PickPurpose::Region(item) => {

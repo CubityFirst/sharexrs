@@ -445,11 +445,62 @@ pub enum GifQuality {
     Adaptive,
 }
 
+/// `SKPngEncoderOptions`: the zlib level (0-9) and the row filter (one of
+/// `None`/`Sub`/`Up`/`Avg`/`Paeth`, or all of them, libpng picking per row).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PngOptions {
+    pub level: u8,
+    pub filter: PngFilter,
+}
+
+/// `SKPngEncoderFilterFlags` as ShareX passes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PngFilter {
+    None,
+    Sub,
+    Up,
+    Avg,
+    Paeth,
+    All,
+}
+
+/// The zlib-rs level for a zlib level. zlib's levels 1-3 are `deflate_fast`
+/// (level 1 with 4/4/8/4 lazy/good/nice/chain); zlib-rs, following zlib-ng,
+/// makes level 1 `deflate_quick` (some 25-35% bigger on screenshots) and
+/// level 2 that `deflate_fast` with zlib's level-1 parameters. Above 3 the
+/// levels are kept (zlib-rs's 4-6 are `deflate_medium`, close in size).
+/// ShareX's PNG size decides its switch to JPEG, so it's kept close: within
+/// a few percent of Skia's at ShareX's default level 1 (docs/TOOLS.md).
+fn zlib_rs_level(level: u8) -> u8 {
+    match level.min(9) {
+        1..=3 => 2,
+        l => l,
+    }
+}
+
 /// The pixel rows an `SkPngEncoder` writes: RGBA, or RGB for an opaque bitmap.
 fn png_bytes(width: u32, height: u32, rgba: &[u8], opaque: bool) -> Vec<u8> {
+    png_bytes_with(width, height, rgba, opaque, None)
+}
+
+/// [`png_bytes`] with ShareX's encoder options: the same rows, filters and
+/// zlib level (the deflate stream is zlib-rs's, not Skia's zlib, so the
+/// bytes and the size differ a little).
+fn png_bytes_with(width: u32, height: u32, rgba: &[u8], opaque: bool, options: Option<PngOptions>) -> Vec<u8> {
     let mut out = Vec::new();
     {
         let mut enc = png::Encoder::new(&mut out, width, height);
+        if let Some(o) = options {
+            enc.set_deflate_compression(png::DeflateCompression::Level(zlib_rs_level(o.level)));
+            enc.set_filter(match o.filter {
+                PngFilter::None => png::Filter::NoFilter,
+                PngFilter::Sub => png::Filter::Sub,
+                PngFilter::Up => png::Filter::Up,
+                PngFilter::Avg => png::Filter::Avg,
+                PngFilter::Paeth => png::Filter::Paeth,
+                PngFilter::All => png::Filter::Adaptive,
+            });
+        }
         enc.set_depth(png::BitDepth::Eight);
         if opaque {
             enc.set_color(png::ColorType::Rgb);
@@ -482,17 +533,28 @@ pub fn encode_png_opaque(bmp: &Bitmap) -> Vec<u8> {
 
 /// `SkiaImageHelpers.SavePNG(bitmap, stream, depth)`.
 pub fn save_png(bmp: &Bitmap, depth: PngBitDepth) -> Vec<u8> {
+    save_png_options(bmp, depth, None)
+}
+
+/// `SkiaImageHelpers.SavePNG(bitmap, stream, depth, sizeLimit, options)`
+/// (the size limit is the caller's: a longer PNG is what it checks).
+pub fn save_png_with(bmp: &Bitmap, depth: PngBitDepth, options: PngOptions) -> Vec<u8> {
+    save_png_options(bmp, depth, Some(options))
+}
+
+fn save_png_options(bmp: &Bitmap, depth: PngBitDepth, options: Option<PngOptions>) -> Vec<u8> {
     let opaque_output = depth == PngBitDepth::Bit24 || (depth == PngBitDepth::Automatic && !is_transparent(bmp));
     if opaque_output {
         // Copied into an opaque bitmap through straight pixels with alpha 255.
         let rgba: Vec<u8> = straight_pixels(bmp).into_iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
-        png_bytes(bmp.width(), bmp.height(), &rgba, true)
+        png_bytes_with(bmp.width(), bmp.height(), &rgba, true, options)
     } else if depth == PngBitDepth::Bit32 {
         // ReadPixels into an unpremultiplied bitmap, encoded as is.
         let rgba: Vec<u8> = straight_pixels(bmp).into_iter().flatten().collect();
-        png_bytes(bmp.width(), bmp.height(), &rgba, false)
+        png_bytes_with(bmp.width(), bmp.height(), &rgba, false, options)
     } else {
-        encode_png(bmp)
+        let rgba: Vec<u8> = encoder_pixels(bmp).into_iter().flatten().collect();
+        png_bytes_with(bmp.width(), bmp.height(), &rgba, false, options)
     }
 }
 

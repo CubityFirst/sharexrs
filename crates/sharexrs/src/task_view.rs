@@ -126,6 +126,8 @@ pub enum TaskCommand {
     TrimAnimatedGif,
     /// `UploadInfoManager.AddImageEffects`: the Image effects window on the file.
     AddImageEffects,
+    /// `UploadInfoManager.BeautifyImage`: the Image beautifier on the file.
+    BeautifyImage,
     /// `UploadInfoManager.CombineImages(orientation)`: true for horizontally.
     CombineImages(bool),
     /// `UploadInfoManager.AnalyzeImage`: the Analyze image window on the file.
@@ -221,7 +223,7 @@ pub mod link_formats {
 pub enum TaskAction {
     /// Run a command on these tasks (the selection, in the order it was made).
     Command(TaskCommand, Vec<u64>),
-    /// `ShowImagesInViewer`: the image viewer isn't ported yet.
+    /// `ShowImagesInViewer`.
     OpenImageViewer(PathBuf),
     /// Open a file (a thumbnail title's click, `ExecuteThumbnailClick`).
     OpenFile(PathBuf),
@@ -1432,7 +1434,7 @@ impl TaskView {
             item(s::MainWindow_ResizeImage(), icon::Resize, TaskCommand::ResizeImages, ok && images > 0),
             item(s::MainWindow_TrimVideo(), icon::Scissors, TaskCommand::TrimVideo, ok && sel.is_video_file),
             item(s::MainWindow_TrimAnimatedGif(), icon::Scissors, TaskCommand::TrimAnimatedGif, ok && is_gif),
-            item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, np("Image beautifier"), ok && sel.is_image_file),
+            item(s::MainWindow_BeautifyImage(), icon::ImageBeautifier, TaskCommand::BeautifyImage, ok && sel.is_image_file),
             item(s::MainWindow_AddImageEffects(), icon::MagicWand, TaskCommand::AddImageEffects, ok && sel.is_image_file),
             item(s::MainWindow_PinToScreen(), icon::Pin, TaskCommand::PinToScreen, ok && sel.is_image_file).gesture("Ctrl+P"),
             sub(s::MainWindow_RunAction(), icon::Play, self.actions_menu(&path), ok && sel.is_file_exist && self.has_external_actions(&path)),

@@ -10,9 +10,9 @@
 //!
 //! - `-CustomUploader <file.sxcu>`: imports the custom uploader, asking
 //!   whether to add it or make it the active one;
-//! - `-ImageEffect <file.sxie>`: unpacks the preset into the ImageEffects
-//!   folder and adds it to the default task's presets (the Image effects
-//!   window isn't ported), asking to turn image effects on;
+//! - `-ImageEffect <file.sxie>`: unpacks the package into the ImageEffects
+//!   folder and imports its preset into the Image effects window (Presets
+//!   mode, the default task's presets), asking to turn image effects on;
 //! - `-<HotkeyType> [file]`: runs that job with the default task settings,
 //!   with the file for the jobs that take one (`-OCR`, `-ImageEditor`,
 //!   `-FileUpload`, ...; a file that isn't there skips the job);
@@ -299,6 +299,10 @@ impl App {
         if let Some(args) = self.router.initial.take() {
             self.use_command_line_args(event_loop, &args);
         }
+        // `if (ActionsToolbarRunAtStartup) TaskHelpers.OpenActionsToolbar()`.
+        if self.settings.settings.ActionsToolbarRunAtStartup {
+            self.open_actions_toolbar(event_loop);
+        }
         for (at, args) in std::mem::take(&mut self.router.pending) {
             if at.elapsed() > STARTUP_TIMEOUT {
                 eprintln!("Arguments were not processed because application startup did not complete within 5 seconds.");
@@ -407,12 +411,15 @@ impl App {
                     self.open_video_tool(event_loop, key, Some(task), Some(file.to_string_lossy().into_owned()));
                 }
             }
+            // `TaskHelpers.OpenImageViewer(filePath)`.
+            HotkeyType::ImageViewer => self.show_image_file(event_loop, std::path::Path::new(&file)),
+            // `OpenImageBeautifier(filePath, safeTaskSettings)`.
+            HotkeyType::ImageBeautifier => self.open_image_beautifier(event_loop, Some(file), Some(task)),
+            // `OpenImageEffects(filePath, safeTaskSettings)`.
+            HotkeyType::ImageEffects => self.open_image_effects_tool(event_loop, Some(file), task),
             // The image tools on a file: their windows aren't ported.
             HotkeyType::PhotoEditor
-            | HotkeyType::PixelEditor
-            | HotkeyType::ImageBeautifier
-            | HotkeyType::ImageEffects
-            | HotkeyType::ImageViewer => eprintln!("{} with a file: not ported yet", job.name()),
+            | HotkeyType::PixelEditor => eprintln!("{} with a file: not ported yet", job.name()),
             // `OpenHashCheck(filePath, …)`, `OpenMetadataWindow(filePath)`,
             // `StripMetadata(filePath, …)`.
             HotkeyType::HashCheck | HotkeyType::Metadata | HotkeyType::StripMetadata => {
@@ -538,11 +545,12 @@ impl App {
     }
 
     /// `TaskHelpers.ImportImageEffect`: the package's images go to the
-    /// ImageEffects folder, its preset to the default task's presets
-    /// (`OpenImageEffectsSingleton(..., configJson)`, whose window would
-    /// import and select it: `ImageEffectsViewModel.ImportPreset`).
+    /// ImageEffects folder, then its preset to the Image effects window
+    /// (`OpenImageEffectsSingleton(DefaultTaskSettings, configJson)`: the
+    /// one Presets window, which imports and selects it,
+    /// `ImageEffectsViewModel.ImportPreset`), then the question whether to
+    /// turn on Add image effects.
     fn import_image_effect(&mut self, event_loop: &ActiveEventLoop, path: &std::path::Path) {
-        use sharex_image_effects::{Context, ImageEffectPreset, TypeNames};
         let folder = self.settings.paths.image_effects_folder();
         let config = match sharex_image_effects::package::extract(path, &folder) {
             Ok(c) => c,
@@ -553,14 +561,7 @@ impl App {
             }
         };
         let Some(config) = config.filter(|c| !c.is_empty()) else { return };
-        eprintln!("Image effects window: not ported yet; importing the preset into the default task settings.");
-        if let Some(mut preset) = ImageEffectPreset::from_json_str(&config).filter(|p| !p.effects.is_empty()) {
-            let ctx = Context { special_folders: vec![("ShareXImageEffects".into(), folder.clone())], ..Default::default() };
-            sharex_image_effects::preset::sanitize_imported(&mut preset, &folder, &ctx);
-            let image = self.settings.settings.DefaultTaskSettings.ImageSettings.get_or_insert_with(Default::default);
-            image.ImageEffectPresets.push(preset.to_json(TypeNames::Full));
-            image.SelectedImageEffectPreset = image.ImageEffectPresets.len() as i32 - 1;
-        }
+        self.open_image_effects_presets(event_loop, None, Some(config));
         let job = &self.settings.settings.DefaultTaskSettings.AfterCaptureJob;
         if !job.contains(sharex_settings::AfterCaptureTasks::AddImageEffects) {
             let text = sharex_strings::sharex::WouldYouLikeToEnableImageEffects();

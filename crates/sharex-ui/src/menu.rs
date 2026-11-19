@@ -222,6 +222,9 @@ pub enum Placement {
     BottomEdgeAlignedLeft,
     /// At the pointer (context menus).
     Pointer(Pos2),
+    /// Top-left at this point, slid (never flipped) to stay in the bounds:
+    /// `PlacementConstraintAdjustment = SlideX | SlideY` (the quick task menu).
+    Slide(Pos2),
 }
 
 enum Content<C> {
@@ -236,6 +239,10 @@ pub enum MenuStyle {
     /// padding, the hover background on pointer over.
     #[default]
     Compact,
+    /// Compact items with plain `Separator`s between them (no
+    /// `compact-menu-separator` class): a 1px line, no margin (the quick
+    /// task menu).
+    CompactPlainSeparators,
     /// A plain `ContextMenu MenuItem` (ControlStyles.axaml): `Padding="12,8"`,
     /// as tall as its content, the accent fill and accent foreground on
     /// pointer over (the hotkey and task pickers).
@@ -254,7 +261,7 @@ pub enum MenuStyle {
 impl MenuStyle {
     fn item_padding(self, d: &crate::theme::Density) -> crate::theme::Thickness {
         match self {
-            MenuStyle::Compact => d.menu_item_padding,
+            MenuStyle::Compact | MenuStyle::CompactPlainSeparators => d.menu_item_padding,
             MenuStyle::Standard => crate::theme::Thickness::hv(12.0, 8.0),
             MenuStyle::Flyout => crate::theme::Thickness::new(11.0, 2.0 + 4.0, 11.0, 2.0 + 7.0),
         }
@@ -262,7 +269,7 @@ impl MenuStyle {
 
     fn item_height(self, d: &crate::theme::Density) -> f32 {
         match self {
-            MenuStyle::Compact => d.menu_item_height,
+            MenuStyle::Compact | MenuStyle::CompactPlainSeparators => d.menu_item_height,
             // The padding around an 18px content row (measured on ShareX's
             // task picker: 34px items).
             MenuStyle::Standard => 8.0 + 18.0 + 8.0,
@@ -295,7 +302,7 @@ impl MenuStyle {
     fn separator_margin(self, d: &crate::theme::Density) -> crate::theme::Thickness {
         match self {
             MenuStyle::Compact => d.menu_separator_margin,
-            MenuStyle::Standard => crate::theme::Thickness::all(0.0),
+            MenuStyle::Standard | MenuStyle::CompactPlainSeparators => crate::theme::Thickness::all(0.0),
             MenuStyle::Flyout => crate::theme::Thickness::new(0.0, 4.0, 0.0, 4.0),
         }
     }
@@ -346,6 +353,13 @@ pub struct Flyout<C> {
     pub hidden_tools: Vec<String>,
     /// The tool grid's edit button text (`MainMenuBuilder_EditTools`).
     pub edit_label: String,
+    /// Its text while editing (`MainMenuBuilder_FinishEditingTools`).
+    pub finish_label: String,
+    /// The tool grid's edit mode: every tool with a visibility switch.
+    pub editing_tools: bool,
+    /// [`hidden_tools`](Self::hidden_tools) changed (`SetToolVisibility`):
+    /// the host saves them and clears this.
+    pub tools_changed: bool,
     /// Where each level was drawn last frame, for light dismiss.
     rects: Vec<Rect>,
     /// The items' style.
@@ -385,9 +399,45 @@ impl<C: Clone> Flyout<C> {
             last_hovered: None,
             hidden_tools: Vec::new(),
             edit_label: String::new(),
+            finish_label: String::new(),
+            editing_tools: false,
+            tools_changed: false,
             rects: Vec::new(),
             style: MenuStyle::Compact,
         }
+    }
+
+    fn grid_params(&self) -> GridParams<'_> {
+        GridParams {
+            hidden: &self.hidden_tools,
+            label: if self.editing_tools { &self.finish_label } else { &self.edit_label },
+            editing: self.editing_tools,
+        }
+    }
+
+    /// What a grid frame did: a tool chosen (not while editing), a tool's
+    /// visibility switched, the edit button.
+    fn apply_grid(&mut self, o: GridOutcome<C>) -> Option<C> {
+        if let Some(id) = o.toggled {
+            // `SetToolVisibility`.
+            match self.hidden_tools.iter().position(|h| *h == id) {
+                Some(i) => {
+                    self.hidden_tools.remove(i);
+                }
+                None => self.hidden_tools.push(id),
+            }
+            self.tools_changed = true;
+        }
+        if o.edit_clicked {
+            self.editing_tools = !self.editing_tools;
+        }
+        o.chosen
+    }
+
+    /// Moves the flyout (the quick task menu centres its first item on the
+    /// pointer once it knows its size).
+    pub fn set_placement(&mut self, placement: Placement) {
+        self.placement = placement;
     }
 
     /// Whether `pos` is on the flyout or one of its submenus (as drawn
@@ -490,7 +540,7 @@ impl<C: Clone> Flyout<C> {
             let (m, entries) = match self.level(depth).expect("checked above") {
                 Level::Menu(entries) => (menu_metrics(ui, entries, root, self.style), Some(entries)),
                 Level::Grid(categories) => {
-                    let g = GridLayout::new(ui, categories, &self.hidden_tools, &self.edit_label);
+                    let g = GridLayout::new(ui, categories, &self.grid_params());
                     let m = MenuMetrics {
                         size: g.size,
                         toggle_col: 0.0,
@@ -537,7 +587,7 @@ impl<C: Clone> Flyout<C> {
         // Draw, and collect the clicks.
         let mut clicked = None;
         let mut pressed_parent = None;
-        let mut chosen_tool = None;
+        let mut grid_out = GridOutcome::default();
         for (depth, (rect, m, items)) in placed.iter().enumerate() {
             let layer = Id::new((self.id, "level", depth));
             if let (Some(Level::Grid(categories)), Some(g)) = (self.level(depth), &grid) {
@@ -549,7 +599,7 @@ impl<C: Clone> Flyout<C> {
                     .show(&ctx, |ui| {
                         ui.set_clip_rect(*rect);
                         let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
-                        chosen_tool = g.paint(ui, frame, categories, &self.hidden_tools, &self.edit_label, layer, true);
+                        grid_out = g.paint(ui, frame, categories, &self.grid_params(), layer, true);
                     });
                 ctx.move_to_top(response.response.layer_id);
                 continue;
@@ -652,7 +702,7 @@ impl<C: Clone> Flyout<C> {
             changed = true;
         }
         // `ExecuteGridMenuEntry`: a tool closes the whole menu.
-        if let Some(command) = chosen_tool {
+        if let Some(command) = self.apply_grid(grid_out) {
             out.command = Some(command);
             out.closed = true;
         }
@@ -669,7 +719,7 @@ impl<C: Clone> Flyout<C> {
 
     fn anchor_rect(&self) -> Rect {
         match self.placement {
-            Placement::Pointer(p) => Rect::from_min_size(p, Vec2::ZERO),
+            Placement::Pointer(p) | Placement::Slide(p) => Rect::from_min_size(p, Vec2::ZERO),
             _ => self.anchor,
         }
     }
@@ -801,11 +851,11 @@ impl<C: Clone> Flyout<C> {
         let ctx = ui.ctx().clone();
         let mut out = FlyoutOutput { command: None, closed: false };
         let Content::Grid(categories) = &self.content else { unreachable!() };
-        let g = GridLayout::new(ui, categories, &self.hidden_tools, &self.edit_label);
+        let g = GridLayout::new(ui, categories, &self.grid_params());
         let rect = place(self.anchor_rect(), self.placement, g.size, 0.0, bounds);
         self.rects = vec![rect];
         let layer = Id::new((self.id, "grid"));
-        let mut chosen = None;
+        let mut grid_out = GridOutcome::default();
         let response = egui::Area::new(layer)
             .order(Order::Foreground)
             .fixed_pos(rect.min)
@@ -814,9 +864,10 @@ impl<C: Clone> Flyout<C> {
             .show(&ctx, |ui| {
                 ui.set_clip_rect(rect);
                 let (frame, _) = ui.allocate_exact_size(rect.size(), Sense::click());
-                chosen = g.paint(ui, frame, categories, &self.hidden_tools, &self.edit_label, layer, false);
+                grid_out = g.paint(ui, frame, categories, &self.grid_params(), layer, false);
             });
         ctx.move_to_top(response.response.layer_id);
+        let chosen = self.apply_grid(grid_out);
         if let Some(command) = chosen {
             out.command = Some(command);
             out.closed = true;
@@ -834,8 +885,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
     let (mut x, mut y) = match placement {
         Placement::RightEdgeAlignedTop => (anchor.max.x + offset_x, anchor.min.y),
         Placement::BottomEdgeAlignedLeft => (anchor.min.x, anchor.max.y),
-        Placement::Pointer(p) => (p.x, p.y),
+        Placement::Pointer(p) | Placement::Slide(p) => (p.x, p.y),
     };
+    let slide_only = matches!(placement, Placement::Slide(_));
     let fits_x = |x: f32| x >= bounds.min.x && x + size.x <= bounds.max.x;
     let fits_y = |y: f32| y >= bounds.min.y && y + size.y <= bounds.max.y;
     if !fits_x(x) {
@@ -844,9 +896,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
             // a submenu flipped to the left sits 4px clear of its item.
             Placement::RightEdgeAlignedTop => anchor.min.x + offset_x - size.x,
             Placement::BottomEdgeAlignedLeft => anchor.max.x - size.x,
-            Placement::Pointer(p) => p.x - size.x,
+            Placement::Pointer(p) | Placement::Slide(p) => p.x - size.x,
         };
-        if fits_x(flipped) {
+        if fits_x(flipped) && !slide_only {
             x = flipped;
         }
     }
@@ -858,9 +910,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
         let flipped = match placement {
             Placement::RightEdgeAlignedTop => anchor.max.y - size.y,
             Placement::BottomEdgeAlignedLeft => anchor.min.y - size.y,
-            Placement::Pointer(p) => p.y - size.y,
+            Placement::Pointer(p) | Placement::Slide(p) => p.y - size.y,
         };
-        if fits_y(flipped) {
+        if fits_y(flipped) && !slide_only {
             y = flipped;
         }
     }
@@ -1150,20 +1202,64 @@ fn badge_font() -> FontId {
     font(10.0, 600)
 }
 
+/// What the grid is drawn with.
+struct GridParams<'a> {
+    hidden: &'a [String],
+    label: &'a str,
+    editing: bool,
+}
+
+/// What a frame of the grid did.
+struct GridOutcome<C> {
+    chosen: Option<C>,
+    toggled: Option<String>,
+    edit_clicked: bool,
+}
+
+impl<C> Default for GridOutcome<C> {
+    fn default() -> Self {
+        Self { chosen: None, toggled: None, edit_clicked: false }
+    }
+}
+
+/// `ToggleSwitch.tool-grid-visibility-switch` (no pre/post content
+/// margins, 20 high, not hit-testable): the 40x20 track and its knob at
+/// rest, in its 52px column.
+fn paint_visibility_switch(ui: &Ui, pos: Pos2, on: bool) {
+    let p = palette(ui.ctx());
+    let f = fluent(ui.ctx());
+    let painter = ui.painter();
+    let track = Rect::from_min_size(pos, vec2(40.0, 20.0));
+    if on {
+        crate::border::border(painter, track, 10.0, 0.0, Some(crate::border::Brush::accent(ui.ctx())), None);
+        crate::border::ellipse(painter, Rect::from_center_size(pos2(track.max.x - 10.0, track.center().y), Vec2::splat(10.0)), p.accent_foreground);
+    } else {
+        crate::border::border(painter, track, 10.0, 1.0, None, Some(f.base_medium));
+        crate::border::ellipse(painter, Rect::from_center_size(pos2(track.min.x + 10.0, track.center().y), Vec2::splat(10.0)), f.base_high);
+    }
+}
+
+/// The switch's column and `StackPanel Spacing="2"` before the content.
+const SWITCH_COLUMN: f32 = 52.0 + 2.0;
+
 impl GridLayout {
-    fn visible<'a, C>(category: &'a MenuCategory<C>, hidden: &'a [String]) -> impl Iterator<Item = &'a MenuEntry<C>> + 'a {
+    fn visible<'a, C>(category: &'a MenuCategory<C>, hidden: &'a [String], editing: bool) -> impl Iterator<Item = &'a MenuEntry<C>> + 'a {
         category
             .entries
             .iter()
-            .filter(move |e| e.visible && !e.separator && !e.id.as_ref().is_some_and(|id| hidden.contains(id)))
+            .filter(move |e| e.visible && !e.separator && (editing || !e.id.as_ref().is_some_and(|id| hidden.contains(id))))
     }
 
-    fn new<C>(ui: &Ui, categories: &[MenuCategory<C>], hidden: &[String], edit_label: &str) -> Self {
+    fn new<C>(ui: &Ui, categories: &[MenuCategory<C>], params: &GridParams) -> Self {
+        let (hidden, edit_label, editing) = (params.hidden, params.label, params.editing);
         let d = density(ui.ctx());
         let bp = d.tool_grid_button_padding;
         let sp = d.tool_grid_item_spacing;
         let cell = |e: &MenuEntry<C>| {
             let mut w = bp.left + 16.0 + sp + widgets::text_width(ui, &e.header, tool_font()) + bp.right;
+            if editing {
+                w += SWITCH_COLUMN;
+            }
             if let Some(b) = &e.badge {
                 w += sp + 6.0 + widgets::text_width(ui, b, badge_font()) + 6.0;
             }
@@ -1174,7 +1270,7 @@ impl GridLayout {
         let mut h = 0.0;
         let mut first = true;
         for c in categories {
-            let entries: Vec<_> = Self::visible(c, hidden).collect();
+            let entries: Vec<_> = Self::visible(c, hidden, editing).collect();
             if entries.is_empty() {
                 continue;
             }
@@ -1204,11 +1300,12 @@ impl GridLayout {
         ui: &Ui,
         rect: Rect,
         categories: &[MenuCategory<C>],
-        hidden: &[String],
-        edit_label: &str,
+        params: &GridParams,
         layer: Id,
         submenu: bool,
-    ) -> Option<C> {
+    ) -> GridOutcome<C> {
+        let (hidden, edit_label, editing) = (params.hidden, params.label, params.editing);
+        let mut out = GridOutcome::default();
         let ctx = ui.ctx();
         let p = palette(ctx);
         let d = density(ctx);
@@ -1230,9 +1327,8 @@ impl GridLayout {
         let hf = grid_header_font(&d);
         let mut y = content.min.y;
         let mut first = true;
-        let mut chosen = None;
         for (ci, c) in categories.iter().enumerate() {
-            let entries: Vec<_> = Self::visible(c, hidden).collect();
+            let entries: Vec<_> = Self::visible(c, hidden, editing).collect();
             if entries.is_empty() {
                 continue;
             }
@@ -1256,34 +1352,55 @@ impl GridLayout {
                     pos2(content.min.x + (col as f32 * self.cell_w).round(), y + row as f32 * d.tool_grid_button_height),
                     vec2(((col + 1) as f32 * self.cell_w).round() - (col as f32 * self.cell_w).round(), d.tool_grid_button_height),
                 );
-                let sense = if e.enabled { Sense::click() } else { Sense::hover() };
-                let r = ui.interact(cell, layer.with((ci, i)), sense);
-                if e.enabled && r.hovered() {
-                    painter.rect_filled(cell, CornerRadius::same(5), p.control_background_hover);
+                if editing {
+                    // `ToggleButton.tool-grid-visibility-button`: the switch
+                    // and the tool; a click shows or hides it.
+                    let r = ui.interact(cell, layer.with((ci, i)), Sense::click());
+                    if r.hovered() {
+                        painter.rect_filled(cell, CornerRadius::same(5), p.control_background_hover);
+                    }
+                    let shown = !e.id.as_ref().is_some_and(|id| hidden.contains(id));
+                    let bp = d.tool_grid_button_padding;
+                    let inner = Rect::from_min_max(pos2(cell.min.x + bp.left, cell.min.y + bp.top), pos2(cell.max.x - bp.right, cell.max.y - bp.bottom));
+                    paint_visibility_switch(ui, pos2(inner.min.x, widgets::center_y(inner, 20.0)), shown);
+                    let content = Rect::from_min_max(pos2(cell.min.x + SWITCH_COLUMN, cell.min.y), cell.max);
+                    paint_tool(ui, content, e);
+                    if r.clicked()
+                        && let Some(id) = &e.id
+                    {
+                        out.toggled = Some(id.clone());
+                    }
+                } else {
+                    let sense = if e.enabled { Sense::click() } else { Sense::hover() };
+                    let r = ui.interact(cell, layer.with((ci, i)), sense);
+                    if e.enabled && r.hovered() {
+                        painter.rect_filled(cell, CornerRadius::same(5), p.control_background_hover);
+                    }
+                    if e.enabled && r.clicked() {
+                        out.chosen = e.command.clone();
+                    }
+                    paint_tool(ui, cell, e);
                 }
-                if e.enabled && r.clicked() {
-                    chosen = e.command.clone();
-                }
-                paint_tool(ui, cell, e);
             }
             y += entries.len().div_ceil(3) as f32 * d.tool_grid_button_height;
             first = false;
         }
 
         // The edit button (`Button.tool-grid-edit-button`), over the first
-        // header at the top right. Its edit mode (a visibility switch on
-        // every tool) isn't ported yet.
+        // header at the top right: Edit, or Done (a check) while editing.
         let edit = Rect::from_min_size(pos2(content.max.x - 2.0 - self.edit_w, content.min.y), vec2(self.edit_w, 22.0));
         let r = ui.interact(edit, layer.with("edit"), Sense::click());
         if r.hovered() {
             painter.rect_filled(edit, CornerRadius::same(5), p.control_background_hover);
         }
+        out.edit_clicked = r.clicked();
         let inner = Rect::from_min_max(pos2(edit.min.x + 5.0, edit.min.y + 1.0), pos2(edit.max.x - 5.0, edit.max.y - 1.0));
-        icons::paint(painter, Rect::from_min_size(pos2(inner.min.x, widgets::center_y(inner, 14.0)), Vec2::splat(14.0)), crate::keys::app_icons::Edit, p.accent_icon);
+        let edit_icon = if editing { crate::keys::app_icons::Check } else { crate::keys::app_icons::Edit };
+        icons::paint(painter, Rect::from_min_size(pos2(inner.min.x, widgets::center_y(inner, 14.0)), Vec2::splat(14.0)), edit_icon, p.accent_icon);
         let tf = tool_font();
         let g = widgets::galley(ui, edit_label, tf.clone(), p.text_secondary, f32::INFINITY);
         painter.galley(pos2(inner.min.x + 14.0 + 6.0, widgets::center_y(inner, widgets::line_height(ui, &tf))), g, p.text_secondary);
-        chosen
+        out
     }
 }
 

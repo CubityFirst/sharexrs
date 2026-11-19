@@ -11,6 +11,16 @@
 //! - `multi-upload` (`--count N`), `large-file`,
 //! - `before-upload`, `after-upload`, `qr-code` (see their modules),
 //! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...),
+//!   `--state` a state of its cards from made-up data
+//!   ([`super::destination_settings::render_config`] and
+//!   `seed_render_state`: `connected-display`, `code-entered`, `listed`...),
+//!   `--scroll` its page scrolled,
+//! - `oauth-listener` (waiting for the browser), `input-box` (MEGA's
+//!   two-factor question, `--text` typed in), `email-window` (`--state
+//!   empty|prefilled|edited`), `youtube-options` (`--state
+//!   default|edited`; `--clicks` on the combo box opens it),
+//!   `remote-storage-not-configured` (the message box), `remote-storage`
+//!   (see [`crate::remote_storage_browser::render_dialog`]),
 //! - `update-message` (`--content installed|portable|prerelease|dev`: the
 //!   setup flow, the portable one, a pre-release, a dev build without the
 //!   changelog link), `update-downloader` (`--content
@@ -123,6 +133,178 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
         "multi-upload" => {
             let files = (0..o.count.max(11)).map(|i| PathBuf::from(format!("{i}.png"))).collect();
             Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::MultiUpload { files, task: Box::new(task) }))
+        }
+        // `--text`: the existing file's path; `--state empty` clears the
+        // new name, `--state name=<text>` types one.
+        "file-exists" => {
+            let path = o.text.clone().unwrap_or_else(|| r"C:\ShareX\Screenshots\2026-11\ShareX_test.png".into());
+            let mut w = super::file_exist::FileExistWindow::new(std::path::Path::new(&path), None);
+            w.assume_exists();
+            match o.state.as_deref() {
+                Some("empty") => w.new_name.clear(),
+                Some(s) if s.starts_with("name=") => {
+                    w.new_name = s["name=".len()..].to_owned();
+                    w.select_on_open = false;
+                }
+                _ => {}
+            }
+            Box::new(w)
+        }
+        // The selected pack comes from `--state legacy` (see `render`).
+        "icon-pack-prompt" => Box::new(super::icon_pack_prompt::IconPackPromptWindow),
+        // `--state checking|up-to-date|available|failed|disabled`.
+        "about" => {
+            use sharex_update::checker::UpdateStatus;
+            let state = o.state.as_deref().unwrap_or("checking");
+            // `--text`/`--content`: the product name and brand (ShareX's, to
+            // compare with its shots).
+            let product = o.text.clone().unwrap_or_else(|| "ShareXrs 22.4".into());
+            let mut w = super::about::AboutWindow::new(product, state == "disabled", None);
+            if let Some(brand) = &o.content {
+                w.brand = brand.clone();
+            }
+            let status = match state {
+                "up-to-date" => Some(UpdateStatus::UpToDate),
+                "available" => Some(UpdateStatus::UpdateAvailable),
+                "failed" => Some(UpdateStatus::UpdateCheckFailed),
+                _ => None,
+            };
+            if let Some(status) = status {
+                let mut c = update_checker("installed");
+                c.status = status;
+                w.checked(c);
+            }
+            Box::new(w)
+        }
+        // A generated log; `--state upload-confirm` shows the confirmation.
+        "debug-log" => {
+            let lines = [
+                "ShareXrs starting.",
+                "Version: 22.4.0",
+                "Operating system: Windows 11 Pro",
+                r"Personal path: C:\ShareXrs",
+                "Startup time: 812 ms",
+                "Task status: Preparing",
+                r"Image saved to file: C:\ShareXrs\Screenshots\2026-11\ShareX_test.png",
+                "URL opened: https://example.invalid/",
+            ];
+            // `--files <log.txt>`: that log instead.
+            let text: String = match o.files.first() {
+                Some(f) => std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?,
+                None => lines.iter().enumerate().map(|(i, l)| format!("2026-11-19 09:00:{:02}.{:03} - {l}\r\n", i * 3, i * 37)).collect(),
+            };
+            // `--text`: the startup path.
+            let startup = o.text.clone().unwrap_or_else(|| r"C:\ShareXrs\".into());
+            let mut w = super::debug_log::DebugLogWindow::with_text(text, Some(r"C:\ShareXrs\Logs\ShareX-Log-2026-11.txt".into()), startup);
+            w.confirm_upload = o.state.as_deref() == Some("upload-confirm");
+            Box::new(w)
+        }
+        // The toast: `--state tray-minimized` (the tip), else a finished
+        // task's with `--image` (or none) and `--text` (its file path);
+        // `--content hover` or `hover:<button>` draws the pointer over the
+        // card or a button (`tip:<button>` with its tooltip).
+        "notification" => {
+            use super::notification::{NotificationConfig, NotificationWindow};
+            let general = sharex_settings::TaskSettingsGeneral::default();
+            let config = if o.state.as_deref() == Some("tray-minimized") {
+                NotificationConfig::tip(&general, sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray(), "ShareX", 8000)
+            } else {
+                let mut c = NotificationConfig::new(&general).with_clicks(&general);
+                c.title = format!("ShareX - {}", sharex_strings::sharex::TaskManager_task_UploadCompleted_ShareX___Task_completed());
+                c.text = o.text.clone().unwrap_or_default();
+                c.file_path = c.text.clone();
+                c.image = o.image.as_ref().map(|_| load_image(&o.image)).transpose()?.map(std::sync::Arc::new);
+                c
+            };
+            let mut w = NotificationWindow::new(config).ok_or("nothing to show")?;
+            w.force_hover = match o.content.as_deref() {
+                Some("hover") => Some(None),
+                Some(h) if h.starts_with("hover:") => Some(h["hover:".len()..].parse().ok()),
+                Some(h) if h.starts_with("tip:") => Some(h["tip:".len()..].parse().ok()),
+                _ => None,
+            };
+            w.force_tooltip = o.content.as_deref().is_some_and(|c| c.starts_with("tip:"));
+            Box::new(w)
+        }
+        // `--image`: the capture (none: a recording, `--files` its path);
+        // `--text`: the file name; `--state goal:<n>`: a goal picked;
+        // `--content <AfterCaptureJob>`: the task's after capture tasks.
+        "after-capture" => {
+            use super::after_capture::{AfterCaptureWindow, Target};
+            let mut task = TaskSettings::default();
+            if let Some(job) = o.content.as_deref() {
+                task.AfterCaptureJob = sharex_settings::AfterCaptureTasks::parse(job).ok_or("--content: AfterCaptureTasks")?;
+            }
+            let image = o.image.as_ref().map(|_| load_image(&o.image)).transpose()?;
+            let file = o.files.first().cloned();
+            let mut w = AfterCaptureWindow::new(Target::Preview, task, image, file, o.text.clone().unwrap_or_else(|| "AkM5MGPNSL".into()), true, &mock_config());
+            if let Some(g) = o.state.as_deref().and_then(|s| s.strip_prefix("goal:")).and_then(|g| g.parse::<usize>().ok()) {
+                let goals = super::after_capture::available_goals(w.has_image(), true);
+                if let Some(goal) = goals.get(g) {
+                    w.goal = *goal;
+                }
+            }
+            Box::new(w)
+        }
+        // `--image` (or `--files a,b` with `--count` the one shown);
+        // `--width`/`--height`: the screen.
+        "image-viewer" => {
+            use super::image_viewer::{ImageViewerWindow, Images};
+            let mut images = Images::default();
+            if o.files.is_empty() {
+                let path = o.image.clone().ok_or("--image or --files")?;
+                images.load_image(load_image(&o.image)?, path.file_name().map(|n| n.to_string_lossy().into_owned()));
+            } else if !images.load_files(&o.files, o.count) {
+                return Err("no image among --files".into());
+            }
+            let (w, h) = (o.width.unwrap_or(1024) as i32, o.height.unwrap_or(720) as i32);
+            Box::new(ImageViewerWindow::new(images).with_size(w, h))
+        }
+        // `--state add-overlay|edit-overlay|reset-confirm`.
+        "quick-task-editor" => {
+            let mut w = super::quick_task_editor::QuickTaskMenuEditorWindow::new();
+            match o.state.as_deref() {
+                Some("add-overlay") => w.open_editor(None),
+                Some("edit-overlay") => w.open_editor(Some(0)),
+                Some("reset-confirm") => w.confirm_reset = true,
+                _ => {}
+            }
+            Box::new(w)
+        }
+        // `--text`: the title (ShareX's to compare); `--content hover:<n>`.
+        "actions-toolbar" => {
+            let mut w = super::actions_toolbar::ActionsToolbarWindow::new(&ApplicationConfig::default());
+            if let Some(t) = &o.text {
+                w.title = t.clone();
+            }
+            w.hover = o.content.as_deref().and_then(|c| c.strip_prefix("hover:")).and_then(|n| n.parse().ok());
+            Box::new(w)
+        }
+        // `--state add-menu`.
+        "actions-toolbar-editor" => {
+            let mut w = super::actions_toolbar::ActionsToolbarEditorWindow::new();
+            w.open_add_menu = o.state.as_deref() == Some("add-menu");
+            Box::new(w)
+        }
+        // A failed FFmpeg run's output (`--files <log>` for its text).
+        "output-box" => {
+            let text = match o.files.first() {
+                Some(f) => std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?,
+                None => ["ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers", "[gdigrab @ 0000020b] Capturing whole desktop", "Unknown encoder 'libx265x'"].join("\r\n"),
+            };
+            Box::new(super::output_box::OutputBoxWindow::new(&text, sharex_strings::helpers_lib::FFmpegCLIManager_Error_title(), true))
+        }
+        // A report of two synthetic monitors (the second 150%, above the
+        // first's right half), the pointer on the first.
+        "display-diagnostics" => {
+            use sharex_capture::{Rect as R, Screen};
+            let screens = [
+                Screen { bounds: R::new(0, 0, 1920, 1080), work_area: R::new(0, 0, 1920, 1032), scale: 1.0, primary: true },
+                Screen { bounds: R::new(960, -1440, 2560, 1440), work_area: R::new(960, -1440, 2560, 1440), scale: 1.5, primary: false },
+            ];
+            let at = chrono::Local::now();
+            let data = super::display_diagnostics::collect(&screens, Some((640, 480)), Some((R::new(510, 170, 900, 740), 1.0)), &ApplicationConfig::default(), at);
+            Box::new(super::display_diagnostics::DisplayDiagnosticsWindow::with_data(data))
         }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
@@ -264,6 +446,54 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(d)
         }
+        "oauth-listener" => {
+            let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            Box::new(super::oauth_listener::OAuthListenerWindow::new(sharex_uploaders::http::CancellationToken::new(), done))
+        }
+        "input-box" => {
+            let title = sharex_strings::uploaders_lib::DestinationSettings_Enter_current_two_factor_authentication_code();
+            Box::new(super::input_box::InputBoxWindow::new(title, o.text.as_deref(), None, None, None))
+        }
+        "email-window" => {
+            // As an email upload opens it: `EmailLastTo` (remembered), the
+            // default subject and body; "edited": typed over.
+            let d = sharex_uploaders::UploadersConfig::default();
+            let (subject, body) = (d.EmailDefaultSubject.unwrap_or_default(), d.EmailDefaultBody.unwrap_or_default());
+            match o.state.as_deref().unwrap_or("prefilled") {
+                "empty" => Box::new(super::email_window::EmailWindow::new("", "", "", None)),
+                "prefilled" => Box::new(super::email_window::EmailWindow::new("", &subject, &body, None)),
+                "edited" => Box::new(super::email_window::EmailWindow::new(
+                    "someone@example.com",
+                    "Screenshot of the build",
+                    "Here is the screenshot.
+It shows the dialog.",
+                    None,
+                )),
+                other => return Err(format!("no email window state {other}")),
+            }
+        }
+        "youtube-options" => {
+            use sharex_uploaders::enums::YouTubeVideoPrivacy;
+            // The file name and the account's privacy, as the upload opens it.
+            match o.state.as_deref().unwrap_or("default") {
+                "default" => Box::new(super::youtube_options::YouTubeOptionsWindow::new("Recording_01.mp4", "", &YouTubeVideoPrivacy::Private, None)),
+                "edited" => Box::new(super::youtube_options::YouTubeOptionsWindow::new(
+                    "A screen recording",
+                    "Recorded with ShareXrs.",
+                    &YouTubeVideoPrivacy::Unlisted,
+                    None,
+                )),
+                other => return Err(format!("no YouTube options state {other}")),
+            }
+        }
+        "remote-storage-not-configured" => {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            // `TaskHelpers.OpenRemoteStorageBrowser` without a provider.
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(super::message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        }
+        s if crate::remote_storage_browser::is_render_screen(s) => crate::remote_storage_browser::render_dialog(s, o)?,
         page if page.starts_with("destination-") => {
             // `destination-<page id>`: Destination settings on that page.
             let id = page.trim_start_matches("destination-").trim_start_matches("settings-");
@@ -271,6 +501,8 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             if !w.select_page(id) {
                 return Err(format!("no destination settings page {id}"));
             }
+            w.seed_render_state(id, o.state.as_deref().unwrap_or(""))?;
+            w.set_scroll(o.scroll);
             Box::new(w)
         }
         s if crate::history_ui::is_render_screen(s) => crate::history_ui::render_dialog(s, o)?,
@@ -300,6 +532,18 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "print-preview"
             | "multi-upload"
             | "large-file"
+            | "file-exists"
+            | "icon-pack-prompt"
+            | "about"
+            | "debug-log"
+            | "notification"
+            | "after-capture"
+            | "image-viewer"
+            | "quick-task-editor"
+            | "actions-toolbar"
+            | "actions-toolbar-editor"
+            | "output-box"
+            | "display-diagnostics"
             | "before-upload"
             | "after-upload"
             | "qr-code"
@@ -307,7 +551,13 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "custom-uploader"
             | "update-message"
             | "update-downloader"
+            | "oauth-listener"
+            | "input-box"
+            | "email-window"
+            | "youtube-options"
+            | "remote-storage-not-configured"
     ) || screen.starts_with("destination-")
+        || crate::remote_storage_browser::is_render_screen(screen)
         || crate::history_ui::is_render_screen(screen)
         || crate::ocr_window::is_render_screen(screen)
         || crate::image_editor::is_render_screen(screen)
@@ -332,16 +582,29 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         let d = crate::auto_capture::render::render_dialog(name, o, &mut settings)?;
         (d, settings)
     } else {
-        (dialog(name, o)?, ApplicationConfig::default())
+        let mut settings = ApplicationConfig::default();
+        if name == "icon-pack-prompt" && o.state.as_deref() == Some("legacy") {
+            settings.theme_options().IconPack = sharex_settings::IconPack::Legacy;
+        }
+        (dialog(name, o)?, settings)
     };
     let spec = d.spec();
-    let store = UploadersConfigStore::loaded(mock_config());
+    let store = UploadersConfigStore::loaded(match name.strip_prefix("destination-") {
+        Some(page) => super::destination_settings::render_config(page, o.state.as_deref()),
+        None => mock_config(),
+    });
     let mut height = spec.height;
+    let mut width = spec.width;
     if spec.size_to_content {
-        let mut probe = Offscreen::new([spec.width as u32, 400], o.scale, o.dark)?;
-        probe.run(Vec::new(), &mut |ui: &mut egui::Ui| height = d.content_height(ui));
+        let mut probe = Offscreen::new([spec.width.max(1.0) as u32, 400], o.scale, o.dark)?;
+        probe.run(Vec::new(), &mut |ui: &mut egui::Ui| {
+            height = d.content_height(ui);
+            if let Some(w) = d.content_width(ui) {
+                width = w;
+            }
+        });
     }
-    let w = o.width.unwrap_or((spec.width * o.scale).round() as u32);
+    let w = o.width.unwrap_or((width * o.scale).round() as u32);
     let h = o.height.unwrap_or((height * o.scale).round() as u32);
     let mut screen = Offscreen::new([w, h], o.scale, o.dark)?;
     if spec.borderless {

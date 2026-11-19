@@ -380,8 +380,9 @@ impl Dialog for AfterUploadWindow {
         if copy {
             out.extend(self.copy_selected());
         }
-        if preview_clicked {
-            out.push(Effect::NotPorted("The image viewer"));
+        if preview_clicked && let Some(image) = &self.info.image {
+            // `ImageViewerWindowIntegration.ShowImage(_sourceImage)`.
+            out.push(Effect::ShowImage((**image).clone()));
         }
         if closed || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             out.push(Effect::Close);

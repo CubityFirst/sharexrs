@@ -44,6 +44,9 @@ pub enum Action {
     Menu(MenuCommand),
     /// Something in the task area.
     Task(TaskAction),
+    /// The tool grid's edit mode showed or hid tools
+    /// (`ApplicationConfig.HiddenTools`).
+    HiddenTools(Vec<String>),
 }
 
 /// One `HotkeyTipViewModel`.
@@ -225,6 +228,10 @@ impl MainWindow {
         if let Some(flyout) = &mut self.flyout {
             let bounds = self.work_area.unwrap_or(full);
             let FlyoutOutput { command, closed } = flyout.show(ui, bounds);
+            if std::mem::take(&mut flyout.tools_changed) {
+                self.menu_state.hidden_tools = flyout.hidden_tools.clone();
+                actions.push(Action::HiddenTools(flyout.hidden_tools.clone()));
+            }
             if closed {
                 self.flyout = None;
             }
@@ -264,10 +271,12 @@ impl MainWindow {
         let flyout = match index {
             0 => Flyout::menu(id, main_menu::capture_menu(state), anchor, place),
             1 => Flyout::menu(id, main_menu::upload_menu(), anchor, place),
-            2 => Flyout::menu(id, main_menu::workflows_menu(state), anchor, place),
+            2 => Flyout::menu(id, main_menu::workflows_menu(state, false), anchor, place),
             3 => {
                 let mut f = Flyout::grid(id, main_menu::tool_categories(), anchor, place);
                 f.edit_label = s::MainMenuBuilder_EditTools().to_string();
+                f.finish_label = s::MainMenuBuilder_FinishEditingTools().to_string();
+                f.hidden_tools = state.hidden_tools.clone();
                 f
             }
             4 => Flyout::menu(id, main_menu::after_capture_menu(state), anchor, place),

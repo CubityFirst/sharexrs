@@ -531,14 +531,11 @@ impl App {
                 self.finish_recording(path);
             }
             Event::Error(output) => {
-                // `OutputBoxWindowIntegration.Show(output, "FFmpeg error")`:
-                // the output box isn't ported; a message box shows it.
+                // `OutputBoxWindowIntegration.Show(Output, FFmpegCLIManager_Error_title, true)`.
                 eprintln!("{output}");
                 let title = sharex_strings::helpers_lib::FFmpegCLIManager_Error_title();
-                let message = MessageBox::ok(title, output, MessageBoxIcon::Error);
-                if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::Information) {
-                    eprintln!("couldn't open the message box: {e}");
-                }
+                let window = crate::dialogs::output_box::OutputBoxWindow::new(&output, title, true);
+                self.open_dialog_window(event_loop, Box::new(window));
             }
             Event::NativeError(message) => {
                 // `MessageBox.Show(e.Message, "ShareX", OK, Error)`.
@@ -586,7 +583,13 @@ impl App {
         eprintln!("Screen recording saved: {path}");
         let task = r.task;
         if task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowAfterCaptureWindow) {
-            eprintln!("The after capture window isn't ported yet: the recording goes on as accepted.");
+            // `TaskHelpers.ShowAfterCaptureWindow(taskSettings, FinishRecording, null, path)`.
+            use crate::dialogs::after_capture::{AfterCaptureWindow, Target};
+            let path = std::path::PathBuf::from(&path);
+            let can_upload = !self.settings.system.disable_upload && !self.settings.settings.DisableUpload;
+            let window = self.uploads.config.with(|c| AfterCaptureWindow::new(Target::Recording(path.clone()), task.clone(), None, Some(path), String::new(), can_upload, c));
+            self.pending_dialogs.push(Box::new(window));
+            return;
         }
         let mut ctx = self.new_task_context();
         let task = crate::upload::manager::create_file_job_task(std::path::Path::new(&path), task, &mut ctx);

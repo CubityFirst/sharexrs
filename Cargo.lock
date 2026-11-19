@@ -5069,6 +5069,7 @@ dependencies = [
  "fancy-regex",
  "image",
  "ksni",
+ "libc",
  "livesplit-hotkey",
  "notify",
  "objc2 0.6.5",

@@ -116,9 +116,83 @@ impl App {
     /// `UploadManager.RunImageTask`: the task shows in the main window at
     /// once (preparing), and its after capture tasks (and upload) run on a
     /// thread (`crate::upload`).
+    /// `UploadManager.RunImageTask`: the after capture window first, when
+    /// the task asks for it (`TaskHelpers.ShowAfterCaptureWindow`).
     pub(super) fn run_image_task(&mut self, job: capture_job::ImageTask) {
+        // `QuickTaskMenu.ShowMenu()` first, with `ShowQuickTaskMenu`.
+        if job.task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowQuickTaskMenu) {
+            self.pending_quick_task = Some(job);
+            return;
+        }
+        self.run_image_task_skipping_quick_menu(job);
+    }
+
+    /// `RunImageTask(metadata, taskSettings, skipQuickTaskMenu: true)`.
+    pub(crate) fn run_image_task_after_quick_menu(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, job: capture_job::ImageTask) {
+        self.run_image_task_skipping_quick_menu(job);
+    }
+
+    fn run_image_task_skipping_quick_menu(&mut self, job: capture_job::ImageTask) {
+        if job.task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowAfterCaptureWindow) {
+            self.pending_dialogs.push(self.after_capture_window(job));
+            return;
+        }
+        self.start_image_task(job);
+    }
+
+    /// `StartImageTask`: `WorkerTask.CreateImageUploaderTask` and `TaskManager.Start`.
+    pub(crate) fn start_image_task(&mut self, job: capture_job::ImageTask) {
         let task = crate::upload::manager::create_image_uploader_task(job);
         self.start_upload_tasks(vec![task]);
+    }
+
+    /// `AfterCaptureWindowIntegration.Show(taskSettings, metadata, null)`.
+    fn after_capture_window(&self, job: capture_job::ImageTask) -> Box<dyn crate::dialogs::Dialog> {
+        use crate::dialogs::after_capture::{AfterCaptureWindow, Target};
+        let task = job.task.clone();
+        let image = job.metadata.image.clone();
+        // `TaskHelpers.GetFileName(taskSettings, null, metadata)`: the name
+        // the task would use, without its extension.
+        let name = std::path::Path::new(&job.file_name).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let can_upload = !self.settings.system.disable_upload && !self.settings.settings.DisableUpload;
+        let window = self.uploads.config.with(|c| AfterCaptureWindow::new(Target::Image(Box::new(job)), task, Some(image), None, name, can_upload, c));
+        Box::new(window)
+    }
+
+    /// The after capture window's answer: the task starts (`StartImageTask`
+    /// with `result.FileName`), or a recording becomes a file task
+    /// (`FinishRecording`).
+    pub(crate) fn after_capture_accepted(&mut self, accepted: crate::dialogs::after_capture::Accepted) {
+        use crate::dialogs::after_capture::Target;
+        match accepted.target {
+            Target::Image(mut job) => {
+                job.task = accepted.task;
+                if !accepted.file_name.is_empty() {
+                    // `FileHelpers.AppendExtension(customFileName, "bmp")`.
+                    job.file_name = format!("{}.bmp", accepted.file_name);
+                }
+                self.start_image_task(*job);
+            }
+            Target::Recording(mut path) => {
+                let name = accepted.file_name;
+                let current = path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                if !name.is_empty() && !current.eq_ignore_ascii_case(&name) {
+                    // `FileHelpers.RenameFile(path, customFileName + ext)`.
+                    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+                    let to = path.with_file_name(format!("{name}{ext}"));
+                    match std::fs::rename(&path, &to) {
+                        Ok(()) => path = to,
+                        Err(e) => eprintln!("couldn't rename {}: {e}", path.display()),
+                    }
+                }
+                let mut ctx = self.new_task_context();
+                if let Some(t) = crate::upload::manager::create_file_job_task(&path, accepted.task, &mut ctx) {
+                    self.start_upload_tasks(vec![t]);
+                }
+            }
+            Target::Preview => {}
+        }
+        self.update_progress_ui();
     }
 
     fn redraw_main(&self) {
@@ -157,7 +231,21 @@ impl App {
     pub(super) fn task_action(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, action: TaskAction) {
         match action {
             TaskAction::Command(command, ids) => self.task_command(event_loop, command, ids),
-            TaskAction::OpenImageViewer(path) => eprintln!("image viewer: not ported yet ({})", path.display()),
+            TaskAction::OpenImageViewer(path) => {
+                // `ShowImagesInViewer`: the task list's image files, from this one.
+                let images: Vec<std::path::PathBuf> = self
+                    .state
+                    .tasks
+                    .manager
+                    .tasks
+                    .iter()
+                    .rev()
+                    .filter_map(|t| t.info.file_path.clone())
+                    .filter(|p| p.is_file() && sharex_helpers::file_helpers::is_image_file(&p.to_string_lossy()))
+                    .collect();
+                let index = images.iter().position(|p| *p == path).unwrap_or(0);
+                self.show_image_files(event_loop, &images, index);
+            }
             TaskAction::OpenFile(path) => {
                 shell::open_file(&path);
             }
@@ -234,6 +322,8 @@ impl App {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.open_image_effects_tool(event_loop, Some(path.clone()), task);
             }
+            // `TaskHelpers.OpenImageBeautifier(filePath)`: default task settings.
+            TaskCommand::BeautifyImage if sel.is_image_file => self.open_image_beautifier(event_loop, Some(path.clone()), None),
             TaskCommand::OcrImage if sel.is_image_file => {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.ocr_file(event_loop, &path, task);
@@ -453,6 +543,26 @@ impl App {
             s::FileDeleteConfirmation_DontRemindAgain(),
         );
         if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::DeleteFiles(ids)) {
+            eprintln!("couldn't open the message box: {e}");
+        }
+    }
+
+    /// `TaskHelpers.ConfirmFileDelete`, then `FileHelpers.DeleteFile(path,
+    /// true)` (to the recycle bin).
+    pub(crate) fn confirm_delete_path(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, path: std::path::PathBuf) {
+        if !self.settings.settings.ShowFileDeleteConfirmation {
+            shell::delete_file_to_recycle_bin(&path);
+            return;
+        }
+        if self.dialog.is_some() {
+            return;
+        }
+        let message = MessageBox::yes_no_with_check_box(
+            format!("ShareXrs - {}", s::MainForm_tsmiDeleteSelectedFile_Click_File_delete_confirmation()),
+            s::MainForm_tsmiDeleteSelectedFile_Click_Do_you_really_want_to_delete_this_file_(),
+            s::FileDeleteConfirmation_DontRemindAgain(),
+        );
+        if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::DeletePath(path)) {
             eprintln!("couldn't open the message box: {e}");
         }
     }

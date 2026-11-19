@@ -94,6 +94,11 @@ pub const PRESETS: [(&str, &str, &str); 60] = [
 /// `MainViewModel`'s output ratio keys (the 3x3 grid, in order).
 const RATIOS: [&str; 9] = ["Auto", "1:1", "4:3", "3:2", "16:9", "5:3", "9:16", "3:4", "2:3"];
 
+/// The index of an output ratio key (`--render`).
+pub fn ratio_index(key: &str) -> Option<usize> {
+    RATIOS.iter().position(|r| *r == key)
+}
+
 /// Which colour a popup edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColorTarget {

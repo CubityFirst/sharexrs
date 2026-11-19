@@ -208,8 +208,8 @@ by the host (x)." (anything else). The dialogs go through
 
 ## OAuth and other sign-ins
 
-All of ShareX's sign-in flows are ported without their windows
-(`oauth`, `oauth1`, `oauth2`, `signin`); the Destination settings window
+All of ShareX's sign-in flows are ported (`oauth`, `oauth1`, `oauth2`,
+`signin`) and wired to their windows; the Destination settings window
 calls [`signin`](../crates/sharex-uploaders/src/signin.rs), which does what
 `DestinationSettingsAccounts.cs`'s cards do to `UploadersConfig`.
 
@@ -456,8 +456,6 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 
 ## Not ported yet
 
-- The windows: see [What the Destination settings window still
-  needs](#what-the-destination-settings-window-still-needs).
 - FTPS: presenting the client certificate (see above). SFTP: the
   post-quantum key exchanges, AES-GCM/ChaCha20 transport ciphers and
   certificates SSH.NET also has.
@@ -471,7 +469,25 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 ## Remote storage browser
 
 Tools › Remote storage browser (and Destination settings' button) shows
-what `TaskHelpers.OpenRemoteStorageBrowser` builds: the data side is
+what `TaskHelpers.OpenRemoteStorageBrowser` builds
+(`App::open_remote_storage_browser`; no usable provider: the
+`TaskHelpers_RemoteStorageNotConfigured` message box, vs ShareX's
+0.99%/0.75% dark/light, text anti-aliasing only). The window is
+`crates/sharexrs/src/remote_storage_browser.rs`, ShareX.Tools'
+`RemoteStorageBrowserWindow` and its view model: provider, location, Up,
+Refresh, search, the Name/Size/Modified sort, the context menu with
+ShareX's visibility rules, Create folder / Rename (`InputBoxWindow`),
+Delete (Yes/No, then a second warning for a folder with something in
+it), Download (save dialog; a failed download's file deleted), Upload
+(file dialog or dropped files), Open/Copy URL; the empty, busy and
+drop-target overlays. Every provider call runs on a worker thread, one
+at a time (`RunOperationAsync`); closing cancels it and disposes the
+providers. View downloads the image and opens it in the image viewer
+(`ImageViewerWindowIntegration.ShowImage(data, name)`; no data opens
+nothing, an image that won't decode is logged). Built from source, no shot (a populated browser
+needs a live provider): `--render remote-storage --state
+listed|empty|loading|filtered|no-match|selected|context-menu|sorted-size|sorted-modified-desc|drag-over|folder|error|two-providers`
+from an in-memory provider. The data side is
 `remote_storage`, ShareX's `IRemoteStorageProvider` and its three
 providers, each validated step by step against ShareX's own provider
 classes (`ShareX.dll`, by reflection) on the mocks: 25 cases identical
@@ -519,52 +535,72 @@ The API the window calls (`sharex_uploaders::remote_storage`):
   text). Every call blocks: run them on a worker thread, one at a time per
   provider (ShareX awaits them).
 
-## What the Destination settings window still needs
+## The Destination settings window's services
 
-Everything below is logic that's ported; the window
-(`crates/sharexrs/src/dialogs/destination_settings.rs`) draws the cards and
-their buttons say they aren't ported. Run network calls on a worker
-thread and save `UploadersConfig` after a change, as the other cards do.
+`crates/sharexrs/src/dialogs/destination_settings.rs` does what
+`DestinationSettingsAccounts` and the page builder's cards do. A button
+that needs the service runs on a worker thread with a copy of
+`UploadersConfig`; when it's done, the members it changed are set on the
+window's config (saved with it on close) and the card's status line says
+how it went (`connected` green, `disconnected` red, as ShareX's classes).
+A button whose work is still running does nothing until it's done.
+Pages open through `upload::UrlOpener` (the system browser; tests record
+them).
 
-- **Sign-in buttons** (`signin`, by `SignInService::from_page_id(page)`):
-  - code-paste cards (imgur, gist, dropbox, onedrive, box, bitly): "Open
-    authorization page" → `open_authorization` and open the URL it gives
-    (`sharing::open_url`); "Complete authorization" → `complete_authorization`
-    with the code box's text; "Refresh token" → `refresh_token`;
-    "Disconnect" → `disconnect`; the status line from `is_connected`;
-  - loopback cards (google-drive, google-cloud-storage, youtube): "Connect
-    account" → `connect_loopback` (blocks until the browser comes back:
-    ShareX shows `OAuthListenerWindow` with Cancel meanwhile → cancel the
-    token), status "Connected as {0}" from `connected_as`;
-  - OAuth 1 cards (flickr, photobucket): `open_authorization_oauth1`,
-    `complete_authorization_oauth1`, `disconnect`;
-  - account cards: Paste.ee "Get user key" → open `paste_ee_authorization_url()`;
-    ImageShack "Log in" → `login_image_shack` (`false`:
-    `DestinationSettings_Login_failed`); Pastebin "Log in" →
-    `login_pastebin`; MEGA "Log in" → `mega_login(config, None)`, on
-    `MegaError::Api(-26)` ask the code
-    (`DestinationSettings_Enter_current_two_factor_authentication_code`) and
-    `mega_login(config, Some(code))`; MEGA "Disconnect" (and an email or
-    password edit) → `mega_disconnect`; puush `Puush::login`, LobFile
-    `LobFile::fetch_api_key` (the key into `PuushAPIKey` /
-    `LithiioSettings.UserAPIKey`); Seafile's token, account info and library
-    buttons (`Seafile::*`); Pushbullet "Get device list"
-    (`Pushbullet::get_device_list`).
-- **Pickers**: Imgur "Refresh albums" → `signin::refresh_imgur_albums`
-  (`None`: `DestinationSettings_Connect_Imgur_account_first`; saved as
-  `ImgurAlbumList`, the choice is `ImgurSelectedAlbum`), MEGA folders →
-  `signin::mega_folders(config, parent)` (a tree node's children; the root
-  is `MegaFolderInfo::root()`; saved as `MegaSelectedFolder`), OneDrive
-  folders (`OneDrive::get_path_info`), Box folders
-  (`BoxUploader::get_files`), Google Drive folders and shared drives
-  (`GoogleDrive::{get_folders, get_drives}`), Pushbullet devices (above),
-  Seafile libraries (`Seafile::get_libraries`).
-- **Remote storage browser**: `remote_storage` (above); the window is
-  `ShareX.Tools/RemoteStorageBrowser`.
-- **Dialog hooks** the app must set: `email::set_email_ui` (the email
-  window when automatic sending is off: to, subject, body; `None`
-  cancels), `oauth_services::set_youtube_options_ui` (title, description,
-  privacy when "show dialog" is on), and `sharing::set_url_opener` (done).
+| Card | Buttons → code |
+|---|---|
+| Code paste (imgur, gist, dropbox, onedrive, box, bitly) | Open authorization page → `signin::open_authorization`, the page opened, "Authorization page opened"; Complete authorization → `complete_authorization` with the code box ("Connected" / "Authorization failed" / the error); Refresh token → `refresh_token` ("Token refresh failed" where the service can't); Disconnect clears the account |
+| Loopback (google-drive, google-cloud-storage, youtube) | Connect account → `OAuthListenerWindow` (`dialogs/oauth_listener.rs`) over `connect_loopback`; its Cancel or closing it cancels the listener; whatever it ends with is the account, as `setAccount(result?.…)` (a cancelled or failed sign-in forgets the old account, as ShareX's does); "Connected as {0}" from `GoogleDriveUserInfo` etc. |
+| OAuth 1 (flickr, photobucket) | `open_authorization_oauth1`, `complete_authorization_oauth1` (Photobucket without an account does nothing, as ShareX); Disconnect also clears `PhotobucketAccountInfo` |
+| ImageShack, Pastebin | Log in → `login_image_shack` / `login_pastebin` ("Connected" / "Login failed" / the error) |
+| Paste.ee | Get user key → `paste_ee_authorization_url()` |
+| puush, LobFile | Log in → `Puush::login` / `LobFile::fetch_api_key` with the (unsaved) user name and password: the key into the API key box, the password box cleared, "API key retrieved" |
+| Pushbullet | Refresh devices → `Pushbullet::get_device_list`, `SelectedDevice` clamped (`Reload`) |
+| MEGA | Log in → `mega_login(config, None)`; `MegaError::Api(-26)` opens `InputBoxWindow` (`dialogs/input_box.rs`, the question as its title) and logs in again with the code; Cancel stops there. Disconnect (and an e-mail or password edit) → `mega_disconnect` |
+| Imgur albums | Refresh albums → `refresh_imgur_albums` (not connected: "Connect Imgur account first"); the chosen album kept by id (`LoadAlbums`) |
+| OneDrive / Box folders | Refresh / Open folder / Back / Root → `OneDrive::get_path_info` / `BoxUploader::get_files` (folders only), the list's choice the upload folder, the count or error in "Browser status"; a token refreshed on the way is saved (ShareX's uploader shares the config's `OAuth2Info`). Items are kept as ShareX's `OneDriveFileInfo` / `BoxFileEntry` |
+| MEGA folder tree | Expanding a folder loads its folders (`mega_folders`) under the "…" placeholder; not connected or failing leaves the "…"; a click makes it `MegaSelectedFolder` |
+| FTP, Amazon S3 | Remote storage browser → the browser window (below) |
+
+Not in ShareX 22.4's window, so not here either: a Google Drive folder
+or shared drive picker (`GoogleDrive::{get_folders, get_drives}` have no
+caller in its page builder; the page shows the generic `FolderID` and
+`DriveID` fields) and Seafile's account and library buttons (its page is
+the generic settings).
+
+Dialog hooks the app sets at startup (`upload::app::set_dialog_hooks`):
+`email::set_email_ui` → `EmailWindow` (`dialogs/email_window.rs`),
+`oauth_services::set_youtube_options_ui` → `YouTubeVideoOptionsWindow`
+(`dialogs/youtube_options.rs`); a task's thread asks the event loop for
+the window (`UiRequest::Email`, `UiRequest::YouTubeOptions`) and waits for
+its answer; Cancel or closing answers nothing. `sharing::set_url_opener`
+was already set.
+
+Tests (`destination_settings::tests`, `remote_storage_browser::tests`)
+drive each button against `tools/uploaders-harness/mock_server.py` on
+127.0.0.1 (`test_mock`), or the in-process FTP mock: code paste open,
+complete, a refused and an empty code; refresh where it can't; Google's
+loopback end to end (the redirect sent to the listener) and cancelled;
+Pastebin and puush logins; Pushbullet devices; Imgur albums; OneDrive's
+Refresh, choice, Open folder, Back, Root; MEGA's two-factor question and
+the second login with the code; MEGA's tree without a session.
+
+Validation (`--render destination-<page> --state <state>`, 1028x749, vs
+`shots/sharex/destination/`; where ShareX's shot was reached through the
+search, its navigation isn't scrolled to the page, so those are compared
+on the page column, x >= 220): see the Destination settings row in
+PORTING.md. States no shot has (they need a live sign-in or listing) are
+drawn from made-up data, built from source: `code-entered`,
+`authorization-opened`, `authorization-failed`, `token-refresh-failed`,
+`login-failed`, `api-key-retrieved`, `filled`, `not-connected` (Imgur
+albums), Imgur `cached-list`/`selected`, Photobucket
+`empty`/`cached-list`/`selected`/`album-path`, Pushbullet
+`cached-menu`/`selected`/`device-error`, OneDrive/Box
+`saved-folder`/`listed`/`nested`/`no-child-folders`/`error`, MEGA
+`connected-display`/`loaded-children`/`nested`/`selected-child`/`loading`,
+Flickr/Photobucket/ImageShack/Pastebin `connected-display`; and the
+windows `oauth-listener`, `input-box`, `email-window`
+(`empty|prefilled|edited`), `youtube-options` (`default|edited`).
 
 ## Upload tasks
 

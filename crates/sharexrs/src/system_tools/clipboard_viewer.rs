@@ -184,7 +184,8 @@ impl ClipboardViewerWindow {
     }
 
     /// The preview panel.
-    fn preview_panel(&mut self, ui: &mut Ui, rect: Rect) {
+    fn preview_panel(&mut self, ui: &mut Ui, rect: Rect) -> Vec<Effect> {
+        let mut out = Vec::new();
         let p = palette(ui.ctx());
         tools::panel(ui, rect);
         let inner = rect.shrink(1.0);
@@ -225,10 +226,15 @@ impl ClipboardViewerWindow {
             tb.show(ui, body, Id::new("clipboard-preview-text"), &mut self.preview_text);
         } else if let Some(pic) = self.preview_image.as_mut() {
             crate::image_tools::slider::ComparisonSlider::draw_single(ui, body, pic, crate::image_tools::slider::Stretch::Both);
+            // `OnImagePointerPressed`: the image viewer.
+            if ui.interact(body, Id::new("clipboard-preview-image"), egui::Sense::click()).clicked() {
+                out.push(Effect::ShowImageNamed(pic.image.clone(), self.selected.clone().unwrap_or_default()));
+            }
         } else {
             super::super::data_tools::notice(ui, body, icon::ClipboardList, 48.0, 360.0, &self.empty_message);
         }
         sharex_ui::border::border(ui.painter(), frame, 4.0, 1.0, None, Some(p.border));
+        out
     }
 }
 
@@ -242,8 +248,7 @@ impl Dialog for ClipboardViewerWindow {
         let left = Rect::from_min_size(c.min, vec2(LIST_W, c.height()));
         self.formats_panel(ui, left);
         let right = Rect::from_min_max(pos2(left.max.x + 12.0, c.min.y), c.max);
-        self.preview_panel(ui, right);
-        Vec::new()
+        self.preview_panel(ui, right)
     }
 }
 

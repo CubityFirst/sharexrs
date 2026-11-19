@@ -322,6 +322,10 @@ impl AnalyzeImageWindow {
             let size = (dest.width().round().max(1.0) as u32, dest.height().round().max(1.0) as u32);
             let tex = pic.texture(ui.ctx(), size);
             ui.painter().with_clip_rect(host.shrink(1.0)).image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+            // `OnPreviewPointerPressed`: the image viewer.
+            if ui.interact(host, Id::new("ai-preview"), egui::Sense::click()).clicked() {
+                out.push(Effect::ShowImageNamed(pic.image.clone(), self.image_description()));
+            }
         } else {
             tools::empty_state(ui, host.shrink(1.0), icon::ImageUpload, 42.0, 10.0, &[(s::AnalyzeImageWindow_Select_or_drop_an_image(), tools::normal_font(), p.text_secondary)]);
         }

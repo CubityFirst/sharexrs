@@ -336,8 +336,9 @@ impl Dialog for QrCodeWindow {
                 _ => out.extend(generate(&self.text, size).map(Effect::CopyImage)),
             }
         }
-        if preview_clicked {
-            out.push(Effect::NotPorted("The image viewer"));
+        if preview_clicked && let Some((_, _, image)) = &self.preview {
+            // `ImageViewerWindowIntegration.ShowImage(stream.ToArray(), Image_viewer_title)`.
+            out.push(Effect::ShowImageNamed(image.clone(), sharex_strings::tools::QRCodeWindow_Image_viewer_title().to_owned()));
         }
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             out.push(Effect::Close);

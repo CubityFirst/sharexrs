@@ -135,6 +135,38 @@ pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, c
 }
 
 /// ShareX's default hotkeys, registered except those at `failed`.
+/// A context menu on its own, cropped to its popup and put on black as a
+/// popup window's transparent corners come out.
+fn render_popup<C: Clone>(entries: Vec<sharex_ui::menu::MenuEntry<C>>, style: sharex_ui::menu::MenuStyle, select_first: bool, hover: Option<egui::Pos2>, scale: f32, dark: bool) -> Result<image::RgbaImage, String> {
+    let mut screen = Offscreen::new([600, 700], scale, dark)?;
+    screen.transparent = true;
+    let at = egui::pos2(0.0, 0.0);
+    let mut flyout = sharex_ui::menu::Flyout::menu(egui::Id::new("popup"), entries, egui::Rect::from_min_size(at, egui::Vec2::ZERO), sharex_ui::menu::Placement::Slide(at));
+    flyout.style = style;
+    if select_first {
+        flyout.select_first();
+    }
+    let events: Vec<egui::Event> = hover.map(egui::Event::PointerMoved).into_iter().collect();
+    for frame in 0..8 {
+        let ev = if frame >= 1 { events.clone() } else { Vec::new() };
+        screen.run(ev, &mut |ui: &mut egui::Ui| {
+            let bounds = ui.max_rect();
+            flyout.show(ui, bounds);
+        });
+    }
+    let full = screen.draw();
+    let r = *flyout.rects().first().ok_or("no menu")?;
+    let (x, y) = ((r.min.x * scale).round() as u32, (r.min.y * scale).round() as u32);
+    let (cw, ch) = ((r.width() * scale).round() as u32, (r.height() * scale).round() as u32);
+    let mut crop = image::imageops::crop_imm(&full, x, y, cw, ch).to_image();
+    for p in crop.pixels_mut() {
+        let a = p[3] as u32;
+        let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+        *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+    }
+    Ok(crop)
+}
+
 fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
     let mut hotkeys = HotkeysConfig::new(&TaskSettings::default()).Hotkeys;
     for (i, h) in hotkeys.iter_mut().enumerate() {
@@ -379,6 +411,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let w = width.unwrap_or((main_window::WIDTH * scale) as u32);
             let mut screen = Offscreen::new([w, h], scale, dark)?;
             state.menu_state.monitors = monitors.clone();
+            // `--state workflows-unbound`: the hotkeys have no keys.
+            if dialog.state.as_deref() == Some("workflows-unbound") {
+                for w in &mut state.menu_state.workflows {
+                    w.hotkey = None;
+                }
+            }
             state.work_area = work_area.map(|r: egui::Rect| egui::Rect::from_min_max((r.min.to_vec2() / scale).to_pos2(), (r.max.to_vec2() / scale).to_pos2()));
             let nav_index = match menu {
                 None => None,
@@ -406,6 +444,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     state.open_nav(i, anchor);
                     if let Some(f) = &mut state.flyout {
                         f.open_path(&open);
+                        // `--state tools-edit`: the tool grid's edit mode.
+                        f.editing_tools = dialog.state.as_deref() == Some("tools-edit");
                     }
                 }
                 let ev = if frame >= 3 { events.clone() } else { Vec::new() };
@@ -453,6 +493,18 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             crop
         }
+        // The quick task menu with ShareX's default presets, its first item
+        // focused (`continueItem.Focus()`), cropped to the popup (`--hover`
+        // for the pointer).
+        "quick-task" => {
+            let entries = crate::quick_task::entries(&sharex_settings::QuickTaskInfo::default_presets());
+            render_popup(entries, sharex_ui::menu::MenuStyle::CompactPlainSeparators, true, hover, scale, dark)?
+        }
+        // The Actions toolbar's title menu (`CreateToolbarMenu`).
+        "actions-toolbar-menu" => {
+            let entries = crate::dialogs::actions_toolbar::toolbar_menu(&sharex_settings::ApplicationConfig::default());
+            render_popup(entries, sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?
+        }
         "hotkey-failed" => {
             // The message box ShareX shows when hotkeys fail to register
             // (`--unregistered`, default 0,3: Ctrl/Shift + Print Screen).
@@ -479,6 +531,22 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 sharex_strings::sharex::MainForm_tsmiDeleteSelectedFile_Click_Do_you_really_want_to_delete_this_file_(),
                 sharex_strings::sharex::FileDeleteConfirmation_DontRemindAgain(),
             );
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
+        // `TaskHelpers.AnnotateImageFromFile`'s message for a file that's
+        // gone (`--text` its path).
+        "task-missing-file" => {
+            let path = dialog.text.clone().unwrap_or_else(|| r"C:\ShareXrs\Screenshots6-11\ShareX_test.png".into());
+            let text = sharex_strings::sharex::TaskHelpers_FileDoesNotExist().replace("{0}", &path);
+            let mut dialog = MessageBox::ok("ShareXrs", text, MessageBoxIcon::Information);
             let mut probe = Offscreen::new([1, 1], scale, dark)?;
             let mut h = 0.0;
             probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));

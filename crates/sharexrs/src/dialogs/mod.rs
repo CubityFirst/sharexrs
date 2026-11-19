@@ -10,21 +10,38 @@
 //! `BeforeUploadWindowIntegration.Show`) answer through a channel the
 //! task's thread waits on.
 
+pub mod about;
+pub mod actions_toolbar;
+pub mod after_capture;
 pub mod after_upload;
 pub mod before_upload;
 pub mod clipboard_upload;
 pub mod confirm;
 pub mod custom_uploaders;
+pub mod debug_log;
+pub mod display_diagnostics;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod email_window;
+pub mod file_exist;
+pub mod forms;
+pub mod icon_pack_prompt;
+pub mod image_viewer;
+pub mod input_box;
 pub mod layout;
+pub mod message_dialog;
+pub mod notification;
+pub mod oauth_listener;
+pub mod output_box;
 pub mod print_window;
 pub mod qr_code;
+pub mod quick_task_editor;
 pub mod render;
 pub mod response;
 pub mod text_upload;
 pub mod update;
 pub mod url_input;
+pub mod youtube_options;
 
 use std::path::PathBuf;
 
@@ -64,6 +81,9 @@ pub struct Spec {
     pub borderless: bool,
     /// `WindowState="Maximized"`.
     pub maximized: bool,
+    /// `MaxWidth` / `MaxHeight` (0: none).
+    pub max_width: f32,
+    pub max_height: f32,
 }
 
 impl Spec {
@@ -83,6 +103,8 @@ impl Spec {
             activate: true,
             borderless: false,
             maximized: false,
+            max_width: 0.0,
+            max_height: 0.0,
         }
     }
 
@@ -151,6 +173,8 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// `TaskHelpers.OpenRemoteStorageBrowser` (Destination settings' button).
+    OpenRemoteStorageBrowser,
     /// The image editor's colour popups' screen colour picker
     /// (`ScreenColorPickerWindow.PickAsync(owner)`): over the window, its
     /// colour handed back through [`Dialog::screen_color`].
@@ -221,6 +245,32 @@ pub enum Effect {
     /// A picker overlay was clicked (`picked`) or cancelled: the overlays
     /// closed, the window at the pointer handed to `owner`.
     WindowPicked { owner: Option<WindowId>, picked: bool, top_level: bool },
+    /// The after capture window's Continue (or copy): the task starts with
+    /// the settings it chose.
+    AfterCaptureAccepted(Box<after_capture::Accepted>),
+    /// `ImageViewerWindowIntegration.ShowImage(image)`.
+    ShowImage(RgbaImage),
+    /// `ImageViewerWindowIntegration.ShowImage(imageData, displayName)`.
+    ShowImageNamed(RgbaImage, String),
+    /// The window's client size (points), where it is.
+    SetInnerSize(f32, f32),
+    /// The Actions toolbar's title context menu, at the pointer.
+    ActionsToolbarMenu,
+    /// `TaskHelpers.ExecuteJob(job)` with the default task settings.
+    RunJob(sharex_settings::HotkeyType),
+    /// The Actions toolbar shows the list as it is now.
+    RefreshActionsToolbar,
+    /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
+    /// (the notification's Delete file).
+    DeleteFile(PathBuf),
+    /// `TaskHelpers.AnnotateImageAsync(image, null, defaults)`: the image
+    /// editor on an image that was never saved.
+    AnnotateImage(RgbaImage),
+    /// `ThemeManager.ApplyConfiguredSettings` after the settings' theme
+    /// options changed (the icon pack prompt).
+    ApplyAppearance,
+    /// `SettingManager.SaveApplicationConfigAsync`.
+    SaveSettings,
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -259,7 +309,8 @@ pub enum UploadRequest {
     /// `UploadFile(files)`: asks first when there are more than 10, unless
     /// already `confirmed`.
     Files { files: Vec<PathBuf>, task: TaskSettings, confirmed: bool },
-    /// `UploadImage(image)` of a generated QR code.
+    /// `UploadImage(image)` of a generated QR code (or of the notification's
+    /// image).
     QrCodeImage(RgbaImage),
     /// `TaskHelpers.OpenDirectoryIndexer`'s upload: a text upload of the
     /// index, its file name taking the output's extension.
@@ -289,6 +340,16 @@ pub struct Cx<'a> {
 /// One of ShareX's upload windows.
 pub trait Dialog {
     fn spec(&self) -> Spec;
+
+    /// The width of the content (`SizeToContent="WidthAndHeight"`), when
+    /// it has one.
+    fn content_width(&mut self, ui: &mut egui::Ui) -> Option<f32> {
+        let _ = ui;
+        None
+    }
+
+    /// The window moved (`PositionChanged`), to this outer position.
+    fn moved(&mut self, _x: i32, _y: i32, _cx: &mut Cx) {}
 
     /// The height of the content for [`Spec::size_to_content`].
     fn content_height(&mut self, ui: &mut egui::Ui) -> f32 {
@@ -380,6 +441,11 @@ pub trait Dialog {
     /// The video trimmer's export, once FFmpeg is resolved (`None`: missing).
     fn trimmer_export(&mut self, _ffmpeg: Option<std::path::PathBuf>) {}
 
+    /// `Deactivated`.
+    fn deactivated(&mut self) -> Vec<Effect> {
+        Vec::new()
+    }
+
     /// The scrolling capture window, for the app to report to.
     fn as_scrolling(&mut self) -> Option<&mut crate::scrolling_capture::window::ScrollingCaptureWindow> {
         None
@@ -398,6 +464,12 @@ pub trait Dialog {
 
     /// A picker overlay: the window it picks for.
     fn picker_owner(&self) -> Option<WindowId> {
+        None
+    }
+
+    /// A theme of its own whatever the app's (`RequestedThemeVariant =
+    /// ThemeManager.ShareXDark`: the notification window).
+    fn theme(&self) -> Option<egui::Theme> {
         None
     }
 
@@ -445,7 +517,7 @@ impl App {
     }
 
     fn try_open_dialog_window(&mut self, event_loop: &ActiveEventLoop, mut dialog: Box<dyn Dialog>) -> Result<(), String> {
-        let theme = self.theme();
+        let theme = dialog.theme().unwrap_or(self.theme());
         let gpu = match &self.gpu {
             Some(g) => g,
             None => self.gpu.insert(sharex_ui::gpu::Gpu::new()?),
@@ -459,8 +531,8 @@ impl App {
             w.clear_color = Some([0.0; 4]);
         }
         if spec.size_to_content {
-            let height = w.paint(|ui| dialog.content_height(ui));
-            let _ = w.window.request_inner_size(LogicalSize::new(spec.width, height));
+            let (width, height) = w.paint(|ui| (dialog.content_width(ui), dialog.content_height(ui)));
+            let _ = w.window.request_inner_size(LogicalSize::new(width.unwrap_or(spec.width), height));
         }
         clamp_to_max_track_size(&w.window, &spec);
         let size = w.window.outer_size();
@@ -501,6 +573,14 @@ impl App {
                 d.window.on_event(event);
                 d.window.window.request_redraw();
                 d.dialog.activated()
+            }
+            WindowEvent::Focused(false) => {
+                d.window.on_event(event);
+                d.dialog.deactivated()
+            }
+            WindowEvent::Moved(p) => {
+                d.dialog.moved(p.x, p.y, &mut cx);
+                Vec::new()
             }
             WindowEvent::RedrawRequested => {
                 let dialog = &mut d.dialog;
@@ -650,6 +730,7 @@ impl App {
                 Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
                 Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::OpenRemoteStorageBrowser => self.open_remote_storage_browser(event_loop),
                 Effect::PickScreenColorOverWindow => self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id)),
                 Effect::EditorCapture { fullscreen, task } => self.editor_capture(id, fullscreen, *task),
                 Effect::PickScreenColor => {
@@ -713,6 +794,35 @@ impl App {
                         self.finish_window_picking(owner, picked, top_level);
                     }
                 }
+                Effect::ApplyAppearance => self.apply_appearance(),
+                Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
+                Effect::SetInnerSize(w, h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                    }
+                }
+                Effect::ActionsToolbarMenu => self.open_actions_toolbar_menu(event_loop),
+                Effect::RunJob(job) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.run_job_now(event_loop, job, task);
+                }
+                Effect::RefreshActionsToolbar => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.dialog.single() == Some("actions-toolbar")) {
+                        d.window.window.request_redraw();
+                    }
+                }
+                Effect::AfterCaptureAccepted(accepted) => self.after_capture_accepted(*accepted),
+                Effect::ShowImage(image) => self.show_image(event_loop, image, None),
+                Effect::ShowImageNamed(image, name) => self.show_image(event_loop, image, Some(name)),
+                Effect::AnnotateImage(image) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.open_image_editor(event_loop, Some(image), None, task, None);
+                }
+                Effect::SaveSettings => {
+                    if let Err(e) = self.settings.save_application_config(false) {
+                        eprintln!("couldn't save the settings: {e}");
+                    }
+                }
                 Effect::MinimizeAndFlash => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         d.window.window.set_minimized(true);
@@ -745,7 +855,7 @@ impl App {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
             }
-            FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
+            FileService::ShowImage => self.show_image_file(event_loop, &path),
         }
     }
 
@@ -772,6 +882,22 @@ impl App {
     /// the service's page when one is given.
     pub(crate) fn show_destination_settings(&mut self, event_loop: &ActiveEventLoop, service: Option<&str>) {
         self.open_dialog_window(event_loop, Box::new(destination_settings::DestinationSettingsWindow::new(service)));
+    }
+
+    /// `TaskHelpers.OpenRemoteStorageBrowser`: Amazon S3 and each usable
+    /// FTP/SFTP account; without any, the message saying how to set one up.
+    pub(crate) fn open_remote_storage_browser(&mut self, event_loop: &ActiveEventLoop) {
+        let allow_upload = !self.settings.system.disable_upload;
+        let providers = self.uploads.config.with(|c| sharex_uploaders::remote_storage::providers(c, allow_upload));
+        let dialog: Box<dyn Dialog> = if providers.is_empty() {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        } else {
+            Box::new(crate::remote_storage_browser::RemoteStorageBrowserWindow::new(providers, std::sync::Arc::new(crate::upload::SystemBrowser)))
+        };
+        self.open_dialog_window(event_loop, dialog);
     }
 
     /// A window of ours to own the clipboard's data.
@@ -816,6 +942,11 @@ fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
         .with_active(spec.activate);
     if spec.min_width > 0.0 || spec.min_height > 0.0 {
         attrs = attrs.with_min_inner_size(LogicalSize::new(spec.min_width, spec.min_height));
+    }
+    if spec.max_width > 0.0 || spec.max_height > 0.0 {
+        let w = if spec.max_width > 0.0 { spec.max_width } else { f32::MAX };
+        let h = if spec.max_height > 0.0 { spec.max_height } else { f32::MAX };
+        attrs = attrs.with_max_inner_size(LogicalSize::new(w, h));
     }
     if !spec.maximizable {
         attrs = attrs.with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE);
