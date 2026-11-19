@@ -391,7 +391,7 @@ shows as ShareX shows it), the divider held, the device menu.
 Pressing the converter's, resizer's and watermark's preview (and Image
 effects') opens it in the image viewer (`OnPreviewPointerPressed`, named
 after the file). Not ported in these windows: Avalonia's `ColorView` flyout
-(the shared HSV popup stands in, opaque), tooltips are egui's, a drop of several files
+(the shared HSV popup stands in, opaque), a drop of several files
 on the splitter or icon converter takes the last one winit reports (ShareX
 the first), focus rings and keyboard navigation of the lists.
 
@@ -490,7 +490,7 @@ Behaviour checked headlessly: a real conversion with a local FFmpeg
 (`converts_with_a_local_ffmpeg`), GIF trimmer loads, selections, crops
 and an export re-read (`gif_trimmer` tests), the converter's, thumbnailer's
 and trimmer's FFmpeg runs through `--render` (a contact sheet, a lossless
-trim). Not ported: tooltips are egui's; dropdowns stay inside the window
+trim). Not ported: dropdowns stay inside the window
 (the converter's codec list is cut at its bottom); the player's controls
 are drawn in the window rather than a popup of their own; settings changed
 in a window opened by a hotkey with its own tools settings are kept for
@@ -566,7 +566,7 @@ used by no ported caller) and its Copy menu as an OS popup (drawn inside
 the window), the highlighter on macOS/Linux (hook and overlays), the
 highlighter while recording and the ripple animation checked live, the
 settings JSON after the same edits (ShareX keeps these options in memory
-until its next save), tooltips are egui's, and other DPIs and monitors than
+until its next save), and other DPIs and monitors than
 one 1024x768 at 100%. ShareX keeps no pin out of captures, so neither does
 ShareXrs. ShareX's region capture has no colour picker mode in this version.
 
@@ -607,7 +607,15 @@ browser is another port's.
   left out (Avalonia's `ReadDataFromHGlobal` gives no value for those
   `DataFormat<Bitmap>`s); when any image format is there, `Bitmap` is added:
   the first of `image/png`, `PNG`, `CF_DIB` (made opaque), `CF_BITMAP`, as
-  PNG. Elsewhere: text, files and an image. Clear is
+  PNG. On macOS the general pasteboard and on Linux the X11 `CLIPBOARD`
+  selection, listed, named and read as Avalonia.Native and Avalonia.X11 do
+  (`sharex_tools::system::clipboard_formats`, PLATFORMS.md): the
+  pasteboard through objc2 (`GeneralPasteboard`: `types`, each item's
+  types, `stringForType`, `dataForType`, `NSBitmapImageRep` for the PNG of
+  a TIFF or JPEG, `UTType`'s conformance to `public.text`, file reference
+  URLs resolved), the selection through x11rb (`system_tools/x11_selection.rs`:
+  `XConvertSelection` into a property of our own window, 5 s for each
+  answer, `INCR` read in chunks). Clear is
   `sharex_capture::clipboard::clear`.
 - **Windows** (`NativeWindows`): `sharex_capture`'s visible windows, titles,
   process names, icons, `GetWindowRect` with DWM's frame, client rectangles;
@@ -678,8 +686,27 @@ is 363 units above its `hhea` ascent, 2.5 px at 14 px), and the QR code
 window encodes and scans with `sharex_tools::qr` (ZXing's mask choice
 differed from the `qrcode` crate's on the reference text).
 
+Tooltips: ShareX's `ToolTip.Tip`s in these windows, from the `.resx`,
+with the shared Fluent tooltip (`sharex_ui::tooltip`; none on a disabled
+control): Analyze image options' API key page (1), OCR's Open service,
+Edit services and the regions (3: a region's text opens at once under
+the pointer and turns to Copied to clipboard after a click, as
+`OCRPreview` sets `ToolTip.IsOpen`), the Remote storage browser's Up,
+Refresh and search box (3), the monitor test's Close (1). ShareX sets none
+in the hash checker, index folder, metadata, Analyze image, QR code,
+clipboard viewer, inspect window, network monitor or borderless window.
+`--tip` with `--hover` holds the pointer past the delay and the fade:
+`analyze-options --content openai --hover 560,49`, `monitor-test --state
+grayscale --hover 837,52`, `remote-storage --hover 711,82` (Refresh) and
+`860,82` (search), `ocr --image ocr-sample.png --hover 200,267` (a region)
+and `1050,573` (Edit services), dark and light: built from source, as
+ShareX's tooltips are popup windows its reference shots don't have; the
+tooltip stays inside the rendered window where ShareX's popup may leave
+it. The states above are unchanged (same numbers), OCR's region hover
+without `--tip` still 1.16/1.12%.
+
 Not ported or not checked: `ColorView` flyouts (the shared HSV popup),
-tooltips (egui's), Avalonia's
+Avalonia's
 state-dependent `PNG`/`image/png` clipboard formats after its first image
 read (ShareXrs always lists them as bytes), the Network monitor's ICMP on
 macOS/Linux beyond the system `ping`, window lists, picking and
