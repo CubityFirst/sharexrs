@@ -34,6 +34,7 @@
 )]
 
 pub mod analyze_image;
+pub mod animated_preview;
 pub mod background_remover;
 pub mod capture_image;
 pub mod color;

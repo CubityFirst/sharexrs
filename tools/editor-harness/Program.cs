@@ -218,6 +218,16 @@ internal static class Program
                 : DumpEmoji(args[1], int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);
         }
 
+        if (args[0] == "--control-dump")
+        {
+            AppBuilder.Configure<HarnessApp>()
+                .UseSkia()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+                .WithInterFont()
+                .SetupWithoutStarting();
+            return ControlDump.Run(args[1]);
+        }
+
         if (args[0] == "--tooltip-theme")
         {
             // The resources and ControlTheme setters ShareX's tooltips get from
