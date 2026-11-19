@@ -4,7 +4,7 @@
 // bounds (relative to its root), padding, margin, corner radius, brushes and
 // fonts, so ShareXrs can port the values instead of guessing them.
 //
-//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter[-hover]|borderstyle
+//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter[-hover]|borderstyle|colorpanel
 //
 // autocomplete: the History window's search box (an AutoCompleteBox 250 wide
 // with FilterMode ContainsOrdinal and Padding 12,7,38,7) over a few process
@@ -16,6 +16,11 @@
 // borderstyle: the image editor's stroke-style dropdown
 // (BorderStylePickerDropdown) open on Solid: the popup's tree and, for each
 // TextBlock, which value of Foreground wins and at what priority.
+// colorpanel: the editor's ColorPickerPanel (its ColorView on the palette
+// tab, with ShareX's three palette replacements made on Loaded) shown with
+// colours that are in Fluent's palette, in ShareX's replacements, and in
+// neither, then each set again while it's shown: the palette ListBox's
+// selection after each.
 
 using Avalonia;
 using Avalonia.Controls;
@@ -54,6 +59,9 @@ internal static class ControlDump
                     break;
                 case "borderstyle":
                     BorderStyleDropdown(variant);
+                    break;
+                case "colorpanel":
+                    ColorPanel(variant);
                     break;
                 default:
                     Console.Error.WriteLine($"unknown control {kind}");
@@ -105,6 +113,29 @@ internal static class ControlDump
             Dump(child, child, 0);
         }
         window.Close();
+    }
+
+    static void ColorPanel(Avalonia.Styling.ThemeVariant variant)
+    {
+        // Fluent's first colour, ShareX's three replacements, the colour one
+        // of them replaced (#7E735F, the last), the fill colour's default.
+        Color[] colors = [Color.Parse("#FFFF4343"), Color.Parse("#FFEBEBEB"), Color.Parse("#FF141414"), Colors.Transparent, Color.Parse("#FF7E735F"), Color.Parse("#FFF23C3C")];
+        foreach (Color color in colors)
+        {
+            var panel = new ShareX.ImageEditor.Presentation.Controls.ColorPickerPanel { SelectedColorValue = color };
+            Window window = new() { Content = panel, Width = 600, Height = 600, RequestedThemeVariant = variant };
+            window.Show();
+            Pump();
+            window.UpdateLayout();
+            ListBox? list = panel.GetVisualDescendants().OfType<ListBox>().FirstOrDefault(l => l.Name == "PART_PaletteListBox") ?? panel.GetVisualDescendants().OfType<ListBox>().FirstOrDefault();
+            Console.WriteLine($"{color}: shown, palette index {list?.SelectedIndex} item {list?.SelectedItem} count {list?.ItemCount}");
+            panel.SelectedColorValue = Colors.Red;
+            Pump();
+            panel.SelectedColorValue = color;
+            Pump();
+            Console.WriteLine($"{color}: set again, palette index {list?.SelectedIndex} item {list?.SelectedItem}");
+            window.Close();
+        }
     }
 
     static void BorderStyleDropdown(Avalonia.Styling.ThemeVariant variant)

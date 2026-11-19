@@ -531,6 +531,8 @@ struct State {
     tab: usize,
     hsv_model: bool,
     hex: String,
+    /// The palette `ListBox`'s selected index (see [`ColorView::opened_palette_selection`]).
+    palette: Option<usize>,
 }
 
 fn state_id(id: Id) -> Id {
@@ -573,6 +575,23 @@ impl ColorView {
         to_hex_string(c, self.alpha_enabled && self.alpha_visible, false)
     }
 
+    /// The palette selection as the view is shown with `rgba`: the
+    /// `ListBox`'s `SelectedItem` binding finds the colour in Fluent's
+    /// palette, then `ColorPickerPanel.OnLoaded` replaces three entries,
+    /// which keeps the selection only where the item is still there. So a
+    /// replacement (#EBEBEB, #141414, `Transparent`: the fill colour's
+    /// default) isn't selected until the colour changes while shown
+    /// (`--control-dump colorpanel`).
+    fn opened_palette_selection(&self, rgba: Rgba8) -> Option<usize> {
+        let fluent = palette_colors(false);
+        palette_colors(self.sharex_palette).iter().zip(fluent).position(|(c, f)| *c == rgba && f == rgba)
+    }
+
+    /// The palette selection once the colour changes while shown.
+    fn palette_selection(&self, rgba: Rgba8) -> Option<usize> {
+        palette_colors(self.sharex_palette).iter().position(|c| *c == rgba)
+    }
+
     fn load(&self, ctx: &egui::Context, id: Id, color: Rgba8) -> State {
         let existing: Option<State> = ctx.data(|d| d.get_temp(state_id(id)));
         match existing {
@@ -581,6 +600,7 @@ impl ColorView {
                     s.rgba = color;
                     s.hsv = Hsv::from_rgba(s.rgba);
                     s.hex = self.hex_of(s.rgba);
+                    s.palette = self.palette_selection(s.rgba);
                 }
                 s
             }
@@ -589,7 +609,7 @@ impl ColorView {
                 if !self.alpha_enabled {
                     rgba[3] = 255;
                 }
-                State { hsv: Hsv::from_rgba(rgba), rgba, tab: self.selected_index.min(2), hsv_model: false, hex: self.hex_of(rgba) }
+                State { hsv: Hsv::from_rgba(rgba), rgba, tab: self.selected_index.min(2), hsv_model: false, hex: self.hex_of(rgba), palette: self.opened_palette_selection(rgba) }
             }
         }
     }
@@ -622,6 +642,10 @@ impl ColorView {
             st.rgba = c;
             st.hsv = Hsv::from_rgba(c);
             st.hex = self.hex_of(c);
+        }
+        if st.rgba != before {
+            // `Color` changed: the palette's `SelectedItem` binding.
+            st.palette = self.palette_selection(st.rgba);
         }
         ui.set_clip_rect(saved_clip);
         let after = st.rgba;
@@ -788,7 +812,10 @@ impl ColorView {
         let (cw, ch) = (area.width() / PALETTE_COLUMNS as f32, area.height() / rows as f32);
         let painter = ui.painter().clone();
         let current = edit.rgba.unwrap_or(st.rgba);
-        let selected = colors.iter().position(|c| *c == current);
+        let selected = match edit.rgba {
+            Some(c) => self.palette_selection(c),
+            None => st.palette,
+        };
         for (i, c) in colors.iter().enumerate() {
             let cell = Rect::from_min_size(pos2(area.min.x + cw * (i % PALETTE_COLUMNS) as f32, area.min.y + ch * (i / PALETTE_COLUMNS) as f32), vec2(cw, ch));
             let r = ui.interact(cell, id.with(("palette", i)), Sense::click());
@@ -1487,7 +1514,8 @@ pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Rgba8, style
 /// `hsv_model`), as a click on them would: for renders.
 /// `rgba` is the popup's colour.
 pub fn preset(ctx: &egui::Context, id: Id, style: ColorPopup, rgba: Rgba8, tab: usize, hsv_model: bool) {
-    let st = State { hsv: Hsv::from_rgba(rgba), rgba, tab: tab.min(2), hsv_model, hex: style.view().hex_of(rgba) };
+    let view = style.view();
+    let st = State { hsv: Hsv::from_rgba(rgba), rgba, tab: tab.min(2), hsv_model, hex: view.hex_of(rgba), palette: view.opened_palette_selection(rgba) };
     ctx.data_mut(|d| d.insert_temp(state_id(id.with("view")), st));
 }
 
@@ -1620,6 +1648,33 @@ mod tests {
         // that premultiplies the same (blue 224 and 225 at A=166).
         ctx.data_mut(|d| d.insert_temp(state_id(id), view.load(&egui::Context::default(), id, [54, 169, 224, 166])));
         assert_eq!(view.load(&ctx, id, [54, 169, 225, 166]).rgba, [54, 169, 225, 166]);
+    }
+
+    /// `--control-dump colorpanel` (ShareX's `ColorPickerPanel`): shown
+    /// with a colour, the palette selects it only where Fluent's palette had
+    /// it and `OnLoaded` didn't replace it; set while shown, it selects
+    /// ShareX's replacements too.
+    #[test]
+    fn palette_selection_as_sharex_panel() {
+        let view = ColorPopup::Dropdown.view();
+        let ctx = egui::Context::default();
+        let shown = |c: Rgba8, id: &str| view.load(&ctx, Id::new(id), c).palette;
+        assert_eq!(shown([0xFF, 0x43, 0x43, 255], "a"), Some(0));
+        assert_eq!(shown([0xEB, 0xEB, 0xEB, 255], "b"), None);
+        assert_eq!(shown([0x14, 0x14, 0x14, 255], "c"), None);
+        assert_eq!(shown([255, 255, 255, 0], "d"), None, "the fill colour's default");
+        assert_eq!(shown([0x7E, 0x73, 0x5F, 255], "e"), None);
+        assert_eq!(shown([0xF2, 0x3C, 0x3C, 255], "f"), None);
+        // Set again while shown: the binding finds the replacements.
+        let st = view.load(&ctx, Id::new("g"), [255, 0, 0, 255]);
+        ctx.data_mut(|d| d.insert_temp(state_id(Id::new("g")), st));
+        for (c, want) in [([0xEB, 0xEB, 0xEB, 255], Some(35)), ([0x14, 0x14, 0x14, 255], Some(41)), ([255, 255, 255, 0], Some(47)), ([0x7E, 0x73, 0x5F, 255], None)] {
+            let st = view.load(&ctx, Id::new("g"), c);
+            assert_eq!(st.palette, want, "{c:?}");
+            ctx.data_mut(|d| d.insert_temp(state_id(Id::new("g")), st));
+        }
+        // Fluent's own palette (a flyout's view) has no replacements.
+        assert_eq!(ColorView::default().opened_palette_selection([0x7E, 0x73, 0x5F, 255]), Some(47));
     }
 
     #[test]

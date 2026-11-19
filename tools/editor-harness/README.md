@@ -57,6 +57,10 @@ brushes, delay and interval).
 item `TextBlock`, the `Foreground` that wins and its priority (the item
 template's local value is at Template priority, so the active row's
 `Button.active ... TextBlock` style wins).
+`--control-dump colorpanel` shows the editor's `ColorPickerPanel` with
+colours in Fluent's palette, in ShareX's three replacements and in neither,
+and sets each again while shown, printing the palette `ListBox`'s selection
+(a replacement such as `Transparent` is selected only after a change).
 `--control-dump colorview [out dir]` lays out Avalonia's `ColorView` in
 ShareX's three hosts (the mouse highlighter's `Flyout`, the image effects'
 `Flyout` with `MinWidth` 320, `ColorPickerDropdown`'s popup) on each tab
