@@ -365,8 +365,14 @@ impl App {
             .with_inner_size(LogicalSize::new(hotkey_settings::WIDTH, hotkey_settings::HEIGHT))
             .with_min_inner_size(LogicalSize::new(hotkey_settings::MIN_WIDTH, hotkey_settings::MIN_HEIGHT));
         let window = event_loop.create_window(attrs).map_err(|e| e.to_string())?;
-        let w = EguiWindow::new(window, gpu, None)?;
+        let mut w = EguiWindow::new(window, gpu, None)?;
         set_theme(&w, self.current_theme);
+        // `FitMinWidthToToolbar`, before the window is sized and centred.
+        let min_width = w.paint(|ui| hotkey_settings::fit_min_width(ui));
+        if min_width > hotkey_settings::MIN_WIDTH {
+            w.window.set_min_inner_size(Some(LogicalSize::new(min_width, hotkey_settings::MIN_HEIGHT)));
+            let _ = w.window.request_inner_size(LogicalSize::new(min_width.max(hotkey_settings::WIDTH), hotkey_settings::HEIGHT));
+        }
         center(&w.window, event_loop);
         w.window.set_visible(true);
         w.window.focus_window();

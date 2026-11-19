@@ -647,6 +647,24 @@ pub fn moved_index(i: usize, from: usize, to: usize) -> usize {
 
 /// A compact toolbar button's width: icon (the button's 13px font), 7,
 /// the label (a `TextBlock`, Segoe UI Normal).
+/// `FitMinWidthToToolbar`: the toolbar's width (the four labelled buttons,
+/// the two 34px move buttons and Reset, 6px between its eight columns, its
+/// 8px padding and side borders) plus `ContentGrid`'s 10px margins, rounded
+/// up: the window's minimum width when translated labels need more than
+/// [`MIN_WIDTH`].
+pub fn fit_min_width(ui: &Ui) -> f32 {
+    let labels = [
+        s::HotkeySettingsWindow_Add(),
+        s::HotkeySettingsWindow_Remove(),
+        s::HotkeySettingsWindow_EditTask(),
+        s::HotkeySettingsWindow_Duplicate(),
+        s::HotkeySettingsWindow_ResetWithEllipsis(),
+    ];
+    let buttons: f32 = labels.iter().map(|t| icon_text_button_width(ui, t)).sum::<f32>() + 2.0 * ROW_BUTTON;
+    let toolbar = buttons + 7.0 * 6.0 + 2.0 * 8.0 + 2.0;
+    MIN_WIDTH.max((toolbar + 20.0).ceil())
+}
+
 fn icon_text_button_width(ui: &Ui, text: &str) -> f32 {
     1.0 + COMPACT_PADDING.left + 13.0 + 7.0 + text_width(ui, text, font(13.0, 400)) + COMPACT_PADDING.right + 1.0
 }
@@ -850,6 +868,16 @@ mod tests {
     fn svc_parts() -> (Vec<HotkeySettings>, ApplicationConfig) {
         let settings = ApplicationConfig::default();
         (sharex_settings::default_hotkey_list(&TaskSettings::default()), settings)
+    }
+
+    /// English labels fit ShareX's 620px minimum; the toolbar's own width
+    /// only matters when translated labels are wider.
+    #[test]
+    fn the_minimum_width_fits_the_toolbar() {
+        let mut screen = sharex_ui::offscreen::Offscreen::new([100, 100], 1.0, true).unwrap();
+        let mut width = 0.0;
+        screen.run(Vec::new(), &mut |ui: &mut egui::Ui| width = fit_min_width(ui));
+        assert_eq!(width, MIN_WIDTH);
     }
 
     #[test]

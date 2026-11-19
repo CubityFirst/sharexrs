@@ -95,7 +95,7 @@ pub fn drag_files<'a>(items: impl IntoIterator<Item = &'a sharex_history::Histor
 }
 
 /// Which services the app gives the windows (`TaskHelpers.OpenHistory`
-/// fills in all of them; the ones not ported yet log when used).
+/// fills in all of them; the Photo editor's is deferred and logs).
 pub fn services() -> Services {
     Services {
         upload_file: true,
