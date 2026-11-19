@@ -81,3 +81,15 @@ Checks from [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checke
 | SCR-02 | Scrolling capture | Inspect the unzoomed 420×480 viewport preview from SCR-01 on the 125% display. | Displays the image at 525×600 physical pixels inside the preview. | Displays the image at 420×480 physical pixels inside the preview. | FAIL | Same shots as SCR-01. Compare the image rectangle within each window, excluding surrounding panel. |
 | SCR-03 | Scrolling capture | Scroll by `WM_VSCROLL`. | The supplied test pattern page handles wheel and keys and has no native scroll bar to receive this message. | Same fixture limitation. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
 | SCR-04 | Scrolling capture | Open Help. | Skipped. Opens a web page. | Skipped for the same reason. | BLOCKED | [SCROLLING-CAPTURE.md](SCROLLING-CAPTURE.md#not-ported-or-not-checked) |
+
+## History
+
+Checks from [HISTORY.md](HISTORY.md#validation-of-the-windows) and commits
+`96f91ec` and `e4df0e5` where they describe window behavior.
+
+| ID | Area | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|
+| HIS-01 | History | Seed 60 synthetic image rows with paths to generated files and `example.invalid` URL text. Search for `item-42`. | Lists only `item-42.png` and previews the generated sixth pattern. | Same row and preview. | PASS | `history-search-dark.png` and `local-history-dark.png` under `SX` and `RS`. |
+| HIS-02a | History | Open Image history with `MaxItemCount=6`, `AutoLoadMoreItems=false` and the 60-row fixture. | Initial six images, ordered newest first, items 60 to 55. | Same six items and order. | PASS | `local-image-history-dark.png` under `SX` and `RS`. |
+| HIS-03 | History | Open Stats on the same fixture. | Total 60, all images, busiest day November 1, busiest hour 09:00–10:00. | Same counts and bins. | PASS | `local-stats-dark.png` under `SX` and `RS`. |
+| HIS-04 | History | Remote URL image preview and Stats Share. | Skipped. Requires download or upload. | Skipped for the same reason. | BLOCKED | [HISTORY.md](HISTORY.md#validation-of-the-windows) |
