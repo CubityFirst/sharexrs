@@ -16,12 +16,17 @@
 //! member and the config is read back. `[JsonEncrypt]` members are shown
 //! decrypted and written encrypted, as ShareX saves them.
 //!
-//! What needs the service itself (signing in, loading albums, folders or
-//! devices, the remote storage browser) isn't ported: those buttons say so
-//! in their card's status line instead of doing nothing.
+//! What needs the service (signing in, loading albums, folders and
+//! devices) runs on a worker thread with a copy of the config, through
+//! `sharex_uploaders::signin` and the destinations' listings; when it's
+//! done, the members it changed are set and the card's status line says
+//! how it went, as `DestinationSettingsAccounts` and the page builder's
+//! cards do. Pages open in the browser through a [`UrlOpener`], which tests
+//! replace.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock, mpsc};
 
 use egui::{CornerRadius, Id, Rect, Shape, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 use serde::Deserialize;
@@ -33,13 +38,13 @@ use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{Thickness, fluent, palette};
 use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
 use sharex_uploaders::UploadersConfig;
+use sharex_uploaders::destinations::mega::MegaFolderInfo;
 use sharex_uploaders::oauth::{OAuth2Info, OAuthInfo};
+use sharex_uploaders::signin::{self, SignInService};
 
 use super::{Cx, Dialog, Effect, Spec};
 use crate::settings_form::{self, matches};
-
-/// What a button that needs the service says (ShareX has no such string).
-const NOT_PORTED: &str = "Not ported to ShareXrs yet";
+use crate::upload::UrlOpener;
 
 /// `ColumnDefinitions="220,*"`.
 const NAV_WIDTH: f32 = 220.0;
@@ -387,7 +392,11 @@ enum Bind {
     /// A list editor's selection.
     ListSelect(String),
     PhotobucketAlbum,
-    None,
+    /// A remote folder card's list (page, the selected folder's member).
+    FolderSelect(String, Path),
+    /// MEGA's tree: a folder expanded or collapsed, selected (by ID).
+    MegaToggle(String),
+    MegaSelect(String),
 }
 
 enum Input {
@@ -400,8 +409,6 @@ enum Input {
 /// What a button does.
 #[derive(Clone, Debug)]
 enum Act {
-    /// A status line's text (`connected` colours it).
-    Status(String, String, Option<bool>),
     /// Members set, then the status line's own text again.
     Set(Vec<(Path, Value)>, Option<String>),
     OpenUrl(String),
@@ -411,9 +418,48 @@ enum Act {
     PhotobucketAdd,
     PhotobucketRemove,
     PhotobucketRefresh,
-    /// A remote folder card's Root: the root selected, its folders loaded.
-    FolderRoot(Path, Value, String),
+    /// A code-paste card's Open authorization page, Complete
+    /// authorization, Refresh token.
+    OAuthOpen(SignInService),
+    OAuthComplete(SignInService),
+    OAuthRefresh(SignInService),
+    /// A Google card's Connect account (`OAuthListenerWindow`).
+    Loopback(SignInService),
+    /// Flickr's and Photobucket's Open authorization page and Complete
+    /// authorization.
+    OAuth1Open(SignInService),
+    OAuth1Complete(SignInService),
+    ImageShackLogin,
+    PastebinLogin,
+    /// `UserPasswordLogin`'s Log in (page, where the API key goes).
+    UserPassword(String, Path),
+    PushbulletRefresh,
+    /// MEGA's Log in, with the two-factor code once it's asked for.
+    MegaLogin(Option<String>),
+    ImgurAlbums,
+    /// A remote folder card's buttons (page, the selected folder's member).
+    Folder(String, Path, FolderAct),
     NotPorted(&'static str),
+}
+
+/// A remote folder card's buttons.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FolderAct {
+    Refresh,
+    Open,
+    Back,
+    Root,
+}
+
+/// A row of MEGA's folder tree: a folder (`id`) or the disabled "…"
+/// placeholder of a folder not loaded yet (`None`).
+#[derive(Clone, Debug, PartialEq)]
+struct TreeRow {
+    id: Option<String>,
+    label: String,
+    depth: usize,
+    expanded: bool,
+    selected: bool,
 }
 
 struct Chk {
@@ -446,7 +492,7 @@ enum Item {
     Hint(String),
     Buttons(Vec<Btn>),
     List { key: String, rows: Vec<String>, selected: Option<usize>, min_h: f32, max_h: f32, bind: Bind },
-    Tree { key: String, root: String, selected: bool, expanded: bool },
+    Tree { key: String, rows: Vec<TreeRow> },
     Stack(f32, Vec<Item>),
 }
 
@@ -526,7 +572,9 @@ fn item_width(ui: &Ui, i: &Item) -> f32 {
         Item::Hint(t) => text_width(ui, t, hint_font()),
         Item::Buttons(bs) => bs.iter().map(|b| button().width(ui, &b.text)).sum::<f32>() + 6.0 * (bs.len().saturating_sub(1)) as f32,
         Item::List { rows, .. } => rows.iter().map(|r| text_width(ui, r, label_font()) + 24.0).fold(0.0, f32::max) + 2.0,
-        Item::Tree { root, .. } => 1.0 + 4.0 + 36.0 + 2.0 + text_width(ui, root, label_font()) + 2.0 + 4.0 + 1.0,
+        Item::Tree { rows, .. } => {
+            rows.iter().map(|r| 1.0 + 4.0 + TREE_INDENT * r.depth as f32 + 36.0 + 2.0 + text_width(ui, &r.label, label_font()) + 2.0 + 4.0 + 1.0).fold(0.0, f32::max)
+        }
         Item::Stack(_, items) => items.iter().map(|i| item_width(ui, i)).fold(0.0, f32::max),
     }
 }
@@ -541,10 +589,7 @@ fn item_height(ui: &Ui, i: &Item, w: f32) -> f32 {
         Item::Hint(t) => controls::wrapped(ui, pos2(0.0, 0.0), w, t, hint_font(), egui::Color32::TRANSPARENT, false),
         Item::Buttons(_) => CONTROL_H,
         Item::List { rows, min_h, max_h, .. } => (list_row_height(ui) * rows.len() as f32 + 2.0).clamp(*min_h, *max_h),
-        Item::Tree { expanded, .. } => {
-            let rows = if *expanded { 2.0 } else { 1.0 };
-            (1.0 + 4.0 + rows * (1.0 + CONTROL_H + 1.0) + 4.0 + 1.0).max(180.0)
-        }
+        Item::Tree { rows, .. } => tree_content_height(rows.len()).clamp(180.0, 320.0),
         Item::Stack(spacing, items) => {
             let mut h = 0.0;
             for (n, i) in items.iter().enumerate() {
@@ -589,7 +634,7 @@ fn item_texts(i: &Item, out: &mut Vec<String>) {
         Item::Hint(t) => out.push(t.clone()),
         Item::Buttons(bs) => out.extend(bs.iter().map(|b| b.text.clone())),
         Item::List { rows, .. } => out.extend(rows.iter().cloned()),
-        Item::Tree { root, .. } => out.push(root.clone()),
+        Item::Tree { rows, .. } => out.extend(rows.iter().map(|r| r.label.clone())),
         Item::Stack(_, items) => items.iter().for_each(|i| item_texts(i, out)),
     }
 }
@@ -728,7 +773,7 @@ impl Painter<'_> {
                 }
             }
             Item::List { key, rows, selected, bind, .. } => self.list(key, rows, *selected, bind, rect),
-            Item::Tree { key, root, selected, expanded } => self.tree(key, root, *selected, *expanded, rect),
+            Item::Tree { key, rows } => self.tree(key, rows, rect),
             Item::Stack(spacing, items) => {
                 let mut y = rect.min.y;
                 for i in items {
@@ -770,36 +815,130 @@ impl Painter<'_> {
         }
     }
 
-    /// `TreeView.settings-tree` (`Padding="4"`) with MEGA's root folder:
-    /// its `TreeViewItem` (`Padding="2"`, `Margin="0,1"`) and, expanded,
-    /// the disabled "…" placeholder.
-    fn tree(&mut self, key: &str, root: &str, selected: bool, expanded: bool, r: Rect) {
+    /// `TreeView.settings-tree` (`Padding="4"`, `MinHeight="180"`,
+    /// `MaxHeight="320"`, scrolling past it): a `TreeViewItem` per row
+    /// (`Padding="2"`, `Margin="0,1"`), indented 16 a level; a folder's
+    /// chevron expands it (or a double click), a click selects it; a
+    /// folder not loaded yet shows the disabled "…".
+    fn tree(&mut self, key: &str, rows: &[TreeRow], r: Rect) {
         let p = palette(self.ui.ctx());
         let f = fluent(self.ui.ctx());
         self.ui.painter().rect_filled(r, CornerRadius::same(3), p.background_main);
         self.ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, p.border), StrokeKind::Inside);
-        let row = Rect::from_min_size(pos2(r.min.x + 5.0, r.min.y + 5.0 + 1.0), vec2(r.width() - 10.0, CONTROL_H));
-        let resp = self.ui.interact(row, self.id(&format!("{key}-root")), egui::Sense::click());
-        settings_form::nav_item_background(self.ui.painter(), row, &resp, selected);
-        let fg = if selected { p.accent_foreground } else { p.text };
-        let chevron = Rect::from_min_size(pos2(row.min.x + 12.0, center_y(row, 12.0)), Vec2::splat(12.0));
-        crate::task_settings_window::paint_tree_chevron(self.ui, chevron, expanded, fg);
-        let ex = self.ui.interact(Rect::from_min_max(row.min, pos2(row.min.x + 36.0, row.max.y)), self.id(&format!("{key}-expand")), egui::Sense::click());
-        controls::label(self.ui, Rect::from_min_max(pos2(row.min.x + 36.0 + 2.0, row.min.y), row.max), root, label_font(), fg);
-        if ex.clicked() {
-            self.ev.inputs.push((Bind::Local(format!("{key}-expanded")), Input::Bool(!expanded)));
-        } else if resp.clicked() && !selected {
-            self.ev.inputs.push((Bind::Local(format!("{key}-select")), Input::Bool(true)));
+        let view = r.shrink(1.0);
+        let scroll = super::layout::scroll_offset(self.ui, self.id(&format!("{key}-scroll")), view, tree_content_height(rows.len()) - 2.0);
+        let clip = view.intersect(self.ui.clip_rect());
+        let mut child = self.ui.new_child(egui::UiBuilder::new().max_rect(view));
+        child.set_clip_rect(clip);
+        for (i, row) in rows.iter().enumerate() {
+            let rr = Rect::from_min_size(pos2(r.min.x + 5.0, r.min.y + 5.0 + 1.0 + TREE_STRIDE * i as f32 - scroll), vec2(r.width() - 10.0, CONTROL_H));
+            if !rr.intersects(clip) {
+                continue;
+            }
+            let indent = TREE_INDENT * row.depth as f32;
+            let Some(id) = &row.id else {
+                controls::label(&child, Rect::from_min_max(pos2(rr.min.x + indent + 36.0 + 2.0, rr.min.y), rr.max), &row.label, label_font(), f.base_medium_low);
+                continue;
+            };
+            let resp = child.interact(rr.intersect(clip), self.id(&format!("{key}-row-{id}")), egui::Sense::click());
+            settings_form::nav_item_background(child.painter(), rr, &resp, row.selected);
+            let fg = if row.selected { p.accent_foreground } else { p.text };
+            let chevron = Rect::from_min_size(pos2(rr.min.x + indent + 12.0, center_y(rr, 12.0)), Vec2::splat(12.0));
+            crate::task_settings_window::paint_tree_chevron(&child, chevron, row.expanded, fg);
+            let hit = Rect::from_min_max(pos2(rr.min.x + indent, rr.min.y), pos2(rr.min.x + indent + 36.0, rr.max.y)).intersect(clip);
+            let ex = child.interact(hit, self.id(&format!("{key}-expand-{id}")), egui::Sense::click());
+            controls::label(&child, Rect::from_min_max(pos2(rr.min.x + indent + 36.0 + 2.0, rr.min.y), rr.max), &row.label, label_font(), fg);
+            if ex.clicked() || resp.double_clicked() {
+                self.ev.inputs.push((Bind::MegaToggle(id.clone()), Input::Bool(!row.expanded)));
+            } else if resp.clicked() && !row.selected {
+                self.ev.inputs.push((Bind::MegaSelect(id.clone()), Input::Bool(true)));
+            }
         }
-        if expanded {
-            let child = Rect::from_min_size(pos2(row.min.x, row.max.y + 2.0), vec2(row.width(), CONTROL_H));
-            controls::label(self.ui, Rect::from_min_max(pos2(child.min.x + 16.0 + 36.0 + 2.0, child.min.y), child.max), "…", label_font(), f.base_medium_low);
-        }
+        super::layout::scroll_bar(self.ui, view, tree_content_height(rows.len()) - 2.0, scroll, 16.0);
     }
+}
+
+/// A tree row's stride (`Margin="0,1"` around 32) and a level's indent.
+const TREE_STRIDE: f32 = 1.0 + CONTROL_H + 1.0;
+const TREE_INDENT: f32 = 16.0;
+
+/// The tree's height for `rows` rows (its border and `Padding="4"`).
+fn tree_content_height(rows: usize) -> f32 {
+    1.0 + 4.0 + rows as f32 * TREE_STRIDE + 4.0 + 1.0
 }
 
 // ---------------------------------------------------------------------------
 // The window.
+
+/// What a finished job does on the window's thread: its changes to the
+/// window, and the members it sets.
+type Apply = Box<dyn FnOnce(&mut DestinationSettingsWindow, &Value) -> Vec<(Path, Value)> + Send>;
+
+/// A button's work on a worker thread (ShareX awaits it on the UI thread).
+struct Job {
+    key: String,
+    rx: mpsc::Receiver<Apply>,
+}
+
+/// A remote folder card's browser (`BuildRemoteFolderCard`'s locals):
+/// the folder shown, the ones Open folder went through, its sub folders.
+struct FolderBrowser {
+    current: Value,
+    history: Vec<Value>,
+    items: Vec<Value>,
+    selected: Option<usize>,
+    /// Which load the list shows (a later one wins).
+    generation: u64,
+}
+
+impl FolderBrowser {
+    fn new(root: Value) -> Self {
+        Self { current: root, history: Vec::new(), items: Vec::new(), selected: None, generation: 0 }
+    }
+}
+
+/// MEGA's folder tree (`BuildMegaFolderTreeCard`'s items): the folders
+/// loaded under each folder (by ID, the root's is empty), which are
+/// expanded, which are loading.
+#[derive(Default)]
+struct MegaTree {
+    children: HashMap<String, Vec<MegaFolderInfo>>,
+    expanded: std::collections::HashSet<String>,
+    loading: std::collections::HashSet<String>,
+}
+
+impl MegaTree {
+    /// The rows shown, the folder `selected_id` selected (the root when
+    /// it's blank).
+    fn rows(&self, selected_id: &str) -> Vec<TreeRow> {
+        let mut out = Vec::new();
+        self.push(&MegaFolderInfo::root(), 0, selected_id, &mut out);
+        out
+    }
+
+    fn push(&self, folder: &MegaFolderInfo, depth: usize, selected_id: &str, out: &mut Vec<TreeRow>) {
+        let id = folder.id.clone().unwrap_or_default().trim().to_owned();
+        let label = folder.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| u::DestinationSettings_Root_folder().into());
+        let expanded = self.expanded.contains(&id);
+        out.push(TreeRow { id: Some(id.clone()), label, depth, expanded, selected: id == selected_id });
+        if !expanded {
+            return;
+        }
+        // Loading: its items cleared; loaded: its folders; else "…".
+        match self.children.get(&id) {
+            Some(children) => children.iter().for_each(|c| self.push(c, depth + 1, selected_id, out)),
+            None if self.loading.contains(&id) => {}
+            None => out.push(TreeRow { id: None, label: "…".into(), depth: depth + 1, expanded: false, selected: false }),
+        }
+    }
+
+    fn find(&self, id: &str) -> Option<MegaFolderInfo> {
+        if id.is_empty() {
+            return Some(MegaFolderInfo::root());
+        }
+        self.children.values().flatten().find(|f| f.id.as_deref() == Some(id)).cloned()
+    }
+}
 
 pub struct DestinationSettingsWindow {
     /// The selected page (category, page).
@@ -821,6 +960,16 @@ pub struct DestinationSettingsWindow {
     service: Option<String>,
     normalized: bool,
     effects: Vec<Effect>,
+    /// Opens authorization pages and the cards' links (the browser).
+    opener: Arc<dyn UrlOpener>,
+    jobs: Vec<Job>,
+    /// MEGA's two-factor code being asked (`InputBoxWindowIntegration.Show`).
+    two_factor: Option<mpsc::Receiver<Option<String>>>,
+    /// The remote folder cards' browsers, by page.
+    browsers: HashMap<String, FolderBrowser>,
+    mega: MegaTree,
+    /// Buttons pressed for the window (MEGA's Log in once the code's given).
+    queued: Vec<Act>,
 }
 
 impl DestinationSettingsWindow {
@@ -841,11 +990,79 @@ impl DestinationSettingsWindow {
             service: service.map(str::to_owned),
             normalized: false,
             effects: Vec::new(),
+            opener: Arc::new(crate::upload::SystemBrowser),
+            jobs: Vec::new(),
+            two_factor: None,
+            browsers: HashMap::new(),
+            mega: MegaTree::default(),
+            queued: Vec::new(),
         };
         if let Some(s) = service {
             w.navigate_to_service(s);
         }
         w
+    }
+
+    /// The same window opening pages through `opener` (tests record them).
+    #[cfg(test)]
+    pub fn with_opener(mut self, opener: Arc<dyn UrlOpener>) -> Self {
+        self.opener = opener;
+        self
+    }
+
+    /// Whether a button's work is still running.
+    pub fn busy(&self) -> bool {
+        !self.jobs.is_empty() || self.two_factor.is_some()
+    }
+
+    /// Runs `work` on a worker thread; what it returns is applied on the
+    /// window's thread when it's done. A button whose work is running does
+    /// nothing until it's done.
+    fn spawn(&mut self, key: &str, work: impl FnOnce() -> Apply + Send + 'static) {
+        if self.jobs.iter().any(|j| j.key == key) {
+            return;
+        }
+        let (tx, rx) = mpsc::channel();
+        let spawned = std::thread::Builder::new().name("destination-settings".into()).spawn(move || {
+            let _ = tx.send(work());
+        });
+        if let Err(e) = spawned {
+            eprintln!("Destination settings: {e}");
+            return;
+        }
+        self.jobs.push(Job { key: key.to_owned(), rx });
+    }
+
+    /// Applies the jobs that are done; returns the members they set.
+    fn poll_jobs(&mut self, j: &Value) -> Vec<(Path, Value)> {
+        let mut sets = Vec::new();
+        let mut i = 0;
+        while i < self.jobs.len() {
+            match self.jobs[i].rx.try_recv() {
+                Ok(apply) => {
+                    self.jobs.remove(i);
+                    sets.extend(apply(self, j));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.jobs.remove(i);
+                }
+                Err(mpsc::TryRecvError::Empty) => i += 1,
+            }
+        }
+        if let Some(rx) = &self.two_factor {
+            match rx.try_recv() {
+                Ok(code) => {
+                    self.two_factor = None;
+                    // `if (code == null) return;`
+                    if let Some(code) = code {
+                        self.queued.push(Act::MegaLogin(Some(code)));
+                    }
+                }
+                Err(mpsc::TryRecvError::Disconnected) => self.two_factor = None,
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        sets
     }
 
     /// Shows the page with this id (`NavigateTo`), for `--render`.
@@ -1085,19 +1302,11 @@ impl DestinationSettingsWindow {
 
     fn account_card(&mut self, page: &str, j: &Value) -> Option<Card> {
         Some(match page {
-            "imgur" => self.basic_oauth2(page, "ImgurOAuth2Info", j),
-            "gist" => self.basic_oauth2(page, "GistOAuth2Info", j),
-            "dropbox" => self.basic_oauth2(page, "DropboxOAuth2Info", j),
-            "onedrive" => self.basic_oauth2(page, "OneDriveV2OAuth2Info", j),
-            "box" => self.basic_oauth2(page, "BoxOAuth2Info", j),
-            "bitly" => self.basic_oauth2(page, "BitlyOAuth2Info", j),
-            "google-drive" => self.loopback(page, "GoogleDrive", j),
-            "youtube" => self.loopback(page, "YouTube", j),
-            "google-cloud-storage" => self.loopback(page, "GoogleCloudStorage", j),
-            "flickr" => self.oauth1(page, "FlickrOAuthInfo", &[], j),
-            "photobucket" => self.oauth1(page, "PhotobucketOAuthInfo", &["PhotobucketAccountInfo"], j),
+            "imgur" | "gist" | "dropbox" | "onedrive" | "box" | "bitly" => self.basic_oauth2(page, j),
+            "google-drive" | "youtube" | "google-cloud-storage" => self.loopback(page, j),
+            "flickr" | "photobucket" => self.oauth1(page, j),
             "imageshack" => self.login_card(page, not_blank(&j["ImageShackSettings"]["Auth_token"]), vec![
-                btn(page, "login", u::DestinationSettings_Log_in(), Act::NotPorted("ImageShack log in")),
+                btn(page, "login", u::DestinationSettings_Log_in(), Act::ImageShackLogin),
                 btn(page, "profile", u::DestinationSettings_Public_profile(), {
                     let user = str_of(&j["ImageShackSettings"]["Username"]);
                     if user.trim().is_empty() { Act::Set(Vec::new(), None) } else { Act::OpenUrl(format!("https://imageshack.com/user/{user}")) }
@@ -1105,13 +1314,12 @@ impl DestinationSettingsWindow {
                 btn(page, "images", u::DestinationSettings_My_images(), Act::OpenUrl("https://imageshack.com/my/images".into())),
             ]),
             "pastebin" => self.login_card(page, not_blank(&j["PastebinSettings"]["UserKey"]), vec![
-                btn(page, "login", u::DestinationSettings_Log_in(), Act::NotPorted("Pastebin log in")),
+                btn(page, "login", u::DestinationSettings_Log_in(), Act::PastebinLogin),
                 btn(page, "register", u::DestinationSettings_Register(), Act::OpenUrl("https://pastebin.com/signup".into())),
             ]),
             "paste-ee" => Card {
                 title: u::DestinationSettings_Account().into(),
-                // `GetPasteEeAuthorizationURL` needs ShareX's API key.
-                items: vec![Item::Buttons(vec![btn(page, "user-key", u::DestinationSettings_Get_user_key(), Act::NotPorted("Paste.ee user key"))])],
+                items: vec![Item::Buttons(vec![btn(page, "user-key", u::DestinationSettings_Get_user_key(), Act::OpenUrl(signin::paste_ee_authorization_url()))])],
             },
             "puush" => self.user_password(page, "puush", path(&["PuushAPIKey"]), j),
             "lobfile" => self.user_password(page, "LobFile", path(&["LithiioSettings", "UserAPIKey"]), j),
@@ -1130,13 +1338,11 @@ impl DestinationSettingsWindow {
         (if c { u::DestinationSettings_Connected() } else { u::DestinationSettings_Not_connected() }.to_owned(), Some(c))
     }
 
-    fn not_ported(&self, key: &str) -> Act {
-        Act::Status(key.into(), NOT_PORTED.into(), Some(false))
-    }
-
     /// `BasicOAuth2`: status, authorization code, open / complete /
     /// refresh / disconnect.
-    fn basic_oauth2(&mut self, page: &str, member: &str, j: &Value) -> Card {
+    fn basic_oauth2(&mut self, page: &str, j: &Value) -> Card {
+        let service = SignInService::from_page_id(page).expect("an OAuth 2 page");
+        let member = oauth_members(service)[0];
         let key = format!("{page}-account");
         let code_key = format!("{page}-code");
         let connected = oauth2_connected(&j[member]);
@@ -1151,22 +1357,22 @@ impl DestinationSettingsWindow {
                     preview: false,
                 },
                 Item::Buttons(vec![
-                    btn(page, "open", u::DestinationSettings_Open_authorization_page(), self.not_ported(&key)),
-                    btn(page, "complete", u::DestinationSettings_Complete_authorization(), self.not_ported(&key)),
-                    btn(page, "refresh", u::DestinationSettings_Refresh_token(), self.not_ported(&key)),
-                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(vec![(path(&[member]), Value::Null)], Some(key.clone()))),
+                    btn(page, "open", u::DestinationSettings_Open_authorization_page(), Act::OAuthOpen(service)),
+                    btn(page, "complete", u::DestinationSettings_Complete_authorization(), Act::OAuthComplete(service)),
+                    btn(page, "refresh", u::DestinationSettings_Refresh_token(), Act::OAuthRefresh(service)),
+                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(clear_members(service), Some(key.clone()))),
                 ]),
             ],
         }
     }
 
     /// `LoopbackOAuth`: status ("Connected as"), connect, disconnect.
-    fn loopback(&mut self, page: &str, prefix: &str, j: &Value) -> Card {
+    fn loopback(&mut self, page: &str, j: &Value) -> Card {
+        let service = SignInService::from_page_id(page).expect("a loopback page");
+        let (info, user) = (oauth_members(service)[0], oauth_members(service)[1]);
         let key = format!("{page}-account");
-        let info = format!("{prefix}OAuth2Info");
-        let user = format!("{prefix}UserInfo");
-        let connected = oauth2_connected(&j[&info]);
-        let name = str_of(&j[&user]["name"]);
+        let connected = oauth2_connected(&j[info]);
+        let name = str_of(&j[user]["name"]);
         let text = if !connected {
             u::DestinationSettings_Not_connected().to_owned()
         } else if name.trim().is_empty() {
@@ -1179,11 +1385,8 @@ impl DestinationSettingsWindow {
             items: vec![
                 self.status_row(&key, (text, Some(connected))),
                 Item::Buttons(vec![
-                    btn(page, "connect", u::DestinationSettings_Connect_account(), self.not_ported(&key)),
-                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(
-                        vec![(path(&[&info]), Value::Null), (path(&[&user]), Value::Null)],
-                        Some(key.clone()),
-                    )),
+                    btn(page, "connect", u::DestinationSettings_Connect_account(), Act::Loopback(service)),
+                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(clear_members(service), Some(key.clone()))),
                 ]),
             ],
         }
@@ -1191,12 +1394,11 @@ impl DestinationSettingsWindow {
 
     /// `FlickrOAuth` / `PhotobucketOAuth`: status, verification code,
     /// open / complete / disconnect.
-    fn oauth1(&mut self, page: &str, member: &str, also: &[&str], j: &Value) -> Card {
+    fn oauth1(&mut self, page: &str, j: &Value) -> Card {
+        let service = SignInService::from_page_id(page).expect("an OAuth 1 page");
         let key = format!("{page}-account");
         let code_key = format!("{page}-code");
-        let connected = oauth1_connected(&j[member]);
-        let mut clear = vec![(path(&[member]), Value::Null)];
-        clear.extend(also.iter().map(|m| (path(&[m]), Value::Null)));
+        let connected = oauth1_connected(&j[oauth_members(service)[0]]);
         Card {
             title: u::DestinationSettings_Account().into(),
             items: vec![
@@ -1208,20 +1410,17 @@ impl DestinationSettingsWindow {
                     preview: false,
                 },
                 Item::Buttons(vec![
-                    btn(page, "open", u::DestinationSettings_Open_authorization_page(), self.not_ported(&key)),
-                    btn(page, "complete", u::DestinationSettings_Complete_authorization(), self.not_ported(&key)),
-                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(clear, Some(key.clone()))),
+                    btn(page, "open", u::DestinationSettings_Open_authorization_page(), Act::OAuth1Open(service)),
+                    btn(page, "complete", u::DestinationSettings_Complete_authorization(), Act::OAuth1Complete(service)),
+                    btn(page, "disconnect", u::DestinationSettings_Disconnect(), Act::Set(clear_members(service), Some(key.clone()))),
                 ]),
             ],
         }
     }
 
     /// `ImageShackAccount` / `PastebinAccount`: status, then buttons.
-    fn login_card(&mut self, page: &str, connected: bool, mut buttons: Vec<Btn>) -> Card {
+    fn login_card(&mut self, page: &str, connected: bool, buttons: Vec<Btn>) -> Card {
         let key = format!("{page}-account");
-        if let Some(b) = buttons.first_mut() {
-            b.act = self.not_ported(&key);
-        }
         Card {
             title: u::DestinationSettings_Account().into(),
             items: vec![self.status_row(&key, Self::connected(connected)), Item::Buttons(buttons)],
@@ -1246,8 +1445,8 @@ impl DestinationSettingsWindow {
             items: vec![
                 text(u::DestinationSettings_Email_or_username(), &user_key, self.local_text(&user_key), false, Bind::Local(user_key.clone())),
                 text(u::DestinationSettings_Password(), &pass_key, self.local_text(&pass_key), true, Bind::Local(pass_key.clone())),
-                text(u::DestinationSettings_API_key(), &format!("{page}-api-key"), api, true, Bind::Str { path: key_path, encrypt: true }),
-                Item::Buttons(vec![btn(page, "login", u::DestinationSettings_Log_in(), self.not_ported(&key))]),
+                text(u::DestinationSettings_API_key(), &format!("{page}-api-key"), api, true, Bind::Str { path: key_path.clone(), encrypt: true }),
+                Item::Buttons(vec![btn(page, "login", u::DestinationSettings_Log_in(), Act::UserPassword(page.into(), key_path))]),
                 self.status_row(&key, (u::DestinationSettings_Enter_credentials_to_retrieve_API_key().into(), None)),
             ],
         }
@@ -1262,14 +1461,6 @@ impl DestinationSettingsWindow {
             .map(|a| a.iter().map(|d| d["Name"].as_str().map(str::to_owned).unwrap_or_else(|| u::DestinationSettings_Unnamed_device().into())).collect())
             .unwrap_or_default();
         let selected = usize::try_from(clamp_selection(s["SelectedDevice"].as_i64().unwrap_or(0), devices.len())).ok();
-        let count = devices.len();
-        let status = if count == 0 {
-            u::DestinationSettings_No_devices_loaded().to_owned()
-        } else if count == 1 {
-            u::DestinationSettings_Device_count_singular().replace("{0}", "1")
-        } else {
-            u::DestinationSettings_Device_count_plural().replace("{0}", &count.to_string())
-        };
         let api = self.shown(&s["UserAPIKey"]);
         Card {
             title: u::DestinationSettings_Account_and_devices().into(),
@@ -1282,12 +1473,12 @@ impl DestinationSettingsWindow {
                 },
                 Item::Row {
                     label: u::DestinationSettings_Device().into(),
-                    ed: Ed::Combo { key: "pushbullet-device".into(), items: devices, selected, enabled: true, bind: Bind::PushbulletDevice },
+                    ed: Ed::Combo { key: "pushbullet-device".into(), items: devices.clone(), selected, enabled: true, bind: Bind::PushbulletDevice },
                     tip: None,
                     preview: false,
                 },
-                Item::Buttons(vec![btn("pushbullet", "refresh", u::DestinationSettings_Refresh_devices(), Act::Status(key.into(), NOT_PORTED.into(), None))]),
-                Item::Row { label: u::DestinationSettings_Status().into(), ed: self.status_of(key, (status, None)), tip: None, preview: false },
+                Item::Buttons(vec![btn("pushbullet", "refresh", u::DestinationSettings_Refresh_devices(), Act::PushbulletRefresh)]),
+                Item::Row { label: u::DestinationSettings_Status().into(), ed: self.status_of(key, (device_count(devices.len()), None)), tip: None, preview: false },
             ],
         }
     }
@@ -1313,7 +1504,7 @@ impl DestinationSettingsWindow {
                     preview: false,
                 },
                 Item::Buttons(vec![
-                    btn("mega", "login", u::DestinationSettings_Log_in(), self.not_ported(key)),
+                    btn("mega", "login", u::DestinationSettings_Log_in(), Act::MegaLogin(None)),
                     btn("mega", "disconnect", u::DestinationSettings_Disconnect(), Act::Set(mega_disconnect(), Some(key.into()))),
                 ]),
                 self.status_row(key, Self::connected(connected)),
@@ -1338,11 +1529,6 @@ impl DestinationSettingsWindow {
         } else {
             u::DestinationSettings_Album_count_loaded_plural().replace("{0}", &count.to_string())
         };
-        let refresh = if oauth2_connected(&j["ImgurOAuth2Info"]) {
-            Act::Status(key.into(), NOT_PORTED.into(), None)
-        } else {
-            Act::Status(key.into(), u::DestinationSettings_Connect_Imgur_account_first().into(), None)
-        };
         Card {
             title: u::DestinationSettings_Albums().into(),
             items: vec![
@@ -1353,7 +1539,7 @@ impl DestinationSettingsWindow {
                     preview: false,
                 },
                 Item::Row { label: u::DestinationSettings_Status().into(), ed: self.status_of(key, (status, None)), tip: None, preview: false },
-                Item::Buttons(vec![btn("imgur", "refresh-albums", u::DestinationSettings_Refresh_albums(), refresh)]),
+                Item::Buttons(vec![btn("imgur", "refresh-albums", u::DestinationSettings_Refresh_albums(), Act::ImgurAlbums)]),
             ],
         }
     }
@@ -1399,26 +1585,33 @@ impl DestinationSettingsWindow {
         }
     }
 
-    /// `BuildRemoteFolderCard` (OneDrive, Box): the folders are the
-    /// service's, so only the selection and Root work here.
+    /// `BuildRemoteFolderCard` (OneDrive, Box): the selected folder, the
+    /// current folder's sub folders (loaded by Refresh), Open folder /
+    /// Back / Root, and the browser's status.
     fn folder_card(&mut self, page: &str, member: Path, j: &Value) -> Card {
         let selected_key = format!("{page}-folder");
         let browse_key = format!("{page}-browse");
         let root = folder_root(page);
-        let name = |v: &Value| v["name"].as_str().map(str::to_owned);
         let current = at(j, &member);
-        let selected_name = name(if current.is_null() { &root } else { current }).unwrap_or_else(|| u::DestinationSettings_Root_folder().into());
-        let browse = Act::Status(browse_key.clone(), NOT_PORTED.into(), None);
+        // `getName(getSelected()) ?? Root folder`.
+        let selected_name = (if current.is_null() { &root } else { current })["name"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| u::DestinationSettings_Root_folder().into());
+        let browser = self.browsers.entry(page.to_owned()).or_insert_with(|| FolderBrowser::new(root));
+        let rows = browser.items.iter().map(folder_name).collect();
+        let selected = browser.selected;
+        let act = |a: FolderAct| Act::Folder(page.into(), member.clone(), a);
         Card {
             title: u::DestinationSettings_Upload_folder().into(),
             items: vec![
                 Item::Row { label: u::DestinationSettings_Selected_folder().into(), ed: self.status_of(&selected_key, (selected_name, None)), tip: None, preview: false },
-                Item::List { key: format!("{page}-folders"), rows: Vec::new(), selected: None, min_h: 130.0, max_h: 220.0, bind: Bind::None },
+                Item::List { key: format!("{page}-folders"), rows, selected, min_h: 130.0, max_h: 220.0, bind: Bind::FolderSelect(page.into(), member.clone()) },
                 Item::Buttons(vec![
-                    btn(page, "refresh", u::DestinationSettings_Refresh(), browse.clone()),
-                    btn(page, "open-folder", u::DestinationSettings_Open_folder(), Act::Set(Vec::new(), None)),
-                    btn(page, "back", u::DestinationSettings_Back(), Act::Set(Vec::new(), None)),
-                    btn(page, "root", u::DestinationSettings_Root(), Act::FolderRoot(member, root.clone(), page.into())),
+                    btn(page, "folder-refresh", u::DestinationSettings_Refresh(), act(FolderAct::Refresh)),
+                    btn(page, "folder-open", u::DestinationSettings_Open_folder(), act(FolderAct::Open)),
+                    btn(page, "folder-back", u::DestinationSettings_Back(), act(FolderAct::Back)),
+                    btn(page, "folder-root", u::DestinationSettings_Root(), act(FolderAct::Root)),
                 ]),
                 Item::Row {
                     label: u::DestinationSettings_Browser_status().into(),
@@ -1430,21 +1623,17 @@ impl DestinationSettingsWindow {
         }
     }
 
-    /// `BuildMegaFolderTreeCard`.
+    /// `BuildMegaFolderTreeCard`: the selected folder and the folder tree
+    /// (each folder's sub folders loaded when it's expanded).
     fn mega_folders(&mut self, j: &Value) -> Card {
         let selected = &j["MegaSelectedFolder"];
         let name = selected["Name"].as_str().filter(|n| !n.trim().is_empty()).map(str::to_owned).unwrap_or_else(|| u::DestinationSettings_Root_folder().into());
-        let root_selected = selected["ID"].as_str().is_none_or(|id| id.trim().is_empty()) || self.local.contains_key("mega-tree-select");
+        let selected_id = selected["ID"].as_str().unwrap_or_default().trim().to_owned();
         Card {
             title: u::DestinationSettings_Upload_folder().into(),
             items: vec![
                 Item::Row { label: u::DestinationSettings_Selected_folder().into(), ed: Ed::Hint { text: name, status: None }, tip: None, preview: false },
-                Item::Tree {
-                    key: "mega-tree".into(),
-                    root: u::DestinationSettings_Root_folder().into(),
-                    selected: root_selected,
-                    expanded: self.local.contains_key("mega-tree-expanded"),
-                },
+                Item::Tree { key: "mega-tree".into(), rows: self.mega.rows(&selected_id) },
             ],
         }
     }
@@ -1577,7 +1766,7 @@ impl DestinationSettingsWindow {
     // --- Changes ----------------------------------------------------------
 
     /// What a control changed, as the members it sets.
-    fn input(&mut self, j: &Value, bind: Bind, input: Input) -> Vec<(Path, Value)> {
+    fn input(&mut self, j: &Value, config: &UploadersConfig, bind: Bind, input: Input) -> Vec<(Path, Value)> {
         match (bind, input) {
             (Bind::Str { path, encrypt }, Input::Text(t)) => vec![(path, if encrypt { self.stored(&t) } else { Value::String(t) })],
             (Bind::StrList(path), Input::Text(t)) => {
@@ -1593,17 +1782,25 @@ impl DestinationSettingsWindow {
                 self.local.insert(key, t);
                 Vec::new()
             }
-            (Bind::Local(key), Input::Bool(b)) => {
-                if b {
-                    self.local.insert(key, String::new());
-                } else {
-                    self.local.remove(&key);
-                }
-                // Selecting MEGA's root folder (`tree.SelectionChanged`).
-                if self.local.remove("mega-tree-select").is_some() {
-                    return vec![(path(&["MegaSelectedFolder"]), json!({"ID": "", "Name": ""}))];
-                }
+            (Bind::MegaToggle(id), Input::Bool(expand)) => {
+                self.mega_toggle(config, id, expand);
                 Vec::new()
+            }
+            (Bind::MegaSelect(id), _) => {
+                // `tree.SelectionChanged`: the folder is the upload folder.
+                match self.mega.find(&id).and_then(|f| serde_json::to_value(f).ok()) {
+                    Some(folder) => vec![(path(&["MegaSelectedFolder"]), folder)],
+                    None => Vec::new(),
+                }
+            }
+            (Bind::FolderSelect(page, member), Input::Index(i)) => {
+                // `list.SelectionChanged`: the folder is the upload folder.
+                let Some(browser) = self.browsers.get_mut(&page) else { return Vec::new() };
+                let Some(item) = browser.items.get(i).cloned() else { return Vec::new() };
+                browser.selected = Some(i);
+                let name = item["name"].as_str().map(str::to_owned).unwrap_or_else(|| u::DestinationSettings_Unnamed_folder().into());
+                self.status.insert(format!("{page}-folder"), (name, None));
+                vec![(member, item)]
             }
             (Bind::S3Endpoint, Input::Index(i)) => sharex_uploaders::destinations::amazon_s3::ENDPOINTS
                 .get(i)
@@ -1646,12 +1843,8 @@ impl DestinationSettingsWindow {
     }
 
     /// What a button does, as the members it sets.
-    fn act(&mut self, j: &Value, act: Act) -> Vec<(Path, Value)> {
+    fn act(&mut self, j: &Value, config: &UploadersConfig, act: Act) -> Vec<(Path, Value)> {
         match act {
-            Act::Status(key, text, connected) => {
-                self.status.insert(key, (text, connected));
-                Vec::new()
-            }
             Act::Set(sets, status) => {
                 if let Some(k) = status {
                     self.status.remove(&k);
@@ -1659,9 +1852,277 @@ impl DestinationSettingsWindow {
                 sets
             }
             Act::OpenUrl(url) => {
-                self.effects.push(Effect::OpenUrl(url));
+                self.opener.open(&url);
                 Vec::new()
             }
+            Act::OAuthOpen(service) => {
+                // `GetAuthorizationURLAsync`, the account stored (or cleared
+                // without a page), the page opened, "Authorization page opened".
+                let key = format!("{}-account", service.page_id());
+                let mut c = config.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::open_authorization(service, &mut c);
+                    let sets = members(&c, oauth_members(service));
+                    Box::new(move |w, _| match r {
+                        Ok(url) => {
+                            if let Some(url) = url {
+                                w.opener.open(&url);
+                            }
+                            w.status.insert(key, (u::DestinationSettings_Authorization_page_opened().into(), None));
+                            sets
+                        }
+                        Err(e) => {
+                            w.status.insert(key, (e.to_string(), Some(false)));
+                            Vec::new()
+                        }
+                    })
+                });
+                Vec::new()
+            }
+            Act::OAuthComplete(service) => {
+                let key = format!("{}-account", service.page_id());
+                let code = self.local_text(&format!("{}-code", service.page_id()));
+                let mut c = config.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::complete_authorization(service, &mut c, &code);
+                    let sets = members(&c, oauth_members(service));
+                    Box::new(move |w, _| {
+                        let (status, sets) = match r {
+                            Ok(true) => (Self::connected(true), sets),
+                            Ok(false) => ((u::DestinationSettings_Authorization_failed().into(), Some(false)), sets),
+                            Err(e) => ((e.to_string(), Some(false)), Vec::new()),
+                        };
+                        w.status.insert(key, status);
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::OAuthRefresh(service) => {
+                let key = format!("{}-account", service.page_id());
+                let mut c = config.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::refresh_token(service, &mut c);
+                    let sets = members(&c, oauth_members(service));
+                    Box::new(move |w, _| {
+                        let (status, sets) = match r {
+                            Ok(true) => (Self::connected(true), sets),
+                            Ok(false) => ((u::DestinationSettings_Token_refresh_failed().into(), Some(false)), sets),
+                            Err(e) => ((e.to_string(), Some(false)), Vec::new()),
+                        };
+                        w.status.insert(key, status);
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::Loopback(service) => {
+                // `OAuthListenerWindowIntegration.Show`: the waiting window
+                // over the sign-in; whatever it ends with (connected,
+                // cancelled, failed) is the account (`setAccount(result?.…)`).
+                let key = format!("{}-account", service.page_id());
+                if self.jobs.iter().any(|j| j.key == key) {
+                    return Vec::new();
+                }
+                let cancel = sharex_uploaders::http::CancellationToken::new();
+                let done = Arc::new(AtomicBool::new(false));
+                self.effects.push(Effect::OpenDialog(Box::new(super::oauth_listener::OAuthListenerWindow::new(cancel.clone(), done.clone()))));
+                let mut c = config.clone();
+                let opener = self.opener.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::connect_loopback(service, &mut c, &|url: &str| opener.open(url), &cancel);
+                    if let Err(e) = &r {
+                        eprintln!("{e}");
+                        signin::disconnect(service, &mut c);
+                    }
+                    done.store(true, Ordering::SeqCst);
+                    let sets = members(&c, oauth_members(service));
+                    Box::new(move |w, _| {
+                        w.status.remove(&key);
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::OAuth1Open(service) => {
+                let key = format!("{}-account", service.page_id());
+                let mut c = config.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::open_authorization_oauth1(service, &mut c);
+                    let sets = members(&c, &oauth_members(service)[..1]);
+                    Box::new(move |w, _| match r {
+                        Ok(url) => {
+                            if let Some(url) = url {
+                                w.opener.open(&url);
+                            }
+                            w.status.insert(key, (u::DestinationSettings_Authorization_page_opened().into(), None));
+                            sets
+                        }
+                        Err(e) => {
+                            w.status.insert(key, (e.to_string(), Some(false)));
+                            Vec::new()
+                        }
+                    })
+                });
+                Vec::new()
+            }
+            Act::OAuth1Complete(service) => {
+                let key = format!("{}-account", service.page_id());
+                // Photobucket without an account does nothing; Flickr says
+                // the authorization failed.
+                if service == SignInService::Photobucket && config.PhotobucketOAuthInfo.is_none() {
+                    return Vec::new();
+                }
+                let code = self.local_text(&format!("{}-code", service.page_id()));
+                let mut c = config.clone();
+                self.spawn(&key.clone(), move || {
+                    let r = signin::complete_authorization_oauth1(service, &mut c, &code);
+                    let sets = members(&c, oauth_members(service));
+                    Box::new(move |w, _| {
+                        let (status, sets) = match r {
+                            Ok(true) => (Self::connected(true), sets),
+                            Ok(false) => ((u::DestinationSettings_Authorization_failed().into(), Some(false)), sets),
+                            Err(e) => ((e.to_string(), Some(false)), Vec::new()),
+                        };
+                        w.status.insert(key, status);
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::ImageShackLogin | Act::PastebinLogin => {
+                // `LoginImageShackAsync` / `LoginPastebinAsync`.
+                let (key, member) = if matches!(act, Act::ImageShackLogin) { ("imageshack-account", "ImageShackSettings") } else { ("pastebin-account", "PastebinSettings") };
+                let image_shack = matches!(act, Act::ImageShackLogin);
+                let mut c = config.clone();
+                self.spawn(key, move || {
+                    let r = if image_shack { signin::login_image_shack(&mut c) } else { signin::login_pastebin(&mut c) };
+                    let sets = members(&c, &[member]);
+                    Box::new(move |w, _| {
+                        let (status, sets) = match r {
+                            Ok(true) => (Self::connected(true), sets),
+                            Ok(false) => ((u::DestinationSettings_Login_failed().into(), Some(false)), sets),
+                            Err(e) => ((e.to_string(), Some(false)), Vec::new()),
+                        };
+                        w.status.insert(key.into(), status);
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::UserPassword(page, key_path) => {
+                // puush's `LoginAsync`, LobFile's `FetchAPIKeyAsync`: the key
+                // into the API key box, the password box cleared.
+                let key = format!("{page}-account");
+                let user = self.local_text(&format!("{page}-username"));
+                let password = self.local_text(&format!("{page}-password"));
+                let puush = page == "puush";
+                self.spawn(&key.clone(), move || {
+                    let r = if puush {
+                        sharex_uploaders::destinations::file_hosts::Puush::new("").login(&user, &password)
+                    } else {
+                        sharex_uploaders::destinations::file_hosts::LobFile::new("").fetch_api_key(&user, &password)
+                    };
+                    Box::new(move |w, _| match r {
+                        Ok(Some(api_key)) if !api_key.trim().is_empty() => {
+                            w.status.insert(key, (u::DestinationSettings_API_key_retrieved().into(), Some(true)));
+                            w.local.insert(format!("{page}-password"), String::new());
+                            vec![(key_path, w.stored(&api_key))]
+                        }
+                        Ok(_) => {
+                            w.status.insert(key, (u::DestinationSettings_Login_failed().into(), Some(false)));
+                            Vec::new()
+                        }
+                        Err(e) => {
+                            w.status.insert(key, (e.to_string(), Some(false)));
+                            Vec::new()
+                        }
+                    })
+                });
+                Vec::new()
+            }
+            Act::PushbulletRefresh => {
+                // `GetDeviceListAsync() ?? []`, then `Reload()`.
+                let settings = sharex_uploaders::destinations::services::PushbulletSettings::from_value(&config.PushbulletSettings).unwrap_or_default();
+                self.spawn("pushbullet-account", move || {
+                    let r = sharex_uploaders::destinations::services::Pushbullet::new(settings).get_device_list();
+                    Box::new(move |w, j| match r {
+                        Ok(devices) => {
+                            w.status.remove("pushbullet-account");
+                            let previous = j["PushbulletSettings"]["SelectedDevice"].as_i64().unwrap_or(0);
+                            vec![
+                                (path(&["PushbulletSettings", "DeviceList"]), serde_json::to_value(&devices).unwrap_or(Value::Array(Vec::new()))),
+                                (path(&["PushbulletSettings", "SelectedDevice"]), json!(clamp_selection(previous, devices.len()))),
+                            ]
+                        }
+                        Err(e) => {
+                            w.status.insert("pushbullet-account".into(), (e.to_string(), None));
+                            Vec::new()
+                        }
+                    })
+                });
+                Vec::new()
+            }
+            Act::MegaLogin(code) => {
+                // `LoginAsync()`; error -26 asks for the two-factor code
+                // and logs in again with it.
+                let mut c = config.clone();
+                self.spawn("mega-account", move || {
+                    let r = signin::mega_login(&mut c, code.as_deref());
+                    let sets = members(&c, &["MegaPassword", "MegaSessionID", "MegaMasterKey"]);
+                    Box::new(move |w, _| match r {
+                        Ok(()) => {
+                            w.status.insert("mega-account".into(), Self::connected(true));
+                            sets
+                        }
+                        Err(sharex_uploaders::destinations::mega::MegaError::Api(-26)) if code.is_none() => {
+                            let (tx, rx) = mpsc::channel();
+                            let prompt = u::DestinationSettings_Enter_current_two_factor_authentication_code();
+                            w.effects.push(Effect::OpenDialog(Box::new(super::input_box::InputBoxWindow::new(prompt, None, None, None, Some(tx)))));
+                            w.two_factor = Some(rx);
+                            Vec::new()
+                        }
+                        Err(e) => {
+                            w.status.insert("mega-account".into(), (e.to_string(), Some(false)));
+                            Vec::new()
+                        }
+                    })
+                });
+                Vec::new()
+            }
+            Act::ImgurAlbums => {
+                if !OAuth2Info::check(config.ImgurOAuth2Info.as_ref()) {
+                    self.status.insert("imgur-albums".into(), (u::DestinationSettings_Connect_Imgur_account_first().into(), None));
+                    return Vec::new();
+                }
+                let mut c = config.clone();
+                self.spawn("imgur-albums", move || {
+                    let r = signin::refresh_imgur_albums(&mut c);
+                    let mut sets = members(&c, &["ImgurOAuth2Info"]);
+                    let albums = members(&c, &["ImgurAlbumList"]);
+                    Box::new(move |w, j| {
+                        match r {
+                            Ok(Some(list)) => {
+                                // `LoadAlbums`: the album with the selected id, or none.
+                                w.status.remove("imgur-albums");
+                                sets.extend(albums);
+                                let id = j["ImgurSelectedAlbum"]["id"].as_str();
+                                let selected = list.iter().find(|a| id.is_some() && a.id.as_deref() == id);
+                                sets.push((path(&["ImgurSelectedAlbum"]), selected.and_then(|a| serde_json::to_value(a).ok()).unwrap_or(Value::Null)));
+                            }
+                            Ok(None) => {
+                                w.status.insert("imgur-albums".into(), (u::DestinationSettings_Connect_Imgur_account_first().into(), None));
+                            }
+                            Err(e) => {
+                                w.status.insert("imgur-albums".into(), (e.to_string(), None));
+                            }
+                        }
+                        sets
+                    })
+                });
+                Vec::new()
+            }
+            Act::Folder(page, member, what) => self.folder_act(config, &page, member, what),
             Act::NotPorted(what) => {
                 self.effects.push(Effect::NotPorted(what));
                 Vec::new()
@@ -1717,13 +2178,117 @@ impl DestinationSettingsWindow {
                 self.status.remove("photobucket-albums");
                 Vec::new()
             }
-            Act::FolderRoot(member, root, page) => {
+        }
+    }
+
+    /// A remote folder card's Refresh, Open folder, Back and Root.
+    fn folder_act(&mut self, config: &UploadersConfig, page: &str, member: Path, what: FolderAct) -> Vec<(Path, Value)> {
+        let root = folder_root(page);
+        let browser = self.browsers.entry(page.to_owned()).or_insert_with(|| FolderBrowser::new(root.clone()));
+        let mut sets = Vec::new();
+        match what {
+            FolderAct::Refresh => {}
+            FolderAct::Open => {
+                let Some(selected) = browser.selected.and_then(|i| browser.items.get(i)).cloned() else { return sets };
+                let previous = std::mem::replace(&mut browser.current, selected);
+                browser.history.push(previous);
+            }
+            FolderAct::Back => {
+                let Some(previous) = browser.history.pop() else { return sets };
+                browser.current = previous;
+            }
+            FolderAct::Root => {
+                browser.history.clear();
+                browser.current = root.clone();
                 let name = root["name"].as_str().map(str::to_owned).unwrap_or_else(|| u::DestinationSettings_Root_folder().into());
                 self.status.insert(format!("{page}-folder"), (name, None));
-                self.status.insert(format!("{page}-browse"), (NOT_PORTED.into(), None));
-                vec![(member, root)]
+                sets.push((member, root));
             }
         }
+        self.load_folders(config, page);
+        sets
+    }
+
+    /// `LoadAsync(folder)`: the list cleared, the folder's sub folders
+    /// loaded (`GetPathInfoAsync` / `GetFilesAsync`), the count or the
+    /// error in the browser's status.
+    fn load_folders(&mut self, config: &UploadersConfig, page: &str) {
+        let Some(browser) = self.browsers.get_mut(page) else { return };
+        browser.items.clear();
+        browser.selected = None;
+        browser.generation += 1;
+        let generation = browser.generation;
+        let id = str_of(&browser.current["id"]);
+        let page = page.to_owned();
+        let info_member = if page == "box" { "BoxOAuth2Info" } else { "OneDriveV2OAuth2Info" };
+        let info = if page == "box" { config.BoxOAuth2Info.clone() } else { config.OneDriveV2OAuth2Info.clone() };
+        let job = format!("{page}-browse-{generation}");
+        self.spawn(&job, move || {
+            let had_info = info.is_some();
+            let (r, info) = if page == "box" {
+                let mut b = sharex_uploaders::destinations::oauth_services::BoxUploader::new(info.unwrap_or_default());
+                let r = b.get_files(&id).map(|v| v.and_then(|v| v["entries"].as_array().cloned()).unwrap_or_default());
+                let r = r.map(|entries| entries.into_iter().filter(|e| e["type"].as_str() == Some("folder")).map(box_entry).collect::<Vec<_>>());
+                (r, b.auth_info)
+            } else {
+                let mut o = sharex_uploaders::destinations::oauth_services::OneDrive::new(info.unwrap_or_default());
+                let r = o.get_path_info(&id).map(|v| v.and_then(|v| v["value"].as_array().cloned()).unwrap_or_default());
+                (r.map(|items| items.into_iter().map(one_drive_item).collect::<Vec<_>>()), o.auth_info)
+            };
+            // A token refreshed on the way is the account's (ShareX's
+            // uploader shares the config's `OAuth2Info`).
+            let token = had_info.then(|| (path(&[info_member]), serde_json::to_value(&info).unwrap_or(Value::Null)));
+            Box::new(move |w, _| {
+                let Some(browser) = w.browsers.get_mut(&page).filter(|b| b.generation == generation) else { return token.into_iter().collect() };
+                let status = match r {
+                    Ok(items) => {
+                        browser.items = items;
+                        let n = browser.items.len();
+                        match n {
+                            0 => u::DestinationSettings_No_child_folders().to_owned(),
+                            1 => u::DestinationSettings_Folder_count_singular().replace("{0}", "1"),
+                            n => u::DestinationSettings_Folder_count_plural().replace("{0}", &n.to_string()),
+                        }
+                    }
+                    Err(e) => e.to_string(),
+                };
+                w.status.insert(format!("{page}-browse"), (status, None));
+                token.into_iter().collect()
+            })
+        });
+    }
+
+    /// MEGA's tree: a folder expanded (its sub folders loaded the first
+    /// time, `LoadChildrenAsync`) or collapsed.
+    fn mega_toggle(&mut self, config: &UploadersConfig, id: String, expand: bool) {
+        if !expand {
+            self.mega.expanded.remove(&id);
+            return;
+        }
+        self.mega.expanded.insert(id.clone());
+        if self.mega.children.contains_key(&id) || self.mega.loading.contains(&id) {
+            return;
+        }
+        let Some(folder) = self.mega.find(&id) else { return };
+        self.mega.loading.insert(id.clone());
+        let c = config.clone();
+        self.spawn(&format!("mega-tree-{id}"), move || {
+            let r = signin::mega_folders(&c, Some(&folder));
+            Box::new(move |w, _| {
+                w.mega.loading.remove(&id);
+                match r {
+                    Ok(folders) => {
+                        w.mega.children.insert(id, folders);
+                    }
+                    // The "…" again, to try once more.
+                    Err(e) => {
+                        eprintln!("{e}");
+                        w.mega.children.remove(&id);
+                    }
+                }
+                Vec::new()
+            })
+        });
     }
 
     /// ShareX's builder normalizes some members as it builds the pages:
@@ -2023,6 +2588,58 @@ fn valid_remote_storage_account(a: &Value) -> bool {
     }
 }
 
+/// The members a sign-in reads and writes.
+fn oauth_members(service: SignInService) -> &'static [&'static str] {
+    match service {
+        SignInService::Imgur => &["ImgurOAuth2Info"],
+        SignInService::Gist => &["GistOAuth2Info"],
+        SignInService::Dropbox => &["DropboxOAuth2Info"],
+        SignInService::OneDrive => &["OneDriveV2OAuth2Info"],
+        SignInService::Box => &["BoxOAuth2Info"],
+        SignInService::Bitly => &["BitlyOAuth2Info"],
+        SignInService::GoogleDrive => &["GoogleDriveOAuth2Info", "GoogleDriveUserInfo"],
+        SignInService::GoogleCloudStorage => &["GoogleCloudStorageOAuth2Info", "GoogleCloudStorageUserInfo"],
+        SignInService::YouTube => &["YouTubeOAuth2Info", "YouTubeUserInfo"],
+        SignInService::Flickr => &["FlickrOAuthInfo"],
+        SignInService::Photobucket => &["PhotobucketOAuthInfo", "PhotobucketAccountInfo"],
+    }
+}
+
+/// Disconnect: the account's members cleared (`signin::disconnect`).
+fn clear_members(service: SignInService) -> Vec<(Path, Value)> {
+    oauth_members(service).iter().map(|m| (path(&[m]), Value::Null)).collect()
+}
+
+/// `names` as `config` has them, to set on the window's config.
+fn members(config: &UploadersConfig, names: &[&str]) -> Vec<(Path, Value)> {
+    let v = serde_json::to_value(config).unwrap_or(Value::Null);
+    names.iter().map(|n| (path(&[n]), v[*n].clone())).collect()
+}
+
+/// "{0} device(s)" (`PushbulletAccount.Reload`).
+fn device_count(count: usize) -> String {
+    match count {
+        0 => u::DestinationSettings_No_devices_loaded().to_owned(),
+        1 => u::DestinationSettings_Device_count_singular().replace("{0}", "1"),
+        n => u::DestinationSettings_Device_count_plural().replace("{0}", &n.to_string()),
+    }
+}
+
+/// A folder's name in the remote folder list (`Unnamed folder` without).
+fn folder_name(item: &Value) -> String {
+    item["name"].as_str().map(str::to_owned).unwrap_or_else(|| u::DestinationSettings_Unnamed_folder().into())
+}
+
+/// A `GetPathInfoAsync` item as ShareX keeps it (`OneDriveFileInfo`).
+fn one_drive_item(v: Value) -> Value {
+    json!({"id": v["id"], "name": v["name"], "webUrl": v["webUrl"]})
+}
+
+/// A `GetFilesAsync` entry as ShareX keeps it (`BoxFileEntry`).
+fn box_entry(v: Value) -> Value {
+    json!({"type": v["type"], "id": v["id"], "sequence_id": v["sequence_id"], "etag": v["etag"], "name": v["name"], "shared_link": v["shared_link"], "parent": v["parent"]})
+}
+
 /// Sets members of the config (`DestinationMember.SetValue`).
 fn apply(config: &mut UploadersConfig, sets: Vec<(Path, Value)>) {
     if sets.is_empty() {
@@ -2041,6 +2658,215 @@ fn apply(config: &mut UploadersConfig, sets: Vec<(Path, Value)>) {
     match serde_json::from_value(v) {
         Ok(c) => *config = c,
         Err(e) => eprintln!("Destination settings: {e}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `--render destination-<page> --state <state>`: states drawn from made-up
+// data (nothing signs in): what a card shows once ShareX's code has run.
+
+/// A made-up OAuth 2 account that `CheckOAuth` accepts.
+fn fixture_oauth2() -> Value {
+    json!({
+        "Client_ID": "fixture-client",
+        "Client_Secret": "fixture-secret",
+        "Token": {"access_token": "fixture-access", "refresh_token": "fixture-refresh", "expires_in": 3600, "token_type": "bearer", "scope": null, "ExpireDate": "2099-01-01T00:00:00Z"},
+        "Proof": null
+    })
+}
+
+/// Made-up folders of a remote folder card.
+fn fixture_folders(page: &str, names: &[&str]) -> Vec<Value> {
+    names
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let item = json!({"id": format!("fixture-{i}"), "name": n, "type": "folder"});
+            if page == "box" { box_entry(item) } else { one_drive_item(item) }
+        })
+        .collect()
+}
+
+fn mega_folder(id: &str, name: &str) -> MegaFolderInfo {
+    MegaFolderInfo { id: Some(id.into()), name: Some(name.into()) }
+}
+
+/// The config a state is drawn with.
+pub fn render_config(page: &str, state: Option<&str>) -> UploadersConfig {
+    let mut config = UploadersConfig::default();
+    let mut sets: Vec<(Path, Value)> = Vec::new();
+    let state = state.unwrap_or("");
+    let albums = json!([{"id": "fixture1", "title": "Fixture album one"}, {"id": "fixture2", "title": "Fixture album two"}]);
+    match (page, state) {
+        ("imgur", "connected-display") => {
+            sets.push((path(&["ImgurOAuth2Info"]), fixture_oauth2()));
+            sets.push((path(&["ImgurAlbumList"]), albums.clone()));
+            sets.push((path(&["ImgurSelectedAlbum"]), albums[0].clone()));
+        }
+        ("imgur", "cached-list") => sets.push((path(&["ImgurAlbumList"]), albums.clone())),
+        ("imgur", "selected") => {
+            sets.push((path(&["ImgurAlbumList"]), albums.clone()));
+            sets.push((path(&["ImgurSelectedAlbum"]), albums[1].clone()));
+        }
+        (p, "connected-display") if SignInService::from_page_id(p).is_some_and(|s| s.flow() != signin::SignInFlow::OAuth1) => {
+            let service = SignInService::from_page_id(p).expect("service");
+            let m = oauth_members(service);
+            sets.push((path(&[m[0]]), fixture_oauth2()));
+            if m.len() > 1 {
+                sets.push((path(&[m[1]]), json!({"sub": "fixture", "name": "Reference Fixture", "given_name": "Reference", "picture": null, "locale": "en"})));
+            }
+        }
+        ("flickr" | "photobucket", "connected-display") => {
+            let member = if page == "flickr" { "FlickrOAuthInfo" } else { "PhotobucketOAuthInfo" };
+            let info = json!({"Description": null, "OAuthVersion": "1.0", "ConsumerKey": "fixture-key", "ConsumerSecret": "fixture-secret",
+                "ConsumerPrivateKey": null, "SignatureMethod": 0, "AuthToken": null, "AuthSecret": null, "AuthVerifier": null,
+                "UserToken": "fixture-token", "UserSecret": "fixture-user-secret"});
+            sets.push((path(&[member]), info));
+            if page == "photobucket" {
+                sets.push((path(&["PhotobucketAccountInfo"]), json!({"Username": "fixture", "Subdomain": "fixture", "AlbumID": "fixture", "AlbumList": ["fixture"], "ActiveAlbumID": 0})));
+            }
+        }
+        ("photobucket", "empty" | "cached-list" | "selected" | "album-path") => {
+            let list = if state == "empty" { json!([]) } else { json!(["fixture", "fixture/Screenshots", "fixture/Recordings"]) };
+            let active = if state == "selected" { 1 } else { 0 };
+            sets.push((path(&["PhotobucketAccountInfo"]), json!({"Username": "fixture", "Subdomain": "fixture", "AlbumID": "fixture", "AlbumList": list, "ActiveAlbumID": active})));
+        }
+        ("imageshack", "connected-display") => sets.push((path(&["ImageShackSettings", "Auth_token"]), json!("fixture-token"))),
+        ("imageshack", "filled") => {
+            sets.push((path(&["ImageShackSettings", "Username"]), json!("fixture")));
+            sets.push((path(&["ImageShackSettings", "Password"]), json!("fixture-password")));
+        }
+        ("pastebin", "connected-display") => sets.push((path(&["PastebinSettings", "UserKey"]), json!("fixture-user-key"))),
+        ("pastebin", "filled") => {
+            sets.push((path(&["PastebinSettings", "Username"]), json!("fixture")));
+            sets.push((path(&["PastebinSettings", "Password"]), json!("fixture-password")));
+        }
+        ("puush", "api-key-retrieved") => sets.push((path(&["PuushAPIKey"]), json!("fixture-api-key"))),
+        ("lobfile", "api-key-retrieved") => sets.push((path(&["LithiioSettings", "UserAPIKey"]), json!("fixture-api-key"))),
+        ("mega", "filled") => {
+            sets.push((path(&["MegaEmail"]), json!("someone@example.com")));
+            sets.push((path(&["MegaPassword"]), json!("fixture-password")));
+        }
+        ("mega", "connected-display" | "loaded-children" | "nested" | "selected-child" | "loading") => {
+            sets.push((path(&["MegaEmail"]), json!("someone@example.com")));
+            sets.push((path(&["MegaSessionID"]), json!("fixture-session")));
+            sets.push((path(&["MegaMasterKey"]), json!("AAAAAAAAAAAAAAAAAAAAAA")));
+            if state == "selected-child" {
+                sets.push((path(&["MegaSelectedFolder"]), json!({"ID": "fixture-1", "Name": "Screenshots"})));
+            }
+        }
+        ("pushbullet", "filled") => sets.push((path(&["PushbulletSettings", "UserAPIKey"]), json!("fixture-api-key"))),
+        ("pushbullet", "cached-menu" | "selected") => {
+            sets.push((path(&["PushbulletSettings", "UserAPIKey"]), json!("fixture-api-key")));
+            sets.push((path(&["PushbulletSettings", "DeviceList"]), json!([{"Key": "fixture-phone", "Name": "Fixture phone"}, {"Key": "fixture-laptop", "Name": "Fixture laptop"}])));
+            sets.push((path(&["PushbulletSettings", "SelectedDevice"]), json!(if state == "selected" { 1 } else { 0 })));
+        }
+        ("onedrive" | "box", "saved-folder") => {
+            let member = if page == "box" { "BoxSelectedFolder" } else { "OneDriveV2SelectedFolder" };
+            sets.push((path(&[member]), fixture_folders(page, &["Screenshots"]).remove(0)));
+        }
+        _ => {}
+    }
+    apply(&mut config, sets);
+    config
+}
+
+impl DestinationSettingsWindow {
+    /// What the window itself holds in a state: typed text, a status line,
+    /// a folder list, MEGA's tree. `Err` for a state the page hasn't.
+    pub fn seed_render_state(&mut self, page: &str, state: &str) -> Result<(), String> {
+        let account = format!("{page}-account");
+        let service = SignInService::from_page_id(page);
+        let status = |text: &str, c: Option<bool>| (text.to_owned(), c);
+        match state {
+            "" | "default" | "defaults" | "disconnected" | "empty" | "connected-display" | "collapsed-root" | "selected-root" | "root" | "saved-folder"
+            | "cached-list" | "selected" | "cached-menu" => {}
+            "code-entered" if service.is_some_and(|s| s.flow() != signin::SignInFlow::Loopback) => {
+                self.local.insert(format!("{page}-code"), "fixture-code-1234".into());
+            }
+            "authorization-opened" if service.is_some_and(|s| s.flow() != signin::SignInFlow::Loopback) => {
+                self.status.insert(account, status(u::DestinationSettings_Authorization_page_opened(), None));
+            }
+            "authorization-failed" if service.is_some_and(|s| s.flow() != signin::SignInFlow::Loopback) => {
+                self.local.insert(format!("{page}-code"), "fixture-code-1234".into());
+                self.status.insert(account, status(u::DestinationSettings_Authorization_failed(), Some(false)));
+            }
+            "token-refresh-failed" if service.is_some_and(|s| s.flow() == signin::SignInFlow::CodePaste) => {
+                self.status.insert(account, status(u::DestinationSettings_Token_refresh_failed(), Some(false)));
+            }
+            "login-failed" if matches!(page, "imageshack" | "pastebin" | "puush" | "lobfile") => {
+                self.status.insert(account, status(u::DestinationSettings_Login_failed(), Some(false)));
+            }
+            "api-key-retrieved" if matches!(page, "puush" | "lobfile") => {
+                self.local.insert(format!("{page}-username"), "someone@example.com".into());
+                self.status.insert(account, status(u::DestinationSettings_API_key_retrieved(), Some(true)));
+            }
+            "filled" if matches!(page, "puush" | "lobfile") => {
+                self.local.insert(format!("{page}-username"), "someone@example.com".into());
+                self.local.insert(format!("{page}-password"), "fixture-password".into());
+            }
+            "filled" => {}
+            "not-connected" if page == "imgur" => {
+                self.status.insert("imgur-albums".into(), status(u::DestinationSettings_Connect_Imgur_account_first(), None));
+            }
+            "album-path" if page == "photobucket" => {
+                self.local.insert("photobucket-album-path".into(), "fixture/New album".into());
+            }
+            "device-error" if page == "pushbullet" => {
+                self.status.insert("pushbullet-account".into(), status("The remote server returned an error: (401) Unauthorized.", None));
+            }
+            "listed" | "nested" | "loading" | "no-child-folders" | "error" if matches!(page, "onedrive" | "box") => {
+                let root = folder_root(page);
+                let mut b = FolderBrowser::new(root.clone());
+                let browse = format!("{page}-browse");
+                match state {
+                    "listed" => {
+                        b.items = fixture_folders(page, &["Documents", "Pictures", "Screenshots"]);
+                        self.status.insert(browse, status(&u::DestinationSettings_Folder_count_plural().replace("{0}", "3"), None));
+                    }
+                    "nested" => {
+                        let parent = fixture_folders(page, &["Pictures"]).remove(0);
+                        b.history.push(root);
+                        b.current = parent;
+                        b.items = fixture_folders(page, &["2026", "Screenshots"]);
+                        b.selected = Some(1);
+                        self.status.insert(format!("{page}-folder"), status("Screenshots", None));
+                        self.status.insert(browse, status(&u::DestinationSettings_Folder_count_plural().replace("{0}", "2"), None));
+                    }
+                    "no-child-folders" => {
+                        self.status.insert(browse, status(u::DestinationSettings_No_child_folders(), None));
+                    }
+                    "error" => {
+                        self.status.insert(browse, status("An error occurred while sending the request.", None));
+                    }
+                    _ => {}
+                }
+                self.browsers.insert(page.to_owned(), b);
+            }
+            "loaded-children" | "nested" | "selected-child" | "loading" if page == "mega" => {
+                self.mega.expanded.insert(String::new());
+                if state == "loading" {
+                    self.mega.loading.insert(String::new());
+                } else {
+                    self.mega.children.insert(
+                        String::new(),
+                        vec![mega_folder("fixture-0", "Documents"), mega_folder("fixture-1", "Screenshots"), mega_folder("fixture-2", "Shared")],
+                    );
+                }
+                if state == "nested" {
+                    self.mega.expanded.insert("fixture-1".into());
+                    self.mega.children.insert("fixture-1".into(), vec![mega_folder("fixture-10", "2026"), mega_folder("fixture-11", "Archive")]);
+                    self.mega.expanded.insert("fixture-11".into());
+                }
+            }
+            other => return Err(format!("no state {other} on destination page {page}")),
+        }
+        Ok(())
+    }
+
+    /// The page scrolled to `offset` (`--scroll`).
+    pub fn set_scroll(&mut self, offset: f32) {
+        self.scroll.insert(self.page, offset);
     }
 }
 
@@ -2088,18 +2914,24 @@ impl Dialog for DestinationSettingsWindow {
         }
         self.navigation(ui, full, &visible);
         let column = Rect::from_min_max(pos2(full.min.x + NAV_WIDTH, full.min.y), full.max);
-        let mut sets = Vec::new();
+        let mut sets = self.poll_jobs(&j);
+        for act in std::mem::take(&mut self.queued) {
+            sets.extend(self.act(&j, config, act));
+        }
         if visible.iter().flatten().any(|v| *v) {
             let cat = &categories()[self.page.0];
             let def = &cat.pages[self.page.1];
             let blocks = self.build(def, &j, config);
             let ev = self.page(ui, column, &blocks, &terms, def, &cat.icon);
             for (bind, input) in ev.inputs {
-                sets.extend(self.input(&j, bind, input));
+                sets.extend(self.input(&j, config, bind, input));
             }
             for act in ev.acts {
-                sets.extend(self.act(&j, act));
+                sets.extend(self.act(&j, config, act));
             }
+        }
+        if self.busy() {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
         }
         if !sets.is_empty() {
             apply(config, sets);
@@ -2159,5 +2991,356 @@ mod tests {
         let b = json!({"Host": "h", "SubFolderPath": "s", "BrowserProtocol": "http", "HttpHomePath": "cdn.example.com/i",
             "HttpHomePathAutoAddSubFolderPath": false, "HttpHomePathNoExtension": true});
         assert_eq!(ftp_preview(&b), "http://cdn.example.com/i/example");
+    }
+
+    // --- The cards' buttons, against the 127.0.0.1 mock ---------------------
+    //
+    // Every service's request goes to `mock_server.py` through the URL
+    // rewriter; pages to open are recorded, never opened. Keys and accounts
+    // are made up.
+
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+
+    use crate::test_mock::{Mock, ok, rewritten, text_ok};
+
+    #[derive(Default)]
+    struct Recorder(Mutex<Vec<String>>);
+
+    impl UrlOpener for Recorder {
+        fn open(&self, url: &str) {
+            self.0.lock().unwrap().push(url.to_owned());
+        }
+    }
+
+    impl Recorder {
+        fn urls(&self) -> Vec<String> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    fn window(page: &str) -> (DestinationSettingsWindow, Arc<Recorder>) {
+        let recorder = Arc::new(Recorder::default());
+        let mut w = DestinationSettingsWindow::new(None).with_opener(recorder.clone());
+        assert!(w.select_page(page));
+        (w, recorder)
+    }
+
+    /// The jobs and the buttons they press run until they're done, their
+    /// changes applied, as the window's frames do.
+    fn settle(w: &mut DestinationSettingsWindow, config: &mut UploadersConfig) {
+        let start = Instant::now();
+        while !w.jobs.is_empty() || !w.queued.is_empty() {
+            assert!(start.elapsed() < Duration::from_secs(30), "a job didn't finish");
+            let j = serde_json::to_value(&*config).unwrap();
+            let mut sets = w.poll_jobs(&j);
+            for act in std::mem::take(&mut w.queued) {
+                sets.extend(w.act(&j, config, act));
+            }
+            apply(config, sets);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn press(w: &mut DestinationSettingsWindow, config: &mut UploadersConfig, act: Act) {
+        let j = serde_json::to_value(&*config).unwrap();
+        let sets = w.act(&j, config, act);
+        apply(config, sets);
+        settle(w, config);
+    }
+
+    fn status(w: &DestinationSettingsWindow, key: &str) -> Option<(String, Option<bool>)> {
+        w.status.get(key).cloned()
+    }
+
+    /// An account `CheckOAuth` accepts, its token good until 2099.
+    fn account() -> OAuth2Info {
+        serde_json::from_value(json!({
+            "Client_ID": "made-up-client", "Client_Secret": "made-up-secret",
+            "Token": {"access_token": "made-up-access", "refresh_token": "made-up-refresh", "expires_in": 3600, "token_type": "bearer", "ExpireDate": "2099-01-01T00:00:00Z"}
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn code_paste_opens_the_page_then_completes_with_the_code() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        let (mut w, opened) = window("imgur");
+        let mut config = UploadersConfig::default();
+        // Open authorization page: Imgur's page is made locally.
+        press(&mut w, &mut config, Act::OAuthOpen(SignInService::Imgur));
+        let urls = opened.urls();
+        assert_eq!(urls.len(), 1);
+        assert!(urls[0].starts_with("https://api.imgur.com/oauth2/authorize?client_id"), "{}", urls[0]);
+        assert!(urls[0].ends_with("&response_type=pin"));
+        assert!(config.ImgurOAuth2Info.is_some(), "the client is stored");
+        assert_eq!(status(&w, "imgur-account"), Some((u::DestinationSettings_Authorization_page_opened().into(), None)));
+        // Complete authorization with the PIN.
+        mock.reset(json!({"responses": [ok(r#"{"access_token":"made-up-new","refresh_token":"made-up-r","expires_in":3600,"token_type":"bearer"}"#)]}));
+        w.local.insert("imgur-code".into(), "123456".into());
+        press(&mut w, &mut config, Act::OAuthComplete(SignInService::Imgur));
+        let log = mock.log();
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].target, "/__/https/api.imgur.com/oauth2/token");
+        assert!(log[0].body_text().contains("123456"));
+        assert_eq!(status(&w, "imgur-account"), Some((u::DestinationSettings_Connected().into(), Some(true))));
+        let token = config.ImgurOAuth2Info.as_ref().and_then(|i| i.Token.clone()).unwrap();
+        assert_eq!(token.access_token.as_str(), "made-up-new");
+        // A refused code.
+        mock.reset(json!({"responses": [{"status": 400, "reason": "Bad Request", "headers": [["Content-Type", "application/json"]], "body": "{\"error\":\"invalid_grant\"}"}]}));
+        press(&mut w, &mut config, Act::OAuthComplete(SignInService::Imgur));
+        assert_eq!(status(&w, "imgur-account").map(|s| s.1), Some(Some(false)));
+        // An empty code doesn't ask the service.
+        mock.reset(json!({"responses": []}));
+        w.local.insert("imgur-code".into(), "  ".into());
+        press(&mut w, &mut config, Act::OAuthComplete(SignInService::Imgur));
+        assert!(mock.log().is_empty());
+        assert_eq!(status(&w, "imgur-account"), Some((u::DestinationSettings_Authorization_failed().into(), Some(false))));
+    }
+
+    #[test]
+    fn refresh_token_where_the_service_cant() {
+        let (mut w, _) = window("bitly");
+        let mut config = UploadersConfig { BitlyOAuth2Info: Some(account()), ..Default::default() };
+        press(&mut w, &mut config, Act::OAuthRefresh(SignInService::Bitly));
+        assert_eq!(status(&w, "bitly-account"), Some((u::DestinationSettings_Token_refresh_failed().into(), Some(false))));
+        // Disconnect forgets the account; the status follows the config.
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.act(&j, &config, Act::Set(clear_members(SignInService::Bitly), Some("bitly-account".into())));
+        apply(&mut config, sets);
+        assert!(config.BitlyOAuth2Info.is_none());
+        assert_eq!(status(&w, "bitly-account"), None);
+    }
+
+    #[test]
+    fn google_sign_in_through_the_loopback_listener() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        mock.reset(json!({"responses": [
+            ok(r#"{"access_token":"made-up-google","refresh_token":"made-up-r","expires_in":3600,"token_type":"Bearer"}"#),
+            ok(r#"{"sub":"1","name":"Made Up User","given_name":"Made","locale":"en"}"#),
+        ]}));
+        let (mut w, opened) = window("google-drive");
+        let mut config = UploadersConfig::default();
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.act(&j, &config, Act::Loopback(SignInService::GoogleDrive));
+        apply(&mut config, sets);
+        // The waiting window opens over it.
+        assert!(matches!(w.effects.as_slice(), [Effect::OpenDialog(_)]));
+        // The browser would come back to the listener with the code.
+        let start = Instant::now();
+        let url = loop {
+            if let Some(u) = opened.urls().pop() {
+                break u;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "no page opened");
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let query = |k: &str| url.split(['?', '&']).find_map(|p| p.strip_prefix(&format!("{k}="))).map(|v| sharex_uploaders::url_helpers::url_decode(v, 1)).unwrap();
+        let redirect = query("redirect_uri");
+        let state = query("state");
+        let addr = redirect.trim_start_matches("http://").trim_end_matches('/').to_owned();
+        let mut s = std::net::TcpStream::connect(addr.as_str()).unwrap();
+        use std::io::{Read, Write};
+        write!(s, "GET /?code=made-up-code&state={state} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n").unwrap();
+        let mut page = String::new();
+        let _ = s.read_to_string(&mut page);
+        settle(&mut w, &mut config);
+        let log = mock.log();
+        assert_eq!(log[0].target, "/__/https/oauth2.googleapis.com/token");
+        assert!(log[0].body_text().contains("made-up-code"));
+        let token = config.GoogleDriveOAuth2Info.as_ref().and_then(|i| i.Token.clone()).unwrap();
+        assert_eq!(token.access_token.as_str(), "made-up-google");
+        assert_eq!(config.GoogleDriveUserInfo.as_ref().and_then(|u| u.name.clone()).as_deref(), Some("Made Up User"));
+    }
+
+    #[test]
+    fn a_cancelled_google_sign_in_forgets_the_account() {
+        // ShareX's `setAccount(result?.OAuth2Info, result?.UserInfo)` with
+        // no result.
+        let (mut w, _) = window("youtube");
+        let mut config = UploadersConfig { YouTubeOAuth2Info: Some(account()), ..Default::default() };
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.act(&j, &config, Act::Loopback(SignInService::YouTube));
+        apply(&mut config, sets);
+        let Some(Effect::OpenDialog(mut listener)) = w.effects.pop() else { panic!("no waiting window") };
+        // Its Cancel (closing it) stops the listener.
+        let store = crate::upload::UploadersConfigStore::loaded(UploadersConfig::default());
+        let mut settings = sharex_settings::ApplicationConfig::default();
+        listener.closed(&mut crate::dialogs::Cx { settings: &mut settings, uploaders: &store });
+        settle(&mut w, &mut config);
+        assert!(config.YouTubeOAuth2Info.is_none());
+        assert_eq!(status(&w, "youtube-account"), None);
+    }
+
+    #[test]
+    fn pastebin_and_user_password_logins() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        // Pastebin: the user key is saved.
+        mock.reset(json!({"responses": [text_ok("made-up-user-key")]}));
+        let (mut w, _) = window("pastebin");
+        let mut config = UploadersConfig::default();
+        config.PastebinSettings.Username = Some("made-up".into());
+        config.PastebinSettings.Password = sharex_uploaders::dpapi::Secret::new("made-up-password");
+        press(&mut w, &mut config, Act::PastebinLogin);
+        assert_eq!(mock.log()[0].target, "/__/https/pastebin.com/api/api_login.php");
+        assert_eq!(config.PastebinSettings.UserKey.as_str(), "made-up-user-key");
+        assert_eq!(status(&w, "pastebin-account"), Some((u::DestinationSettings_Connected().into(), Some(true))));
+        // puush: the API key into its box, the password cleared.
+        mock.reset(json!({"responses": [text_ok("0,made-up-api-key,,0")]}));
+        let (mut w, _) = window("puush");
+        w.local.insert("puush-username".into(), "someone@example.com".into());
+        w.local.insert("puush-password".into(), "made-up-password".into());
+        press(&mut w, &mut config, Act::UserPassword("puush".into(), path(&["PuushAPIKey"])));
+        assert_eq!(mock.log()[0].target, "/__/https/puush.me/api/auth");
+        assert_eq!(config.PuushAPIKey.as_str(), "made-up-api-key");
+        assert_eq!(w.local_text("puush-password"), "");
+        assert_eq!(status(&w, "puush-account"), Some((u::DestinationSettings_API_key_retrieved().into(), Some(true))));
+        // A refused login.
+        mock.reset(json!({"responses": [text_ok("-1")]}));
+        press(&mut w, &mut config, Act::UserPassword("puush".into(), path(&["PuushAPIKey"])));
+        assert_eq!(status(&w, "puush-account"), Some((u::DestinationSettings_Login_failed().into(), Some(false))));
+    }
+
+    #[test]
+    fn pushbullet_devices_and_imgur_albums_load() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        mock.reset(json!({"responses": [ok(r#"{"devices":[{"iden":"d1","nickname":"Phone"},{"iden":"d2","nickname":"Laptop"},{"iden":"d3"}]}"#)]}));
+        let (mut w, _) = window("pushbullet");
+        let mut config = UploadersConfig::default();
+        press(&mut w, &mut config, Act::PushbulletRefresh);
+        assert_eq!(mock.log()[0].target, "/__/https/api.pushbullet.com/v2/devices");
+        assert_eq!(config.PushbulletSettings["DeviceList"], json!([{"Key": "d1", "Name": "Phone"}, {"Key": "d2", "Name": "Laptop"}]));
+        assert_eq!(config.PushbulletSettings["SelectedDevice"], json!(0));
+        assert_eq!(status(&w, "pushbullet-account"), None, "the count follows the list");
+        assert_eq!(device_count(2), "2 devices loaded");
+
+        // Imgur: not connected says so, without asking.
+        mock.reset(json!({"responses": [ok(r#"{"data":[{"id":"a1","title":"One"},{"id":"a2","title":""}],"success":true,"status":200}"#)]}));
+        let (mut w, _) = window("imgur");
+        press(&mut w, &mut config, Act::ImgurAlbums);
+        assert!(mock.log().is_empty());
+        assert_eq!(status(&w, "imgur-albums"), Some((u::DestinationSettings_Connect_Imgur_account_first().into(), None)));
+        config.ImgurOAuth2Info = Some(account());
+        config.ImgurSelectedAlbum = json!({"id": "a2"});
+        press(&mut w, &mut config, Act::ImgurAlbums);
+        assert!(mock.log()[0].target.starts_with("/__/https/api.imgur.com/3/account/me/albums"));
+        assert_eq!(config.ImgurAlbumList.as_array().map(Vec::len), Some(2));
+        assert_eq!(config.ImgurSelectedAlbum["id"], json!("a2"), "the chosen album stays chosen");
+        assert_eq!(status(&w, "imgur-albums"), None);
+    }
+
+    #[test]
+    fn remote_folders_browse_open_back_and_root() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        mock.reset(json!({"responses": [
+            ok(r#"{"value":[{"id":"f1","name":"Pictures"},{"id":"f2","name":"Documents"}]}"#),
+            ok(r#"{"value":[]}"#),
+            ok(r#"{"value":[{"id":"f1","name":"Pictures"}]}"#),
+        ]}));
+        let (mut w, _) = window("onedrive");
+        let mut config = UploadersConfig { OneDriveV2OAuth2Info: Some(account()), ..Default::default() };
+        let member = path(&["OneDriveV2SelectedFolder"]);
+        let j = serde_json::to_value(&config).unwrap();
+        w.build(&categories()[w.page.0].pages[w.page.1], &j, &config);
+        press(&mut w, &mut config, Act::Folder("onedrive".into(), member.clone(), FolderAct::Refresh));
+        assert_eq!(w.browsers["onedrive"].items.len(), 2);
+        assert_eq!(status(&w, "onedrive-browse"), Some((u::DestinationSettings_Folder_count_plural().replace("{0}", "2"), None)));
+        // Choosing one makes it the upload folder.
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.input(&j, &config, Bind::FolderSelect("onedrive".into(), member.clone()), Input::Index(0));
+        apply(&mut config, sets);
+        assert_eq!(config.OneDriveV2SelectedFolder, json!({"id": "f1", "name": "Pictures", "webUrl": null}));
+        assert_eq!(status(&w, "onedrive-folder"), Some(("Pictures".into(), None)));
+        // Open folder, then Back.
+        press(&mut w, &mut config, Act::Folder("onedrive".into(), member.clone(), FolderAct::Open));
+        assert_eq!(status(&w, "onedrive-browse"), Some((u::DestinationSettings_No_child_folders().into(), None)));
+        press(&mut w, &mut config, Act::Folder("onedrive".into(), member.clone(), FolderAct::Back));
+        assert_eq!(w.browsers["onedrive"].items.len(), 1);
+        let targets: Vec<String> = mock.log().iter().map(|r| r.target.clone()).collect();
+        assert!(targets[0].starts_with("/__/https/graph.microsoft.com/v1.0/me/drive/root/children"), "{}", targets[0]);
+        assert!(targets[1].starts_with("/__/https/graph.microsoft.com/v1.0/me/drive/items/f1/children"), "{}", targets[1]);
+        // Root: the root is the upload folder again.
+        mock.reset(json!({"responses": [ok(r#"{"value":[]}"#)]}));
+        press(&mut w, &mut config, Act::Folder("onedrive".into(), member, FolderAct::Root));
+        assert_eq!(config.OneDriveV2SelectedFolder, UploadersConfig::default().OneDriveV2SelectedFolder);
+        assert!(w.browsers["onedrive"].history.is_empty());
+    }
+
+    #[test]
+    fn mega_asks_for_the_two_factor_code() {
+        let mock = Mock::start();
+        let _r = rewritten(&mock);
+        // `us0` (a version 1 account), `us` refused with -26.
+        mock.reset(json!({"responses": [ok(r#"[{"v":1}]"#), ok("[-26]")]}));
+        let (mut w, _) = window("mega");
+        let mut config = UploadersConfig { MegaEmail: Some("someone@example.com".into()), ..Default::default() };
+        config.MegaPassword = sharex_uploaders::dpapi::Secret::new("made-up-password");
+        press(&mut w, &mut config, Act::MegaLogin(None));
+        assert!(matches!(w.effects.as_slice(), [Effect::OpenDialog(_)]), "the code is asked");
+        assert!(w.two_factor.is_some());
+        // The code given: logged in again with it (refused here: -9).
+        mock.reset(json!({"responses": [ok(r#"[{"v":1}]"#), ok("[-9]")]}));
+        let (tx, rx) = mpsc::channel();
+        w.two_factor = Some(rx);
+        tx.send(Some("123456".into())).unwrap();
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.poll_jobs(&j);
+        apply(&mut config, sets);
+        settle(&mut w, &mut config);
+        let log = mock.log();
+        assert_eq!(log.len(), 2);
+        assert!(log[1].body_text().contains(r#""mfa":"123456""#), "{}", log[1].body_text());
+        assert_eq!(status(&w, "mega-account").map(|s| s.1), Some(Some(false)));
+        assert!(config.MegaSessionID.is_empty());
+    }
+
+    #[test]
+    fn mega_tree_without_a_session_shows_the_placeholder() {
+        // `LoadChildrenAsync` throws "Not connected" before any request.
+        let (mut w, _) = window("mega");
+        let mut config = UploadersConfig::default();
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.input(&j, &config, Bind::MegaToggle(String::new()), Input::Bool(true));
+        apply(&mut config, sets);
+        settle(&mut w, &mut config);
+        let rows = w.mega.rows("");
+        assert_eq!(rows.len(), 2);
+        assert!(rows[0].expanded && rows[0].selected);
+        assert_eq!((rows[1].id.as_deref(), rows[1].label.as_str(), rows[1].depth), (None, "…", 1));
+        // Selecting a loaded folder makes it the upload folder.
+        w.mega.children.insert(String::new(), vec![MegaFolderInfo { id: Some("h1".into()), name: Some("Shots".into()) }]);
+        let j = serde_json::to_value(&config).unwrap();
+        let sets = w.input(&j, &config, Bind::MegaSelect("h1".into()), Input::Bool(true));
+        apply(&mut config, sets);
+        assert_eq!(config.MegaSelectedFolder, json!({"ID": "h1", "Name": "Shots"}));
+        assert!(w.mega.rows("h1")[1].selected);
+    }
+
+    #[test]
+    fn render_states_exist_for_every_card() {
+        for (page, state) in [
+            ("imgur", "connected-display"),
+            ("imgur", "code-entered"),
+            ("google-drive", "connected-display"),
+            ("flickr", "connected-display"),
+            ("box", "listed"),
+            ("onedrive", "nested"),
+            ("mega", "nested"),
+            ("pushbullet", "cached-menu"),
+            ("puush", "api-key-retrieved"),
+        ] {
+            let (mut w, _) = window(page);
+            w.seed_render_state(page, state).unwrap();
+            let config = render_config(page, Some(state));
+            let j = serde_json::to_value(&config).unwrap();
+            let _ = w.build(&categories()[w.page.0].pages[w.page.1], &j, &config);
+        }
+        assert!(signin::is_connected(SignInService::Flickr, &render_config("flickr", Some("connected-display"))));
+        assert!(window("gist").0.seed_render_state("gist", "listed").is_err());
     }
 }

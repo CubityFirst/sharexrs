@@ -11,6 +11,10 @@
 //! - `multi-upload` (`--count N`), `large-file`,
 //! - `before-upload`, `after-upload`, `qr-code` (see their modules),
 //! - `destination-<page>`: Destination settings on a page (`imgur`, `ftp`...),
+//!   `--state` a state of its cards from made-up data
+//!   ([`super::destination_settings::render_config`] and
+//!   `seed_render_state`: `connected-display`, `code-entered`, `listed`...),
+//!   `--scroll` its page scrolled,
 //! - `oauth-listener` (waiting for the browser), `input-box` (MEGA's
 //!   two-factor question, `--text` typed in), `email-window` (`--state
 //!   empty|prefilled|edited`), `youtube-options` (`--state
@@ -316,6 +320,8 @@ It shows the dialog.",
             if !w.select_page(id) {
                 return Err(format!("no destination settings page {id}"));
             }
+            w.seed_render_state(id, o.state.as_deref().unwrap_or(""))?;
+            w.set_scroll(o.scroll);
             Box::new(w)
         }
         s if crate::history_ui::is_render_screen(s) => crate::history_ui::render_dialog(s, o)?,
@@ -379,7 +385,10 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
         (dialog(name, o)?, ApplicationConfig::default())
     };
     let spec = d.spec();
-    let store = UploadersConfigStore::loaded(mock_config());
+    let store = UploadersConfigStore::loaded(match name.strip_prefix("destination-") {
+        Some(page) => super::destination_settings::render_config(page, o.state.as_deref()),
+        None => mock_config(),
+    });
     let mut height = spec.height;
     if spec.size_to_content {
         let mut probe = Offscreen::new([spec.width as u32, 400], o.scale, o.dark)?;

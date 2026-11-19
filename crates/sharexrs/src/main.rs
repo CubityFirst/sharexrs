@@ -48,6 +48,8 @@ mod task_editors;
 mod task_settings_window;
 mod task_view;
 mod tasks;
+#[cfg(test)]
+mod test_mock;
 mod test_pattern;
 mod print;
 mod thumbnail;
