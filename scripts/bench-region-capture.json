@@ -1,0 +1,23 @@
+{
+  "pattern_exe": "%TEMP%/sharex-region/pattern/sharexrs-pattern.exe",
+  "apps": {
+    "sharex": {
+      "exe": "G:/scripts/sharexrs-ref/ShareX-build/ShareX.exe",
+      "logs": "G:/scripts/sharexrs-ref/ShareX-build/ShareX/Logs",
+      "saved": "%TEMP%/sharex-region/saved-sharex",
+      "args": ["-NoHotkeys"],
+      "main_title": "^ShareX(rs)? \\d",
+      "dismiss": "Hotkey registration failed",
+      "overlay_title": "(?i)region capture"
+    },
+    "sharexrs": {
+      "exe": "%TEMP%/sharex-region/sharexrs/sharexrs.exe",
+      "logs": "%TEMP%/sharex-region/sharexrs/ShareXrs/Logs",
+      "saved": "%TEMP%/sharex-region/saved-sharexrs",
+      "args": ["-NoHotkeys"],
+      "main_title": "^ShareX(rs)? \\d",
+      "dismiss": "Hotkey registration failed",
+      "overlay_title": "(?i)region capture"
+    }
+  }
+}
