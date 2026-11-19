@@ -52,7 +52,7 @@ pub struct NativeSession {
     /// The captured window (active window recordings without client area), else 0.
     pub window_handle: isize,
     pub backends: Backends,
-    /// Changes the options before each recorder is made (ShareXrs: what isn't ported yet).
+    /// Changes the options before each recorder is made (tests, or a backend that can't do something).
     pub adjust: Option<AdjustOptions>,
     /// `DebugHelper.WriteLine`.
     pub log: Box<dyn Fn(&str) + Send>,

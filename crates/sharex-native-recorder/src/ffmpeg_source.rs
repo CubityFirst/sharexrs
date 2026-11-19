@@ -1,5 +1,6 @@
-//! A [`FrameSource`] that has FFmpeg grab the screen (ShareXrs's stand-in
-//! for Windows Graphics Capture until a desktop session ports it): FFmpeg
+//! A [`FrameSource`] that has FFmpeg grab the screen (ShareXrs's former
+//! stand-in for Windows Graphics Capture, kept for tests: FFmpeg's
+//! `testsrc` through the recorder on the real clock): FFmpeg
 //! writes raw BGRA frames to a pipe, a reader thread keeps the newest one
 //! with the QPC time it arrived, and the recorder takes it on its own frame
 //! grid, as it takes WGC's newest frame. FFmpeg draws the pointer
@@ -67,7 +68,7 @@ impl FfmpegSources {
 impl CaptureSources for FfmpegSources {
     fn open(&self, options: &RecordingOptions, time: Arc<dyn TimeSource>) -> Result<Box<dyn FrameSource>, String> {
         if options.window_handle != 0 {
-            return Err("Window capture needs Windows Graphics Capture, which isn't ported yet.".into());
+            return Err("FFmpeg's screen grab records regions only; window capture is Windows Graphics Capture's.".into());
         }
         let (width, height) = region_size(options)?;
         if !self.ffmpeg.is_file() {
