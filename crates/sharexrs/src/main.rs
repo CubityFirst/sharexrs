@@ -73,6 +73,7 @@ mod tray_menu;
 mod update;
 mod upload;
 mod watch_folder;
+mod popup_window;
 mod window;
 mod window_geometry_log;
 
@@ -1715,6 +1716,7 @@ fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
 
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let _popups = popup_window::enter(event_loop);
         if !self.started {
             self.started = true;
             self.start(event_loop);
@@ -1722,6 +1724,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        let _popups = popup_window::enter(event_loop);
         match event {
             UserEvent::Hotkey(id) => {
                 let s = &self.settings.settings;
@@ -1782,6 +1785,14 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        let _popups = popup_window::enter(event_loop);
+        // A popup window's input is its owner's (`popup_window`).
+        if let Some((owner, event)) = popup_window::route_event(id, &event) {
+            if let Some(event) = event {
+                self.window_event(event_loop, owner, event);
+            }
+            return;
+        }
         // The OS switched light/dark mode: `PlatformSettings.ColorValuesChanged`.
         if let WindowEvent::ThemeChanged(t) = event
             && self.system_theme != Some(t)
@@ -1928,6 +1939,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let _popups = popup_window::enter(event_loop);
         // `-AutoClose`: `ApplicationLifecycle.Exit()` once the last task is done.
         if self.exit_requested {
             self.exit_requested = false;

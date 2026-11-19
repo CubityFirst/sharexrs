@@ -33,6 +33,15 @@ pub struct EguiWindow {
     press: Option<((i32, i32), (i32, i32))>,
     /// A move drag in progress: the window follows the pointer from `press`.
     move_drag: Option<((i32, i32), (i32, i32))>,
+    /// Popups past the window's edge, each in its own window
+    /// ([`crate::popup_window`]).
+    popups: crate::popup_window::Popups,
+}
+
+impl Drop for EguiWindow {
+    fn drop(&mut self) {
+        self.popups.clear(self.window.id());
+    }
 }
 
 /// Where a window dragged from `press` (the pointer on the screen) while
@@ -88,7 +97,7 @@ impl EguiWindow {
             window.theme(),
             painter.max_texture_side(),
         );
-        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None, left_down: false, press: None, move_drag: None })
+        Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None, left_down: false, press: None, move_drag: None, popups: Default::default() })
     }
 
     pub fn ctx(&self) -> &egui::Context {
@@ -154,6 +163,8 @@ impl EguiWindow {
             WindowEvent::Focused(false) => {
                 self.move_drag = None;
             }
+            // Onto one of its popups: the pointer is still the window's.
+            WindowEvent::CursorLeft { .. } if self.popups.contains_cursor(&self.window) => return,
             _ => {}
         }
         if self.state.on_window_event(&self.window, event).repaint {
@@ -209,6 +220,10 @@ impl EguiWindow {
         }
         let size = self.window.inner_size();
         let (w, h) = (size.width as f64, size.height as f64);
+        if x < 0.0 || y < 0.0 || x >= w || y >= h {
+            // Over a popup past the edge.
+            return None;
+        }
         let (l, r, t, b) = (x < border, x >= w - border, y < border, y >= h - border);
         Some(match (l, r, t, b) {
             (true, _, true, _) => ResizeDirection::NorthWest,
@@ -229,11 +244,29 @@ impl EguiWindow {
         let ctx = self.ctx().clone();
         let mut result = None;
         let mut ui = Some(ui);
+        // Popups may leave the window ([`crate::popup_window`]).
+        let host = crate::popup_window::host_area(&self.window);
+        let mut moved_out: Vec<crate::popup_window::Wanted> = Vec::new();
         let mut output = ctx.run_ui(input, |root| {
+            sharex_ui::popup::set_host(root.ctx(), host);
             if let Some(f) = ui.take() {
                 result = Some(f(root));
+                let popups = sharex_ui::popup::take(root.ctx());
+                if host.is_some() {
+                    let client = root.ctx().viewport_rect();
+                    for popup in popups.into_iter().filter(|p| !crate::popup_window::fits(client, p.rect)) {
+                        let shapes = root
+                            .ctx()
+                            .graphics_mut(|g| g.get_mut(popup.layer).map(std::mem::take))
+                            .map(|list| list.all_entries().cloned().collect())
+                            .unwrap_or_default();
+                        moved_out.push(crate::popup_window::Wanted { popup, shapes });
+                    }
+                }
             }
         });
+        let (moved_out, fallback) = self.popups.prepare(&self.window, &mut self.painter, moved_out);
+        output.shapes.extend(fallback);
         self.state.handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
         if self.resize_hover.is_some() {
             // egui just set its own cursor; the edge's wins.
@@ -253,6 +286,7 @@ impl EguiWindow {
             &self.window,
         );
         output.textures_delta.clear();
+        self.popups.paint(&self.window, &mut self.painter, &ctx, output.pixels_per_point, clear, moved_out);
         self.repaint_at = None;
         if let Some(vp) = output.viewport_output.get(&egui::ViewportId::ROOT) {
             if vp.repaint_delay.is_zero() {

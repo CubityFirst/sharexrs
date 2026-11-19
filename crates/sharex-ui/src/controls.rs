@@ -626,19 +626,12 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     let full = row_h * items.len() as f32 + 14.0;
     // Fluent's `MaxDropDownHeight="504"`.
     let wanted = full.min(MAX_DROP_DOWN_HEIGHT);
-    let screen = ui.ctx().content_rect();
-    // Below the combo box, else above it, else wherever it fits best.
-    let below = screen.max.y - anchor.max.y;
-    let above = anchor.min.y - screen.min.y;
+    // The screen's work area when the host opens popups past the window
+    // (`crate::popup`), else the window.
+    let screen = crate::popup::bounds(ui.ctx(), ui.ctx().content_rect());
     // With no items the popup is just its padding (the background remover's
-    // empty model list: 14 px).
-    let least = if items.is_empty() { full } else { row_h + 14.0 };
-    let (top, height) = if wanted <= below || below >= above {
-        (anchor.max.y, wanted.min(below).max(least))
-    } else {
-        let h = wanted.min(above);
-        (anchor.min.y - h, h)
-    };
+    // empty model list: 14 px): `full`.
+    let (top, height) = place_dropdown(anchor, wanted, screen);
     let max_scroll = (full - height).max(0.0);
     // Opening scrolls the selected item into view (`ScrollIntoView`: the
     // least scrolling, so one further down ends at the bottom).
@@ -654,7 +647,8 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     let seen: f32 = if just_opened { 0.0 } else { ui.ctx().data(|d| d.get_temp(width_id)).unwrap_or(0.0) };
     let width = anchor.width().max(widest + 14.0).max(seen);
     ui.ctx().data_mut(|d| d.insert_temp(width_id, width));
-    let popup = Rect::from_min_size(pos2(anchor.min.x, top), vec2(width, height));
+    let left = place_dropdown_x(anchor, width, screen);
+    let popup = Rect::from_min_size(pos2(left, top), vec2(width, height));
     let mut picked = None;
     let area = egui::Area::new(id.with("dropdown")).order(Order::Foreground).fixed_pos(popup.min).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(popup.size(), Sense::click());
@@ -704,6 +698,7 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
             painter.rect_filled(bar, CornerRadius::same(1), f.base_medium_low);
         }
     });
+    crate::popup::register(ui.ctx(), area.response.layer_id, popup, 5.0);
     let ctx = ui.ctx();
     let mut keep = !ctx.input(|i| i.key_pressed(Key::Escape));
     if !just_opened
@@ -721,6 +716,56 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
         });
     }
     (picked, keep)
+}
+
+/// Avalonia's `ManagedPopupPositioner` for the dropdown's `Popup`
+/// (`Placement="BottomEdgeAlignedLeft"`, the default constraint
+/// adjustment): below the combo box; flipped above it if that fits; then
+/// slid into `bounds` (the screen's work area: ShareX's codec list slides
+/// up over its combo box rather than shrinking); then cut to `bounds`.
+/// Returns the top and height.
+pub fn place_dropdown(anchor: Rect, height: f32, bounds: Rect) -> (f32, f32) {
+    let mut top = anchor.max.y;
+    if top + height > bounds.max.y {
+        let flipped = anchor.min.y - height;
+        if flipped >= bounds.min.y {
+            top = flipped;
+        }
+    }
+    // SlideY.
+    top = top.max(bounds.min.y);
+    if top + height > bounds.max.y {
+        top = bounds.max.y - height;
+    }
+    // ResizeY.
+    let mut h = height;
+    if top < bounds.min.y {
+        top = bounds.min.y;
+    }
+    if top + h > bounds.max.y {
+        h = bounds.max.y - top;
+    }
+    if h <= 0.0 {
+        h = height;
+    }
+    (top, h)
+}
+
+/// [`place_dropdown`] across: left edges aligned, flipped to the right
+/// edges, then slid into `bounds`.
+pub fn place_dropdown_x(anchor: Rect, width: f32, bounds: Rect) -> f32 {
+    let mut left = anchor.min.x;
+    if left + width > bounds.max.x {
+        let flipped = anchor.max.x - width;
+        if flipped >= bounds.min.x {
+            left = flipped;
+        }
+    }
+    left = left.max(bounds.min.x);
+    if left + width > bounds.max.x {
+        left = (bounds.max.x - width).max(bounds.min.x);
+    }
+    left
 }
 
 /// A combo box's dropdown on its own, at the top left of the screen, as a
@@ -1289,6 +1334,7 @@ pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32
                 changed |= egui::widgets::color_picker::color_picker_color32(ui, color, mode);
             });
     });
+    crate::popup::register(ui.ctx(), area.response.layer_id, area.response.rect, 8.0);
     let ctx = ui.ctx();
     let mut keep = !ctx.input(|i| i.key_pressed(Key::Escape));
     if !just_opened
@@ -1536,5 +1582,35 @@ impl ColorPickerButton {
             focus::paint_adorner(painter, rect);
         }
         r
+    }
+}
+
+#[cfg(test)]
+mod dropdown_placement_tests {
+    use super::*;
+
+    #[test]
+    fn dropdowns_flip_then_slide_on_the_work_area() {
+        // ShareX's Video converter at 93,116 on a 1024x720 work area: the
+        // codec list (504 high) neither fits below its combo box nor above
+        // it, so it slides up to end at the work area's bottom, 54 px below
+        // the 550 px client (`edge-video-codecs-popup0`: offset 33,100).
+        let work = Rect::from_min_max(pos2(-93.0, -116.0), pos2(931.0, 604.0));
+        let combo = Rect::from_min_max(pos2(33.0, 165.0), pos2(358.0, 203.0));
+        assert_eq!(place_dropdown(combo, 504.0, work), (100.0, 504.0));
+        assert_eq!(place_dropdown_x(combo, 326.0, work), 33.0);
+        // The Hash checker's Algorithm list fits below (`edge-small-combo`:
+        // 218 high at 139,189, 31 px past the 376 px client).
+        let work = Rect::from_min_max(pos2(-153.0, -156.0), pos2(871.0, 564.0));
+        let combo = Rect::from_min_max(pos2(139.0, 157.0), pos2(240.0, 189.0));
+        assert_eq!(place_dropdown(combo, 218.0, work), (189.0, 218.0));
+        // Above when only that fits; cut to the bounds when nothing does.
+        let small = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 300.0));
+        let low = Rect::from_min_max(pos2(10.0, 250.0), pos2(100.0, 280.0));
+        assert_eq!(place_dropdown(low, 100.0, small), (150.0, 100.0));
+        assert_eq!(place_dropdown(low, 500.0, small), (0.0, 300.0));
+        // Past the right edge: right edges aligned.
+        let right = Rect::from_min_max(pos2(300.0, 10.0), pos2(390.0, 40.0));
+        assert_eq!(place_dropdown_x(right, 150.0, small), 240.0);
     }
 }
