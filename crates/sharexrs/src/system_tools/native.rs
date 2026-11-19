@@ -243,17 +243,26 @@ mod win {
 
     /// `AvaloniaClipboard.Capture` over the clipboard's OLE data object.
     pub fn capture() -> Result<ClipboardSnapshot, String> {
-        use windows::Win32::System::Com::{DATADIR_GET, DVASPECT_CONTENT, FORMATETC, IDataObject, TYMED_GDI, TYMED_HGLOBAL};
-        use windows::Win32::System::Ole::{OleGetClipboard, OleInitialize, ReleaseStgMedium};
+        use windows::Win32::System::Com::IDataObject;
+        use windows::Win32::System::Ole::{OleGetClipboard, OleInitialize};
         // SAFETY: OLE on this (the UI) thread; already initialised by winit
         // for drag and drop, which makes this a no-op.
         let _ = unsafe { OleInitialize(None) };
-        let mut snapshot = ClipboardSnapshot::new();
         // SAFETY: a COM call returning an owned interface.
         let data: IDataObject = match unsafe { OleGetClipboard() } {
             Ok(d) => d,
-            Err(_) => return Ok(snapshot),
+            Err(_) => return Ok(ClipboardSnapshot::new()),
         };
+        Ok(read_data_object(&data))
+    }
+
+    /// An OLE data object (the clipboard's, or a drag's) read as Avalonia's
+    /// Win32 `OleDataObject`-backed data transfer reads it: every format in
+    /// the object's order, named as Avalonia names them, and `Bitmap`.
+    pub fn read_data_object(data: &windows::Win32::System::Com::IDataObject) -> ClipboardSnapshot {
+        use windows::Win32::System::Com::{DATADIR_GET, DVASPECT_CONTENT, FORMATETC, TYMED_GDI, TYMED_HGLOBAL};
+        use windows::Win32::System::Ole::ReleaseStgMedium;
+        let mut snapshot = ClipboardSnapshot::new();
         // `ProvideFormats`: the data object's formats in its order.
         let mut ids: Vec<u16> = Vec::new();
         // SAFETY: COM calls on owned interfaces; `ptd` is freed as Avalonia does.
@@ -372,7 +381,7 @@ mod win {
                 snapshot.set(cv::FORMAT_BITMAP, ClipboardValue::Bytes(bytes));
             }
         }
-        Ok(snapshot)
+        snapshot
     }
 
     unsafe fn read_bytes(h: isize) -> Vec<u8> {
@@ -593,6 +602,13 @@ fn set_opacity(handle: isize, opacity: u8) {
 #[cfg(windows)]
 fn capture_clipboard() -> Result<ClipboardSnapshot, String> {
     win::capture()
+}
+
+/// A drag's OLE data object read as Avalonia reads it (the drop target's
+/// `DragEventArgs.DataTransfer`).
+#[cfg(windows)]
+pub fn read_data_object(data: &windows::Win32::System::Com::IDataObject) -> ClipboardSnapshot {
+    win::read_data_object(data)
 }
 
 // ----------------------------------------------------------------------

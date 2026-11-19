@@ -8,6 +8,8 @@
 //!   its state, input handling and drawing, independent of any window so
 //!   it can be rendered offscreen and tested.
 //! - [`scrolling`]: scrolling capture's engine (`ScrollingCaptureManager`).
+//! - [`hdr`]: `HDRScreenCapture`'s pixel work: tone mapping a duplicated
+//!   HDR desktop and correcting the GDI capture with it.
 //! - [`clipboard`]: copying images (`ClipboardHelpers.CopyImage`).
 //! - [`platform`]: what each OS does differently (Win32, AppKit, xcap).
 
@@ -15,6 +17,7 @@ pub mod clipboard;
 pub mod editor_chrome;
 pub mod editor_popups;
 pub mod geometry;
+pub mod hdr;
 pub mod platform;
 pub mod region;
 pub mod screenshot;

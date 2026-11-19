@@ -50,6 +50,7 @@ inventory; kept, decision pending, see "Beyond ShareX") · ⬜ gap left.
 | Screen capture (region, fullscreen, window) | GDI `BitBlt` and `user32`: nothing captures | same | ➕ xcap (ScreenCaptureKit / X11; Wayland through xcap's own paths) |
 | Window lists, window under the pointer (region capture, Capture › Window) | `EnumWindows` etc.: none | same | ➕ CGWindowList / xcap |
 | Window activation (after capture, scrolling capture, active window) | `SetForegroundWindow`: none | same | ➖ none |
+| HDR screenshot correction (`HDRScreenshotColorCorrection`) | `HDRScreenCapture` is DXGI and WIC, called from the Windows capture path only: none | same | ✅ none (Windows only, `sharex_capture::platform::windows_hdr`) |
 | Inspect window, borderless window, top most / opacity | Win32 only | same | ➖ no-ops (the inspect window shows title and bounds from the window list) |
 | Scrolling capture's scrolling | `SendMessage(WM_VSCROLL)`, `SendInput` wheel, `GetScrollInfo`: none | same | ➖ none |
 | Mouse highlighter | `WH_MOUSE_LL` hook and layered overlays (`WindowsNativeWindow` throws): stops with an error | same | ➖ stops with an error |

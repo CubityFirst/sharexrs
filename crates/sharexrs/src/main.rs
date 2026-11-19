@@ -13,6 +13,7 @@ mod app_windows;
 mod clicker;
 mod display_native;
 mod drag_out;
+mod drop_target;
 mod logger;
 mod main_commands;
 mod quick_task;
@@ -131,6 +132,8 @@ pub enum UserEvent {
     AutoCaptureTray(TrayEvent),
     /// A settings export or import finished its archive.
     SettingsBackup(Box<settings_backup::Done>),
+    /// Something dragged over or dropped on the main window.
+    Drop(drop_target::DropEvent),
     /// `DeleteSelectedItemRemotelyAsync` finished: whether it succeeded.
     RemoteDeleted(bool),
 }
@@ -241,6 +244,7 @@ fn main() {
         cursor: None,
         swallow_release: false,
         drag_source: drag_out::system(),
+        drop_target: drop_target::system(),
         tooltip_popup: None,
         own_drag_until: None,
         settings,
@@ -370,6 +374,8 @@ struct App {
     swallow_release: bool,
     /// Drags files out of the app (OLE's `DoDragDrop` on Windows).
     drag_source: Box<dyn drag_out::DragSource>,
+    /// Makes the main window a drop target (OLE's on Windows).
+    drop_target: Box<dyn drop_target::DropTarget>,
     /// A dialog's tooltip in its own popup window: the owner, the popup,
     /// the text and the element it's for (desktop pixels).
     tooltip_popup: Option<(winit::window::WindowId, winit::window::WindowId, String, sharex_capture::Rect)>,
@@ -534,6 +540,11 @@ impl App {
         set_theme(&w, self.theme());
         w.window.set_visible(true);
         w.window.request_redraw();
+        // `DragDrop.AllowDrop="True"`: files and text, uploaded on the drop.
+        let proxy = self.proxy.clone();
+        self.drop_target.attach(&*w.window, Box::new(move |e| {
+            let _ = proxy.send_event(UserEvent::Drop(e));
+        }));
         self.main = Some(w);
         #[cfg(target_os = "macos")]
         tray::set_dock_icon(true);
@@ -1801,6 +1812,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Wake => {}
             UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
             UserEvent::SettingsBackup(done) => self.backup_finished(event_loop, *done),
+            UserEvent::Drop(e) => self.drop_event(event_loop, e),
             UserEvent::RemoteDeleted(ok) => self.remote_deleted(ok),
         }
     }
@@ -1931,10 +1943,13 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_)
                 if self.own_drag_until.is_some_and(|t| Instant::now() < t) => {}
-            WindowEvent::HoveredFile(_) | WindowEvent::HoveredFileCancelled | WindowEvent::DroppedFile(_) => {
-                // Uploading what's dropped comes with the upload tools.
-                self.state.drop_overlay = matches!(event, WindowEvent::HoveredFile(_));
-                w.window.request_redraw();
+            // winit's file drops, where there's no drop target of our own.
+            WindowEvent::HoveredFile(_) => self.drop_event(event_loop, drop_target::DropEvent::Enter(Some(drop_target::DropKind::Files))),
+            WindowEvent::HoveredFileCancelled => self.drop_event(event_loop, drop_target::DropEvent::Leave),
+            WindowEvent::DroppedFile(path) => {
+                // One event per file (ShareX gets them together).
+                let data = drop_target::DropData::files(vec![path.clone()]);
+                self.drop_event(event_loop, drop_target::DropEvent::Drop(Box::new(data)));
             }
             WindowEvent::RedrawRequested => {
                 self.state.maximized = w.window.is_maximized();

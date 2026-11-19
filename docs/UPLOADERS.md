@@ -204,7 +204,12 @@ response that can't be parsed is reported as "The host (x) returned invalid
 response content; JSON was expected." (JSON errors, with Newtonsoft's
 message for non-JSON text) or "Unable to parse the response content returned
 by the host (x)." (anything else). The dialogs go through
-`custom::ParserUi` (none set: they give nothing).
+`custom::ParserUi`: in the app `upload::ParserDialogs` asks the event loop
+for `InputBoxWindow`, `OutputBoxWindow` or `ParserSelectWindow`
+(`dialogs/parser_select.rs`: a button per value, ten to a column, all as
+wide as the widest; closing it gives the first value) and the parsing
+thread waits, as ShareX's integrations do; on the event loop's own thread,
+and in the harness, they give nothing.
 
 ## OAuth and other sign-ins
 
@@ -642,6 +647,12 @@ Differences and gaps:
   "<service> isn't ported to ShareXrs yet." (ShareX would upload).
 - `DoFileJobs` (actions, copy file/path/folder, show in Explorer, Scan QR
   code) is ported and tested headlessly (`upload/tests.rs`, "File jobs").
+- Drag and drop onto the main window (`drop_target.rs`): an OLE drop target
+  reads the drag's data object as the clipboard viewer reads the
+  clipboard's, accepts files or non-empty text (the drop overlay names
+  which) and runs `UploadManager.DragDropUpload`: the files, else a bitmap
+  as an image task, else the text (`UploadText(text, taskSettings, true)`).
+  Behind `DropTarget` (tests use a fake); elsewhere winit's file drops.
 - `ProcessImagesDuringFileUpload` sends an image file through the after
   capture tasks (`TaskJob.Job`, its path and name kept); opened URLs use
   `BrowserPath` when it's set.

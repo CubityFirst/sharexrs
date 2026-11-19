@@ -15,3 +15,5 @@ crates/sharex-ocr/tests/fixtures/** -text
 crates/sharex-uploaders/tests/fixtures/sftp_test_* -text
 crates/sharex-uploaders/tests/fixtures/*.p12 -text
 crates/sharex-uploaders/tests/fixtures/servers.sharex.json -text
+# HDR frames and ShareX's outputs (raw pixels, compared byte for byte).
+crates/sharex-capture/tests/fixtures/hdr/** -text

@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+sharex-helpers.workspace = true
 sharex-settings.workspace = true
 sharex-screen-recording.workspace = true
 sharex-tools.workspace = true

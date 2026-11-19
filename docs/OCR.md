@@ -327,5 +327,4 @@ The plan it followed:
 ## Not ported yet
 
 - macOS/Linux engine runs (untested).
-- The OCR hotkey on a file passed on the command line (`ShareX.exe -OCR <file>`):
-  ShareXrs has no command line hotkey jobs yet.
+

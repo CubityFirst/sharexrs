@@ -85,6 +85,13 @@ impl Dialog for OutputBoxWindow {
         super::debug_log::overlay_scroll_bars(ui, view, content, shown.state.offset);
         out
     }
+
+    fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {
+        if let Some(r) = self.closed.take() {
+            let _ = r.send(());
+        }
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

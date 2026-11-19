@@ -369,10 +369,14 @@ impl HotkeySettingsWindow {
             }
             x += w + 6.0;
         }
-        for (i, key) in [icon::ChevronUp, icon::ChevronDown].into_iter().enumerate() {
+        for (i, (key, tip)) in [(icon::ChevronUp, s::HotkeySettingsWindow_MoveUp()), (icon::ChevronDown, s::HotkeySettingsWindow_MoveDown())].into_iter().enumerate() {
             let br = Rect::from_min_size(pos2(x, by), Vec2::splat(ROW_BUTTON));
             if icon_button(ui, br, Id::new(("hk-move", i)), key, 16.0, can_move && live).clicked() {
                 clicked = Some(4 + i);
+            }
+            // `ToolTip.Tip` (not on a disabled button, as Avalonia's).
+            if can_move && live {
+                sharex_ui::tooltip::show(ui, br, Id::new(("hk-move-tip", i)), tip);
             }
             x += ROW_BUTTON + 6.0;
         }
@@ -530,6 +534,9 @@ impl HotkeySettingsWindow {
         if customized {
             let mark = Rect::from_min_size(pos2(chevron.min.x - 7.0 - 14.0, center_y(c, 14.0)), Vec2::splat(14.0));
             icons::paint(ui.painter(), mark, icon::Edit, p.accent_icon);
+            if live {
+                sharex_ui::tooltip::show(ui, mark, Id::new(("hk-custom-tip", i)), s::HotkeySettingsWindow_ThisTaskHasCustomSettings());
+            }
         }
         let name_rect = Rect::from_min_max(pos2(c.min.x + 18.0 + 7.0, c.min.y), pos2(chevron.min.x - 7.0 - mark_w - 7.0, c.max.y));
         controls::label(ui, name_rect, &job.localized_description(), font(13.0, 400), p.text_secondary);
@@ -539,6 +546,9 @@ impl HotkeySettingsWindow {
         // `Button.row-icon-button`: Edit task settings.
         if icon_button(ui, edit_rect, Id::new(("hk-edit", i)), icon::Edit, 17.0, live).clicked() {
             action = Some(RowAction::Edit);
+        }
+        if live {
+            sharex_ui::tooltip::show(ui, edit_rect, Id::new(("hk-edit-tip", i)), s::HotkeySettingsWindow_EditTaskSettings());
         }
         // `Button.hotkey-capture`: Padding 16,4, the hotkey centred.
         let hk_resp = Button::compact(Thickness::hv(16.0, 4.0)).show(ui, hk_rect, Id::new(("hk-key", i)), "", live);
@@ -561,6 +571,15 @@ impl HotkeySettingsWindow {
         // its stretched height.
         let st = Rect::from_min_size(pos2(status_rect.min.x + ((32.0f32 - 19.0) / 2.0).round_ties_even(), status_rect.min.y + (ROW_BUTTON - 19.0) / 2.0), Vec2::splat(19.0));
         icons::paint(ui.painter(), st, key, color);
+        // `ToolTip.Tip="{Binding StatusText}"` on the 32x34 status cell.
+        if live {
+            let status = match h.HotkeyInfo.status {
+                HotkeyStatus::Registered => s::HotkeySettingsWindow_Registered(),
+                HotkeyStatus::Failed => s::HotkeySettingsWindow_RegistrationFailed(),
+                HotkeyStatus::NotConfigured => s::HotkeySettingsWindow_NotConfigured(),
+            };
+            sharex_ui::tooltip::show(ui, status_rect, Id::new(("hk-status-tip", i)), status);
+        }
         if action.is_none() && live && resp.clicked() {
             action = Some(RowAction::Select);
         }
@@ -647,6 +666,24 @@ pub fn moved_index(i: usize, from: usize, to: usize) -> usize {
 
 /// A compact toolbar button's width: icon (the button's 13px font), 7,
 /// the label (a `TextBlock`, Segoe UI Normal).
+/// `FitMinWidthToToolbar`: the toolbar's width (the four labelled buttons,
+/// the two 34px move buttons and Reset, 6px between its eight columns, its
+/// 8px padding and side borders) plus `ContentGrid`'s 10px margins, rounded
+/// up: the window's minimum width when translated labels need more than
+/// [`MIN_WIDTH`].
+pub fn fit_min_width(ui: &Ui) -> f32 {
+    let labels = [
+        s::HotkeySettingsWindow_Add(),
+        s::HotkeySettingsWindow_Remove(),
+        s::HotkeySettingsWindow_EditTask(),
+        s::HotkeySettingsWindow_Duplicate(),
+        s::HotkeySettingsWindow_ResetWithEllipsis(),
+    ];
+    let buttons: f32 = labels.iter().map(|t| icon_text_button_width(ui, t)).sum::<f32>() + 2.0 * ROW_BUTTON;
+    let toolbar = buttons + 7.0 * 6.0 + 2.0 * 8.0 + 2.0;
+    MIN_WIDTH.max((toolbar + 20.0).ceil())
+}
+
 fn icon_text_button_width(ui: &Ui, text: &str) -> f32 {
     1.0 + COMPACT_PADDING.left + 13.0 + 7.0 + text_width(ui, text, font(13.0, 400)) + COMPACT_PADDING.right + 1.0
 }
@@ -850,6 +887,16 @@ mod tests {
     fn svc_parts() -> (Vec<HotkeySettings>, ApplicationConfig) {
         let settings = ApplicationConfig::default();
         (sharex_settings::default_hotkey_list(&TaskSettings::default()), settings)
+    }
+
+    /// English labels fit ShareX's 620px minimum; the toolbar's own width
+    /// only matters when translated labels are wider.
+    #[test]
+    fn the_minimum_width_fits_the_toolbar() {
+        let mut screen = sharex_ui::offscreen::Offscreen::new([100, 100], 1.0, true).unwrap();
+        let mut width = 0.0;
+        screen.run(Vec::new(), &mut |ui: &mut egui::Ui| width = fit_min_width(ui));
+        assert_eq!(width, MIN_WIDTH);
     }
 
     #[test]

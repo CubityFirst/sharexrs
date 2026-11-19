@@ -34,6 +34,7 @@ pub mod message_dialog;
 pub mod notification;
 pub mod oauth_listener;
 pub mod output_box;
+pub mod parser_select;
 pub mod print_window;
 pub mod qr_code;
 pub mod quick_task_editor;

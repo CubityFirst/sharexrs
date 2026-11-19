@@ -118,6 +118,8 @@ pub(super) struct Worker<'a> {
     pub(super) data_type: EDataType,
     pub(super) file_name: String,
     pub(super) file_path: Option<PathBuf>,
+    /// `Info.ThumbnailFilePath`.
+    pub(super) thumbnail_file_path: Option<PathBuf>,
     /// `Info.Result`.
     pub(super) result: UploadResult,
     /// `Info.UploadDuration`.
@@ -174,6 +176,7 @@ impl<'a> Worker<'a> {
             data_type: t.data_type,
             file_name: t.file_name,
             file_path: t.file_path,
+            thumbnail_file_path: None,
             result,
             upload_duration: None,
             source: Some(t.source),
@@ -289,6 +292,7 @@ impl<'a> Worker<'a> {
                         if outcome.file_path.is_some() {
                             self.file_path = outcome.file_path;
                         }
+                        self.thumbnail_file_path = outcome.thumbnail_file_path;
                         if let Some(data) = outcome.data {
                             self.set_data(data);
                         }
@@ -713,6 +717,7 @@ impl<'a> Worker<'a> {
         TaskReport {
             file_name: self.file_name.clone(),
             file_path: self.file_path.clone(),
+            thumbnail_file_path: self.thumbnail_file_path.clone(),
             result: tasks::UploadResult {
                 url: r.url.clone().unwrap_or_default(),
                 thumbnail_url: r.thumbnail_url.clone().unwrap_or_default(),

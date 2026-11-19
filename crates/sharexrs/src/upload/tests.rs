@@ -41,12 +41,19 @@ enum Ui {
     CopyFile(PathBuf),
     ShowInFolder(PathBuf),
     ScanQrCode(PathBuf),
+    /// `PrintImage` with the image's size.
+    Print(u32, u32),
+    Analyze(PathBuf),
+    /// The save dialog: its title, suggested name and folder.
+    SaveAs(String, String, PathBuf),
 }
 
 #[derive(Default)]
 struct RecordingUi {
     actions: Mutex<Vec<Ui>>,
     clipboard: Mutex<Option<String>>,
+    /// What the save dialog answers, in turn (then cancelled).
+    save_as: Mutex<Vec<PathBuf>>,
 }
 
 impl TaskUi for RecordingUi {
@@ -83,6 +90,20 @@ impl TaskUi for RecordingUi {
     fn scan_qr_code_file(&self, path: &Path) {
         self.actions.lock().unwrap().push(Ui::ScanQrCode(path.to_path_buf()));
     }
+
+    fn print_image(&self, image: &image::RgbaImage) {
+        self.actions.lock().unwrap().push(Ui::Print(image.width(), image.height()));
+    }
+
+    fn analyze_image(&self, path: &Path, _task: &TaskSettings) {
+        self.actions.lock().unwrap().push(Ui::Analyze(path.to_path_buf()));
+    }
+
+    fn save_image_file_dialog(&self, title: &str, file_name: &str, initial_directory: &Path, _extension: &str) -> Option<PathBuf> {
+        self.actions.lock().unwrap().push(Ui::SaveAs(title.to_owned(), file_name.to_owned(), initial_directory.to_path_buf()));
+        let mut answers = self.save_as.lock().unwrap();
+        (!answers.is_empty()).then(|| answers.remove(0))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +132,8 @@ struct Options {
     request_timeout: Option<Duration>,
     /// Stop the task at its first progress report.
     stop_at_progress: bool,
+    /// The save dialog's answers.
+    save_as: Vec<PathBuf>,
 }
 
 struct Outcome {
@@ -162,7 +185,7 @@ fn app_settings() -> ApplicationConfig {
 /// events, until `OnTaskCompleted`.
 fn run(task: UploadTask, config: UploadersConfig, dir: &Path, options: Options) -> Outcome {
     let store = UploadersConfigStore::loaded(config);
-    let ui = Arc::new(RecordingUi::default());
+    let ui = Arc::new(RecordingUi { save_as: Mutex::new(options.save_as), ..RecordingUi::default() });
     let (tx, rx) = mpsc::channel::<TaskEvent>();
     let tx = Mutex::new(tx);
     let ctx = UploadContext {
@@ -939,4 +962,110 @@ fn a_file_upload_runs_its_actions_and_uploads_their_output() {
     let log = mock.log();
     let (name, body) = multipart_file(&log[0].body, "file");
     assert_eq!((name.as_str(), body), ("other.bin", &b"plain"[..]));
+}
+
+#[test]
+fn process_images_during_file_upload_runs_the_after_capture_tasks() {
+    let mock = Mock::start();
+    mock.reset(json!({ "responses": [ok(IMAGE_RESPONSE)] }));
+    let dir = TempDir::new("file-process-image");
+    let file = dir.0.join("made-up.bmp");
+    let pixels = image::RgbaImage::from_fn(12, 8, |x, y| image::Rgba([x as u8 * 20, y as u8 * 30, 7, 255]));
+    image::DynamicImage::ImageRgba8(pixels.clone()).to_rgb8().save(&file).unwrap();
+    let mut task = task_settings();
+    task.ImageDestination = ImageDestination::CustomImageUploader;
+    task.AfterCaptureJob = AfterCaptureTasks::UploadImageToHost;
+    task.AdvancedSettings.get_or_insert_default().ProcessImagesDuringFileUpload = true;
+    let mut app = app_settings();
+    let counter = app.NameParserAutoIncrementNumber;
+    let t = manager::create_file_uploader_task(&file, task, &mut new_task_context(&mut app, &dir.0)).unwrap();
+    // `TaskJob.Job` with the file's name and path, the counter untouched.
+    assert_eq!(t.job, TaskJob::Job);
+    assert_eq!(t.file_name, "made-up.bmp");
+    assert_eq!(t.file_path.as_deref(), Some(file.as_path()));
+    assert_eq!(app.NameParserAutoIncrementNumber, counter);
+    let out = run(t, config_with(vec![image_host(&mock)]), &dir.0, Options::default());
+    let log = mock.log();
+    assert_eq!(log.len(), 1, "{log:?}");
+    // Prepared as the task's image format (PNG) under the file's name.
+    let (name, body) = multipart_file(&log[0].body, "file");
+    assert_eq!(name, "made-up.png");
+    assert_eq!(image::load_from_memory(body).unwrap().to_rgba8(), pixels);
+    assert_eq!(out.status(), TaskStatus::Completed);
+}
+
+#[test]
+fn print_save_as_and_thumbnail_after_capture_tasks() {
+    let dir = TempDir::new("save-as-thumbnail");
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::SendImageToPrinter
+        | AfterCaptureTasks::SaveImageToFile
+        | AfterCaptureTasks::SaveImageToFileWithDialog
+        | AfterCaptureTasks::SaveThumbnailImageToFile;
+    {
+        let s = task.ImageSettings.get_or_insert_default();
+        s.ThumbnailWidth = 20;
+        s.ThumbnailHeight = 0;
+    }
+    // The dialog's first answer can't be written (no such folder): it asks
+    // again, and the second is a JPEG.
+    let chosen = dir.0.join("picked").join("chosen.jpg");
+    std::fs::create_dir_all(chosen.parent().unwrap()).unwrap();
+    let options = Options { save_as: vec![dir.0.join("missing").join("x.png"), chosen.clone()], ..Options::default() };
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, options);
+    assert_eq!(out.status(), TaskStatus::Completed);
+    let prints: Vec<_> = out.ui.iter().filter(|u| matches!(u, Ui::Print(..))).cloned().collect();
+    assert_eq!(prints, vec![Ui::Print(40, 30)]);
+    let dialogs: Vec<_> = out.ui.iter().filter_map(|u| if let Ui::SaveAs(t, n, d) = u { Some((t.clone(), n.clone(), d.clone())) } else { None }).collect();
+    assert_eq!(dialogs.len(), 2);
+    // Suggested: the saved file's name, in the screenshots folder.
+    let saved_name = dialogs[0].1.clone();
+    assert!(saved_name.ends_with(".png"), "{saved_name}");
+    assert!(dialogs[0].0.ends_with(&saved_name));
+    // The JPEG was written, and is the task's file now.
+    let jpeg = std::fs::read(&chosen).unwrap();
+    assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
+    assert_eq!(out.report.file_path.as_deref(), Some(chosen.as_path()));
+    assert_eq!(out.report.file_name, "chosen.jpg");
+    // The thumbnail beside it: 20 wide, aspect kept, a JPEG.
+    let thumb = out.report.thumbnail_file_path.clone().expect("a thumbnail");
+    assert_eq!(thumb, chosen.with_file_name("chosen-thumbnail.jpg"));
+    let t = image::open(&thumb).unwrap();
+    assert_eq!((t.width(), t.height()), (20, 15));
+}
+
+#[test]
+fn analyze_image_saves_the_image_first() {
+    let dir = TempDir::new("analyze-saves");
+    let mut task = task_settings();
+    task.AfterCaptureJob = AfterCaptureTasks::AnalyzeImage;
+    let out = run(image_task(task, &dir.0), UploadersConfig::default(), &dir.0, Options::default());
+    let path = out.report.file_path.clone().expect("saved for the analysis");
+    assert!(path.is_file());
+    assert!(out.ui.contains(&Ui::Analyze(path)), "{:?}", out.ui);
+}
+
+/// A custom uploader's `{inputbox}`, `{outputbox}` and `{select}`: the
+/// parsing thread asks the event loop and waits; the event loop's own
+/// thread gets nothing rather than waiting for itself.
+#[test]
+fn parser_dialogs_ask_the_event_loop() {
+    use sharex_uploaders::custom::ParserUi;
+    let requests: super::RequestSink = Arc::new(|r| match r {
+        super::UiRequest::InputBox(title, default, tx) => tx.send(Some(format!("{title}:{default}"))).unwrap(),
+        super::UiRequest::OutputBox(_, _, tx) => tx.send(()).unwrap(),
+        super::UiRequest::ParserSelect(values, tx) => tx.send(values.last().cloned()).unwrap(),
+        other => panic!("{other:?}"),
+    });
+    let dialogs = Arc::new(super::ParserDialogs { requests, ui_thread: std::thread::current().id() });
+    assert_eq!(dialogs.input_box("Title", "x"), None);
+    assert_eq!(dialogs.select(&["a".into()]), None);
+    let d = dialogs.clone();
+    let answers = std::thread::spawn(move || {
+        d.output_box("text", "Output");
+        (d.input_box("Title", "x"), d.select(&["a".into(), "b".into()]))
+    })
+    .join()
+    .unwrap();
+    assert_eq!(answers, (Some("Title:x".into()), Some("b".into())));
 }

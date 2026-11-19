@@ -390,6 +390,15 @@ impl DirectoryIndexerWindow {
     }
 }
 
+/// `SelectFolderAsync`: `folders.FirstOrDefault()?.Path.LocalPath`. An
+/// Avalonia folder's `Path` is a URI ending in `/`, so the local path ends
+/// with a separator, which the index's root folder name then is empty of
+/// (`FolderInfo.FolderName`: `Path.GetFileName`; "Index for " in the HTML
+/// title, as ShareX writes it).
+fn pick_folder_to_index() -> Option<String> {
+    tools::pick_folder(s::DirectoryIndexerWindow_Select_folder_to_index_dialog(), "").map(|f| storage_folder_path(&f))
+}
+
 impl Dialog for DirectoryIndexerWindow {
     fn spec(&self) -> Spec {
         Spec::sized(crate::rs_title(s::DirectoryIndexerWindow_ShareX_Directory_Indexer()), WIDTH, HEIGHT, 820.0, 580.0)
@@ -426,7 +435,7 @@ impl Dialog for DirectoryIndexerWindow {
         let br = Rect::from_min_size(pos2(gr.min.x - 10.0 - bw, row.min.y), vec2(bw, tools::BUTTON_HEIGHT));
         tools::path_text(ui, Rect::from_min_max(pos2(row.min.x + hw + 10.0, row.min.y), pos2(br.min.x - 10.0, row.max.y)), &self.folder_path);
         if tools::text_button(ui, br, Id::new("indexer-browse"), browse, idle).clicked()
-            && let Some(f) = tools::pick_folder(s::DirectoryIndexerWindow_Select_folder_to_index_dialog(), "")
+            && let Some(f) = pick_folder_to_index()
         {
             self.set_folder(&storage_folder_path(&f), true);
         }

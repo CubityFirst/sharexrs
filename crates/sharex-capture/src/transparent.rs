@@ -247,6 +247,8 @@ pub struct TransparentCapture<'a> {
     pub capture_shadow: bool,
     pub shadow_offset: i32,
     pub capture_cursor: bool,
+    /// `HDRScreenshotColorCorrection`: each grab is `CaptureRectangleNative`.
+    pub hdr_color_correction: bool,
 }
 
 impl TransparentCapture<'_> {
@@ -279,10 +281,10 @@ impl TransparentCapture<'_> {
             let grab = |b: &mut platform::BackgroundWindow, c: [u8; 3]| {
                 b.set_color(c);
                 platform::BackgroundWindow::flush();
-                platform::capture_rectangle(rect)
+                crate::screenshot::capture_rectangle_native(rect, false, self.hdr_color_correction)
             };
             platform::BackgroundWindow::flush();
-            let white = platform::capture_rectangle(rect);
+            let white = crate::screenshot::capture_rectangle_native(rect, false, self.hdr_color_correction);
             let black = grab(&mut background, [0, 0, 0]);
             let white2 = grab(&mut background, [255, 255, 255]);
             (white, black, white2)

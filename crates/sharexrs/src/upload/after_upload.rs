@@ -175,7 +175,7 @@ impl Worker<'_> {
             result: &self.result,
             file_name: &self.file_name,
             file_path: self.file_path.as_deref(),
-            thumbnail_file_path: None,
+            thumbnail_file_path: self.thumbnail_file_path.as_deref(),
             upload_duration: self.upload_duration,
         }
     }

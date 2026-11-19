@@ -5,12 +5,6 @@
 //! SDR white level and compresses above it, then encodes as sRGB into the
 //! BGRA canvas.
 
-use windows::Win32::Devices::Display::{
-    DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL, DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_MODE_INFO,
-    DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SDR_WHITE_LEVEL, DISPLAYCONFIG_SOURCE_DEVICE_NAME, DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes,
-    QDC_ONLY_ACTIVE_PATHS, QueryDisplayConfig,
-};
-use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
@@ -83,61 +77,9 @@ impl MonitorColorInfo {
     }
 }
 
-/// `GetSdrWhiteScale`'s value from `DISPLAYCONFIG_SDR_WHITE_LEVEL` (thousandths of 80 nits).
-pub fn white_scale_from_level(level: u32) -> Option<f32> {
-    (level > 0).then(|| (level as f32 / 1000.0).clamp(1.0, 125.0))
-}
-
-/// `DisplayConfigHelper.GetSdrWhiteScale`: the SDR white level of the
-/// active path whose GDI source is `device_name` (`\\.\DISPLAY1`), 1 when unknown.
-pub fn sdr_white_scale(device_name: &str) -> f32 {
-    // SAFETY: the display configuration queries with buffers of the sizes Windows gave.
-    unsafe {
-        let (mut path_count, mut mode_count) = (0u32, 0u32);
-        if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut path_count, &mut mode_count) != ERROR_SUCCESS {
-            return 1.0;
-        }
-        let mut paths = vec![DISPLAYCONFIG_PATH_INFO::default(); path_count as usize];
-        let mut modes = vec![DISPLAYCONFIG_MODE_INFO::default(); mode_count as usize];
-        if QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &mut path_count, paths.as_mut_ptr(), &mut mode_count, modes.as_mut_ptr(), None) != ERROR_SUCCESS {
-            return 1.0;
-        }
-        for path in &paths[..path_count as usize] {
-            let mut source = DISPLAYCONFIG_SOURCE_DEVICE_NAME {
-                header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
-                    r#type: DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
-                    size: size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32,
-                    adapterId: path.sourceInfo.adapterId,
-                    id: path.sourceInfo.id,
-                },
-                ..Default::default()
-            };
-            if DisplayConfigGetDeviceInfo(&mut source.header) != 0 {
-                continue;
-            }
-            let n = &source.viewGdiDeviceName;
-            let gdi = String::from_utf16_lossy(&n[..n.iter().position(|&c| c == 0).unwrap_or(n.len())]);
-            if !crate::devices::equals_ordinal_ignore_case(&gdi, device_name) {
-                continue;
-            }
-            let mut white = DISPLAYCONFIG_SDR_WHITE_LEVEL {
-                header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
-                    r#type: DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL,
-                    size: size_of::<DISPLAYCONFIG_SDR_WHITE_LEVEL>() as u32,
-                    adapterId: path.targetInfo.adapterId,
-                    id: path.targetInfo.id,
-                },
-                SDRWhiteLevel: 0,
-            };
-            if DisplayConfigGetDeviceInfo(&mut white.header) == 0
-                && let Some(scale) = white_scale_from_level(white.SDRWhiteLevel)
-            {
-                return scale;
-            }
-        }
-    }
-    1.0
-}
+/// `DisplayConfigHelper.GetSdrWhiteScale` (ShareX.HelpersLib), shared with
+/// the HDR screenshot correction.
+pub use sharex_helpers::display_config::{sdr_white_scale, white_scale_from_level};
 
 const SOURCE: &str = r#"
         Texture2D<float4> source : register(t0);

@@ -16,7 +16,8 @@
 //!   `seed_render_state`: `connected-display`, `code-entered`, `listed`...),
 //!   `--scroll` its page scrolled,
 //! - `oauth-listener` (waiting for the browser), `input-box` (MEGA's
-//!   two-factor question, `--text` typed in), `email-window` (`--state
+//!   two-factor question, `--text` typed in), `parser-select` (a custom
+//!   uploader's `{select}`, `--text a|b|c`), `email-window` (`--state
 //!   empty|prefilled|edited`), `youtube-options` (`--state
 //!   default|edited`; `--clicks` on the combo box opens it),
 //!   `remote-storage-not-configured` (the message box), `remote-storage`
@@ -492,6 +493,11 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             Box::new(super::oauth_listener::OAuthListenerWindow::new(sharex_uploaders::http::CancellationToken::new(), done))
         }
+        "parser-select" => {
+            // A custom uploader's `{select:...}`: `--text a|b|c` (made-up hosts by default).
+            let values: Vec<String> = o.text.as_deref().unwrap_or("i.example.com|files.example.com|example.net").split('|').map(str::to_owned).collect();
+            Box::new(super::parser_select::ParserSelectWindow::new(&values, None))
+        }
         "input-box" => {
             let title = sharex_strings::uploaders_lib::DestinationSettings_Enter_current_two_factor_authentication_code();
             Box::new(super::input_box::InputBoxWindow::new(title, o.text.as_deref(), None, None, None))
@@ -595,6 +601,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "update-downloader"
             | "oauth-listener"
             | "input-box"
+            | "parser-select"
             | "email-window"
             | "youtube-options"
             | "remote-storage-not-configured"

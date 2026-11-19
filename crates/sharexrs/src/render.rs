@@ -269,7 +269,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let (mut width, mut height, mut scale) = (None, None, 1.0f32);
     let mut hover = None;
     let mut unregistered: Vec<usize> = Vec::new();
-    let mut drop_overlay = false;
+    let mut drop_overlay = None;
     let mut maximized = false;
     let mut open: Vec<usize> = Vec::new();
     let mut work_area = None;
@@ -338,7 +338,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 at = egui::pos2(x.parse().map_err(|_| "--at X,Y")?, y.parse().map_err(|_| "--at X,Y")?);
             }
             "--level" => level = val()?.parse().map_err(|_| "--level N")?,
-            "--drop-overlay" => drop_overlay = true,
+            "--drop-overlay" => drop_overlay = Some(crate::drop_target::DropKind::Files),
+            "--drop-overlay-text" => drop_overlay = Some(crate::drop_target::DropKind::Text),
             // With the platform's separators, as the saved files' paths have them.
             "--tasks" => {
                 task_files = val()?

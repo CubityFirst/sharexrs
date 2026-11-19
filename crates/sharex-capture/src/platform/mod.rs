@@ -6,6 +6,8 @@
 mod windows;
 #[cfg(windows)]
 pub use windows::*;
+#[cfg(windows)]
+pub mod windows_hdr;
 
 #[cfg(not(windows))]
 mod other;

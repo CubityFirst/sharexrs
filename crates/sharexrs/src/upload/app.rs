@@ -55,6 +55,14 @@ pub fn set_dialog_hooks(proxy: winit::event_loop::EventLoopProxy<UserEvent>) {
         email_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Email(fields, tx))).ok()?;
         rx.recv().ok().flatten()
     })));
+    // A custom uploader's `{inputbox}`, `{outputbox}` and `{select}`.
+    let parser_proxy = Mutex::new(proxy.clone());
+    sharex_uploaders::custom::set_parser_ui(Some(Arc::new(super::ParserDialogs {
+        requests: Arc::new(move |r| {
+            let _ = parser_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(r));
+        }),
+        ui_thread: std::thread::current().id(),
+    })));
     // `FileHelpers.OpenFile`/`OpenFolderWithFile`'s message box.
     let message_proxy = Mutex::new(proxy.clone());
     crate::shell::set_file_not_exist_hook(Some(Arc::new(move |text: String| {
@@ -206,6 +214,15 @@ impl App {
                 self.pin_image(event_loop, *image, None, &task);
                 return;
             }
+            super::UiRequest::PrintImage(image) => {
+                self.print_image(event_loop, *image);
+                return;
+            }
+            super::UiRequest::InputBox(title, default, reply) => {
+                Box::new(dialogs::input_box::InputBoxWindow::new(&title, Some(&default), None, None, Some(reply)))
+            }
+            super::UiRequest::OutputBox(text, title, reply) => Box::new(dialogs::output_box::OutputBoxWindow::new(&text, &title, false).on_closed(reply)),
+            super::UiRequest::ParserSelect(values, reply) => Box::new(dialogs::parser_select::ParserSelectWindow::new(&values, Some(reply))),
             super::UiRequest::Email(fields, reply) => {
                 let (to, subject, body) = *fields;
                 Box::new(dialogs::email_window::EmailWindow::new(&to, &subject, &body, Some(reply)))
@@ -411,6 +428,30 @@ impl App {
         if let Some(files) = files {
             let kind = dialogs::confirm::Confirm::MultiUpload { files, task: Box::new(task) };
             self.open_dialog_window(event_loop, Box::new(dialogs::confirm::ConfirmWindow::new(kind)));
+        }
+    }
+
+    /// `MainWindow`'s drop handlers: the overlay while something it takes
+    /// is dragged over (`UpdateDropOverlay`), and on the drop
+    /// `UploadManager.DragDropUpload` with the default task settings
+    /// (`OnDrop`). The main window's own drag (a task's file dragged out)
+    /// is ignored, as ShareX does while `_thumbnailDragSource` is set.
+    pub(crate) fn drop_event(&mut self, event_loop: &ActiveEventLoop, event: crate::drop_target::DropEvent) {
+        use crate::drop_target::{DropUpload, handle};
+        let own_drag = self.own_drag_until.is_some_and(|t| std::time::Instant::now() < t);
+        let (overlay, upload) = handle(event, own_drag);
+        if self.state.drop_overlay != overlay {
+            self.state.drop_overlay = overlay;
+            if let Some(w) = &self.main {
+                w.window.request_redraw();
+            }
+        }
+        let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+        match upload {
+            Some(DropUpload::Files(files)) => self.upload_request(event_loop, UploadRequest::Files { files, task, confirmed: false }),
+            Some(DropUpload::Image(image)) => self.run_image_task_for(image, task),
+            Some(DropUpload::Text(text)) => self.upload_request(event_loop, UploadRequest::Text { text, task, allow_custom_text: true }),
+            None => {}
         }
     }
 
