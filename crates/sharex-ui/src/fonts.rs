@@ -88,11 +88,12 @@ fn system_font(names: &[&str]) -> Option<&'static [u8]> {
 /// read-only, so its pages are the file's (shared, and only those read
 /// are resident) rather than a private copy.
 fn font_file(path: &std::path::Path) -> Option<&'static [u8]> {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::sync::Mutex;
-    static FILES: Mutex<Option<HashMap<std::path::PathBuf, Option<&'static [u8]>>>> = Mutex::new(None);
+    type Files = BTreeMap<std::path::PathBuf, Option<&'static [u8]>>;
+    static FILES: Mutex<Files> = Mutex::new(BTreeMap::new());
     let mut files = FILES.lock().unwrap_or_else(|e| e.into_inner());
-    *files.get_or_insert_with(HashMap::new).entry(path.to_path_buf()).or_insert_with(|| {
+    *files.entry(path.to_path_buf()).or_insert_with(|| {
         map_file(path).or_else(|| std::fs::read(path).ok().map(|d| &*Box::leak(d.into_boxed_slice())))
     })
 }
