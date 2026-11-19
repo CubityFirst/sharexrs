@@ -616,3 +616,52 @@ and all test profiles and fixtures were deleted. The clipboard
 reported zero formats. Display settings were unchanged. All 63 new
 PrintWindow PNGs and DPI sidecars passed hash verification. The offline
 build and macOS Clippy check completed.
+
+## Fixes for pass 4 (branch `fix/live-checks-4`)
+
+Fixed headlessly with unit tests, `--render` and two new
+`tools/editor-harness --control-dump` modes run against ShareX's own
+controls (`borderstyle`, `colorpanel`). Pass 4 ran on `8723def`, before
+this branch, so both rows need a live re-check on a build of it.
+
+| ID | Cause | Fix | Re-check |
+|---|---|---|---|
+| HIL2-02 | The colour APIs (`ColorView::show`, `color_popup*`, `color_view::popup`, the recent colours) carried egui's `Color32`, which premultiplies. At A=166 a blue of 225 came back as 224 when the flyout opened, and the caller's round trip saved 223 after the alpha edit. The view's HSV maths was exact. | `04db4d6`: the APIs carry unmultiplied `[R, G, B, A]` (`color_view::Rgba8`) and `Color32` is used only to paint. Every caller converts its setting losslessly: Task settings' mouse highlighter (`A, R, G, B`) and canvas fill (`#AARRGGBB`), the editor's options, background, canvas size, new image and effect colours, image effects and gradient stops, Pin to screen, the Monitor test, the accent colour and the screen colour picker's result. `42cdde8`: with exact colours, the fill colour's default `#00FFFFFF` matched the palette's `Transparent` and showed a selection that ShareX doesn't. `--control-dump colorpanel` shows why. ShareX's `ColorPickerPanel` replaces three palette entries on `Loaded`, after the `ListBox` bound its selection, so those entries are selected only after the colour changes while shown. The view now models that. | From A=166 RGB 54,169,225: Components reads blue 225 before the edit. The alpha midpoint gives A=128 with RGB 54,169,225 shown and saved. Also: the editor's fill dropdown opens with no palette selection, and choosing the palette's Transparent then selects it. |
+| REG4-02 | The editor's option lists painted the active row's text in `ShareX.Brush.Text`, the value the item template sets. That value is a `DynamicResource` set at **Template** priority (DataTemplate content), so ShareX's `Button.active /template/ ContentPresenter TextBlock` and `IconPresenter` styles win at StyleTrigger priority with `ShareX.Brush.Accent.Foreground` (#111111). `--control-dump borderstyle` prints Solid `#ff111111` StyleTrigger and the others at Template. The previews' `Path` strokes keep `ShareX.Brush.Text`. | `67e37dc`: `editor_popups::list`'s active row draws its text and icons in the accent foreground and its previews in `Text`. Covers stroke style, arrow style, text alignment, step type, start number, font size and cursor type, in the editor and region capture. The grids (thickness, corner radius) keep their `Ellipse`/`Path` colours. The font list already did this. The shared `ComboBox`'s selected item already used the accent foreground (`ComboBoxItem:selected TextBlock`). | Rectangle's stroke-style dropdown: Solid in black on the accent with its line still light. Also the arrow style, alignment (icon and text), step type, start number, font size and cursor type dropdowns. |
+
+Sweep for other colours with alpha that went through `Color32` and back
+to settings: besides the callers above, the image editor's background
+panel and effect dialog wrote the popup's `Color32` back every frame it
+was open. Task settings' canvas fill wrote premultiplied channels. The
+canvas resize fill and the New image colour reached the bitmap through
+`Color32`. All of these are fixed in `04db4d6`. The rest only paint:
+theme and accent colours, the toast's fixed colours, previews, and the
+image tools' opaque `ColorPicker`s, whose alpha is off. The engine crates
+(`sharex-image-editor`, `-image-effects`, `-settings`, `-tools`,
+`-history`) don't use `Color32`.
+
+Regression: each compare script (menus, editor dialogs, editor effects,
+editor popups, data, image, image-finish, screen and system tools,
+scrolling; dark and light where the script has both) ran with master's
+binary (`668da63`) and this branch's. That is 271 compared states. Six
+changed, all editor popups, and all moved closer to ShareX:
+
+- text alignment: dark 0.08% → 0.07%, light 0.09% → 0.08%;
+- font size: dark 0.12% → 0.11%;
+- cursor type: dark 1.18% → 1.17%;
+- step type: light 0.05% → 0.04%;
+- stroke style: unchanged at 0.26% under the threshold. A crop shows
+  Solid now black like ShareX's.
+
+The fill-colour popup is unchanged at 0.05%. After `04db4d6` alone it
+was 0.08% (the palette selection), before `42cdde8`. Video tools weren't
+run: their FFmpeg states can write beside their inputs under
+`sharexrs-ref`, and they use no colour or picker code.
+`image-tools-compare.sh` stops at `comparer-identical` on a missing
+reference input (`tools-ui\in\photo.png`) for both binaries. It and the
+menu script ran from copies that write to a temp folder, not into
+`sharexrs-ref`. The 125% mouse highlighter flyout in Components after
+the edit (`--render color-view --content flyout --state components
+--text "128, 54, 169, 225" --scale 1.25`) is 1.01% against
+`SX/pass4-color-alpha-dark.png` for both binaries. The difference is the
+hex box's text anti-aliasing; both read `36A9E180`.
