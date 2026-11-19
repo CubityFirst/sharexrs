@@ -232,3 +232,142 @@ ShareXrs at 125% (Video converter 1062×687 vs 1063×688, QR code 1175×762 vs
 clear from these, so it's left for a live check. Offscreen renders at
 `--scale 1.25` laid out their first frame on egui's 8000-point default
 screen (dialog renders panicked); fixed.
+
+## Pass 2 · Windows desktop checks
+
+ShareX `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+`832b1efdf9904c9a79b68c64afb578ff126034fc`. Both ran with generated
+portable profiles. ShareXrs was built with `cargo build` offline.
+One 2560×1600 display ran at 120 DPI (125%) throughout. The display
+settings were left as found. `SX` and `RS` refer to the same evidence
+directories as in pass 1. The prior 16 failures remain in the pass 1
+tables. Rows for the new master behavior use the pass 2 executable.
+
+### Native recording
+
+The fixed region was `320,260,640,480` over `--test-pattern`. The MP4
+frame check decoded every frame with FFmpeg and compared RGB values at
+sample points inside the generated 16 px tiles. The check allows 22
+levels per channel for H.264 and 40 for indexed GIF. First and last
+decoded frames were then compared byte for byte for accepted pairs.
+Every recording was deleted after checking.
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| REC2-01 | Native recorder | 120 (125%) | Run `-ScreenRecorderCustomRegion` twice to open the built-in bar and record. Set 30 fps and 3 s fixed duration with cursor, audio and camera off. | H.264, 640×480, 30 fps, 3.000 s, 90 frames, 540,424 bytes. NVIDIA hardware encoder, zero dropped frames. | Same stream properties, encoder and frame count. 540,423 bytes. | PASS | Preflight region matched 100%. Every decoded frame passed at 1.0000. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-02 | Native recorder | 120 (125%) | Repeat REC2-01 with `-ScreenRecorderGIFCustomRegion` and the default 15 fps GIF rate. | 640×480, 3.000 s, 45 recorder slots. The GIF stores one image held over the full static clip. 120,539 bytes. | Same recorder slots, encoded image count, timing and byte size. | PASS | Sequential repeat SHA-256 `8ab65d9693e9931a12f8c2e0a88c035fd16ef5238a6e304c3e58c8e06f279b4a` in both apps. FFprobe average rate `100/300`. Decoded RGB matched across apps and passed the pattern check at 1.0000. |
+| REC2-03a | Native recorder | 120 (125%) | Leave the main window visible. Launch `--test-pattern --window 320,260,801,601`, activate its uniquely titled test window and verify foreground HWND and PID. Forward `-ScreenRecorderActiveWindow` twice with `CaptureClientArea=false` and REC2-01's settings. | 800×600, 30 fps, 3.000 s, 90 frames, 942,006 bytes, alternate pattern verified on all decoded frames. | On two attempts the selected target had the main window's dimensions, rounded even to 1124×878. The repeat was 30 fps, 3.000 s, 90 frames and 1,690,621 bytes. The requested pattern matched at 0.0007. | FAIL | Both ShareXrs recordings were rejected and deleted unviewed. The ShareXrs main window measured 1125×879. The tray-hidden control is REC2-03b. |
+| REC2-03b | Native recorder | 120 (125%) | Repeat REC2-03a with each app's main window hidden to the tray before activating the test window. | 800×600, 30 fps, 3.000 s, 90 frames, 942,006 bytes. | Same stream properties and frame count. 942,005 bytes. | PASS | Alternate pattern passed at 1.0000 on every decoded frame. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-04a | Native recorder | 120 (125%) | Start REC2-01 over the alternate pattern, forward `-PauseScreenRecording` about 1.25 s after Record and leave it paused beyond the 3 s fixed duration. Forward the same command to resume in place. | Completed after resuming. 640×480, 30 fps, 3.000 s, 90 frames, 544,464 bytes. | Same behavior and stream properties. 544,463 bytes. | PASS | All decoded frames matched the alternate pattern at 0.9992. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-04b | Native recorder | 120 (125%) | Drag the paused recording frame to a different region before resuming. | The paused tool window was verified by HWND and PID. The Windows input tool could not select it and its PrintWindow client was black. | The frame was listed by the input tool and its PrintWindow client was also black. No drag was issued. | BLOCKED | REC2-04a establishes pause and resume in place. |
+| REC2-05 | Native recorder | 120 (125%) | Select the non-default GoXLR Sample output, verify it differs from all three default output roles and has no active foreign playback session. Play a generated 1 kHz tone there for 5 s with a scratch WASAPI player. Run REC2-01 with only system audio enabled. | AAC 48 kHz stereo, 3.007979 s, 1 kHz present in all thirty 100 ms windows. 614,063 bytes. | Same codec, rate, channels, duration and tone coverage. 614,089 bytes. | PASS | Playback session guard found no active foreign streams. FFmpeg decoded 144,384 samples per channel in both files. Video was 640×480 at 30 fps, 90 frames, with 1.0000 pattern match and pixel-identical first and last decoded frames. |
+| REC2-06 | Native recorder | 120 (125%) | Make a short recording with a verified muted microphone or a virtual input fed silence. | No safe microphone state was verified. | No microphone recording attempted. | BLOCKED | Microphone was disabled for every recording. |
+| REC2-07 | Native recorder | 120 (125%) | Enable a covered or virtual camera and verify its placement and lifetime. | No covered or synthetic camera was verified. | No camera recording attempted. | BLOCKED | Camera was disabled for every recording. |
+| REC2-08 | Native recorder | 120 (125%) | In Task settings › Capture › Screen recorder, compare all three device lists. Select Sample output, Sample input, and Cam Link 4K, turn capture sources off, close settings, and compare saved IDs. | Order after the default row: **output** Chat, Game, Music, Sample, System (all GoXLR). **Input** Broadcast Stream Mix and Chat Mic (GoXLR), HDMI (Cam Link 4K), Microphone (HD Pro Webcam C920), Sample (GoXLR). **Camera** Cam Link 4K, HD Pro Webcam C920. | Same default labels, names and order. All three selected IDs were nonempty and matched byte for byte across apps. | PASS | `pass2-device-{system,mic,camera}-dark.png` under SX and RS. All sources were confirmed off after the list test. |
+| REC2-09 | Native recorder | 120 (125%) | Compare the three source dropdowns on the recorder bar itself. | The reference bar HWND was verified for PrintWindow and unavailable as an input target. | The ShareXrs bar was targetable. A side-by-side list comparison from this surface was unavailable. | BLOCKED | Task settings list and ID results are in REC2-08. |
+
+### App windows and task list
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| APP2-01a | Debug log | 120 (125%) | Debug › Show debug log › Copy all in each generated profile. | Copied 197 lines including startup and recording completion entries. | Copied 168 lines including corresponding startup and recording completion entries. | PASS | Clipboard contents checked against generated run markers. The clipboard offered zero formats before the run and again after clearing the fixture. |
+| APP2-01b | Debug log | 120 (125%) | Choose Upload log, click Cancel on the confirmation, then choose Open log file. | Cancel dismissed the warning. Open log file opened the generated monthly log in Notepad. | Same warning, dismissal and local log viewer. | PASS | `pass2-debug-confirm-dark.png` under SX and RS. The log body is outside the retained crops. |
+| APP2-02a | Task list | 120 (125%) | With `ShowClipboardContentViewer=true`, load `ShareXrs pass two generated clipboard fixture` on the clipboard. Press Ctrl+V and dismiss the viewer with Escape. | Viewer showed the 45-character text. Escape dismissed it. | Same viewer, text and dismissal on current master. | PASS | `pass2-ctrl-v-dark.png` under SX and RS. |
+| APP2-02b | Task list | 120 (125%) | Seed `recent-local.txt` as a recent task and set `DisableUpload=true`. Select its file card and press Ctrl+U. | Started the task and displayed a modal saying the feature will not work while DisableUpload is enabled. | Started the task, logged the same warning and finished the row without showing the modal. | FAIL | `SX/pass2-ctrl-u-dark.png`. ShareXrs log: `Task status: Preparing`, warning, `Task status: Completed`. No upload. |
+| APP2-02c | Task list | 120 (125%) | Seed a URL-only recent task with the local `file:///…/download-source.txt` URI. Select it and press Ctrl+D. | Started a download task, then displayed a modal with `Download failed: System.NotSupportedException: The 'file' scheme is not supported.` | Started a download task, logged `Download failed: The 'file' scheme is not supported.` and left the row stopped. No modal. | FAIL | `SX/pass2-ctrl-d-dark.png`. No file was written. The fixture contains a local URI and never addresses a remote host. |
+| APP2-02d | Task list | 120 (125%) | Set `ThumbnailClickAction=OpenURL` and `BrowserPath` to a generated offline launcher that records one approved argument. Seed a URL-only recent task for `https://example.invalid/fixture-open.txt`. Click its card body once and its title once. | Passed the exact URL to the launcher twice. | Passed the exact URL to the launcher twice. | PASS | The launcher logged one line per click and had no network code. |
+| APP2-02e | Task list | 120 (125%) | Start from a generated portable profile with `RecentTasksShowInMainWindow=true`, thumbnail titles on and two recent items with URL and no file path. Use `file:///…/download-source.txt` and `https://example.invalid/fixture-open.txt`. | Titles are `download-source.txt` and `fixture-open.txt`. | Both titles are `Untitled task`. The adjacent file-backed `recent-local.txt` title is correct. | FAIL | `pass2-seeded-dark.png` under SX and RS. |
+
+### Tray
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| TRAY2-01 | Tray | 120 (125%) | Forward `-ToggleTrayMenu` from each portable app with generated recent rows and workflows. | App-owned tray popup opened with Workflows and Recent items. | Same entries in the app-owned tray popup. | PASS | `pass2-tray-root-dark.png` under SX and RS. The notification-area icon itself was unavailable in the input tool. |
+| TRAY2-02 | Tray | 120 (125%) | Seed a default Hash Check workflow bound to F8, an unbound edited Hash Check workflow and a None job. Inspect labels and run the edited workflow from the tray. | The tray root was visible. Its independently hosted popup could not be selected as an input target. The sidebar showed both labels, F8 and the edited asterisk, omitted None and opened Hash Checker. | The tray showed the matching labels, F8 and asterisk. Selecting the edited workflow opened Hash Checker. | BLOCKED | `SX/pass2-sidebar-workflows-dark.png`, `RS/pass2-tray-workflows-dark.png`. Side-by-side tray interaction and the edited-only filter were unresolved. |
+| TRAY2-03 | Tray | 120 (125%) | Tray › Recent items › generated local `recent-local.txt` › Copy, then Open. | Recent items was visible in the tray root. The independently hosted popup was unavailable as an input target. | Copied the exact generated path. Open launched the generated text file in Notepad. The test tab was closed and the clipboard cleared. | BLOCKED | `RS/pass2-recent-actions-dark.png`. |
+
+### History
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| HIS2-01 | History | 120 (125%) | History › Advanced › Date range. Open the first picker's day column at 19 November 2026, click down once and up once, and accept. | Day changed from 19 to 20 and back to 19. The accepted date showed 19 November 2026. | Same buttons, step order and accepted date. | PASS | `pass2-date-{down,up}-dark.png` under SX and RS. This row exercises the new buttons on `832b1ef`. |
+
+### Mouse highlighter
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| HIL2-01 | Mouse highlighter | 120 (125%) | Over the generated pattern, open the native recorder bar's Mouse highlighter arrow. Compare Ripple, Circle highlight and the Primary button color popup. Change alpha, increment Ripple size, select Circle and cancel the bar. | The reference bar was visible and verified by HWND. Neither the bar nor its host was available as an input target. A click addressed to the main window was rejected at the bar's verified position. | Opened Ripple and Circle and the alpha popup. After canceling the bar, saved `Mode=Circle`, `RippleSize=61` and `PrimaryColor="128, 54, 169, 225"` in `ToolsSettings.MouseHighlighterOptions`. | BLOCKED | `pass2-recorder-highlighter-bar-dark.png` under SX and RS, plus `pass2-recorder-highlighter-{ripple,primary-color,circle}-dark.png` under RS. The live effects and light-theme comparison remain open. |
+| HIL2-02 | Mouse highlighter | 120 (125%) | Task settings › Tools › Mouse highlighter › Primary button color. Open the popup and change alpha without changing RGB. | Avalonia tabbed ColorView has vertical value and alpha sliders. Saved alpha 128 and RGB 54, 169, 225. | The shared popup has numeric RGBA controls and horizontal hue and alpha sliders. Saved alpha 198 at the selected point with the same RGB. | FAIL | `pass2-hi-settings-color-dark.png` under SX and RS. This verifies the existing ColorView gap documented in [TOOLS.md](TOOLS.md#the-screen-tools-in-sharexrs). |
+
+### Scrolling capture
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| SCR2-01 | Scrolling capture | 120 (125%) | MouseWheel, ScrollAmount 2, ScrollDelay 1000 ms, AutoUpload off. Start on the generated `--test-pattern --scroll 300,120,420,480` page and activate the minimized capture window before the run finishes. | Opened the selection overlay over the verified page. The input tool omitted the overlay HWND, so selection was canceled via its verified window close. | Activated the verified capture window while the outline was present. It returned early with `Capture successful`, 420×1280 of the 420×2400 page. | BLOCKED | `RS/pass2-scroll-activated-dark.png` shows the status and dimensions. |
+| SCR2-02 | Scrolling capture | 120 (125%) | Repeat with the generated page at `40,700,420,480` and close the minimized capture window while the outline is present. | Reference selection was unavailable for the same reason as SCR2-01. | Closed the verified window while the 422×482 outline was present. Both capture window and outline were gone on the next check, and the app stayed running. | BLOCKED | PID-scoped window geometry and lifecycle result. |
+| SCR2-03 | Scrolling capture | 120 (125%) | Let MouseWheel run to completion on the same relocated page. Copy and verify the stitched image. | Reference selection was unavailable for the same reason as SCR2-01. | Reported `Capture successful`, 420×2400. The copied pixels matched 0.9808 of sampled points against the exact generated page and failed the 0.9900 guard. The image was deleted unviewed and the clipboard cleared. | BLOCKED | `RS/pass2-scroll-full-dark.png` retains status only. |
+| SCR2-04 | Scrolling capture | 120 (125%) | Exercise the Scroll message method with `WM_VSCROLL`. | The generated scroll page does not host a native scroll bar or implement this message. | Same fixture limitation. | BLOCKED | PageDown and Down Arrow already have pass 1 results and were outside this check. |
+
+### Toast and missing files
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| TOAST2-01 | Toast | 120 (125%) | Enable a 15 s task toast at MiddleCenter. Save a local `900,540,640,480` crop from the verified pattern and move the pointer over the image. | Showed the generated path and task title, revealed the action buttons and stayed open past 15 s. | Same hover behavior and duration hold. | PASS | `pass2-toast-hover-dark.png` under SX and RS. Both source PNGs matched the pattern at 1.0000. |
+| TOAST2-02 | Toast | 120 (125%) | With the TOAST2-01 action row visible, move the pointer onto Copy image and wait longer than 400 ms. The button center was about 1192,920 physical pixels in both apps. | Opened a separate 108×39 tooltip above Copy image. | No tooltip window or text appeared after the dwell or after a second pointer movement within the button. The toast and its buttons stayed visible. | FAIL | `pass2-toast-tip-dark.png` under SX and RS. The reference evidence is the tooltip HWND. The ShareXrs evidence is its toast client at the hovered position. |
+| TOAST2-03 | Toast | 120 (125%) | Click Copy image and compare image-body click actions and focus. The disposable profiles configured left, right and middle to Close notification. | The independently hosted toast HWND could be inspected and hovered, but the click was rejected by the input tool. | A click sent to Copy image yielded no clipboard image. A right click on the image did not immediately close the toast. It later disappeared. | BLOCKED | Button dispatch and focus parity could not be verified. |
+| TOAST2-04 | Toast | 120 (125%) | Drag the toast image to Explorer and compare SpecificMonitor behavior on another display. | Toast input was unavailable and the machine had one verified display. | Same single-display limitation. No test drag. | BLOCKED | Existing placement and expiry results are in pass 1. |
+| APP2-03 | App windows | 120 (125%) | Save a generated image with `-CustomRegion`, move only the scratch output away, then select its retained thumbnail and press Ctrl+E and Ctrl+Enter. Also try `-ImageEditor` with the absent scratch path. | The stale task commands did not open the missing-file message. The CLI rejected the path before the message handler. | Same result on both paths. | BLOCKED | The missing-file message itself was not reached. No editor or file dialog opened. |
+
+### Settings
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| SET2-01 | Settings | 120 (125%) | Task settings › Notifications › Configure › Add. Inspect the unused actions, pick Close notification and Cancel. | Menu lists eight unused actions. Cancel preserved the original four buttons. | Same eight names and order. Cancel preserved identical `ToastWindowButtons` JSON. | PASS | `pass2-notify-add-popup-dark.png` under SX and RS. |
+| SET2-02 | Settings | 120 (125%) | Task settings › File naming › Use custom time zone. Select (UTC-01:00) Azores and close settings. | Saved `Azores Standard Time`, offset `-01:00:00`. | Saved the same zone and identical decoded `CustomTimeZone` JSON, including adjustment rules. | PASS | `pass2-time-zone-dark.png` under SX and RS. The OS time zone remained `GMT Standard Time`. |
+| SET2-03 | Settings | 120 (125%) | Open the Time zone dropdown in the same unresized settings window from its default UTC selection. | Popup begins above the client and shows 15 rows, starting at Araguaina and including Asuncion. | Popup begins at the client top and displays 13 rows, starting at Brasilia. The shared entries appear in the same order. | FAIL | `pass2-time-zone-dark.png` under SX and RS. Reference popup y=271; client y=334. |
+| SET2-04 | Settings | 120 (125%) | Task settings › File naming, click inside the first `native-%i` box with the unresized settings window centered. Press Escape with the menu open. | Menu opened to the right of the field, extending beyond the client. Escape dismissed it and left settings open. | Same category labels and Escape behavior. Menu opened to the left of the field over the existing form labels. | FAIL | `pass2-naming-menu-dark.png` under SX and RS. This check uses File naming, a different field from the pass 1 Paths failure. |
+
+### Pass 2 coverage and teardown
+
+Pass 2 recorded **15 PASS, 8 FAIL and 14 BLOCKED**. The 43 PASS,
+16 FAIL and 22 BLOCKED from the first pass remain in their original
+tables. The clipboard shortcut and date button checks here use the new
+master executable. UAC, the FFmpeg downloader, live uploads and external
+Help links retain their earlier exclusions. Coverage on independent
+reference popups was limited by the Windows input tool's window list.
+The surviving gaps include the full tray submenus, recorder bar panels,
+paused retargeting, the missing-file dialog, full toast click and drag
+parity, native `WM_VSCROLL` and the remaining settings combinations.
+
+The first ShareXrs start reached Welcome because the fixture was staged
+under `ShareX` instead of the port's `ShareXrs` portable folder. The owned
+process stopped at Welcome, before update initialization. Corrected
+starts loaded `AutoCheckUpdate=false` before initialization. The first
+GIF probe encountered an in-progress reserved filename, and the
+recordings briefly overlapped. The reported GIF pair is the sequential
+repeat. Two visible-main-window WGC attempts targeted ShareXrs's own
+fixture window and were deleted unviewed after the pattern guard rejected
+them. Failed scrolling preflights and the rejected stitched image were
+also discarded unviewed. After a modal keyboard attempt opened the
+generated recent text file, its Notepad tab was closed. The reference
+upload-disabled and download-error dialogs were closed by exact HWND and
+PID after the input tool could not target them.
+
+The original ShareX PID 49164 and both fixture instances exited via
+`-ExitShareX`. After closing all fixture dialogs, all 13 original
+reference profile files matched their backup SHA-256 hashes. The
+reference was restarted without arguments as **PID 36232**. The
+restored profile enabled automatic updates, so startup used a temporary
+`AutoCheckUpdate=false` value and the exact original settings bytes
+were restored immediately afterward. The startup hotkey registration
+warning was closed by its verified HWND and the main window finished
+opening. The final verification found 12 unchanged hashes. The monthly
+log still contained its exact original bytes followed by 2,664 bytes
+written during normal startup.
+
+The temporary profiles, backup, recordings, generated data, test
+pattern, ShareXrs, tone players and local fixture launcher were removed
+or exited. The generated Notepad tabs were closed and the clipboard
+offered zero formats again. New PNGs and sidecars are in the pass 2
+evidence set under SX and RS. The offline build and macOS Clippy check
+completed.
