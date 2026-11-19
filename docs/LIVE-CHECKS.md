@@ -289,3 +289,48 @@ Every recording was deleted after checking.
 | SET2-02 | Settings | 120 (125%) | Task settings › File naming › Use custom time zone. Select (UTC-01:00) Azores and close settings. | Saved `Azores Standard Time`, offset `-01:00:00`. | Saved the same zone and identical decoded `CustomTimeZone` JSON, including adjustment rules. | PASS | `pass2-time-zone-dark.png` under SX and RS. The OS time zone remained `GMT Standard Time`. |
 | SET2-03 | Settings | 120 (125%) | Open the Time zone dropdown in the same unresized settings window from its default UTC selection. | Popup begins above the client and shows 15 rows, starting at Araguaina and including Asuncion. | Popup begins at the client top and displays 13 rows, starting at Brasilia. The shared entries appear in the same order. | FAIL | `pass2-time-zone-dark.png` under SX and RS. Reference popup y=271; client y=334. |
 | SET2-04 | Settings | 120 (125%) | Task settings › File naming, click inside the first `native-%i` box with the unresized settings window centered. Press Escape with the menu open. | Menu opened to the right of the field, extending beyond the client. Escape dismissed it and left settings open. | Same category labels and Escape behavior. Menu opened to the left of the field over the existing form labels. | FAIL | `pass2-naming-menu-dark.png` under SX and RS. This check uses File naming, a different field from the pass 1 Paths failure. |
+
+### Pass 2 coverage and teardown
+
+Pass 2 recorded **15 PASS, 8 FAIL and 14 BLOCKED**. The 43 PASS,
+16 FAIL and 22 BLOCKED from the first pass remain in their original
+tables. The clipboard shortcut and date button checks here use the new
+master executable. UAC, the FFmpeg downloader, live uploads and external
+Help links retain their earlier exclusions. Coverage on independent
+reference popups was limited by the Windows input tool's window list.
+The surviving gaps include the full tray submenus, recorder bar panels,
+paused retargeting, the missing-file dialog, full toast click and drag
+parity, native `WM_VSCROLL` and the remaining settings combinations.
+
+The first ShareXrs start reached Welcome because the fixture was staged
+under `ShareX` instead of the port's `ShareXrs` portable folder. The owned
+process stopped at Welcome, before update initialization. Corrected
+starts loaded `AutoCheckUpdate=false` before initialization. The first
+GIF probe encountered an in-progress reserved filename, and the
+recordings briefly overlapped. The reported GIF pair is the sequential
+repeat. Two visible-main-window WGC attempts targeted ShareXrs's own
+fixture window and were deleted unviewed after the pattern guard rejected
+them. Failed scrolling preflights and the rejected stitched image were
+also discarded unviewed. After a modal keyboard attempt opened the
+generated recent text file, its Notepad tab was closed. The reference
+upload-disabled and download-error dialogs were closed by exact HWND and
+PID after the input tool could not target them.
+
+The original ShareX PID 49164 and both fixture instances exited via
+`-ExitShareX`. After closing all fixture dialogs, all 13 original
+reference profile files matched their backup SHA-256 hashes. The
+reference was restarted without arguments as **PID 36232**. The
+restored profile enabled automatic updates, so startup used a temporary
+`AutoCheckUpdate=false` value and the exact original settings bytes
+were restored immediately afterward. The startup hotkey registration
+warning was closed by its verified HWND and the main window finished
+opening. The final verification found 12 unchanged hashes. The monthly
+log still contained its exact original bytes followed by 2,664 bytes
+written during normal startup.
+
+The temporary profiles, backup, recordings, generated data, test
+pattern, ShareXrs, tone players and local fixture launcher were removed
+or exited. The generated Notepad tabs were closed and the clipboard
+offered zero formats again. New PNGs and sidecars are in the pass 2
+evidence set under SX and RS. The offline build and macOS Clippy check
+completed.
