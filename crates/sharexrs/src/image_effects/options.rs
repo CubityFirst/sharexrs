@@ -202,7 +202,7 @@ impl OptionsPanel {
                     let mut x = rect.min.x;
                     for (bit, text) in items {
                         let cb = flag_check_box(&text, live);
-                        let w = cb.width(ui);
+                        let w = flag_width(ui, &text);
                         let r = Rect::from_min_size(pos2(x, rect.min.y + line as f32 * FLAG_HEIGHT), vec2(w, FLAG_HEIGHT));
                         let mut on = current & bit != 0;
                         cb.show(ui, r, id.with(bit), &mut on);
@@ -476,6 +476,15 @@ fn flag_check_box(text: &str, live: bool) -> CheckBox<'_> {
     CheckBox { text, text_font: controls::content_font(13.0, 400), text_color: None, min_height: FLAG_HEIGHT, enabled: live }
 }
 
+/// A flag check box's width as Avalonia measures it: the box (20), the
+/// content's 8px padding and its text, each desired size rounded up to
+/// whole device pixels (`LayoutHelper.RoundLayoutSizeUp`).
+fn flag_width(ui: &Ui, text: &str) -> f32 {
+    let px = sharex_ui::color_view::Px::of(ui.ctx());
+    let raw = sharex_ui::widgets::galley(ui, text, controls::content_font(13.0, 400), Color32::WHITE, f32::INFINITY).size().x;
+    px.up(20.0 + 8.0 + px.up(raw))
+}
+
 /// The flags' check boxes as `WrapPanel` lays them out in `width`: lines
 /// of (bit, text). Only single-bit flags get one (`bit & (bit - 1)`).
 fn flag_lines(ui: &Ui, flags: &[(u8, &str)], resource: &str, width: f32) -> Vec<Vec<(u8, String)>> {
@@ -486,7 +495,7 @@ fn flag_lines(ui: &Ui, flags: &[(u8, &str)], resource: &str, width: f32) -> Vec<
             continue;
         }
         let text = localization::enum_value(resource, name).to_string();
-        let w = flag_check_box(&text, true).width(ui) + 12.0;
+        let w = flag_width(ui, &text) + 12.0;
         if lines.is_empty() || (x + w > width && x > 0.0) {
             lines.push(Vec::new());
             x = 0.0;
