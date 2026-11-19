@@ -53,6 +53,7 @@
 //! window does when it opens, the actions get the image editors ShareX
 //! finds installed (`AddDefaultExternalPrograms`, the registry on Windows).
 //! `--content sample` adds two made-up actions and a watch folder;
+//! `--content variables:<box>` opens a box's variable menu;
 //! `toolbar-editor` / `region-toolbar-editor` (Customize toolbar...),
 //! `action-editor` (Add action), `action-editor-edit` (the first sample
 //! action), `action-editor-error` (Save with no name),
@@ -766,6 +767,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
             };
             state.page = page;
             state.set_scroll(page, scroll);
+            // `--text "ftp:A|B;custom:C|D"`: uploader accounts (FTP and custom
+            // uploaders' names) for the Task page.
+            if let Some(spec) = dialog.text.as_deref() {
+                for part in spec.split(';') {
+                    let (kind, names) = part.split_once(':').unwrap_or((part, ""));
+                    let names: Vec<String> = names.split('|').filter(|n| !n.is_empty()).map(str::to_string).collect();
+                    match kind {
+                        "ftp" => state.accounts.ftp = names,
+                        "custom" => state.accounts.custom = names,
+                        _ => {}
+                    }
+                }
+            }
             {
                 let task = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
                 // `--state no-actions`: a session where no image editor is
@@ -774,7 +788,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
                 }
                 let content = dialog.content.clone().unwrap_or_default();
-                if !content.is_empty() {
+                if !content.is_empty() && !content.starts_with("variables:") {
                     task_settings_samples(task);
                 }
                 // `--state region:X,Y,W,H`: the preconfigured region (what
@@ -818,6 +832,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         }
                         state.notification_editor = Some(ed);
                     }
+                    // `variables:<box>`: that box's variable menu open
+                    // (`capture-name`, `window-name`, `region-info`,
+                    // `picker-Format`, `picker-FormatCtrl`, `picker-InfoText`,
+                    // `clipboard-content`, `balloon-tip`, `open-url`).
+                    c if c.starts_with("variables:") => state.variables.open_on_draw = Some(c["variables:".len()..].to_string()),
                     "watch-folder-editor-edit" => {
                         state.watch_selected = Some(0);
                         state.watch_editor = Some(WatchFolderEditor::new(Some(0), task.WatchFolderList.first()));

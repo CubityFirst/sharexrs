@@ -149,7 +149,9 @@ pub fn filename_pattern_menu(target: CodeTarget) -> Vec<MenuEntry<String>> {
 pub fn clipboard_format_menu() -> Vec<MenuEntry<String>> {
     let mut out = vec![MenuEntry::parent(s::ApplicationSettingsWindow_UploadResult(), "", CLIPBOARD_RESULT_TOKENS.iter().map(|t| MenuEntry::item(*t, "", t.to_string())).collect())];
     for (category, group) in code_menu::group_by_category(code_menu::ALL) {
-        let items: Vec<_> = group.iter().map(|e| MenuEntry::item(e.to_prefix_string(), "", e.to_prefix_string())).collect();
+        // `CreateClipboardTokenItem(token, description)`: the description is
+        // the item's tooltip.
+        let items: Vec<_> = group.iter().map(|e| MenuEntry::item(e.to_prefix_string(), "", e.to_prefix_string()).tooltip(e.description())).collect();
         match category {
             Some(c) if !c.trim().is_empty() => out.push(MenuEntry::parent(c, "", items)),
             _ => out.extend(items),

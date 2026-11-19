@@ -25,6 +25,7 @@ pub mod mime_types;
 pub mod name_parser;
 pub mod random;
 pub mod single_instance;
+pub mod time_zone;
 pub mod zip_manager;
 
 pub use name_parser::{NameParser, NameParserType};

@@ -136,6 +136,7 @@ pub fn file_name(task: &TaskSettings, auto_increment: &mut i32, extension: &str,
     parser.image_height = metadata.image.height();
     parser.window_text = metadata.window_title.clone();
     parser.process_name = metadata.process_name.clone();
+    parser.custom_time_zone = if upload.UseCustomTimeZone { sharex_helpers::time_zone::from_settings(&upload.CustomTimeZone) } else { None };
     let has_title = parser.window_text.as_deref().is_some_and(|t| !t.is_empty());
     let pattern = if !upload.NameFormatPatternActiveWindow.is_empty() && has_title {
         &upload.NameFormatPatternActiveWindow

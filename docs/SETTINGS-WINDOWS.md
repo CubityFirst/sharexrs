@@ -123,7 +123,7 @@ shot" where ShareX's capture pass has none.
 | task-capture-settings region-picker | 0.04% | 0.04% | `region-rest --select-only --pointer 512,384` (light 470,350) |
 | task-capture-settings region-values | 0.65% | 0.56% | `task-settings-capture --state region:205,170,266,181` |
 | custom-uploader-import cli-prompt | 0.86% | 0.57% | `custom-uploader-import-prompt --text "Generated reference dark"` |
-| task-option-menus time-zone | — | — | not ported: the system time zone list (below) |
+| task-option-menus time-zone | 1.29% | 1.85% | `task-settings-upload-file-naming --height 1100 --click "270,434;600,471"`, cropped with `crop-match.py`; light: the popup window's 1px outline against the page is 1.1% of it |
 
 Built from source, no shot: the export's busy state and every finished
 status, the import error box, the notification buttons editor empty and with
@@ -149,7 +149,7 @@ as tall as ShareX's.
 | hotkey-task-scroll capture bottom / top | 0.60% / — | 0.62 / 0.61% | |
 | hotkey-task-scroll notifications bottom / top | 0.36% / — | 0.29 / 0.46% | |
 | hotkey-task-scroll region-capture bottom / top | 0.45% / — | 0.33 / 0.32% | |
-| hotkey-task-scroll task override-off | 0.67% | 1.03% | `--state overrides`; the rest is Uploader accounts, where ShareX's profile had a custom uploader (accounts aren't shown yet) |
+| hotkey-task-scroll task override-off | 0.43% | 0.40% | `--state overrides --text "custom:Generated reference dark"` (light: `... light`), ShareX's profile's custom uploader under Uploader accounts |
 | settings-light rest | — | 0.25% | `hotkeys --none 0,1,2,3,4 --state custom:0 --width 680 --height 600` |
 | settings-light task-tools | — | 0.23% | `task-settings-tools` |
 | app-menu-light upload / debug | — | 0.49 / 0.60% | `main-<menu>-menu`, cropped |
@@ -161,7 +161,8 @@ as tall as ShareX's.
 Regression pass after these changes, every Application settings and Task
 settings page against its first-screen shot: all equal to or below the
 numbers PORTING.md had (paths 1.14/0.95%: its previews show other folders;
-uploader filters light 1.29%: ShareX lists its services there).
+uploader filters light 1.29%: ShareX lists its services there; now 0.31/0.23%
+with the services, below).
 
 ## Live checks for the desktop agent
 
@@ -204,16 +205,108 @@ integration (every box reads off and does nothing there), the zip import's
 rooted-name rule (Windows treats `C:` and `\` as rooted; the comparisons
 with ShareX's Windows results run on Windows only), the region selection.
 
+## The last Task settings gaps
+
+| Piece | ShareX source | ShareXrs |
+|---|---|---|
+| Name pattern, pixel info and upload info variable menus | `NamePatternText`, `PixelInfoText`, `UploadInfoText`, `CodeMenuText`, `InsertText`; `CodeMenuEntryPixelInfo` | `variable_menu.rs` (`VariableMenus`); `sharex_helpers::code_menu::PIXEL_INFO` |
+| Uploader accounts | `BuildTaskPage` (`FTPAccountList`, `CustomUploadersList`, `ObjectCombo`, `BetweenOrDefault`) | `task_settings_window.rs` (`UploaderAccounts`, read when the window opens through `UploadersConfigStore::peek`, as `UploadersConfigOrNull`) |
+| Destinations menu commands | `DestinationMenu`, `MainMenuBuilder.BuildDestinationsMenu(settings)`, `CreateDestinationMenuItem` | the menu built from and applied to the edited task (`menu_settings::fill`/`apply`); its items close the menu and aren't bold, as `CreateDestinationMenuItem` drops `StaysOpenOnClick` and `BoldWhenChecked` |
+| Uploader filter services | `BuildUploaderFiltersPage`, `UploaderFactory.AllGenericUploaderServices.OrderBy(ServiceName)`, `UploaderFilter` | `page_uploader_filters` over `upload::filters::Service::all()` (culture-aware stable sort), Add/Update/Remove, `LoadSelection` |
+| Sound file picker | `SoundPath`, `PickFileAsync(ChooseAudioFile, WaveAudio, "*.wav")` | `pick_sound_file` (rfd) |
+| Device lists | `AudioDeviceCombo`, `CaptureDeviceCombo`, `AudioCaptureDevices`, `CameraCaptureDevices` | the native recorder branch's `recording::bar_sources` (`cached_devices`, `form_choices`), taken at the merge with master: this branch had its own enumeration and dropped it |
+| Tooltips | `Row(label, editor, tooltip)` (Mouse wheel), `CreateClipboardTokenItem` | `row_tooltip`; `MenuEntry::tooltip` in `sharex_ui::menu`; the clipboard format menu's descriptions |
+| Mouse highlighter colours | `MouseHighlighterSettingsControl.ColorRow`, `EnabledColorRow` (`Flyout` with `ColorView`) | `mh_color_row` with `controls::color_popup_with_alpha` (egui's picker stands in for `ColorView`, as elsewhere in ShareXrs); writes `DrawingColor.FromArgb` as `ColorConverter` does |
+| Time zones | `TimeZoneInfo.GetSystemTimeZones()`, `ObjectCombo` (`TimeZoneInfo.Equals`), `TaskSettingsUpload.CustomTimeZone`, `NameParser.CustomTimeZone`, `TaskHelpers.GetFileName` | `sharex_helpers::time_zone`: the registry list read as .NET's `TimeZoneInfo.Win32.cs` reads it, .NET's own UTC zone, the Newtonsoft JSON, .NET 11's `GetOffsetForUtcDate`/`CacheTransitionsForYear` transcribed, `SettingsBase`'s `DateTimeZoneHandling.Local` reload; `NameParser::custom_time_zone`; `time_zone_row` |
+| Dropdowns | Fluent's `ComboBox` (`MaxDropDownHeight="504"`, `ScrollIntoView` on open, a `VirtualizingStackPanel`) | `controls::dropdown`: capped at 504, the selected item scrolled into view (the least scrolling, so one further down ends at the bottom), as wide as the items in view (growing as wider ones scroll in). Short lists are unchanged |
+
+### Time zones
+
+ShareX saves the chosen zone with Newtonsoft's `ISerializable` contract
+(`Id`, `DisplayName`, `StandardName`, `DaylightName`, `BaseUtcOffset`,
+`AdjustmentRules` with their `TransitionTime`s, `SupportsDaylightSavingTime`;
+dates written in UTC, `DateTimeZoneHandling.Utc`), and loads it with
+`DateTimeZoneHandling.Local`: each date goes through `DateTime.ToLocalTime`
+with the machine's zone. Where the machine's zone is UTC or GMT-like on 1
+January (where the rules' dates are) nothing moves; elsewhere the rules'
+dates and transition times move by the local offset, so after a restart
+ShareX converts names with shifted transitions and the combo no longer finds
+the zone (it shows the first item and keeps the saved zone until another is
+picked). ShareXrs does the same: a zone picked this session is used as
+listed (`time_zone::note_chosen`), one read from a settings file as loading
+left it (`time_zone::from_settings`). The file's JSON is kept as read;
+ShareX would write the shifted dates back in UTC on its next save, which
+reads back the same (the zone in memory is identical either way).
+
+`tools/settings-harness --time-zones` (its README) records .NET 11's list,
+JSON and offsets; `cargo test -p sharex-helpers --test time_zones` replays
+them: 144/144 zones' JSON and offsets 1970-2040 identical; reloaded on a
+Tokyo and a California machine (`HARNESS_LOCAL_TZ`), 144/144 each (JSON,
+offsets, the item the combo selects); on this machine the registry list as
+ShareXrs reads it equals .NET's (144/144, same order). The list is only
+compared on the machine that recorded it (Windows build and UI language),
+and is empty on macOS and Linux (ShareX's IANA list there isn't ported; the
+saved zone shows alone).
+
+### Rendering
+
+- `task-settings-<page> --content variables:<box>`: a variable menu open
+  (`capture-name`, `window-name`, `region-info`, `picker-Format`,
+  `picker-FormatCtrl`, `picker-InfoText`, `clipboard-content`,
+  `balloon-tip`, `open-url`).
+- `task-settings-task --text "ftp:A|B;custom:C|D"`: uploader accounts.
+- File naming lists this machine's zones (the registry).
+
+### Validation
+
+| Shot | Dark | Light | Notes |
+|---|---|---|---|
+| hotkey-task-scroll task override-off | 0.43% | 0.40% | Uploader accounts (was 0.67 / 1.03%) |
+| tasksettings uploader-filters | 0.31% | 0.23% | the services listed (was 0.37 / 1.30%) |
+| task-option-menus time-zone | 1.29% | 1.85% | the dropdown (above) |
+| tasksettings screen-recorder | 0.63% | 0.57% | before the merge; master's device code draws the same closed combos |
+| tasksettings region-capture | 0.55% | 0.50% | regression |
+| tasksettings mouse-highlighter | 0.62% | 0.47% | regression |
+| task-overrides destinations-menu | 0.74% | 0.51% | unchanged with the commands wired |
+
+Built from source, no shot (ShareX's `task-variables` pass was skipped and
+`task-option-menus` has only the time zone): the nine variable menus, the
+filter services' dropdown, the colour flyouts, the Mouse wheel tooltip
+(offscreen renders don't advance time, so no tooltip shows in any render).
+
+### Live checks for the desktop agent
+
+1. Each variable menu: opens on focus and click to the box's right, an item
+   goes in at the caret, the box keeps the focus and the menu doesn't reopen;
+   Escape and a click elsewhere close it; Advanced's three boxes have Upload
+   result first.
+2. Uploader accounts with an FTP account and two custom uploaders in
+   `UploadersConfig.json`: the check boxes enable the combos; `FTPIndex` and
+   `CustomUploaderIndex` saved as ShareX saves them.
+3. Destinations menu: picking a service changes the hotkey's
+   `ImageDestination` etc. and closes the menu.
+4. Uploader filters: Add, select, Update, Remove; `UploaderFilters` JSON as
+   ShareX's.
+5. Sound "...": the picker's title and its "Wave audio" `*.wav` filter.
+6. Mouse highlighter colour buttons: the flyout, alpha, the saved
+   `PrimaryColor` etc. ("A, R, G, B").
+7. Time zone: the list against ShareX's on the same machine, picking a zone,
+   `CustomTimeZone` JSON byte-identical, the preview and a capture's file
+   name in that zone; then both apps restarted on a machine set to a non-UTC
+   zone: the selection and the names.
+8. The Mouse wheel row's tooltip, the clipboard format menu's tooltips.
+
+### Untested on macOS and Linux
+
+The time zone list (empty there: not ported), the sound picker (rfd), the
+colour flyout, the variable menus' focus behaviour.
+
 ## Not yet
 
-- The time zone list (Task settings › File naming): `TimeZoneInfo.GetSystemTimeZones`
-  and the `CustomTimeZone` JSON ShareX writes (its adjustment rules) need a
-  port of .NET's Windows time zone data; the saved zone still shows alone.
-- Task settings' other variable menus (`task-variables`: name pattern,
-  pixel info, upload info), Uploader accounts (FTP accounts, custom
-  uploaders), the sound file picker, uploader filter services, device lists.
+- The time zone list on macOS and Linux (ShareX's .NET lists IANA zones
+  from tzdata with ICU names there).
+- Avalonia's `ColorView` itself (the colour flyouts use the shared stand-in).
 - Shared controls: focus rings and keyboard navigation, Fluent's expanding
   scroll bar, popups past the window's edge. ShareX's capture pass has no
   shots of those states (`shared-controls`, `menu-past-client`), so they
   weren't built.
-- Tooltips on the clipboard format menu's items.

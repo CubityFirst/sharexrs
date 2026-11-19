@@ -1,4 +1,9 @@
-# Settings backup harness
+# Settings harness
+
+Two parts: the settings backups (below) and the time zone list
+([Time zones](#time-zones)).
+
+## Settings backups
 
 Checks ShareXrs's settings backups (Application settings › Settings ›
 Export, Import) against ShareX's own code: `SettingsHarness` runs
@@ -49,3 +54,40 @@ too-large message; a non-zip fails on both sides with different messages:
 crate's), and ShareXrs's export laid out as ShareX's (same entries in the
 same order with the same bytes; the history file keeps its time, the
 settings files get the export's).
+
+## Time zones
+
+Task settings › File naming › Time zone lists `TimeZoneInfo.GetSystemTimeZones()`
+and saves the chosen zone as Newtonsoft writes an `ISerializable`
+`TimeZoneInfo`; `NameParser` converts the time with it. `TimeZones.cs`
+(`--time-zones <out.json>`) runs .NET 11's own code on the reference build's
+Newtonsoft: every zone's id, display name and JSON (`SettingsBase.SaveToStream`'s
+settings), its UTC offsets 1970-2040 (`ConvertTimeFromUtc` hourly, each change
+found to the tick), and the zone after loading that JSON as
+`SettingsBase.LoadInternal` does (`DateTimeZoneHandling.Local`): its JSON when
+saved again, its offsets and the list item it selects. `HARNESS_LOCAL_TZ=<id>`
+swaps `TimeZoneInfo.Local` inside the harness process (reflection on its
+cache; the system's zone is untouched), to see the reload on machines
+elsewhere. `time_zone_fixtures.py` writes
+`crates/sharex-helpers/tests/fixtures/time_zones/`, and
+`cargo test -p sharex-helpers --test time_zones` compares:
+
+- every zone's JSON (written by `sharex_helpers::time_zone`) and offsets, on
+  every OS;
+- the reload on a Tokyo and a California machine (JSON, offsets, selection);
+- on Windows, the registry's list read as .NET reads it (`TZI`, `Dynamic DST`,
+  the `MUI_*` names from `tzres.dll`'s MUI file, .NET's own UTC zone), only on
+  the machine that recorded it: the list and its localized names follow the
+  Windows build and UI language (the test says so and stops elsewhere).
+
+The conversion is a transcription of .NET 11's `GetOffsetForUtcDate` and
+`CacheTransitionsForYear` (read with ilspycmd from
+`System.Private.CoreLib.dll`): older .NET versions computed it differently,
+and the recorded offsets are .NET 11's.
+
+Last run (Windows 11 26300.9974, en-GB, local zone GMT Standard Time): 144
+zones, list and JSON 144/144 identical, offsets 144/144 identical; reloaded
+in Tokyo and California 144/144 each (JSON, offsets and selection). On this
+machine the reload changes nothing (UK time is UTC on 1 January, where the
+rules' dates are); in Tokyo 101 zones get other offsets and in California 100, and 101 in
+each select the first list item instead of themselves, as in ShareX.

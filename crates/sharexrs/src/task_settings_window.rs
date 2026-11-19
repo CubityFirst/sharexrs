@@ -44,8 +44,6 @@ pub enum Effect {
     /// Capture › Select region...: `RegionCaptureTasks.GetRectangleRegionAsync`
     /// with the task's region options, into `CaptureCustomRegion`.
     SelectRegion,
-    /// A feature that isn't ported yet was asked for.
-    NotPorted(&'static str),
     /// Screen recording options... (`ShowScreenRecordingOptions`).
     FFmpegOptions,
     /// The watch folders changed (`WatchFolderManager.AddWatchFolder`,
@@ -128,13 +126,41 @@ pub(crate) fn paint_tree_chevron(ui: &Ui, rect: Rect, expanded: bool, color: egu
     ui.painter().add(egui::Shape::line(points.to_vec(), stroke));
 }
 
+/// The uploader accounts the Task page lists, as each account's
+/// `ToString()`: `ApplicationState.UploadersConfigOrNull`'s `FTPAccountList`
+/// and `CustomUploadersList`, read when the window's pages are built (none
+/// while the config is still loading).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UploaderAccounts {
+    pub ftp: Vec<String>,
+    pub custom: Vec<String>,
+}
+
+impl UploaderAccounts {
+    pub fn from_config(c: &sharex_uploaders::UploadersConfig) -> Self {
+        use sharex_uploaders::destinations::ftp::FTPAccount;
+        Self {
+            ftp: FTPAccount::list_from_value(&c.FTPAccountList).unwrap_or_default().iter().map(FTPAccount::display_name).collect(),
+            custom: c.CustomUploadersList.0.iter().map(|u| u.display_name()).collect(),
+        }
+    }
+}
+
+/// `BetweenOrDefault(0, count - 1)`: the saved index if it's in the list,
+/// else the first.
+fn account_index(index: i32, count: usize) -> usize {
+    usize::try_from(index).ok().filter(|&i| i < count).unwrap_or(0)
+}
+
 /// What the window's popup menus choose.
 #[derive(Clone, Debug, PartialEq)]
 enum MenuCmd {
     Task(HotkeyType),
     AfterCapture(&'static str),
     AfterUpload(&'static str),
-    Destination,
+    /// A destination (`BuildDestinationsMenu(settings)`'s command on the
+    /// edited task settings).
+    Destination(crate::main_menu::MenuCommand),
 }
 
 /// The window's own state (`TaskSettingsViewModel`, the page builder's
@@ -155,6 +181,8 @@ pub struct TaskSettingsWindow {
     last_after_capture: Option<&'static str>,
     last_after_upload: Option<&'static str>,
     filter_selected: Option<usize>,
+    /// The Uploader combo's service (an index into `filter_services`).
+    filter_service: usize,
     filter_extensions: String,
     pub action_selected: Option<usize>,
     pub watch_selected: Option<usize>,
@@ -167,6 +195,16 @@ pub struct TaskSettingsWindow {
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
+    /// The mouse highlighter's open colour flyout (its colour's key).
+    mh_color_open: Option<&'static str>,
+    /// The Task page's uploader accounts.
+    pub accounts: UploaderAccounts,
+    /// `TimeZoneInfo.GetSystemTimeZones()`, read when File naming is first
+    /// built (`None` until then).
+    time_zones: Option<Vec<sharex_helpers::time_zone::TimeZoneInfo>>,
+    /// The variable menus of the name pattern, pixel info and upload info
+    /// boxes (`_activeCodeMenu`).
+    pub variables: crate::variable_menu::VariableMenus,
     effects: Vec<Effect>,
 }
 
@@ -195,6 +233,7 @@ impl TaskSettingsWindow {
             last_after_capture: last(&AFTER_CAPTURE_TASKS, &|n| AfterCaptureTasks::parse(n).is_some_and(|f| ac.contains(f))),
             last_after_upload: last(&AFTER_UPLOAD_TASKS, &|n| AfterUploadTasks::parse(n).is_some_and(|f| au.contains(f))),
             filter_selected: None,
+            filter_service: 0,
             filter_extensions: String::new(),
             action_selected: None,
             watch_selected: None,
@@ -203,6 +242,10 @@ impl TaskSettingsWindow {
             notification_editor: None,
             toolbar_editor: None,
             color_open: false,
+            mh_color_open: None,
+            accounts: UploaderAccounts::default(),
+            time_zones: None,
+            variables: Default::default(),
             effects: Vec::new(),
         }
     }
@@ -297,7 +340,7 @@ impl TaskSettingsWindow {
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
             let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
-            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
+            if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.variables.is_open() && !self.color_open && self.mh_color_open.is_none() && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
             self.scroll[page] = self.scroll[page].clamp(0.0, max);
@@ -306,6 +349,7 @@ impl TaskSettingsWindow {
             }
         }
         self.show_menu(ui, full, ctx, had_menu);
+        self.variables.show(ui, full);
         self.show_editors(ui, full, ctx);
         std::mem::take(&mut self.effects)
     }
@@ -409,7 +453,9 @@ impl TaskSettingsWindow {
                         t.AfterUploadJob = v;
                     }
                 }
-                MenuCmd::Destination => self.effects.push(Effect::NotPorted("destinations")),
+                MenuCmd::Destination(c) => {
+                    crate::menu_settings::apply(t, &c);
+                }
             }
         }
         if out.closed || outside || out.command.is_some() {
@@ -646,6 +692,14 @@ impl Form<'_, '_, '_> {
         resp.clicked().then_some(br)
     }
 
+    /// A `Row` (or a box alone) with a variable menu (`NamePatternText`,
+    /// `PixelInfoText`, `UploadInfoText`). Returns whether the text changed.
+    fn variable_text(&mut self, label: Option<&str>, key: &str, kind: crate::variable_menu::VariableKind, value: &mut String, enabled: bool) -> bool {
+        let (changed, tb) = self.text_row_with_box(label.map(|l| (l, LABEL_W)), value, enabled, false);
+        let inserted = self.w.variables.attach(self.ui.ctx(), key, kind, tb, value);
+        changed || inserted
+    }
+
     /// A `Row` whose editor is a hint (`TextBlock.hint`): the preview rows.
     fn hint_row(&mut self, label: &str, text: &str) {
         self.text(label);
@@ -861,17 +915,46 @@ fn page_task(f: &mut Form) {
         }
         let text = format!("{}...", s::TaskSettingsWindow_Destinations());
         if let Some(anchor) = f.menu_button(None, "destinations", icon::Destinations, &text, 300.0, true, o) {
-            let entries = crate::main_menu::destinations_menu(&crate::main_menu::MenuState::default());
+            // `MainMenuBuilder.BuildDestinationsMenu(settings)` on the edited
+            // task settings.
+            let mut state = crate::main_menu::MenuState::default();
+            crate::menu_settings::fill(&mut state, f.s.task);
+            let entries = crate::main_menu::destinations_menu(&state);
             // `CreateDestinationMenuItem` takes the entry's `Header` alone:
             // no accent on the selected service's name, as the main menu has.
-            let entries = destination_items(map_entries(entries, &|_| MenuCmd::Destination));
+            let entries = destination_items(map_entries(entries, &MenuCmd::Destination));
             f.w.menu = Some(Flyout::menu(Id::new("destinations-flyout"), entries, anchor, Placement::BottomEdgeAlignedLeft));
         }
     });
-    // Uploader accounts: FTP accounts and custom uploaders aren't loaded yet
-    // (`UploadersConfig`), so the card has only its title, as ShareX's
-    // does without any.
-    f.card(4.0, &mut |f| f.title(s::TaskSettingsWindow_UploaderAccounts()));
+    // Uploader accounts: an override check box and the account per list
+    // that has any (the card has only its title without accounts).
+    f.card(4.0, &mut |f| {
+        f.title(s::TaskSettingsWindow_UploaderAccounts());
+        let ftp = f.w.accounts.ftp.clone();
+        if !ftp.is_empty() {
+            let mut o = f.s.task.OverrideFTP;
+            if f.check(s::TaskSettingsWindow_OverrideDefaultFTPAccount(), &mut o, true) {
+                f.s.task.OverrideFTP = o;
+            }
+            let items: Vec<ComboItem> = ftp.iter().map(|n| ComboItem::text(n.clone())).collect();
+            let cur = account_index(f.s.task.FTPIndex, ftp.len());
+            if let Some(i) = f.combo(s::TaskSettingsWindow_FTPAccount(), LABEL_W, &items, Some(cur), ComboSize::default(), o) {
+                f.s.task.FTPIndex = i as i32;
+            }
+        }
+        let custom = f.w.accounts.custom.clone();
+        if !custom.is_empty() {
+            let mut o = f.s.task.OverrideCustomUploader;
+            if f.check(s::TaskSettingsWindow_OverrideDefaultCustomUploader(), &mut o, true) {
+                f.s.task.OverrideCustomUploader = o;
+            }
+            let items: Vec<ComboItem> = custom.iter().map(|n| ComboItem::text(n.clone())).collect();
+            let cur = account_index(f.s.task.CustomUploaderIndex, custom.len());
+            if let Some(i) = f.combo(s::TaskSettingsWindow_CustomUploader(), LABEL_W, &items, Some(cur), ComboSize::default(), o) {
+                f.s.task.CustomUploaderIndex = i as i32;
+            }
+        }
+    });
     f.card(4.0, &mut |f| {
         f.title(s::TaskSettingsWindow_ScreenshotsFolder());
         let mut o = f.s.task.OverrideScreenshotsFolder;
@@ -900,6 +983,9 @@ fn destination_items<C: Clone>(entries: Vec<MenuEntry<C>>) -> Vec<MenuEntry<C>> 
         .into_iter()
         .map(|mut e| {
             e.accent = None;
+            // Neither `StaysOpenOnClick` nor `BoldWhenChecked` carry over.
+            e.stays_open = false;
+            e.bold_when_checked = false;
             // `CreateAccentMenuIcon`: 16px in an 18-wide box, in Fluent's
             // 16x16 icon `Viewbox`.
             if let sharex_ui::menu::MenuIcon::Key(k) = e.icon {
@@ -931,6 +1017,7 @@ fn map_entries<A: Clone, B: Clone>(entries: Vec<MenuEntry<A>>, map: &dyn Fn(A) -
             gesture: e.gesture,
             badge: e.badge,
             id: e.id,
+            tooltip: e.tooltip,
         })
         .collect()
 }
@@ -1019,6 +1106,26 @@ fn label_button_row(f: &mut Form, label: &str, button: &str) -> bool {
     b.show(f.ui, br, f.id(button), button, f.enabled).clicked()
 }
 
+/// `ToolTip.SetTip(rowLabel, tooltip)` and `ToolTip.SetTip(editor, tooltip)`
+/// for the combo row just laid out: the label's text line (centred in its
+/// 210 column) and the combo box sized to `selected`.
+fn row_tooltip(f: &mut Form, label: &str, selected: &str, tip: &str) {
+    if f.collecting() {
+        return;
+    }
+    let ch = f.control_height(&controls::ComboBox::item_font());
+    let lh = line_height(f.ui, &Form::label_font());
+    let row = Rect::from_min_size(pos2(f.x, f.y - ch.max(lh)), vec2(f.width, ch.max(lh)));
+    let label_rect = Rect::from_min_size(pos2(row.min.x, center_y(row, lh)), vec2(LABEL_W, lh));
+    let combo = controls::ComboBox { padding: f.d.settings_control_padding, enabled: f.enabled };
+    let w = combo.content_width(f.ui, &[ComboItem::text(selected)]).max(250.0).min(row.max.x - row.min.x - LABEL_W - 8.0);
+    let combo_rect = Rect::from_min_size(pos2(row.min.x + LABEL_W + 8.0, center_y(row, ch)), vec2(w, ch));
+    for (k, r) in [label_rect, combo_rect].into_iter().enumerate() {
+        let id = f.id(&format!("tip-{label}-{k}"));
+        f.ui.interact(r, id, egui::Sense::hover()).on_hover_text(tip);
+    }
+}
+
 /// `ToastMonitorCombo`: active monitor, primary monitor, then the others.
 fn toast_monitor_row(f: &mut Form) {
     use sharex_settings::ToastWindowMonitor as M;
@@ -1058,10 +1165,14 @@ fn sound_path(f: &mut Form, k: usize, title: &str) {
         let changed_on = f.check(title, &mut on, true);
         let saved = f.enabled;
         f.enabled = saved && on;
-        let (changed, clicked) = f.text_with_buttons_spaced(&format!("sound-{k}"), &mut path, &["..."], 6.0);
+        let (mut changed, clicked) = f.text_with_buttons_spaced(&format!("sound-{k}"), &mut path, &["..."], 6.0);
         f.enabled = saved;
-        if clicked.is_some() {
-            f.effect(Effect::NotPorted("sound file picker"));
+        // `PickFileAsync(ChooseAudioFile, WaveAudio, "*.wav")`.
+        if clicked.is_some()
+            && let Some(file) = pick_sound_file()
+        {
+            path = file.display().to_string();
+            changed = true;
         }
         if changed_on || changed {
             let g = sec!(f, GeneralSettings);
@@ -1073,6 +1184,12 @@ fn sound_path(f: &mut Form, k: usize, title: &str) {
             }
         }
     });
+}
+
+/// The custom sounds' "..." (`PickFileAsync`): one file, filtered to
+/// "Wave audio" `*.wav` only.
+fn pick_sound_file() -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new().set_title(s::TaskSettingsWindow_ChooseAudioFile()).add_filter(s::TaskSettingsWindow_WaveAudio(), &["wav"]).pick_file()
 }
 
 fn page_image(f: &mut Form) {
@@ -1278,13 +1395,16 @@ fn page_region_capture(f: &mut Form) {
         enum_combo!(f, s::TaskSettingsWindow_Mouse4Click(), true, CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click);
         enum_combo!(f, s::TaskSettingsWindow_Mouse5Click(), true, CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click);
         enum_combo!(f, s::TaskSettingsWindow_MouseWheel(), true, CaptureSettings.RegionCaptureOptions.MagnifierScrollAction);
+        // `Row(label, editor, tooltip)`: the tooltip on the label and the combo box.
+        let selected = sec!(f, CaptureSettings).RegionCaptureOptions.MagnifierScrollAction.localized_description();
+        row_tooltip(f, s::TaskSettingsWindow_MouseWheel(), &selected, s::TaskSettingsWindow_MouseWheelTooltip());
     });
     f.enabled_card(Section::Capture, &mut |f| {
         f.title(s::TaskSettingsWindow_InformationAndMagnifier());
         chk!(f, s::TaskSettingsWindow_ShowPositionAndSizeInfo(), CaptureSettings.RegionCaptureOptions.ShowInfo);
         let custom = chk!(f, s::TaskSettingsWindow_UseCustomInfoText(), CaptureSettings.RegionCaptureOptions.UseCustomInfoText);
         let mut v = sec!(f, CaptureSettings).RegionCaptureOptions.CustomInfoText.clone();
-        if f.text_row(None, &mut v, custom, false) {
+        if f.variable_text(None, "region-info", crate::variable_menu::VariableKind::PixelInfo, &mut v, custom) {
             sec!(f, CaptureSettings).RegionCaptureOptions.CustomInfoText = v.replace("\r\n", "$n").replace('\n', "$n");
         }
         let mag = chk!(f, s::TaskSettingsWindow_ShowMagnifierNearCursor(), CaptureSettings.RegionCaptureOptions.ShowMagnifier);
@@ -1421,6 +1541,9 @@ fn page_file_naming(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_NamePatterns());
         let adv = f.s.task.AdvancedSettings.clone().unwrap_or_default();
+        // `CustomTimeZone = upload.UseCustomTimeZone ? upload.CustomTimeZone : null`.
+        let up = sec!(f, UploadSettings);
+        let zone = if up.UseCustomTimeZone { sharex_helpers::time_zone::from_settings(&up.CustomTimeZone) } else { None };
         let preview = |pattern: &str, window: bool| {
             use sharex_helpers::name_parser::{NameParser, NameParserType};
             let mut p = NameParser::new(NameParserType::FileName);
@@ -1430,16 +1553,24 @@ fn page_file_naming(f: &mut Form) {
             p.max_name_length = adv.NamePatternMaxLength.max(0) as usize;
             p.max_title_length = adv.NamePatternMaxTitleLength.max(0) as usize;
             p.is_preview_mode = true;
+            p.custom_time_zone = zone.clone();
             if window {
                 p.window_text = Some(s::TaskSettingsWindow_ShareXTaskSettings().to_string());
                 p.process_name = Some("ShareX".into());
             }
             p.parse(pattern)
         };
-        text!(f, s::TaskSettingsWindow_CaptureOrClipboardUpload(), true, UploadSettings.NameFormatPattern);
+        use crate::variable_menu::VariableKind as V;
+        let mut v = sec!(f, UploadSettings).NameFormatPattern.clone();
+        if f.variable_text(Some(s::TaskSettingsWindow_CaptureOrClipboardUpload()), "capture-name", V::NamePattern(&["n", "t", "pn"]), &mut v, true) {
+            sec!(f, UploadSettings).NameFormatPattern = v;
+        }
         let pv = preview(&sec!(f, UploadSettings).NameFormatPattern.clone(), false);
         f.hint_row(s::TaskSettingsWindow_Preview(), &pv);
-        text!(f, s::TaskSettingsWindow_WindowCapture(), true, UploadSettings.NameFormatPatternActiveWindow);
+        let mut v = sec!(f, UploadSettings).NameFormatPatternActiveWindow.clone();
+        if f.variable_text(Some(s::TaskSettingsWindow_WindowCapture()), "window-name", V::NamePattern(&["n"]), &mut v, true) {
+            sec!(f, UploadSettings).NameFormatPatternActiveWindow = v;
+        }
         let pv = preview(&sec!(f, UploadSettings).NameFormatPatternActiveWindow.clone(), true);
         f.hint_row(s::TaskSettingsWindow_Preview(), &pv);
         chk!(f, s::TaskSettingsWindow_UseNamePatternForFileUploads(), UploadSettings.FileUploadUseNamePattern);
@@ -1452,9 +1583,7 @@ fn page_file_naming(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_TimeZone());
         let custom = chk!(f, s::TaskSettingsWindow_UseCustomTimeZone(), UploadSettings.UseCustomTimeZone);
-        // The system's time zones aren't listed yet: the saved one shows.
-        let name = jstr(&sec!(f, UploadSettings).CustomTimeZone, "DisplayName");
-        f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &[ComboItem::text(name)], Some(0), ComboSize::default(), custom);
+        time_zone_row(f, custom);
     });
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_URLReplacement());
@@ -1462,6 +1591,32 @@ fn page_file_naming(f: &mut Form) {
         text!(f, s::TaskSettingsWindow_Pattern(), on, UploadSettings.URLRegexReplacePattern);
         text!(f, s::TaskSettingsWindow_Replacement(), on, UploadSettings.URLRegexReplaceReplacement);
     });
+}
+
+/// `ObjectCombo(TimeZoneInfo.GetSystemTimeZones(), ...)`: the zones by
+/// `DisplayName`; the saved zone selects the item it `Equals` (else the
+/// first, the saved zone kept until another is picked). Where there's no
+/// list (macOS, Linux: not ported) the saved zone shows alone.
+fn time_zone_row(f: &mut Form, enabled: bool) {
+    use sharex_helpers::time_zone::{self, TimeZoneInfo};
+    if f.w.time_zones.is_none() {
+        f.w.time_zones = Some(time_zone::system_time_zones());
+    }
+    let saved = sec!(f, UploadSettings).CustomTimeZone.clone();
+    let zones = f.w.time_zones.clone().unwrap_or_default();
+    if zones.is_empty() {
+        let name = jstr(&saved, "DisplayName");
+        f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &[ComboItem::text(name)], Some(0), ComboSize::default(), enabled);
+        return;
+    }
+    let current = time_zone::from_settings(&saved).unwrap_or_else(TimeZoneInfo::utc);
+    let selected = zones.iter().position(|z| z.equals(&current)).unwrap_or(0);
+    let items: Vec<ComboItem> = zones.iter().map(|z| ComboItem::text(z.display_name.clone())).collect();
+    if let Some(i) = f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &items, Some(selected), ComboSize::default(), enabled) {
+        let json = zones[i].to_json();
+        time_zone::note_chosen(&json);
+        sec!(f, UploadSettings).CustomTimeZone = json;
+    }
 }
 
 fn page_clipboard_upload(f: &mut Form) {
@@ -1474,38 +1629,76 @@ fn page_clipboard_upload(f: &mut Form) {
     });
 }
 
+/// `UploaderFactory.AllGenericUploaderServices.OrderBy(x => x.ServiceName)`
+/// (a stable sort, culture-aware).
+fn filter_services() -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = crate::upload::filters::Service::all().map(|s| (s.name(), s.identifier().to_string())).collect();
+    v.sort_by(|a, b| sharex_helpers::culture::current_culture_cmp(&a.0, &b.0));
+    v
+}
+
+/// `UploaderFilter.SetExtensions`: comma separated, trimmed, empty ones left out.
+fn split_extensions(text: &str) -> Vec<String> {
+    text.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()
+}
+
+/// `UploaderFilter` as ShareX writes it.
+fn filter_json(uploader: &str, extensions: Vec<String>) -> Value {
+    serde_json::json!({ "Uploader": uploader, "Extensions": extensions })
+}
+
 fn page_uploader_filters(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_Filters());
         // `FilterTitle`: "uploader — extensions".
-        let rows: Vec<String> = sec!(f, UploadSettings)
-            .UploaderFilters
-            .iter()
-            .map(|v| {
-                let ext = v.get("Extensions").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
-                format!("{} — {}", jstr(v, "Uploader"), ext)
-            })
-            .collect();
+        let filters: Vec<crate::upload::filters::UploaderFilter> = sec!(f, UploadSettings).UploaderFilters.iter().map(crate::upload::filters::UploaderFilter::from_json).collect();
+        let rows: Vec<String> = filters.iter().map(|v| format!("{} — {}", v.uploader, v.extensions.join(", "))).collect();
+        let services = filter_services();
         let selected = f.w.filter_selected;
         if let Some(i) = f.list_box("filters", &rows, selected, 180.0) {
             f.w.filter_selected = Some(i);
+            // `LoadSelection`: the filter's service (if there's one by that
+            // identifier) and its extensions.
+            if let Some(filter) = filters.get(i) {
+                if let Some(k) = services.iter().position(|(_, id)| id.eq_ignore_ascii_case(&filter.uploader)) {
+                    f.w.filter_service = k;
+                }
+                f.w.filter_extensions = filter.extensions.join(", ");
+            }
         }
-        // `UploaderFactory.AllGenericUploaderServices` isn't ported: no uploaders to pick.
-        f.combo(s::TaskSettingsWindow_Uploader(), LABEL_W, &[], None, ComboSize::default(), false);
+        let items: Vec<ComboItem> = services.iter().map(|(n, _)| ComboItem::text(n.clone())).collect();
+        let cur = (!services.is_empty()).then_some(f.w.filter_service.min(services.len().saturating_sub(1)));
+        if let Some(i) = f.combo(s::TaskSettingsWindow_Uploader(), LABEL_W, &items, cur, ComboSize::default(), !services.is_empty()) {
+            f.w.filter_service = i;
+        }
         let mut ext = f.w.filter_extensions.clone();
         if f.text_row(Some((s::TaskSettingsWindow_Extensions(), LABEL_W)), &mut ext, true, false) {
             f.w.filter_extensions = ext;
         }
         f.hint(s::TaskSettingsWindow_SeparateExtensionsWithCommasForExamplePngJpgJpeg());
-        let has = f.w.filter_selected.is_some_and(|i| i < rows.len());
+        // `CreateFilter`.
+        let created = services.get(f.w.filter_service).map(|(_, id)| filter_json(id, split_extensions(&f.w.filter_extensions)));
+        let has = f.w.filter_selected.filter(|&i| i < rows.len());
         match f.buttons(&[(s::TaskSettingsWindow_Add(), true), (s::TaskSettingsWindow_Update(), true), (s::TaskSettingsWindow_Remove(), true)], 6.0) {
-            Some(2) if has => {
-                let i = f.w.filter_selected.unwrap_or(0);
-                sec!(f, UploadSettings).UploaderFilters.remove(i);
-                f.w.filter_selected = None;
+            Some(0) => {
+                if let Some(filter) = created {
+                    let list = &mut sec!(f, UploadSettings).UploaderFilters;
+                    list.push(filter);
+                    f.w.filter_selected = Some(list.len() - 1);
+                }
             }
-            Some(_) => f.effect(Effect::NotPorted("uploader filters")),
-            None => {}
+            Some(1) => {
+                if let (Some(i), Some(filter)) = (has, created) {
+                    sec!(f, UploadSettings).UploaderFilters[i] = filter;
+                }
+            }
+            Some(2) => {
+                if let Some(i) = has {
+                    sec!(f, UploadSettings).UploaderFilters.remove(i);
+                    f.w.filter_selected = None;
+                }
+            }
+            _ => {}
         }
     });
 }
@@ -1521,7 +1714,7 @@ fn page_tools(f: &mut Form) {
             (s::TaskSettingsWindow_InfoText(), "InfoText"),
         ] {
             let mut v = jstr(&o, key);
-            if f.text_row(Some((label, LABEL_W)), &mut v, true, false) {
+            if f.variable_text(Some(label), &format!("picker-{key}"), crate::variable_menu::VariableKind::PixelInfo, &mut v, true) {
                 jset(&mut o, key, Value::String(v));
             }
         }
@@ -1618,7 +1811,7 @@ fn page_mouse_highlighter(f: &mut Form) {
                 (t::MouseHighlighter_MiddleColor(), t::MouseHighlighter_MiddleReleaseCrosshairs(), "HighlightMiddleClicks", "MiddleColor", "ShowMiddleReleaseCrosshairs"),
             ] {
                 let mut on = jbool(&o, on_key, true);
-                if mh_color_row(f, label, Some(&mut on), &jstr(&o, color_key)) {
+                if mh_color_row(f, label, Some(&mut on), &mut o, color_key) {
                     jset(&mut o, on_key, Value::Bool(on));
                 }
                 if ripple {
@@ -1640,7 +1833,7 @@ fn page_mouse_highlighter(f: &mut Form) {
                 });
             } else {
                 f.stack(10.0, &mut |f| {
-                    mh_color_row(f, t::MouseHighlighter_AlwaysColor(), None, &jstr(&o, "AlwaysColor"));
+                    mh_color_row(f, t::MouseHighlighter_AlwaysColor(), None, &mut o, "AlwaysColor");
                     let help = t::MouseHighlighter_AlwaysColorHelp();
                     f.text(help);
                     if !f.collecting() {
@@ -1700,19 +1893,19 @@ fn mh_combo(f: &mut Form, label: &str, items: &[ComboItem], selected: usize) -> 
     out
 }
 
-/// "a, r, g, b" (`System.Drawing.Color` as Newtonsoft writes it), or a name.
+/// A `System.Drawing.Color` as Newtonsoft writes it (`ColorConverter`:
+/// "A, R, G, B", "R, G, B" or a name).
 fn parse_drawing_color(v: &str) -> egui::Color32 {
-    let parts: Vec<u8> = v.split(',').filter_map(|p| p.trim().parse().ok()).collect();
-    match parts.as_slice() {
-        [a, r, g, b] => egui::Color32::from_rgba_unmultiplied(*r, *g, *b, *a),
-        [r, g, b] => egui::Color32::from_rgb(*r, *g, *b),
-        _ => egui::Color32::TRANSPARENT,
-    }
+    sharex_image_effects::dotnet::Color::parse(v).map_or(egui::Color32::TRANSPARENT, |c| egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a))
 }
 
 /// `EnabledColorRow` / `ColorRow`: a check box (or label) and a button
-/// holding a 28x20 swatch. The colour flyout (`ColorView`) isn't ported.
-fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, color: &str) -> bool {
+/// holding a 28x20 swatch; the button's flyout is the colour picker
+/// (`ColorView` with alpha; the shared colour popup stands in for it), which
+/// writes `DrawingColor.FromArgb(...)` back. Returns whether the check box
+/// changed.
+fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, o: &mut Value, key: &'static str) -> bool {
+    let color = jstr(o, key);
     f.text(label);
     if f.collecting() {
         return false;
@@ -1737,13 +1930,26 @@ fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, color: &str) -
     let cell = mh_cell(r, h);
     let b = Rect::from_min_size(cell.min, vec2(1.0 + 10.0 + 28.0 + 10.0 + 1.0, h));
     let enabled = enabled && f.enabled;
-    if Button::default().show(f.ui, b, f.id(&format!("{label}-color")), "", enabled).clicked() {
-        f.effect(Effect::NotPorted("colour picker flyout"));
+    let clicked = Button::default().show(f.ui, b, f.id(&format!("{label}-color")), "", enabled).clicked();
+    let just_opened = clicked && f.w.mh_color_open != Some(key);
+    if clicked {
+        f.w.mh_color_open = if f.w.mh_color_open == Some(key) { None } else { Some(key) };
     }
     let swatch = Rect::from_center_size(b.center(), vec2(28.0, 20.0));
     let opacity = if enabled { 1.0 } else { 0.35 };
-    f.ui.painter().rect_filled(swatch, 0.0, parse_drawing_color(color).gamma_multiply(opacity));
+    f.ui.painter().rect_filled(swatch, 0.0, parse_drawing_color(&color).gamma_multiply(opacity));
     f.ui.painter().rect_stroke(swatch, 0.0, Stroke::new(1.0, egui::Color32::GRAY.gamma_multiply(opacity)), StrokeKind::Inside);
+    if f.w.mh_color_open == Some(key) {
+        let mut c = parse_drawing_color(&color);
+        let (picked, keep) = controls::color_popup_with_alpha(f.ui, f.id(&format!("{key}-flyout")), b, &mut c, just_opened, true);
+        if picked {
+            let [r, g, b, a] = c.to_srgba_unmultiplied();
+            jset(o, key, Value::String(sharex_image_effects::dotnet::Color::argb(a, r, g, b).to_string()));
+        }
+        if !keep || !enabled {
+            f.w.mh_color_open = None;
+        }
+    }
     changed
 }
 
@@ -1946,9 +2152,9 @@ fn page_advanced(f: &mut Form) {
     f.enabled_card(Section::Advanced, &mut |f| {
         f.title(s::TaskSettingsWindow_AfterUpload());
         chk!(f, s::TaskSettingsWindow_ResultForceHTTPS(), AdvancedSettings.ResultForceHTTPS);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_ClipboardContentFormat()), true, AdvancedSettings.ClipboardContentFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_BalloonTipContentFormat()), true, AdvancedSettings.BalloonTipContentFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_OpenURLFormat()), true, AdvancedSettings.OpenURLFormat);
+        upload_info_row(f, s::TaskSettingsWindow_ClipboardContentFormat(), 0);
+        upload_info_row(f, s::TaskSettingsWindow_BalloonTipContentFormat(), 1);
+        upload_info_row(f, s::TaskSettingsWindow_OpenURLFormat(), 2);
         num!(f, &format!("{}:", s::TaskSettingsWindow_AutoShortenURLLength()), i32::MIN, i32::MAX, true, AdvancedSettings.AutoShortenURLLength);
         chk!(f, s::TaskSettingsWindow_AutoCloseAfterUploadForm(), AdvancedSettings.AutoCloseAfterUploadForm);
     });
@@ -1957,6 +2163,26 @@ fn page_advanced(f: &mut Form) {
         num!(f, &format!("{}:", s::TaskSettingsWindow_NamePatternMaxLength()), i32::MIN, i32::MAX, true, AdvancedSettings.NamePatternMaxLength);
         num!(f, &format!("{}:", s::TaskSettingsWindow_NamePatternMaxTitleLength()), i32::MIN, i32::MAX, true, AdvancedSettings.NamePatternMaxTitleLength);
     });
+}
+
+/// `UploadInfoText` for `ClipboardContentFormat`, `BalloonTipContentFormat`
+/// and `OpenURLFormat`.
+fn upload_info_row(f: &mut Form, title: &str, k: usize) {
+    let adv = sec!(f, AdvancedSettings);
+    let mut v = match k {
+        0 => adv.ClipboardContentFormat.clone(),
+        1 => adv.BalloonTipContentFormat.clone(),
+        _ => adv.OpenURLFormat.clone(),
+    };
+    let key = ["clipboard-content", "balloon-tip", "open-url"][k];
+    if f.variable_text(Some(&format!("{title}:")), key, crate::variable_menu::VariableKind::UploadInfo, &mut v, true) {
+        let adv = sec!(f, AdvancedSettings);
+        match k {
+            0 => adv.ClipboardContentFormat = v,
+            1 => adv.BalloonTipContentFormat = v,
+            _ => adv.OpenURLFormat = v,
+        }
+    }
 }
 
 /// A `List<string>` as "a, b, c".
@@ -2000,6 +2226,40 @@ mod tests {
         assert_eq!(w.page, 11);
         w.select_page(6);
         assert_eq!(w.page, 6);
+    }
+
+    #[test]
+    fn uploader_accounts_as_their_to_string() {
+        let mut c = sharex_uploaders::UploadersConfig { FTPAccountList: serde_json::json!([{ "Name": "Home", "Host": "example.com", "Port": 2121 }]), ..Default::default() };
+        c.CustomUploadersList.0.push(sharex_uploaders::custom::CustomUploaderItem { request_url: Some("https://up.example.org/x".into()), ..Default::default() });
+        let a = UploaderAccounts::from_config(&c);
+        assert_eq!(a.ftp, ["Home (example.com:2121)"]);
+        assert_eq!(a.custom, ["up.example.org"]);
+        assert_eq!(account_index(3, 2), 0);
+        assert_eq!(account_index(-1, 2), 0);
+        assert_eq!(account_index(1, 2), 1);
+    }
+
+    #[test]
+    fn uploader_filter_services_by_name() {
+        let services = filter_services();
+        let names: Vec<&str> = services.iter().map(|(n, _)| n.as_str()).collect();
+        let mut sorted = names.clone();
+        sorted.sort_by(|a, b| sharex_helpers::culture::current_culture_cmp(a, b));
+        assert_eq!(names, sorted);
+        assert!(services.iter().any(|(_, id)| id == "CustomFileUploader"));
+        assert_eq!(split_extensions(" png, ,jpg ,"), ["png", "jpg"]);
+        assert_eq!(filter_json("Imgur", vec!["png".into()]).to_string(), r#"{"Uploader":"Imgur","Extensions":["png"]}"#);
+    }
+
+    #[test]
+    fn highlighter_colours_as_color_converter_writes_them() {
+        // egui keeps colours premultiplied: the channels come back within 1.
+        let c = parse_drawing_color("166, 54, 169, 225").to_srgba_unmultiplied();
+        assert!(c.iter().zip([54u8, 169, 225, 166]).all(|(a, b)| a.abs_diff(b) <= 1), "{c:?}");
+        assert_eq!(parse_drawing_color("Transparent").a(), 0);
+        assert_eq!(sharex_image_effects::dotnet::Color::argb(255, 1, 2, 3).to_string(), "1, 2, 3");
+        assert_eq!(sharex_image_effects::dotnet::Color::argb(166, 54, 169, 225).to_string(), "166, 54, 169, 225");
     }
 
     #[test]

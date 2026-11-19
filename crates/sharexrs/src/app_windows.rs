@@ -505,7 +505,7 @@ impl App {
             Some(g) => g,
             None => self.gpu.insert(Gpu::new()?),
         };
-        let state = match target {
+        let mut state = match target {
             TaskTarget::Default => TaskSettingsWindow::new(&mut self.settings.settings.DefaultTaskSettings, None),
             TaskTarget::Hotkey(i) => {
                 let defaults = &self.settings.settings.DefaultTaskSettings;
@@ -513,6 +513,8 @@ impl App {
                 TaskSettingsWindow::new(task, Some(defaults))
             }
         };
+        // `ApplicationState.UploadersConfigOrNull`, as the pages are built.
+        state.accounts = self.uploads.config.peek(crate::task_settings_window::UploaderAccounts::from_config).unwrap_or_default();
         let title = match target {
             TaskTarget::Default => state.title(&self.settings.settings.DefaultTaskSettings),
             TaskTarget::Hotkey(i) => state.title(&self.settings.hotkeys.Hotkeys[i].TaskSettings),
@@ -580,7 +582,6 @@ impl App {
                 for e in effects {
                     match e {
                         task_settings_window::Effect::SelectRegion => select_region = true,
-                        task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                         task_settings_window::Effect::WatchFoldersChanged => watch = true,
                         task_settings_window::Effect::ImageEffects => image_effects = true,
