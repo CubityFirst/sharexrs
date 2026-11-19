@@ -423,7 +423,8 @@ and builds the trimmer's filmstrip with an `IMFSourceReader`. ShareXrs
 does it on every platform with the FFmpeg the converter, thumbnailer and
 trimmer already run (`video_tools::media`): a probe (`ffmpeg -i`: duration,
 size, frame rate, display aspect, whether there's sound; no video or no
-finite duration is `VideoTrimmer_InvalidVideo`), one FFmpeg process piping
+finite duration is `VideoTrimmer_InvalidVideo`; a file FFmpeg can't read
+is Media Foundation's error for the same file, below), one FFmpeg process piping
 RGBA frames from the position and another piping the first audio stream
 as float PCM to cpal (0.18.2, Apache-2.0: WASAPI, Core Audio through
 objc2, ALSA, so Linux builds need `libasound2-dev`). The frames follow the
@@ -457,9 +458,18 @@ What's left in the UI states is text anti-aliasing. The rest:
   bilinearly; the trimmed states' shots also show the frame Media
   Foundation stepped to (0.083 s) under a playhead of 0.249 s, and the
   filmstrip cells are a frame apart here and there.
-- The invalid states' messages: Media Foundation's error text ("oldValue
-  has incorrect type…") against FFmpeg's (`VideoTrimmer_InvalidVideo`), and
-  the indeterminate bar's phase.
+- The invalid states' messages, where the failure has no Media Foundation
+  counterpart mapped: ShareX's error text ("oldValue has incorrect type…")
+  against `VideoTrimmer_InvalidVideo`; and the indeterminate bar's phase.
+  The mapping (`media::ffmpeg_failure_as_media_foundation`), shown in
+  `VideoTrimmer_PlaybackError` as .NET's `COMException.Message`
+  (`<system message> (0xXXXXXXXX)`, the system's text from `FormatMessage`,
+  English Windows' elsewhere):
+
+  | FFmpeg | Media Foundation | Seen with |
+  |---|---|---|
+  | `Invalid data found when processing input` | `MF_E_END_OF_STREAM` `0xC00D3E84` "The media stream cannot process any more samples because there are no more samples in the stream." | a text file named `invalid.mp4` (VID-04) |
+  | no `Duration`, no video stream | `VideoTrimmer_InvalidVideo` (`HasVideo()`, a finite duration) | |
 - The converter's file size: the encoder's output is a few hundred bytes
   different between runs of the same FFmpeg.
 - The dropdown shots are ShareX's popup windows on their own: their
