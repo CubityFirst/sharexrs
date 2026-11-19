@@ -140,6 +140,33 @@ impl VideoThumbnailOptions {
         }
     }
 
+    /// As Json.NET writes it (the public fields first, then the properties).
+    pub fn to_json(&self) -> Value {
+        let location = ["DefaultFolder", "ParentFolder", "CustomFolder"][self.output_location as usize];
+        serde_json::json!({
+            "DefaultOutputDirectory": self.default_output_directory,
+            "LastVideoPath": self.last_video_path,
+            "OutputLocation": location,
+            "CustomOutputDirectory": self.custom_output_directory,
+            "ImageFormat": ImageFormat::NAMES[self.image_format as usize],
+            "ThumbnailCount": self.thumbnail_count,
+            "FilenameSuffix": self.filename_suffix,
+            "RandomFrame": self.random_frame,
+            "UploadThumbnails": self.upload_thumbnails,
+            "KeepScreenshots": self.keep_screenshots,
+            "OpenDirectory": self.open_directory,
+            "MaxThumbnailWidth": self.max_thumbnail_width,
+            "CombineScreenshots": self.combine_screenshots,
+            "Padding": self.padding,
+            "Spacing": self.spacing,
+            "ColumnCount": self.column_count,
+            "AddVideoInfo": self.add_video_info,
+            "AddTimestamp": self.add_timestamp,
+            "DrawShadow": self.draw_shadow,
+            "DrawBorder": self.draw_border,
+        })
+    }
+
     /// `GetOutputDirectory` (without creating it).
     pub fn output_directory(&self, media_path: &str) -> String {
         match self.output_location {
@@ -359,6 +386,15 @@ pub fn take_thumbnails(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn options_round_trip_as_sharex_writes_them() {
+        let text = r#"{"DefaultOutputDirectory":null,"LastVideoPath":null,"OutputLocation":"DefaultFolder","CustomOutputDirectory":"","ImageFormat":"PNG","ThumbnailCount":9,"FilenameSuffix":"_Thumbnail","RandomFrame":false,"UploadThumbnails":true,"KeepScreenshots":false,"OpenDirectory":false,"MaxThumbnailWidth":512,"CombineScreenshots":true,"Padding":10,"Spacing":10,"ColumnCount":3,"AddVideoInfo":true,"AddTimestamp":true,"DrawShadow":true,"DrawBorder":true}"#;
+        let v: Value = serde_json::from_str(text).unwrap();
+        let o = VideoThumbnailOptions::from_json(&v);
+        assert_eq!(o, VideoThumbnailOptions::default());
+        assert_eq!(serde_json::to_string(&o.to_json()).unwrap(), text);
+    }
 
     #[test]
     fn slices_and_names() {

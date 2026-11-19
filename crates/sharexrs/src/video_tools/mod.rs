@@ -8,6 +8,7 @@ pub mod converter;
 pub mod gif_maker;
 pub mod open;
 pub mod render;
+pub mod thumbnailer;
 
 use egui::{Color32, Rect, Ui, pos2};
 

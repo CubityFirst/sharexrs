@@ -7,7 +7,7 @@
 use sharex_settings::{HotkeyType, TaskSettings};
 use winit::event_loop::ActiveEventLoop;
 
-use super::{converter, gif_maker};
+use super::{converter, gif_maker, thumbnailer};
 use crate::App;
 use crate::dialogs::Dialog;
 
@@ -37,6 +37,16 @@ impl App {
                 let Some(ffmpeg) = self.check_ffmpeg(event_loop, &task) else { return true };
                 let defaults = &self.settings.settings.DefaultTaskSettings;
                 Box::new(converter::VideoConverterWindow::new(task, defaults, Some(ffmpeg), file))
+            }
+            // `OpenVideoThumbnailer(taskSettings)`: FFmpeg checked, the
+            // default output folder the task's screenshots folder.
+            "MainMenuBuilder_VideoThumbnailer" => {
+                let Some(ffmpeg) = self.check_ffmpeg(event_loop, &task) else { return true };
+                let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
+                let metadata = crate::capture_job::Metadata { image: image::RgbaImage::new(0, 0), window_title: None, process_name: None };
+                let folder = crate::capture_job::screenshots_folder(&task, &self.settings.settings, &parent, &metadata);
+                let defaults = &self.settings.settings.DefaultTaskSettings;
+                Box::new(thumbnailer::VideoThumbnailerWindow::new(task, defaults, ffmpeg, folder.to_string_lossy().into_owned()))
             }
             _ => return false,
         };

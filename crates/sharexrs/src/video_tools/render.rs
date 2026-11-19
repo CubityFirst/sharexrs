@@ -9,17 +9,21 @@
 //!   real conversion with FFmpeg on the PATH or `SHAREXRS_FFMPEG`), and
 //!   `--content <codec index>`).
 //!
+//! - `video-thumbnailer` (`--image <video>`, `--state custom-output`,
+//!   `progress` (at `--count` of 9), `results` (a real run into `--text`,
+//!   uploads off), `invalid` (a run on a file FFmpeg can't read)).
+//!
 //! Previews are made at once, on the drawing thread.
 
 use sharex_settings::TaskSettings;
 use sharex_tools::video::converter::Codec;
 
-use super::{converter, gif_maker};
+use super::{converter, gif_maker, thumbnailer};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "gif-maker" | "video-converter")
+    matches!(name, "gif-maker" | "video-converter" | "video-thumbnailer")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -67,6 +71,30 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                     w.convert_now(&mut cx);
                 }
                 other => return Err(format!("no video-converter state {other}")),
+            }
+            Box::new(w)
+        }
+        "video-thumbnailer" => {
+            let defaults = TaskSettings::default();
+            let task = TaskSettings::default_task_settings(&defaults);
+            let mut w = thumbnailer::VideoThumbnailerWindow::new(task, &defaults, ffmpeg_path().unwrap_or_default(), o.text.clone().unwrap_or_default());
+            if let Some(p) = &o.image {
+                w.load_video(&p.to_string_lossy());
+            }
+            match state {
+                "" | "empty" | "input" | "format-menu" | "output-location-menu" => {}
+                "custom-output" => {
+                    w.options.output_location = sharex_tools::video::thumbnailer::OutputLocation::CustomFolder;
+                    w.options.custom_output_directory = o.text.clone().unwrap_or_default();
+                }
+                "progress" => w.set_busy(o.count as i32),
+                "results" | "invalid" => {
+                    w.options.upload_thumbnails = false;
+                    w.options.output_location = sharex_tools::video::thumbnailer::OutputLocation::CustomFolder;
+                    w.options.custom_output_directory = o.text.clone().ok_or("--text <output folder> is required")?;
+                    w.run_now();
+                }
+                other => return Err(format!("no video-thumbnailer state {other}")),
             }
             Box::new(w)
         }
