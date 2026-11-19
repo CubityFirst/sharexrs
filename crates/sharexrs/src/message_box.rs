@@ -264,6 +264,7 @@ impl MessageBox {
 
         let (enter, escape, space) =
             ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Space)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if enter || (space && self.buttons == MessageBoxButtons::Ok) {
             result = result.or(Some(defs[default].0));
         }

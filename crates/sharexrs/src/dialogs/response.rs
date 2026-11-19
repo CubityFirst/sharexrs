@@ -316,7 +316,7 @@ impl Dialog for ResponseWindow {
             }
         }
         let _ = f;
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
             out.push(Effect::Close);
         }
         out

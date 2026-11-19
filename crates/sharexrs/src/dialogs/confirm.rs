@@ -163,6 +163,7 @@ impl Dialog for ConfirmWindow {
         let ok = compact.show(ui, rects[0], ui.id().with("ok"), ok_text, true, true).clicked();
         let cancel = compact.show(ui, rects[1], ui.id().with("cancel"), cancel_text, false, true).clicked();
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if ok || enter {
             let mut out = self.answer(true, cx);
             out.push(Effect::Close);

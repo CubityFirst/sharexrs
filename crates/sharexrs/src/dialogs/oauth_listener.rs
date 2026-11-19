@@ -79,7 +79,7 @@ impl Dialog for OAuthListenerWindow {
         let label = s::OAuthListenerWindow_Cancel();
         let rects = COMPACT.row(ui, inner.max.x, card.max.y + ROW_SPACING, 7.0, &[label]);
         let cancel = COMPACT.show(ui, rects[0], ui.id().with("cancel"), label, false, true).clicked();
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             self.cancel.cancel();
             return vec![Effect::Close];
         }

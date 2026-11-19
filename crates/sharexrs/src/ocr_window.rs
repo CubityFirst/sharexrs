@@ -688,7 +688,7 @@ impl OcrWindow {
         let b = Button { primary: true, ..Button::default() };
         let bw = b.width(&ui, close).max(96.0);
         let br = Rect::from_min_size(pos2(c.max.x - bw, y), vec2(bw, 40.0));
-        if b.show(&ui, br, Id::new("ocr-svc-close"), close, true).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if b.show(&ui, br, Id::new("ocr-svc-close"), close, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             // `CloseServiceEditor`.
             self.editor = None;
             self.save_options();
@@ -759,7 +759,7 @@ impl Dialog for OcrWindow {
             self.finish(r);
         }
         let live = self.editor.is_none();
-        if live && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !ComboBox::is_open(ui.ctx(), Id::new("ocr-service")) {
+        if live && sharex_ui::popup::escape_pressed(ui.ctx()) && !ComboBox::is_open(ui.ctx(), Id::new("ocr-service")) {
             self.effects.push(Effect::Close);
         }
         let p = palette(ui.ctx());

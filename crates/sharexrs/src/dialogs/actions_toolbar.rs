@@ -452,6 +452,7 @@ impl Dialog for ActionsToolbarEditorWindow {
             }
         } else {
             let (escape, delete) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Delete)));
+            let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
             if delete && let Some(i) = self.selected.filter(|i| *i < list.len()) {
                 list.remove(i);
                 self.selected = if list.is_empty() { None } else { Some(i.min(list.len() - 1)) };

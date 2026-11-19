@@ -807,6 +807,9 @@ impl<C: Clone> Flyout<C> {
                 break;
             }
             self.key(key, out);
+            if key == Key::Escape && out.closed {
+                crate::popup::closed_by_escape(ctx);
+            }
             *changed = true;
         }
     }
@@ -897,6 +900,7 @@ impl<C: Clone> Flyout<C> {
         }
         if Self::take_keys(&ctx).contains(&Key::Escape) {
             out.closed = true;
+            crate::popup::closed_by_escape(&ctx);
         }
         out
     }

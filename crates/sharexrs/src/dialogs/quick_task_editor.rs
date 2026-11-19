@@ -274,7 +274,7 @@ impl QuickTaskMenuEditorWindow {
         if save {
             return self.save_editor(presets);
         }
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             self.editor = None;
         }
         Vec::new()
@@ -310,7 +310,7 @@ impl QuickTaskMenuEditorWindow {
             self.selected = (!presets.is_empty()).then_some(0);
             return vec![Effect::SaveSettings];
         }
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             self.confirm_reset = false;
         }
         Vec::new()
@@ -458,6 +458,7 @@ impl Dialog for QuickTaskMenuEditorWindow {
             self.show_editor(presets, Some(i));
         }
         let (escape, delete) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Delete)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if delete {
             out.extend(self.remove(presets));
         }

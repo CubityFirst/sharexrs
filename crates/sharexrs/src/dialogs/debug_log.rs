@@ -278,7 +278,7 @@ impl Dialog for DebugLogWindow {
             let top = inner.max.y - 40.0;
             let up_rect = Rect::from_min_size(pos2(inner.max.x - uw, top), vec2(uw, 40.0));
             let cancel_rect = Rect::from_min_size(pos2(up_rect.min.x - 8.0 - cw, top), vec2(cw, 40.0));
-            if b.show(ui, cancel_rect, ui.id().with("cancel-upload"), cancel, true).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if b.show(ui, cancel_rect, ui.id().with("cancel-upload"), cancel, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
                 self.confirm_upload = false;
             } else if b.show(ui, up_rect, ui.id().with("confirm-upload"), upload, true).clicked() {
                 self.confirm_upload = false;

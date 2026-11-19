@@ -144,7 +144,7 @@ impl Dialog for PrintWindow {
             print_in_background(self.image.clone(), s2.clone());
             effects.push(Effect::Close);
         }
-        if compact(false).show(ui, cancel, Id::new("print-cancel"), cancel_t, true).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if compact(false).show(ui, cancel, Id::new("print-cancel"), cancel_t, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             effects.push(Effect::Close);
         }
         effects

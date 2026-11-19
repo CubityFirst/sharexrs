@@ -219,6 +219,7 @@ impl Dialog for FileExistWindow {
         let cancel = action_button(ui, row(3), ui.id().with("cancel"), icon::Close, false, s::FileExistWindow_Cancel(), None, true).clicked();
 
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        let escape = escape && !sharex_ui::popup::was_open(ui.ctx());
         if use_new && enabled {
             return self.use_new_name();
         }

@@ -59,13 +59,48 @@ pub fn bounds(ctx: &Context, window: Rect) -> Rect {
     ctx.data(|d| d.get_temp::<Frame>(key())).and_then(|f| f.host).unwrap_or(window)
 }
 
+fn open_key() -> Id {
+    Id::new("sharex-ui-popup-open-pass")
+}
+
 /// A popup drawn on `layer` at `rect` this frame.
 pub fn register(ctx: &Context, layer: LayerId, rect: Rect, corner_radius: f32) {
+    let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| {
+        d.insert_temp(open_key(), pass);
         let f = d.get_temp_mut_or_default::<Frame>(key());
         f.layers.retain(|l| l.layer != layer);
         f.layers.push(PopupLayer { layer, rect, corner_radius });
     });
+}
+
+fn closed_key() -> Id {
+    Id::new("sharex-ui-popup-escape-closed-pass")
+}
+
+/// A popup closed on Escape this frame (it took the key).
+pub fn closed_by_escape(ctx: &Context) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.insert_temp(closed_key(), pass));
+}
+
+/// Whether a popup (a menu, a dropdown, a flyout) is open this frame, or
+/// was last frame and didn't close on Escape: Escape is the popup's then.
+pub fn was_open(ctx: &Context) -> bool {
+    let now = ctx.cumulative_pass_nr();
+    let (open, closed) = ctx.data(|d| (d.get_temp::<u64>(open_key()), d.get_temp::<u64>(closed_key())));
+    match open {
+        Some(pass) if pass == now => true,
+        Some(pass) => pass + 1 == now && closed != Some(pass),
+        None => false,
+    }
+}
+
+/// Escape for a window or an editor (closing it, cancelling): pressed, and
+/// no popup over it to close first. Avalonia routes the key to the open
+/// popup, the innermost first (SET-05a).
+pub fn escape_pressed(ctx: &Context) -> bool {
+    ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !was_open(ctx)
 }
 
 /// The popups drawn this frame (the host, after the frame's UI).
@@ -97,5 +132,6 @@ mod tests {
         assert!(take(&ctx).is_empty());
         set_host(&ctx, None);
         assert_eq!(bounds(&ctx, window), window);
+        assert!(was_open(&ctx));
     }
 }

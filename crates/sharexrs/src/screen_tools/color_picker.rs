@@ -616,7 +616,7 @@ impl Dialog for ColorPickerWindow {
                 self.copy_menu = None;
             }
         }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) && self.copy_menu.is_none() {
+        if sharex_ui::popup::escape_pressed(ui.ctx()) && self.copy_menu.is_none() {
             effects.push(Effect::Close);
         }
         let h = self.total_height();

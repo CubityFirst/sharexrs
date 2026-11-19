@@ -915,7 +915,7 @@ impl Dialog for DisplayDiagnosticsWindow {
             tb.show(ui, r, id, &mut self.text)
         });
         super::debug_log::overlay_scroll_bars(ui, view, content, shown.state.offset);
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
             out.push(Effect::Close);
         }
         out

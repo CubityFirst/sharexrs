@@ -701,6 +701,9 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     crate::popup::register(ui.ctx(), area.response.layer_id, popup, 5.0);
     let ctx = ui.ctx();
     let mut keep = !ctx.input(|i| i.key_pressed(Key::Escape));
+    if !keep {
+        crate::popup::closed_by_escape(ctx);
+    }
     if !just_opened
         && ctx.input(|i| i.pointer.any_pressed())
         && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())
@@ -1337,6 +1340,9 @@ pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32
     crate::popup::register(ui.ctx(), area.response.layer_id, area.response.rect, 8.0);
     let ctx = ui.ctx();
     let mut keep = !ctx.input(|i| i.key_pressed(Key::Escape));
+    if !keep {
+        crate::popup::closed_by_escape(ctx);
+    }
     if !just_opened
         && ctx.input(|i| i.pointer.any_pressed())
         && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())

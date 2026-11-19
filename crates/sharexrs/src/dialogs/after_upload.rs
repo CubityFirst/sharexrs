@@ -384,7 +384,7 @@ impl Dialog for AfterUploadWindow {
             // `ImageViewerWindowIntegration.ShowImage(_sourceImage)`.
             out.push(Effect::ShowImage((**image).clone()));
         }
-        if closed || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if closed || sharex_ui::popup::escape_pressed(ui.ctx()) {
             out.push(Effect::Close);
         }
         out

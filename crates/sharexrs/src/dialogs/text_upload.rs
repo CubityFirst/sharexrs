@@ -92,7 +92,7 @@ impl Dialog for TextUploadWindow {
         let cancel = compact.show(ui, rects[0], ui.id().with("cancel"), labels[0], false, true).clicked();
         let upload = compact.show(ui, rects[1], ui.id().with("upload"), labels[1], true, true).clicked();
         // `IsCancel`: Escape closes.
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return vec![Effect::Close];
         }
         if upload {

@@ -57,7 +57,7 @@ impl Dialog for ConfirmWindow {
         if tools::text_button(ui, yr, Id::new("effects-confirm-yes"), yes, true).clicked() {
             return self.answer(true);
         }
-        if tools::text_button(ui, nr, Id::new("effects-confirm-no"), no, true).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if tools::text_button(ui, nr, Id::new("effects-confirm-no"), no, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return self.answer(false);
         }
         Vec::new()

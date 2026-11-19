@@ -75,7 +75,7 @@ impl Dialog for EmailWindow {
             return vec![Effect::Close];
         }
         // `IsCancel`: Escape closes.
-        if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if cancel || sharex_ui::popup::escape_pressed(ui.ctx()) {
             return vec![Effect::Close];
         }
         Vec::new()

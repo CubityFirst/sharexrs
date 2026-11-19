@@ -619,9 +619,37 @@ impl ApplicationSettings {
         let multi = TextBox { padding: d.settings_control_padding, multiline: true, ..Default::default() };
         let format_rect = Rect::from_min_size(pos2(inner.min.x, y), vec2(inner_w, 150.0));
         let format_id = Id::new("format-text");
-        let format_resp = multi.show(&mut ui, format_rect, format_id, &mut ed.format);
-        // `ClipboardFormatTextBox.ContextMenu`: a right click opens it at the pointer.
-        let context = format_resp.secondary_clicked().then(|| ui.input(|i| i.pointer.interact_pos())).flatten();
+        let _ = multi.show(&mut ui, format_rect, format_id, &mut ed.format);
+        // `ClipboardFormatTextBox.ContextMenu`: a right click opens it at the
+        // pointer. Read from the input rather than the text edit's response:
+        // over the editor's blocker, egui never reports the box's secondary
+        // click (SET-05a), so a press and a release of the right button in
+        // the box (in one frame or two) make the click.
+        let press_id = format_id.with("right-press");
+        let (pressed, released, pos) = ui.input(|i| {
+            let mut pressed = None;
+            let mut released = None;
+            for e in &i.events {
+                if let egui::Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed: down, .. } = e {
+                    if *down {
+                        pressed = Some(*pos);
+                    } else {
+                        released = Some(*pos);
+                    }
+                }
+            }
+            (pressed, released, i.pointer.interact_pos())
+        });
+        if let Some(at) = pressed {
+            ui.ctx().data_mut(|d| d.insert_temp(press_id, format_rect.contains(at)));
+        }
+        let context = match released {
+            Some(at) if format_rect.contains(at) && ui.ctx().data(|d| d.get_temp::<bool>(press_id)).unwrap_or(false) => Some(pos.unwrap_or(at)),
+            _ => None,
+        };
+        if released.is_some() {
+            ui.ctx().data_mut(|d| d.remove::<bool>(press_id));
+        }
         y += 150.0 + 3.0;
         ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_RightClickToInsertAVariable(), hint.clone(), p.text_secondary, f32::INFINITY), p.text_secondary);
         y += hint_lh + 8.0;
@@ -637,7 +665,7 @@ impl ApplicationSettings {
         let saved = button.show(&ui, save, Id::new("format-save"), s::ApplicationSettingsWindow_Save(), true).clicked();
         let menu_open = self.code_menu.is_some();
         let cancelled = button.show(&ui, cancel, Id::new("format-cancel"), s::ApplicationSettingsWindow_Cancel(), true).clicked()
-            || (!menu_open && ui.input(|i| i.key_pressed(egui::Key::Escape)));
+            || (!menu_open && sharex_ui::popup::escape_pressed(ui.ctx()));
         if let Some(pos) = context {
             self.open_code_menu(CodeTarget::ClipboardFormat, format_id, format_rect, Some(pos));
         }
@@ -1685,14 +1713,17 @@ mod tests {
 mod variable_menu_click_tests {
     use super::*;
 
-    /// Application settings › Paths at `ppp`, after these frames of input:
-    /// whether the Sub folder pattern menu is open.
-    fn menu_open_after(seq: &[Vec<egui::Event>], ppp: f32) -> bool {
+    /// Application settings on `page` at `ppp` (with the clipboard format
+    /// editor open for `clipboard-formats`), after these frames of input.
+    fn after(page: &str, seq: &[Vec<egui::Event>], ppp: f32) -> ApplicationSettings {
         let ctx = egui::Context::default();
         sharex_ui::install(&ctx);
         let mut settings = ApplicationConfig::default();
         let mut state = ApplicationSettings::new(&settings, true, std::env::temp_dir()).with_integration(Box::new(crate::integration::NoIntegration));
-        state.page = PAGES.iter().position(|p| *p == "paths").unwrap();
+        state.page = PAGES.iter().position(|p| *p == page).unwrap();
+        if page == "clipboard-formats" {
+            state.open_format_editor(&settings, None);
+        }
         let mut t = 0.0;
         let mut frame = |events: Vec<egui::Event>| {
             t += 1.0 / 60.0;
@@ -1706,7 +1737,32 @@ mod variable_menu_click_tests {
         for ev in std::iter::repeat_n(vec![], 3).chain(seq.iter().cloned()).chain(std::iter::repeat_n(vec![], 3)) {
             frame(ev);
         }
-        state.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::SubFolder)
+        state
+    }
+
+    /// Whether the Sub folder pattern menu is open after these frames.
+    fn menu_open_after(seq: &[Vec<egui::Event>], ppp: f32) -> bool {
+        after("paths", seq, ppp).code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::SubFolder)
+    }
+
+    #[test]
+    fn escape_closes_the_variable_menu_before_the_format_editor() {
+        // SET-05a: Clipboard formats › Add, a right-click in Format (in one
+        // frame, as a synthetic click comes), then Escape: the menu goes,
+        // the editor stays; a second Escape closes the editor.
+        let p = egui::pos2(400.0, 360.0);
+        let right = |pressed| egui::Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Default::default() };
+        let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
+        let click = vec![egui::Event::PointerMoved(p), right(true), right(false)];
+        let separate = after("clipboard-formats", &[vec![egui::Event::PointerMoved(p)], vec![right(true)], vec![right(false)]], 1.25);
+        assert!(separate.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::ClipboardFormat));
+        let opened = after("clipboard-formats", &[click.clone()], 1.25);
+        assert!(opened.code_menu.as_ref().is_some_and(|m| m.target == CodeTarget::ClipboardFormat));
+        let once = after("clipboard-formats", &[click.clone(), vec![escape.clone()]], 1.25);
+        assert!(once.code_menu.is_none());
+        assert!(once.editor.is_some());
+        let twice = after("clipboard-formats", &[click, vec![escape.clone()], vec![escape]], 1.25);
+        assert!(twice.editor.is_none());
     }
 
     #[test]
