@@ -1118,7 +1118,12 @@ impl App {
     /// `UploadManager.RunImageTask(bmp, taskSettings)`: an image made by a
     /// tool (the combiner) through the task's after capture tasks.
     pub(crate) fn run_image_task_for(&mut self, image: image::RgbaImage, task: TaskSettings) {
-        let metadata = capture_job::Metadata { image, window_title: None, process_name: None };
+        self.run_image_task_with(image, task, None);
+    }
+
+    /// [`Self::run_image_task_for`] with `TaskMetadata.ProcessName`.
+    pub(crate) fn run_image_task_with(&mut self, image: image::RgbaImage, task: TaskSettings, process_name: Option<String>) {
+        let metadata = capture_job::Metadata { image, window_title: None, process_name };
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let effects = self.settings.paths.image_effects_folder();
         let job = capture_job::ImageTask::new(metadata, task, &mut self.settings.settings, &parent, effects);

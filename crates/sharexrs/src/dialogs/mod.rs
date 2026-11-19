@@ -173,6 +173,8 @@ pub enum Effect {
     /// `UploadManager.RunImageTask(image, taskSettings)`: the image through
     /// the task's after capture tasks.
     RunImageTask(RgbaImage, Box<TaskSettings>),
+    /// [`Effect::RunImageTask`] with `TaskMetadata.ProcessName` set.
+    RunImageTaskAs(RgbaImage, Box<TaskSettings>, &'static str),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
     /// `TaskHelpers.OpenRemoteStorageBrowser` (Destination settings' button).
@@ -748,6 +750,7 @@ impl App {
 
                 Effect::PinOptionsSaved(pin, options) => self.pin_options_saved(pin, *options),
                 Effect::RunImageTask(image, task) => self.run_image_task_for(image, *task),
+                Effect::RunImageTaskAs(image, task, process) => self.run_image_task_with(image, *task, Some(process.to_owned())),
                 Effect::OpenDialog(dialog) => self.open_dialog_window(event_loop, dialog),
                 Effect::TrimmerExport => {
                     let task = self.dialogs.iter().find(|d| d.window.window.id() == id).and_then(|d| d.dialog.task().cloned());

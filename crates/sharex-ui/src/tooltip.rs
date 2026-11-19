@@ -84,6 +84,24 @@ pub fn paint(painter: &egui::Painter, ui: &Ui, rect: Rect, text: &str, opacity: 
     painter.galley(pos2(rect.min.x + 1.0 + PADDING.0, rect.min.y + 1.0 + PADDING.1), g, p.text_secondary);
 }
 
+/// A tooltip opened in code (`ToolTip.SetIsOpen(control, true)`): at once,
+/// at `pointer` as it was when it opened at `opened` (`ui.input().time`),
+/// fading in.
+pub fn show_now(ui: &Ui, id: Id, pointer: Pos2, opened: f64, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    let ctx = ui.ctx();
+    let now = ui.input(|i| i.time);
+    let t = ((now - opened) / FADE).clamp(0.0, 1.0) as f32;
+    if t < 1.0 {
+        ctx.request_repaint();
+    }
+    let rect = place(pointer, size(ui, text), ctx.content_rect());
+    let painter = ctx.layer_painter(egui::LayerId::new(Order::Tooltip, id.with("tooltip")));
+    paint(&painter, ui, rect, text, t);
+}
+
 /// Hover state kept across frames.
 #[derive(Clone, Copy, Debug, Default)]
 struct State {
