@@ -186,6 +186,49 @@ pub fn system_devices() -> DeviceLister {
     })
 }
 
+/// `TaskSettingsPageBuilder.CaptureDeviceCombo`'s items: the default (or,
+/// with no devices, `empty_label`), the devices by name, then the saved
+/// device if it isn't connected. A listing failure leaves the default only.
+pub fn form_choices(devices: Result<Vec<DeviceChoice>, String>, selected: &str, default_label: &str, unavailable: &str, empty_label: Option<&str>) -> Vec<DeviceChoice> {
+    let mut choices = vec![DeviceChoice { id: String::new(), name: default_label.to_owned() }];
+    match devices {
+        Ok(mut list) => {
+            if list.is_empty()
+                && let Some(e) = empty_label
+            {
+                choices[0].name = e.to_owned();
+            }
+            list.sort_by_key(|d| d.name.to_lowercase());
+            choices.extend(list);
+        }
+        Err(e) => eprintln!("{e}"),
+    }
+    if !choices.iter().any(|d| d.id == selected) {
+        choices.push(DeviceChoice { id: selected.to_owned(), name: unavailable.to_owned() });
+    }
+    choices
+}
+
+/// The devices of a kind for forms drawn every frame: listed again at most
+/// every two seconds (ShareX lists them when the combo box is made).
+pub fn cached_devices(kind: SourceKind) -> Result<Vec<DeviceChoice>, String> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    type Cache = Mutex<Vec<(SourceKind, Instant, Result<Vec<DeviceChoice>, String>)>>;
+    static CACHE: OnceLock<Cache> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(Vec::new()));
+    let mut c = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, at, r)) = c.iter().find(|(k, _, _)| *k == kind)
+        && at.elapsed() < Duration::from_secs(2)
+    {
+        return r.clone();
+    }
+    let r = system_devices()(kind).map(|(d, _)| d);
+    c.retain(|(k, _, _)| *k != kind);
+    c.push((kind, Instant::now(), r.clone()));
+    r
+}
+
 /// `CameraLayoutPreview.Render`: the recording scaled into `rect`, the
 /// camera tile (16:9, 4:3 for 640x480) where the overlay puts it.
 pub fn paint_layout_preview(ui: &Ui, rect: Rect, c: &TaskSettingsCapture, region: (i32, i32), accent: Color32, outline: Color32) {
@@ -309,6 +352,16 @@ mod tests {
         let failing: DeviceLister = Box::new(|_| Err("no".into()));
         s.refresh(&c, &failing);
         assert!(!s.available && s.devices.is_empty());
+    }
+
+    #[test]
+    fn form_choices_as_sharex() {
+        let d = |i: &str, n: &str| DeviceChoice { id: i.into(), name: n.into() };
+        let names = |v: Vec<DeviceChoice>| v.into_iter().map(|d| d.name).collect::<Vec<_>>();
+        assert_eq!(names(form_choices(Ok(vec![d("b", "b"), d("a", "A")]), "", "Default", "Gone", None)), ["Default", "A", "b"]);
+        assert_eq!(names(form_choices(Ok(vec![]), "", "First", "Gone", Some("None"))), ["None"]);
+        assert_eq!(names(form_choices(Ok(vec![d("a", "A")]), "x", "Default", "Gone", None)), ["Default", "A", "Gone"]);
+        assert_eq!(names(form_choices(Err("no".into()), "", "Default", "Gone", Some("None"))), ["Default"]);
     }
 
     #[test]

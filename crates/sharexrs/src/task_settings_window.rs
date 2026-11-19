@@ -1262,9 +1262,9 @@ fn page_screen_recorder(f: &mut Form) {
         f.title(s::TaskSettingsWindow_NativeRecorder());
         let native = chk!(f, s::TaskSettingsWindow_NativeRecorderEnabled(), CaptureSettings.ScreenRecordUseNative);
         let sys = chk!(f, s::TaskSettingsWindow_NativeRecorderSystemAudio(), native, CaptureSettings.ScreenRecordSystemAudio);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), native && sys, 0);
+        device_row(f, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), None, native && sys, 0);
         let mic = chk!(f, s::TaskSettingsWindow_NativeRecorderMicrophone(), native, CaptureSettings.ScreenRecordMicrophone);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), native && mic, 1);
+        device_row(f, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), None, native && mic, 1);
         chk!(f, s::TaskSettingsWindow_NativeRecorderHardware(), native, CaptureSettings.ScreenRecordRequireHardwareEncoder);
         let mut v = sec!(f, CaptureSettings).ScreenRecordVideoBitrate as f64;
         if f.number_f64_w(s::TaskSettingsWindow_NativeRecorderBitrate(), LABEL_W, 160.0, 100.0, 200000.0, 100.0, 0, &mut v, native) {
@@ -1278,7 +1278,15 @@ fn page_screen_recorder(f: &mut Form) {
         f.enabled = saved && native;
         f.stack(4.0, &mut |f| {
             let cam = chk!(f, s::TaskSettingsWindow_NativeRecorderCamera_Enabled(), CaptureSettings.ScreenRecordCamera);
-            device_row(f, s::TaskSettingsWindow_NativeRecorderCamera_Device(), s::TaskSettingsWindow_NativeRecorderCamera_NoDevices(), s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(), cam, 2);
+            device_row(
+                f,
+                s::TaskSettingsWindow_NativeRecorderCamera_Device(),
+                s::TaskSettingsWindow_NativeRecorderCamera_DefaultDevice(),
+                s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(),
+                Some(s::TaskSettingsWindow_NativeRecorderCamera_NoDevices()),
+                cam,
+                2,
+            );
             let res = [(Res::Size640x480, "640 × 480"), (Res::Size1280x720, "1280 × 720"), (Res::Size1920x1080, "1920 × 1080")];
             let cur = res.iter().position(|(r, _)| *r == sec!(f, CaptureSettings).ScreenRecordCameraResolution).unwrap_or(1);
             let items: Vec<ComboItem> = res.iter().map(|(_, t)| ComboItem::text(*t)).collect();
@@ -1341,28 +1349,18 @@ fn page_screen_recorder(f: &mut Form) {
     });
 }
 
-/// `CaptureDeviceCombo`: the default device, then the devices; one that's
-/// saved but not connected stays selectable. Device listing isn't ported,
-/// so only the default and a saved device show.
-fn device_row(f: &mut Form, label: &str, default_label: &str, unavailable: &str, enabled: bool, k: usize) {
-    let c = sec!(f, CaptureSettings);
-    let saved = match k {
-        0 => c.ScreenRecordSystemAudioDeviceId.clone(),
-        1 => c.ScreenRecordMicrophoneDeviceId.clone(),
-        _ => c.ScreenRecordCameraDeviceId.clone(),
-    };
-    let mut items = vec![ComboItem::text(default_label)];
-    if !saved.is_empty() {
-        items.push(ComboItem::text(unavailable));
-    }
-    let cur = if saved.is_empty() { 0 } else { 1 };
-    if f.combo(label, LABEL_W, &items, Some(cur), ComboSize::default(), enabled) == Some(0) {
-        let c = sec!(f, CaptureSettings);
-        match k {
-            0 => c.ScreenRecordSystemAudioDeviceId.clear(),
-            1 => c.ScreenRecordMicrophoneDeviceId.clear(),
-            _ => c.ScreenRecordCameraDeviceId.clear(),
-        }
+/// `CaptureDeviceCombo`: the default device (or "No cameras detected"),
+/// then the devices by name; one that's saved but not connected stays
+/// selectable.
+fn device_row(f: &mut Form, label: &str, default_label: &str, unavailable: &str, empty_label: Option<&str>, enabled: bool, k: usize) {
+    use crate::recording::bar_sources::{SourceKind, cached_devices, form_choices};
+    let kind = [SourceKind::SystemAudio, SourceKind::Microphone, SourceKind::Camera][k.min(2)];
+    let saved = kind.selected(sec!(f, CaptureSettings)).to_owned();
+    let choices = form_choices(cached_devices(kind), &saved, default_label, unavailable, empty_label);
+    let items: Vec<ComboItem> = choices.iter().map(|d| ComboItem::text(d.name.clone())).collect();
+    let cur = choices.iter().position(|d| d.id == saved);
+    if let Some(n) = f.combo(label, LABEL_W, &items, cur, ComboSize::default(), enabled) {
+        kind.set_selected(sec!(f, CaptureSettings), &choices[n].id);
     }
 }
 
