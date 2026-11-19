@@ -11,7 +11,8 @@
 //!
 //! Each is a `Popup` with `Placement="Bottom"` and `VerticalOffset="4"`
 //! under its button (placed by Avalonia's positioner on the screen's work
-//! area, past the window: `sharex_ui::popup`), in a
+//! area, past the window: `sharex_ui::popup`), with `IsLightDismissEnabled`
+//! (a press outside closes it and goes no further), in a
 //! `Border.popup-border.popup-surface` (control
 //! background, 1px border, 4px corners, 8px padding, `0 14 28 -14
 //! #66000000` shadow) holding `Button.picker-button`s (transparent, 6px
@@ -213,7 +214,8 @@ impl Popups {
     /// choices to `ws`. `bounds` is the screen's work area when the window
     /// can't open popups past its edge (region capture's overlay, a
     /// render); a host's own screens win (`sharex_ui::popup`). Closes it
-    /// on a choice, Escape or a press outside it and its button.
+    /// on a choice, Escape or a press outside it (its own button's too:
+    /// the light dismiss overlay takes that press).
     pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, ws: &mut Workspace) -> PopupResult {
         let Some(item) = self.open else { return PopupResult::default() };
         let mut result = PopupResult::default();
@@ -229,6 +231,7 @@ impl Popups {
         // background and 8px corners.
         let (bg, radius) = if colour || shadow_popup { (p.background_panel, 8.0) } else { (p.control_background, 4.0) };
         let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
+            sharex_ui::popup::light_dismiss_overlay(ui);
             let (r, _) = ui.allocate_exact_size(size, Sense::hover());
             ui.set_clip_rect(r.expand(40.0));
             paint_frame(ui, r, bg, p.border, radius);
@@ -367,7 +370,6 @@ impl Popups {
             && ctx.input(|i| i.pointer.any_pressed())
             && let Some(at) = ctx.input(|i| i.pointer.interact_pos())
             && !area.response.rect.contains(at)
-            && !anchor.contains(at)
             && !self.sub_popup_contains(ctx, at)
         {
             close = true;
@@ -665,8 +667,7 @@ impl ColorDropdown {
     }
 
     /// Draws the open popup under `anchor` (`bounds` as [`Popups::show`]),
-    /// editing `color`; closes it on Escape or a press outside it and
-    /// `anchor`.
+    /// editing `color`; closes it on Escape or a press outside it.
     pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, key: &str, color: &mut Rgba8) -> PopupResult {
         let mut result = PopupResult::default();
         if !self.open {
@@ -680,6 +681,7 @@ impl ColorDropdown {
         let mut close = false;
         let popups = &mut self.popups;
         let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
+            sharex_ui::popup::light_dismiss_overlay(ui);
             let (r, _) = ui.allocate_exact_size(size, Sense::hover());
             ui.set_clip_rect(r.expand(40.0));
             paint_frame(ui, r, p.background_panel, p.border, 8.0);
@@ -699,7 +701,6 @@ impl ColorDropdown {
             && ctx.input(|i| i.pointer.any_pressed())
             && let Some(at) = ctx.input(|i| i.pointer.interact_pos())
             && !area.response.rect.contains(at)
-            && !anchor.contains(at)
         {
             close = true;
         }

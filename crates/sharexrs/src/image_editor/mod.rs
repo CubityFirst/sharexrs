@@ -238,6 +238,8 @@ pub struct EditorWindow {
     popups: Popups,
     flyout: Option<Flyout<MenuCmd>>,
     zoom_open: bool,
+    /// The zoom popup's rectangle as last drawn.
+    zoom_rect: Option<Rect>,
     /// `AreToolbarsHidden`.
     toolbars_hidden: bool,
     /// The top toolbar's horizontal scroll (its `ScrollViewer`).
@@ -388,6 +390,7 @@ impl EditorWindow {
             popups: Popups::default(),
             flyout: None,
             zoom_open: false,
+            zoom_rect: None,
             toolbars_hidden: false,
             top_scroll: 0.0,
             effects: Vec::new(),
@@ -1488,7 +1491,12 @@ impl EditorWindow {
 
     /// The part of the window the toolbars, menus and popups cover.
     fn over_ui(&self, p: Pos2) -> bool {
-        if self.popups.contains(p) || self.flyout.as_ref().is_some_and(|f| f.contains(p)) || self.notify.contains(p) || self.bg_panel.contains(p) {
+        if self.popups.contains(p)
+            || self.flyout.as_ref().is_some_and(|f| f.contains(p))
+            || self.notify.contains(p)
+            || self.bg_panel.contains(p)
+            || (self.zoom_open && self.zoom_rect.is_some_and(|r| r.contains(p)))
+        {
             return true;
         }
         // The effect browser's scrim covers the view; the dialog's sidebar
@@ -1612,9 +1620,11 @@ impl EditorWindow {
                             self.ws.confirm_crop();
                             continue;
                         }
-                        // A press on the canvas closes an open popup first.
-                        if self.popups.open.is_some() {
+                        // A press on the canvas closes an open popup first
+                        // and goes no further (light dismiss).
+                        if self.popups.open.is_some() || self.zoom_open {
                             self.popups.close();
+                            self.zoom_open = false;
                             continue;
                         }
                         let at = m.image_pos(pos);
@@ -1827,8 +1837,12 @@ impl EditorWindow {
         let w = anchor.width().max(60.0) + 18.0;
         let h = 18.0 + ZOOM_LEVELS.len() as f32 * 32.0 + 9.0 + 32.0;
         let rect = Rect::from_min_size(pos2(anchor.center().x - w / 2.0, anchor.min.y - 4.0 - h), vec2(w, h));
+        self.zoom_rect = Some(rect);
         let mut choice = None;
         let area = egui::Area::new(Id::new("editor-zoom-popup")).order(egui::Order::Foreground).fixed_pos(rect.min).fade_in(false).show(ui.ctx(), |ui| {
+            // `IsLightDismissEnabled`: a press outside closes it and goes
+            // no further (its own button's too).
+            sharex_ui::popup::light_dismiss_overlay(ui);
             let (r, _) = ui.allocate_exact_size(rect.size(), Sense::hover());
             sharex_ui::border::border(ui.painter(), r, 4.0, 1.0, Some(sharex_ui::border::Brush::Solid(p.control_background)), Some(p.border));
             let mut y = r.min.y + 9.0;
@@ -1868,7 +1882,6 @@ impl EditorWindow {
         } else if ui.ctx().input(|i| i.pointer.any_pressed())
             && let Some(at) = ui.ctx().input(|i| i.pointer.interact_pos())
             && !area.response.rect.contains(at)
-            && !anchor.contains(at)
         {
             self.zoom_open = false;
         }

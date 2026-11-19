@@ -1509,6 +1509,9 @@ pub fn popup_at(ctx: &egui::Context, id: Id, pos: Pos2, color: &mut Rgba8, style
     // Not kept in the window: placed on the work area (`place`), a popup
     // past the window's edge goes into a popup window of its own.
     let area = egui::Area::new(id.with("color-popup")).order(Order::Foreground).fixed_pos(pos).constrain(false).fade_in(false).show(ctx, |ui| {
+        // A `Flyout`'s and `ColorPickerDropdown`'s popups light-dismiss
+        // without passing the press on (REG5-04b).
+        crate::popup::light_dismiss_overlay(ui);
         let (r, _) = ui.allocate_exact_size(host.size, Sense::hover());
         match style {
             ColorPopup::Dropdown => border::border(ui.painter(), r, host.radius, host.border, Some(Brush::Solid(p.background_panel)), Some(p.border)),
@@ -1542,8 +1545,9 @@ pub fn preset(ctx: &egui::Context, id: Id, style: ColorPopup, rgba: Rgba8, tab: 
 
 /// The colour popup `id` against `anchor`, hosted as `style`. Returns
 /// whether the colour changed and whether the popup stays open (Escape or
-/// a press outside it and `anchor` closes it, but not the press that
-/// opened it, `just_opened`).
+/// a press outside it closes it, but not the press that opened it,
+/// `just_opened`). A press on `anchor` closes it too: the light dismiss
+/// overlay takes that press, so the button under it never toggles.
 pub fn popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Rgba8, just_opened: bool, style: ColorPopup) -> (bool, bool) {
     let ctx = ui.ctx().clone();
     let host = style.host(Px::of(&ctx));
@@ -1563,7 +1567,6 @@ pub fn popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Rgba8, just_opened: bool
         && ctx.input(|i| i.pointer.any_pressed())
         && let Some(at) = ctx.input(|i| i.pointer.interact_pos())
         && !area.contains(at)
-        && !anchor.contains(at)
     {
         keep = false;
     }
