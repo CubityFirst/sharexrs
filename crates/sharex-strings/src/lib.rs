@@ -33,8 +33,57 @@ pub fn language() -> &'static str {
     LANGUAGES[CURRENT.load(Ordering::Relaxed)]
 }
 
-fn pick(values: &[Option<&'static str>]) -> &'static str {
-    values[CURRENT.load(Ordering::Relaxed)].or(values[0]).unwrap_or("")
+/// One language's strings (or every key's name), each key's in key order:
+/// `text` holds them back to back and `ends` where each ends, as
+/// little-endian `u32`s with [`MISSING`] set for one the language lacks.
+/// (Generated files, so each language's strings sit together in the
+/// executable and only the language in use, and English, gets read.)
+struct Blob {
+    text: &'static str,
+    ends: &'static [u8],
+}
+
+/// Set on an end offset for a key the language doesn't translate.
+const MISSING: u32 = 1 << 31;
+
+impl Blob {
+    fn end(&self, key: usize) -> u32 {
+        u32::from_le_bytes(self.ends[key * 4..key * 4 + 4].try_into().unwrap())
+    }
+
+    /// The string for key number `key`, if this language has one.
+    fn get(&self, key: usize) -> Option<&'static str> {
+        let end = self.end(key);
+        if end & MISSING != 0 {
+            return None;
+        }
+        let start = if key == 0 { 0 } else { self.end(key - 1) & !MISSING };
+        Some(&self.text[start as usize..end as usize])
+    }
+}
+
+/// Key number `key` in the current language, or in English (which has
+/// every key) when that language doesn't translate it.
+fn get(key: usize) -> &'static str {
+    pick(&STRINGS[CURRENT.load(Ordering::Relaxed)], &STRINGS[0], key)
+}
+
+fn pick(language: &Blob, english: &Blob, key: usize) -> &'static str {
+    language.get(key).or_else(|| english.get(key)).unwrap_or("")
+}
+
+/// The string named `name` among keys `keys` (one module's, sorted).
+fn lookup(keys: std::ops::Range<usize>, name: &str) -> Option<&'static str> {
+    let (mut low, mut high) = (keys.start, keys.end);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        match KEYS.get(mid).unwrap_or("").cmp(name) {
+            std::cmp::Ordering::Less => low = mid + 1,
+            std::cmp::Ordering::Greater => high = mid,
+            std::cmp::Ordering::Equal => return Some(get(mid)),
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -60,12 +109,44 @@ mod tests {
         assert_eq!(language(), "");
     }
 
+    #[test]
+    fn culture_falls_back_to_neutral_then_english() {
+        let _lock = lock();
+        assert_eq!(set_language("de"), "de");
+        assert_eq!(set_language("es-mx"), "es-MX");
+        assert_eq!(set_language("es-AR"), "es");
+        // No neutral `pt` or `ja`: English, as before.
+        assert_eq!(set_language("pt"), "");
+        assert_eq!(set_language("ja"), "");
+        assert_eq!(set_language("ja-JP"), "ja-JP");
+        assert_eq!(language(), "ja-JP");
+        assert_eq!(set_language("xx-YY"), "");
+        assert_eq!(sharex::MainWindow_ShareXHotkeys(), "ShareX hotkeys");
+        set_language("");
+    }
+
+    /// A key a language lacks shows English's; an empty translation stays
+    /// empty. (ShareX's files have every key in every language today, so
+    /// this is a made-up pair of blobs.)
+    #[test]
+    fn missing_string_falls_back_to_english() {
+        const M: u8 = 0x80;
+        static ENGLISH: Blob = Blob { text: "OneTwoThree", ends: &[3, 0, 0, 0, 6, 0, 0, 0, 11, 0, 0, 0] };
+        static OTHER: Blob = Blob { text: "Eins", ends: &[4, 0, 0, 0, 4, 0, 0, M, 4, 0, 0, 0] };
+        assert_eq!(OTHER.get(1), None);
+        assert_eq!([0, 1, 2].map(|k| pick(&OTHER, &ENGLISH, k)), ["Eins", "Two", ""]);
+        assert_eq!([0, 1, 2].map(|k| pick(&ENGLISH, &ENGLISH, k)), ["One", "Two", "Three"]);
+    }
+
     /// Every string of every module in every language, through `lookup` and
     /// (checked equal) the accessors: `module \0 key \0 language \0 value \0`.
     /// Its length and FNV-1a hash were taken from the build that kept every
     /// language's strings side by side per key (before 2026-11-19's split
-    /// by language), so the layout can change but no string can.
-    /// `SHAREX_STRINGS_DUMP=<file>` writes it out, to diff two builds.
+    /// by language; the photo and pixel editors' modules, unused, left out),
+    /// so the layout can change but no string can. `SHAREX_STRINGS_DUMP=<file>`
+    /// writes it out, to diff two builds. When the `.resx` themselves change
+    /// (a ShareX update), diff the dumps from before and after and take the
+    /// new length and hash.
     #[test]
     fn every_string_unchanged() {
         let _lock = lock();
@@ -73,10 +154,6 @@ mod tests {
         for lang in LANGUAGES {
             assert_eq!(set_language(lang), lang);
             for (module, lookup, keys) in MODULES {
-                // The photo and pixel editors' strings aren't ported (yet).
-                if matches!(*module, "photo_editor" | "pixel_editor") {
-                    continue;
-                }
                 for (key, accessor) in *keys {
                     let value = lookup(key).unwrap();
                     if let Some(accessor) = accessor {
