@@ -283,8 +283,10 @@ impl Dialog for ImageViewerWindow {
                 let ci = egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
                 self.texture = Some(ui.ctx().load_texture("image-viewer", ci, egui::TextureOptions::LINEAR));
             }
-            let ppp = ui.ctx().pixels_per_point();
-            let (iw, ih) = (img.width() as f32 / ppp, img.height() as f32 / ppp);
+            // An Avalonia `Bitmap` is 96 DPI: its pixels are device-independent
+            // pixels, so at 125% a 1200 px image is 1500 screen pixels wide
+            // before it's shrunk to fit (SCR-02's mistake, APP-08a's shot).
+            let (iw, ih) = (img.width() as f32, img.height() as f32);
             let fit = (full.width() / iw).min(full.height() / ih).min(1.0);
             let size = vec2(iw * fit, ih * fit);
             let base = Rect::from_min_size(pos2(full.min.x + ((full.width() - size.x) / 2.0).round(), full.min.y + ((full.height() - size.y) / 2.0).round()), size);

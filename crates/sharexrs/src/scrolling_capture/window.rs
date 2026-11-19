@@ -262,7 +262,9 @@ impl ScrollingCaptureWindow {
 }
 
 /// The result as textures of at most 2048 px a side (a scrolling capture
-/// can be taller than the GPU's largest texture), drawn 1:1.
+/// can be taller than the GPU's largest texture), an image pixel to a
+/// device-independent pixel (Avalonia's 96 DPI `Bitmap`), filtered when the
+/// display scales it.
 struct Tiled {
     image: RgbaImage,
     tiles: Vec<(sharex_capture::Rect, egui::TextureHandle)>,
@@ -287,7 +289,7 @@ impl Tiled {
                     let (tw, th) = (Self::SIDE.min(w - x), Self::SIDE.min(h - y));
                     let part = image::imageops::crop_imm(&self.image, x, y, tw, th).to_image();
                     let ci = egui::ColorImage::from_rgba_unmultiplied([tw as usize, th as usize], part.as_raw());
-                    let tex = ctx.load_texture(format!("scrolling-result-{x}-{y}"), ci, egui::TextureOptions::NEAREST);
+                    let tex = ctx.load_texture(format!("scrolling-result-{x}-{y}"), ci, egui::TextureOptions::LINEAR);
                     self.tiles.push((sharex_capture::Rect::new(x as i32, y as i32, tw as i32, th as i32), tex));
                 }
             }
@@ -422,8 +424,9 @@ impl Dialog for ScrollingCaptureWindow {
         match self.picture.as_mut() {
             Some(pic) => {
                 let (w, h) = pic.size();
-                let ppp = ui.ctx().pixels_per_point();
-                let size = vec2(w as f32 / ppp, h as f32 / ppp);
+                // `Image Stretch="None"` on a 96 DPI `Bitmap`: an image pixel is a
+                // device-independent pixel, 1.25 screen pixels at 125% (SCR-02).
+                let size = vec2(w as f32, h as f32);
                 let max = vec2((size.x - view.width()).max(0.0), (size.y - view.height()).max(0.0));
                 let resp = ui.interact(view, Id::new("scrolling-preview"), egui::Sense::drag());
                 if live {
@@ -451,9 +454,12 @@ impl Dialog for ScrollingCaptureWindow {
                 let x0 = if max.x > 0.0 { view.min.x - self.offset.x } else { view.min.x + ((view.width() - size.x) / 2.0).round_ties_even() };
                 let y0 = if max.y > 0.0 { view.min.y - self.offset.y } else { view.min.y + ((view.height() - size.y) / 2.0).round_ties_even() };
                 let painter = ui.painter().with_clip_rect(view);
-                let origin = pos2(x0.round(), y0.round());
+                // On whole screen pixels (Avalonia's layout rounding), so at
+                // 100% the filtered texture is drawn pixel for pixel.
+                let ppp = ui.ctx().pixels_per_point();
+                let origin = pos2((x0 * ppp).round() / ppp, (y0 * ppp).round() / ppp);
                 for (tile, tex) in pic.tiles(ui.ctx()) {
-                    let r = Rect::from_min_size(origin + vec2(tile.x as f32 / ppp, tile.y as f32 / ppp), vec2(tile.w as f32 / ppp, tile.h as f32 / ppp));
+                    let r = Rect::from_min_size(origin + vec2(tile.x as f32, tile.y as f32), vec2(tile.w as f32, tile.h as f32));
                     if r.intersects(view) {
                         painter.image(tex, r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                     }
