@@ -2,6 +2,10 @@
 
 use egui_wgpu::wgpu;
 
+/// The first device, for the `memory-profile` report.
+#[cfg(feature = "memory-profile")]
+pub static PROFILED_DEVICE: std::sync::OnceLock<wgpu::Device> = std::sync::OnceLock::new();
+
 pub struct Gpu {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
@@ -52,6 +56,8 @@ impl Gpu {
             ..Default::default()
         }))
         .map_err(|e| format!("failed to open graphics device: {e}"))?;
+        #[cfg(feature = "memory-profile")]
+        let _ = PROFILED_DEVICE.set(device.clone());
         Ok(Self { instance, adapter, device, queue })
     }
 

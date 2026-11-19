@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# A counting allocator and `SHAREXRS_MEMPROF=<file>`'s report (src/memprof.rs).
+memory-profile = ["sharex-ui/memory-profile"]
+
 [dependencies]
 sharex-ui.workspace = true
 sharex-strings.workspace = true

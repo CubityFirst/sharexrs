@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# The device kept for the memory profile (sharexrs's `memory-profile`).
+memory-profile = []
+
 [dependencies]
 egui.workspace = true
 egui-wgpu.workspace = true

@@ -16,6 +16,8 @@ mod display_native;
 mod drag_out;
 mod drop_target;
 mod logger;
+#[cfg(feature = "memory-profile")]
+mod memprof;
 mod main_commands;
 mod quick_task;
 mod appearance;
@@ -141,6 +143,8 @@ pub enum UserEvent {
 
 fn main() {
     cli::START.get_or_init(Instant::now);
+    #[cfg(feature = "memory-profile")]
+    memprof::start();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("--render") {
         if let Err(e) = render::run(&args[1..]) {
