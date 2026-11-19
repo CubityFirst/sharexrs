@@ -4,14 +4,22 @@
 //! - `gif-maker` (`--files a,b,c`, `--select N`, `--state repeat-count`
 //!   (Loop on, repeat count 3) or `created` (the GIF written to `--text`)).
 //!
+//! - `video-converter` (`--image <input>`, `--state codec-no-rate-control`
+//!   (NVENC), `bitrate`, `encoding` (at `--count` percent), `result` (a
+//!   real conversion with FFmpeg on the PATH or `SHAREXRS_FFMPEG`), and
+//!   `--content <codec index>`).
+//!
 //! Previews are made at once, on the drawing thread.
 
-use super::gif_maker;
+use sharex_settings::TaskSettings;
+use sharex_tools::video::converter::Codec;
+
+use super::{converter, gif_maker};
 use crate::dialogs::Dialog;
 use crate::dialogs::render::Options;
 
 pub fn is_render_screen(name: &str) -> bool {
-    matches!(name, "gif-maker")
+    matches!(name, "gif-maker" | "video-converter")
 }
 
 fn files(o: &Options) -> Vec<String> {
@@ -40,6 +48,37 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             }
             Box::new(w)
         }
+        "video-converter" => {
+            let defaults = TaskSettings::default();
+            let task = TaskSettings::default_task_settings(&defaults);
+            let mut w = converter::VideoConverterWindow::new(task, &defaults, ffmpeg_path(), o.image.as_ref().map(|p| p.to_string_lossy().into_owned()));
+            if let Some(i) = o.content.as_deref().and_then(|c| c.parse::<usize>().ok()) {
+                w.codec = *Codec::ALL.get(i).ok_or("--content <codec index>")?;
+            }
+            match state {
+                "" | "empty" | "input" | "codec-menu" | "rate-control-menu" => {}
+                "codec-no-rate-control" => w.codec = Codec::H264Nvenc,
+                "bitrate" => w.use_bitrate = true,
+                "encoding" => w.set_encoding(o.count as f64),
+                "result" => {
+                    let mut settings = sharex_settings::ApplicationConfig::default();
+                    let store = crate::upload::UploadersConfigStore::default();
+                    let mut cx = crate::dialogs::Cx { settings: &mut settings, uploaders: &store };
+                    w.convert_now(&mut cx);
+                }
+                other => return Err(format!("no video-converter state {other}")),
+            }
+            Box::new(w)
+        }
         other => return Err(format!("no video tool window {other}")),
     })
+}
+
+/// FFmpeg for the renders that run it: `SHAREXRS_FFMPEG`, else the
+/// platform's usual places.
+fn ffmpeg_path() -> Option<std::path::PathBuf> {
+    if let Some(p) = std::env::var_os("SHAREXRS_FFMPEG") {
+        return Some(p.into());
+    }
+    sharex_screen_recording::discovery::fallback_locations(&std::env::var_os("PATH").unwrap_or_default()).into_iter().find(|p| p.is_file())
 }

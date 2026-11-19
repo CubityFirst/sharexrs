@@ -4,6 +4,7 @@
 //! over its engine in `sharex_tools::video`. They share the Images windows'
 //! blocks (`crate::image_tools`); what's theirs is here.
 
+pub mod converter;
 pub mod gif_maker;
 pub mod open;
 pub mod render;

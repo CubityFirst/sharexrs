@@ -1249,6 +1249,21 @@ pub fn indeterminate_progress(painter: &egui::Painter, rect: Rect, t: f64) {
     }
 }
 
+/// `ProgressBar` with a value (Fluent's template): the
+/// `SystemControlBackgroundBaseLowBrush` track with `ControlCornerRadius`
+/// and the `PART_Indicator` (the accent, same corners) `fraction` of its
+/// width from the left, both clipped to the track.
+pub fn determinate_progress(painter: &egui::Painter, rect: Rect, fraction: f64) {
+    let p = palette(painter.ctx());
+    let f = fluent(painter.ctx());
+    border::border(painter, rect, 3.0, 0.0, Some(Brush::Solid(f.base_low)), None);
+    let w = (rect.width() as f64 * fraction.clamp(0.0, 1.0)) as f32;
+    if w > 0.0 {
+        let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+        border::border(&clip, Rect::from_min_size(rect.min, vec2(w, rect.height())), 3.0, 0.0, Some(Brush::Solid(p.accent_start)), None);
+    }
+}
+
 /// Avalonia's `ColorPicker` closed (its Fluent `ControlTheme`): a 64x32
 /// `DropDownButton` (Fluent's button colours, 3px corners, `Padding="0,0,10,0"`)
 /// with the colour over `ColorControlCheckeredBackgroundBrush` in its first
