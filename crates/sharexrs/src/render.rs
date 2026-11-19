@@ -290,6 +290,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
             "--pointer" | "--drag" | "--window" | "--steps" | "--options" => rest_args.push((a.clone(), val()?)),
+            // The region capture as `GetRectangleRegionAsync` opens it.
+            "--select-only" => rest_args.push((a.clone(), String::new())),
             "--out" => out = Some(val()?),
             "--theme" => dark = val()? != "light",
             "--width" => width = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
