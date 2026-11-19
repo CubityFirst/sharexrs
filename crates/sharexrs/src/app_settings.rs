@@ -550,7 +550,8 @@ impl ApplicationSettings {
         let p = palette(ui.ctx());
         let d = density(ui.ctx());
         let Some(ed) = self.editor.as_mut() else { return };
-        let layer = egui::LayerId::new(egui::Order::Foreground, Id::new("format-editor"));
+        // `Middle`, so the Format box's menu (an `Area` on `Foreground`) is on top.
+        let layer = egui::LayerId::new(egui::Order::Middle, Id::new("format-editor"));
         let mut ui = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
         ui.painter().rect_filled(full, 0.0, p.overlay_modal);
         let _ = ui.interact(full, Id::new("format-editor-block"), egui::Sense::click());
@@ -570,7 +571,7 @@ impl ApplicationSettings {
         let body_h = lh + 3.0 + tb_h + 8.0 + lh + 3.0 + 150.0 + 3.0 + hint_lh + 8.0 + vars_h;
         let h = (1.0 + 16.0 + title_h.max(21.0) + 12.0 + body_h + 12.0 + d.settings_control_min_height + 16.0 + 1.0).min(560.0);
         let c = Rect::from_center_size(full.center(), vec2(w, h));
-        let card = Rect::from_min_size(c.min.round(), c.size().round());
+        let card = Rect::from_min_size(pos2(c.min.x.round_ties_even(), c.min.y.round_ties_even()), c.size().round());
         ui.painter().rect_filled(card, CornerRadius::same(8), p.background_panel);
         ui.painter().rect_stroke(card, CornerRadius::same(8), Stroke::new(1.0, p.border), StrokeKind::Inside);
         let inner = card.shrink(17.0);

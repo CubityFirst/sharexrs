@@ -709,9 +709,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut settings.DefaultTaskSettings, None)
             };
             state.page = page;
+            state.set_scroll(page, scroll);
             {
                 let task = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
-                sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
+                // `--state no-actions`: a session where no image editor is
+                // installed (ShareX's shots of the action editor).
+                if dialog.state.as_deref() != Some("no-actions") {
+                    sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
+                }
                 let content = dialog.content.clone().unwrap_or_default();
                 if !content.is_empty() {
                     task_settings_samples(task);
@@ -737,6 +742,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::RegionCapture, &[]));
                     }
                     "watch-folder-editor" => state.watch_editor = Some(WatchFolderEditor::new(None, None)),
+                    // The notification buttons editor on the task's buttons;
+                    // `-empty` without any, `-add-menu` with its Add... menu.
+                    "notification-buttons" | "notification-buttons-empty" | "notification-buttons-add-menu" => {
+                        let g = task.GeneralSettings.get_or_insert_default();
+                        if content == "notification-buttons-empty" {
+                            g.ToastWindowButtons = serde_json::Value::Array(Vec::new());
+                        }
+                        let mut ed = crate::task_editors::NotificationButtonsEditor::new(&g.ToastWindowButtons);
+                        if content == "notification-buttons-add-menu" {
+                            ed.open_menu_next = true;
+                        }
+                        state.notification_editor = Some(ed);
+                    }
                     "watch-folder-editor-edit" => {
                         state.watch_selected = Some(0);
                         state.watch_editor = Some(WatchFolderEditor::new(Some(0), task.WatchFolderList.first()));

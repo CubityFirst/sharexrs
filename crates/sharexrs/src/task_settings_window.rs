@@ -159,6 +159,8 @@ pub struct TaskSettingsWindow {
     pub action_editor: Option<crate::task_editors::ActionEditor>,
     /// `WatchFolderEditorOverlay`.
     pub watch_editor: Option<crate::task_editors::WatchFolderEditor>,
+    /// The notification buttons editor (`ShowNotificationButtonsEditor`).
+    pub notification_editor: Option<crate::task_editors::NotificationButtonsEditor>,
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
@@ -195,6 +197,7 @@ impl TaskSettingsWindow {
             watch_selected: None,
             action_editor: None,
             watch_editor: None,
+            notification_editor: None,
             toolbar_editor: None,
             color_open: false,
             effects: Vec::new(),
@@ -228,6 +231,11 @@ impl TaskSettingsWindow {
 
     fn page_shown(&self, i: usize) -> bool {
         i != 0 || !self.is_default
+    }
+
+    /// Scrolls page `page` to `y` (clamped when drawn; `f32::MAX` is the end).
+    pub fn set_scroll(&mut self, page: usize, y: f32) {
+        self.scroll[page] = y;
     }
 
     /// `SelectedNavigationItem`'s setter: in the default window General and
@@ -285,7 +293,7 @@ impl TaskSettingsWindow {
             child.set_clip_rect(column.intersect(ui.clip_rect()));
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
-            let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some();
+            let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
             if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
@@ -337,6 +345,17 @@ impl TaskSettingsWindow {
                         }
                     }
                     self.toolbar_editor = None;
+                }
+            }
+        }
+        if let Some(ed) = self.notification_editor.as_mut() {
+            match ed.show(ui, full) {
+                Outcome::Open => {}
+                Outcome::Cancelled => self.notification_editor = None,
+                // `buttons => general.ToastWindowButtons = buttons`.
+                Outcome::Saved(buttons) => {
+                    ctx.task.GeneralSettings.get_or_insert_default().ToastWindowButtons = buttons;
+                    self.notification_editor = None;
                 }
             }
         }
@@ -932,7 +951,8 @@ fn page_notifications(f: &mut Form) {
             enum_combo!(f, s::TaskSettingsWindow_MiddleClickAction(), true, GeneralSettings.ToastWindowMiddleClickAction);
             num!(f, s::TaskSettingsWindow_NotificationButtonSize(), 16, 128, true, GeneralSettings.ToastWindowButtonSize);
             if label_button_row(f, s::TaskSettingsWindow_NotificationButtonsLabel(), s::TaskSettingsWindow_ConfigureWithEllipsis()) {
-                f.effect(Effect::NotPorted("notification buttons editor"));
+                let buttons = sec!(f, GeneralSettings).ToastWindowButtons.clone();
+                f.w.notification_editor = Some(crate::task_editors::NotificationButtonsEditor::new(&buttons));
             }
             chk!(f, s::TaskSettingsWindow_AutomaticallyHideOnScreenCapture(), GeneralSettings.ToastWindowAutoHide);
             chk!(f, s::TaskSettingsWindow_DisableToastNotificationsOnFullscreen(), GeneralSettings.DisableNotificationsOnFullscreen);

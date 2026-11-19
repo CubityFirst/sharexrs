@@ -2,18 +2,20 @@
 //! (`TaskSettingsWindow.axaml`: `ActionEditorOverlay`,
 //! `WatchFolderEditorOverlay`; `TaskSettingsWindow.axaml.cs`:
 //! `ShowActionEditor`, `OnSaveActionEditorClick`, `AttachActionArgumentsMenu`,
-//! `ShowWatchFolderEditor`, `OnSaveWatchFolderEditorClick`): a card over the
-//! dimmed window, Save and Cancel; Escape or a click on the backdrop cancels.
+//! `ShowWatchFolderEditor`, `OnSaveWatchFolderEditorClick`) and the
+//! notification buttons (`NotificationButtonsEditorOverlay`,
+//! `ShowNotificationButtonsEditor`): a card over the dimmed window, Save and
+//! Cancel; Escape or a click on the backdrop cancels.
 
 use egui::{CornerRadius, Id, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
-use sharex_settings::{CodeMenuEntryActions, ExternalProgram, WatchFolderSettings};
+use sharex_settings::{CodeMenuEntryActions, Described, ExternalProgram, WatchFolderSettings};
 use sharex_strings::sharex as s;
 use sharex_ui::controls::{self, Button, CheckBox, TextBox};
 use sharex_ui::icons;
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::menu::{Flyout, MenuEntry, MenuStyle, Placement};
 use sharex_ui::theme::{Density, density, palette};
-use sharex_ui::widgets::{center_y, font, galley, line_height};
+use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
 
 /// What an editor did this frame.
 pub enum Outcome<T> {
@@ -326,10 +328,12 @@ impl Metrics {
 }
 
 /// The dimmed backdrop over the window (`ShareX.Brush.Overlay.Modal`), on
-/// its own layer so nothing under it takes the pointer.
+/// its own layer so nothing under it takes the pointer. The layer is
+/// `Middle`: egui paints a layer that isn't an `Area` after the `Area`s of
+/// its order, so on `Foreground` it would cover the editor's own menus.
 fn overlay(ui: &mut Ui, full: Rect, key: &str) -> (Ui, egui::Response) {
     let p = palette(ui.ctx());
-    let layer = egui::LayerId::new(egui::Order::Foreground, Id::new(key));
+    let layer = egui::LayerId::new(egui::Order::Middle, Id::new(key));
     let child = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
     child.painter().rect_filled(full, 0.0, p.overlay_modal);
     let backdrop = child.interact(full, Id::new((key, "backdrop")), egui::Sense::click());
@@ -337,12 +341,13 @@ fn overlay(ui: &mut Ui, full: Rect, key: &str) -> (Ui, egui::Response) {
 }
 
 /// The dialog `Border`: `width` wide, as tall as its rows (`MaxHeight`),
-/// centred; padding 16, a 1px border, 8px corners.
+/// centred (Avalonia rounds a half pixel to even); padding 16, a 1px
+/// border, 8px corners.
 fn card(ui: &Ui, full: Rect, width: f32, max_h: f32, header: f32, body: f32, footer: f32) -> Rect {
     let p = palette(ui.ctx());
     let h = (1.0 + 16.0 + header + 12.0 + body + 12.0 + footer + 16.0 + 1.0).min(max_h);
     let c = Rect::from_center_size(full.center(), vec2(width, h));
-    let card = Rect::from_min_size(c.min.round(), c.size().round());
+    let card = Rect::from_min_size(pos2(c.min.x.round_ties_even(), c.min.y.round_ties_even()), c.size().round());
     // The card eats clicks, so only the backdrop itself cancels.
     let _ = ui.interact(card, Id::new(("editor-card", width as i32)), egui::Sense::click());
     ui.painter().rect_filled(card, CornerRadius::same(8), p.background_panel);
@@ -443,9 +448,272 @@ fn footer(ui: &Ui, inner: Rect, m: &Metrics, key: &str) -> (bool, bool) {
     (saved, cancelled)
 }
 
+/// `NotificationButtonsEditorOverlay` (`ShowNotificationButtonsEditor`):
+/// the buttons a task notification shows, added from a menu of the actions
+/// not in the list yet, removed and moved; Save hands them back.
+pub struct NotificationButtonsEditor {
+    /// `_notificationButtonItems`.
+    pub items: Vec<crate::dialogs::notification::ActionButton>,
+    pub selected: Option<usize>,
+    /// The Add... menu (`ContextMenu`, `BottomEdgeAlignedLeft` of the button).
+    menu: Option<Flyout<sharex_settings::ToastClickAction>>,
+    /// Opens the Add... menu on the next frame (`--render`).
+    pub open_menu_next: bool,
+}
+
+impl NotificationButtonsEditor {
+    /// `ShowNotificationButtonsEditor(buttons)`: copies of the buttons, each
+    /// action once, the first selected.
+    pub fn new(buttons: &serde_json::Value) -> Self {
+        let mut items: Vec<crate::dialogs::notification::ActionButton> = Vec::new();
+        for b in crate::dialogs::notification::ActionButton::list_from_json(buttons) {
+            if !items.iter().any(|i| i.action == b.action) {
+                items.push(b);
+            }
+        }
+        let selected = (!items.is_empty()).then_some(0);
+        Self { items, selected, menu: None, open_menu_next: false }
+    }
+
+    /// The list as ShareX saves `ToastWindowButtons` (`Clone()` of each).
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::Value::Array(
+            self.items
+                .iter()
+                .map(|b| {
+                    serde_json::json!({
+                        "Action": serde_json::to_value(&b.action).unwrap_or_default(),
+                        "Label": b.label,
+                        "Icon": b.icon,
+                        "DismissNotification": b.dismiss,
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    /// The actions the Add... menu offers: every `ToastClickAction` not in
+    /// the list, in the enum's order.
+    pub fn addable(&self) -> Vec<sharex_settings::ToastClickAction> {
+        sharex_settings::ToastClickAction::ALL.iter().filter(|a| !self.items.iter().any(|i| &i.action == *a)).cloned().collect()
+    }
+
+    /// `AddNotificationButton`: a new button for `action`, selected.
+    pub fn add(&mut self, action: sharex_settings::ToastClickAction) {
+        self.items.push(crate::dialogs::notification::ActionButton { action, label: None, icon: None, dismiss: true });
+        self.selected = Some(self.items.len() - 1);
+    }
+
+    /// `OnRemoveNotificationButtonClick`: the next one (or the new last) is selected.
+    pub fn remove(&mut self) {
+        let Some(i) = self.selected.filter(|&i| i < self.items.len()) else { return };
+        self.items.remove(i);
+        self.selected = (!self.items.is_empty()).then(|| i.min(self.items.len() - 1));
+    }
+
+    /// `MoveNotificationButton(offset)`: never past either end.
+    pub fn move_selected(&mut self, offset: isize) {
+        let Some(i) = self.selected.filter(|&i| i < self.items.len()) else { return };
+        let j = i as isize + offset;
+        if j < 0 || j as usize >= self.items.len() {
+            return;
+        }
+        self.items.swap(i, j as usize);
+        self.selected = Some(j as usize);
+    }
+
+    /// `OnAddNotificationButtonClick`: the menu, when there's an action left.
+    fn open_add_menu(&mut self, anchor: Rect) {
+        let entries: Vec<MenuEntry<sharex_settings::ToastClickAction>> = self
+            .addable()
+            .into_iter()
+            .map(|a| MenuEntry::item(a.localized_description(), crate::dialogs::notification::ActionButton::default_icon(&a), a))
+            .collect();
+        if entries.is_empty() {
+            return;
+        }
+        let mut fl = Flyout::menu(Id::new("notification-buttons-add"), entries, anchor, Placement::BottomEdgeAlignedLeft);
+        fl.style = MenuStyle::Standard;
+        self.menu = Some(fl);
+    }
+
+    /// Draws the editor over `full`.
+    pub fn show(&mut self, ui: &mut Ui, full: Rect) -> Outcome<serde_json::Value> {
+        let d = density(ui.ctx());
+        let p = palette(ui.ctx());
+        let (ui, backdrop) = overlay(ui, full, "notification-buttons-editor");
+        let m = Metrics::new(&ui, &d);
+        // `Width="600" Height="520"`, `Padding="16"`, centred.
+        let c = Rect::from_center_size(full.center(), vec2(600.0, 520.0));
+        let card = Rect::from_min_size(pos2(c.min.x.round_ties_even(), c.min.y.round_ties_even()), c.size().round());
+        let _ = ui.interact(card, Id::new("notification-buttons-card"), egui::Sense::click());
+        ui.painter().rect_filled(card, CornerRadius::same(8), p.background_panel);
+        ui.painter().rect_stroke(card, CornerRadius::same(8), Stroke::new(1.0, p.border), StrokeKind::Inside);
+        let inner = card.shrink(17.0);
+        header(&ui, inner, icon::Bell, s::TaskSettingsWindow_NotificationButtons(), s::TaskSettingsWindow_ChooseTheActionsShownAtTheBottomOfAfterCaptureNotifications(), false, &m);
+        // The toolbar (`Spacing="6"`): two compact buttons (an icon and a
+        // `TextBlock`, `Spacing="7"`, `Margin="0,4"`) and two 32x32 buttons.
+        let bar_h = (4.0 + m.button_h + 4.0).max(32.0);
+        let bar = Rect::from_min_size(pos2(inner.min.x, inner.min.y + m.header() + 12.0), vec2(inner.width(), bar_h));
+        let button = Button::compact(m.button_padding);
+        let bf = font(13.0, 400);
+        let count = sharex_settings::ToastClickAction::ALL.len();
+        let index = self.selected.filter(|&i| i < self.items.len());
+        let mut x = bar.min.x;
+        let mut clicked = None;
+        let mut add_rect = Rect::NOTHING;
+        for (k, (key, text, enabled)) in [(icon::Plus, s::TaskSettingsWindow_AddWithEllipsis(), self.items.len() < count), (icon::Trash, s::TaskSettingsWindow_Remove(), index.is_some())].into_iter().enumerate() {
+            let content_w = 13.0 + 7.0 + text_width(&ui, text, bf.clone());
+            let w = 1.0 + m.button_padding.left + content_w + m.button_padding.right + 1.0;
+            let r = Rect::from_min_size(pos2(x, center_y(bar, m.button_h)), vec2(w, m.button_h));
+            let resp = button.show(&ui, r, Id::new(("notification-buttons-tool", k)), "", enabled);
+            let inner_r = Rect::from_min_max(pos2(r.min.x + 1.0 + m.button_padding.left, r.min.y + 1.0 + m.button_padding.top), pos2(r.max.x - 1.0 - m.button_padding.right, r.max.y - 1.0 - m.button_padding.bottom));
+            let cx = inner_r.min.x + ((inner_r.width() - content_w) / 2.0).round_ties_even().max(0.0);
+            let ic = button.foreground(&ui, &resp, enabled, p.background_panel);
+            icons::paint(ui.painter(), Rect::from_min_size(pos2(cx, center_y(inner_r, 13.0)), Vec2::splat(13.0)), key, ic);
+            let tc = button.content(&ui, enabled, p.text_secondary, p.background_panel);
+            ui.painter().galley(pos2(cx + 20.0, center_y(inner_r, line_height(&ui, &bf))), galley(&ui, text, bf.clone(), tc, f32::INFINITY), tc);
+            if k == 0 {
+                add_rect = r;
+            }
+            if resp.clicked() {
+                clicked = Some(k);
+            }
+            x += w + 6.0;
+        }
+        for (k, key, tip, enabled) in [
+            (2, icon::ChevronUp, s::TaskSettingsWindow_MoveUp(), index.is_some_and(|i| i > 0)),
+            (3, icon::ChevronDown, s::TaskSettingsWindow_MoveDown(), index.is_some_and(|i| i + 1 < self.items.len())),
+        ] {
+            let r = Rect::from_min_size(pos2(x, center_y(bar, 32.0)), Vec2::splat(32.0));
+            let b = Button { padding: sharex_ui::theme::Thickness::all(0.0), ..Button::default() };
+            let resp = b.show(&ui, r, Id::new(("notification-buttons-tool", k)), "", enabled);
+            let ic = b.foreground(&ui, &resp, enabled, p.background_panel);
+            icons::paint(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(16.0)), key, ic);
+            if resp.on_hover_text(tip).clicked() {
+                clicked = Some(k);
+            }
+            x += 32.0 + 6.0;
+        }
+        // The list fills the rest (`RowDefinitions="Auto,Auto,*,Auto"`).
+        let footer_h = 4.0 + 36.0 + 4.0;
+        let list = Rect::from_min_max(pos2(inner.min.x, bar.max.y + 12.0), pos2(inner.max.x, inner.max.y - footer_h - 12.0));
+        self.list(&ui, list);
+        // Save and Cancel (`Height="36"`, `MinWidth="84"`, `Spacing="8"`).
+        let cw = button.width(&ui, s::TaskSettingsWindow_Cancel()).max(84.0);
+        let sw = button.width(&ui, s::TaskSettingsWindow_Save()).max(84.0);
+        let by = inner.max.y - 4.0 - 36.0;
+        let cancel = Rect::from_min_size(pos2(inner.max.x - cw, by), vec2(cw, 36.0));
+        let save = Rect::from_min_size(pos2(cancel.min.x - 8.0 - sw, by), vec2(sw, 36.0));
+        let saved = button.show(&ui, save, Id::new("notification-buttons-save"), s::TaskSettingsWindow_Save(), true).clicked();
+        let cancelled = button.show(&ui, cancel, Id::new("notification-buttons-cancel"), s::TaskSettingsWindow_Cancel(), true).clicked();
+        if std::mem::take(&mut self.open_menu_next) {
+            self.open_add_menu(add_rect);
+        }
+        if let Some(menu) = self.menu.as_mut() {
+            let out = menu.show(&ui, full);
+            let outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.contains(pos));
+            let chose = out.command.is_some();
+            if let Some(action) = out.command {
+                self.add(action);
+            }
+            if out.closed || outside || chose || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.menu = None;
+            }
+            return Outcome::Open;
+        }
+        match clicked {
+            Some(0) => self.open_add_menu(add_rect),
+            Some(1) => self.remove(),
+            Some(2) => self.move_selected(-1),
+            Some(3) => self.move_selected(1),
+            _ => {}
+        }
+        if saved {
+            return Outcome::Saved(self.to_json());
+        }
+        if cancelled || backdrop.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            return Outcome::Cancelled;
+        }
+        Outcome::Open
+    }
+
+    /// `ListBox.settings-list.action-list`: per button a `Grid.action-list-item`
+    /// (`MinHeight="26"`, `Margin="6,1"`, `ColumnDefinitions="26,*"`,
+    /// `ColumnSpacing="7"`): the 16px accent icon and the action's name; items
+    /// `Padding="2,0"`. Without buttons, the hint in the middle.
+    fn list(&mut self, ui: &Ui, r: Rect) {
+        let p = palette(ui.ctx());
+        let fl = sharex_ui::theme::fluent(ui.ctx());
+        ui.painter().rect_filled(r, CornerRadius::same(3), p.background_main);
+        ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, p.border), StrokeKind::Inside);
+        let text_font = font(13.0, 400);
+        let lh = line_height(ui, &text_font);
+        let row_h = 26f32.max(lh) + 2.0;
+        if self.items.is_empty() {
+            let hf = font(12.0, 400);
+            let text = s::TaskSettingsWindow_NoButtonsConfiguredTheNotificationToolbarWillBeHidden();
+            let w = text_width(ui, text, hf.clone());
+            let pos = pos2(r.min.x + ((r.width() - w) / 2.0).round(), center_y(r, line_height(ui, &hf)));
+            ui.painter().galley(pos, galley(ui, text, hf, p.text_secondary, f32::INFINITY), p.text_secondary);
+            return;
+        }
+        let clip = ui.painter().with_clip_rect(r.shrink(1.0));
+        for (i, b) in self.items.iter().enumerate() {
+            let row = Rect::from_min_size(pos2(r.min.x + 1.0, r.min.y + 1.0 + row_h * i as f32), vec2(r.width() - 2.0, row_h));
+            if row.min.y >= r.max.y {
+                break;
+            }
+            let resp = ui.interact(row.intersect(r), Id::new(("notification-button-row", i)), egui::Sense::click());
+            let sel = self.selected == Some(i);
+            if sel {
+                sharex_ui::menu::paint_accent_gradient(ui, row, CornerRadius::same(3));
+            } else if resp.hovered() {
+                clip.rect_filled(row, CornerRadius::same(3), fl.list_low);
+            }
+            let grid = Rect::from_min_max(pos2(row.min.x + 2.0 + 6.0, row.min.y + 1.0), pos2(row.max.x - 2.0 - 6.0, row.max.y - 1.0));
+            let ic = if sel { p.accent_foreground } else { p.accent_icon };
+            // The 16px icon centred in its 26px column.
+            icons::paint(&clip, Rect::from_min_size(pos2(grid.min.x + 5.0, center_y(grid, 16.0)), Vec2::splat(16.0)), crate::dialogs::notification::ActionButton::default_icon(&b.action), ic);
+            let fg = if sel { p.accent_foreground } else { p.text_secondary };
+            clip.galley(pos2(grid.min.x + 26.0 + 7.0, center_y(grid, lh)), galley(ui, &b.action.localized_description(), text_font.clone(), fg, f32::INFINITY), fg);
+            if resp.clicked() {
+                self.selected = Some(i);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notification_buttons_as_sharex_edits_them() {
+        use sharex_settings::ToastClickAction as A;
+        // Each action once, the first selected.
+        let json = serde_json::json!([
+            { "Action": "CopyImageToClipboard", "Label": "Mine", "Icon": null, "DismissNotification": false },
+            { "Action": "Upload", "Label": null, "Icon": null, "DismissNotification": true },
+            { "Action": "CopyImageToClipboard", "Label": null, "Icon": null, "DismissNotification": true },
+        ]);
+        let mut ed = NotificationButtonsEditor::new(&json);
+        assert_eq!(ed.items.len(), 2);
+        assert_eq!(ed.selected, Some(0));
+        assert_eq!(ed.addable().len(), A::ALL.len() - 2);
+        ed.move_selected(-1);
+        assert_eq!(ed.selected, Some(0));
+        ed.move_selected(1);
+        assert_eq!(ed.items[1].action, A::CopyImageToClipboard);
+        ed.add(A::DeleteFile);
+        assert_eq!(ed.selected, Some(2));
+        ed.remove();
+        assert_eq!(ed.selected, Some(1));
+        // Saved as `Clone()`s: labels and the dismiss flag kept.
+        let saved = ed.to_json();
+        assert_eq!(saved[1], serde_json::json!({ "Action": "CopyImageToClipboard", "Label": "Mine", "Icon": null, "DismissNotification": false }));
+        assert_eq!(saved[0]["Action"], "Upload");
+    }
 
     #[test]
     fn action_save_checks_name_and_path() {
