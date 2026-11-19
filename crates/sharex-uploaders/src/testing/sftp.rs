@@ -90,7 +90,12 @@ fn list(v: &serde_json::Value) -> Vec<String> {
 
 #[derive(Default)]
 struct State {
-    log: Vec<String>,
+    /// Each session's lines, by the order sessions were accepted: a client
+    /// that reconnects (a retried login) can open its next session before
+    /// the server's thread for the last one has logged its end, and the
+    /// log must still read session by session.
+    log: BTreeMap<u64, Vec<String>>,
+    next_session: u64,
     dirs: BTreeSet<String>,
     files: BTreeMap<String, Vec<u8>>,
     fail_once: Vec<(String, (u32, String))>,
@@ -147,14 +152,22 @@ impl SftpMockServer {
             for stream in listener.incoming().flatten() {
                 let state = state.clone();
                 let config = config.lock().expect("sftp config").clone();
-                thread::spawn(move || {
-                    state.lock().expect("sftp state").sessions_open += 1;
-                    let r = Session { state: state.clone(), config }.run(stream);
+                // Numbered and counted here, in accept order, before the
+                // session's own thread runs.
+                let id = {
                     let mut s = state.lock().expect("sftp state");
+                    s.sessions_open += 1;
+                    s.next_session += 1;
+                    s.next_session
+                };
+                thread::spawn(move || {
+                    let r = Session { id, state: state.clone(), config }.run(stream);
+                    let mut s = state.lock().expect("sftp state");
+                    let lines = s.log.entry(id).or_default();
                     if let Err(e) = r {
-                        s.log.push(format!("error {e}"));
+                        lines.push(format!("error {e}"));
                     }
-                    s.log.push("close".into());
+                    lines.push("close".into());
                     s.sessions_open -= 1;
                 });
             }
@@ -195,7 +208,7 @@ impl SftpMockServer {
     }
 
     pub fn log_lines(&self) -> Vec<String> {
-        self.state.lock().expect("sftp state").log.clone()
+        self.state.lock().expect("sftp state").log.values().flatten().cloned().collect()
     }
 
     pub fn files(&self) -> BTreeMap<String, Vec<u8>> {
@@ -215,13 +228,14 @@ impl SftpMockServer {
 }
 
 struct Session {
+    id: u64,
     state: Arc<Mutex<State>>,
     config: SftpMockConfig,
 }
 
 impl Session {
     fn log(&self, line: impl Into<String>) {
-        self.state.lock().expect("sftp state").log.push(line.into());
+        self.state.lock().expect("sftp state").log.entry(self.id).or_default().push(line.into());
     }
 
     fn run(&self, stream: TcpStream) -> SshResult<()> {
