@@ -1203,13 +1203,28 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
 
 // ---- tool grid layout -------------------------------------------------
 
+/// `MainWindow.PopulateGridMenuCategories`: each category's tools are a
+/// `UniformGrid Columns="3"`, whatever the width.
+const GRID_COLUMNS: usize = 3;
+
 /// `MainWindow.BuildGridMenuContent`, measured.
 struct GridLayout {
     size: Vec2,
-    /// Each column's width (`UniformGrid Columns="3"`).
-    cell_w: f32,
     header_h: f32,
     edit_w: f32,
+}
+
+/// Tool `i`'s cell in a category's `UniformGrid` whose rows start at `y`,
+/// arranged into `content`'s width (`UniformGrid.ArrangeOverride`): the
+/// columns share the width the grid is given, not the one it measured, so
+/// a popup the positioner narrowed (`ResizeX`) keeps three narrower
+/// columns. The cell width is rounded to device pixels (`UseLayoutRounding`)
+/// and each column starts at a whole number of cells.
+fn grid_cell(content: Rect, y: f32, i: usize, row_h: f32, ppp: f32) -> Rect {
+    let w = (content.width() / GRID_COLUMNS as f32).max(0.0);
+    let w = (w * ppp).round() / ppp;
+    let (row, col) = (i / GRID_COLUMNS, i % GRID_COLUMNS);
+    Rect::from_min_size(pos2(content.min.x + col as f32 * w, y + row as f32 * row_h), vec2(w, row_h))
 }
 
 /// `TextBlock.tool-grid-category-header`.
@@ -1307,8 +1322,8 @@ impl GridLayout {
             }
             let header_w = m.left + widgets::text_width(ui, &c.header, grid_header_font(&d)) + m.right;
             let max_cell = entries.iter().map(|e| cell(e)).fold(0.0, f32::max);
-            content_w = content_w.max(3.0 * max_cell).max(header_w);
-            h += m.top + header_h + m.bottom + entries.len().div_ceil(3) as f32 * d.tool_grid_button_height;
+            content_w = content_w.max(GRID_COLUMNS as f32 * max_cell).max(header_w);
+            h += m.top + header_h + m.bottom + entries.len().div_ceil(GRID_COLUMNS) as f32 * d.tool_grid_button_height;
             first = false;
         }
         // `Button.tool-grid-edit-button`: 14px icon, 6, "Edit", padding 5,1, margin 2,0.
@@ -1316,7 +1331,7 @@ impl GridLayout {
         content_w = content_w.max(2.0 + edit_w + 2.0).ceil();
         let pad = d.tool_grid_padding;
         let size = vec2(1.0 + pad.left + content_w + pad.right + 1.0, 1.0 + pad.top + h.max(22.0) + pad.bottom + 1.0);
-        Self { size, cell_w: content_w / 3.0, header_h, edit_w }
+        Self { size, header_h, edit_w }
     }
 
     /// Draws the grid in `rect`; returns the command of a tool clicked.
@@ -1373,11 +1388,7 @@ impl GridLayout {
             painter.galley(pos2(header.min.x + ((header.width() - w) / 2.0).round_ties_even(), header.min.y), g, p.accent_text);
             y = header.max.y + m.bottom;
             for (i, e) in entries.iter().enumerate() {
-                let (row, col) = (i / 3, i % 3);
-                let cell = Rect::from_min_size(
-                    pos2(content.min.x + (col as f32 * self.cell_w).round(), y + row as f32 * d.tool_grid_button_height),
-                    vec2(((col + 1) as f32 * self.cell_w).round() - (col as f32 * self.cell_w).round(), d.tool_grid_button_height),
-                );
+                let cell = grid_cell(content, y, i, d.tool_grid_button_height, ctx.pixels_per_point());
                 if editing {
                     // `ToggleButton.tool-grid-visibility-button`: the switch
                     // and the tool; a click shows or hides it.
@@ -1408,7 +1419,7 @@ impl GridLayout {
                     paint_tool(ui, cell, e);
                 }
             }
-            y += entries.len().div_ceil(3) as f32 * d.tool_grid_button_height;
+            y += entries.len().div_ceil(GRID_COLUMNS) as f32 * d.tool_grid_button_height;
             first = false;
         }
 
@@ -1661,6 +1672,79 @@ mod tests {
         let item = Rect::from_min_max(pos2(689.0, 133.0), pos2(944.0, 161.0));
         let r = place(item, Placement::RightEdgeAlignedTop, vec2(278.0, 355.0), -4.0, &bounds);
         assert_eq!(r.min, pos2(407.0, 133.0));
+    }
+
+    /// Shows a tool grid beside the Tools sidebar entry in a window of
+    /// `width` x 703 points without a popup host, at `ppp`; returns where
+    /// the popup went and each category's tool cells, as drawn.
+    fn tool_grid_cells(width: f32, ppp: f32) -> (Rect, Vec<Vec<Rect>>) {
+        let tools = |names: &[&str]| names.iter().enumerate().map(|(i, n)| MenuEntry::item(*n, "", i as u32)).collect::<Vec<_>>();
+        let categories = vec![
+            MenuCategory::new("Screen & color", tools(&["Color picker...", "Measure...", "Mouse highlighter...", "Pin to screen...", "Ruler...", "Screen color picker..."])),
+            MenuCategory::new(
+                "Images",
+                tools(&["Background remover...", "Icon converter...", "Image beautifier...", "Image combiner...", "Image comparer...", "Image converter...", "Image editor..."]),
+            ),
+            MenuCategory::new("Data & text", tools(&["Analyze image...", "Hash checker..."])),
+        ];
+        let counts: Vec<usize> = categories.iter().map(|c| c.entries.len()).collect();
+        let id = Id::new("tools");
+        let tools_entry = Rect::from_min_max(pos2(7.0, 135.0), pos2(206.0, 165.0));
+        let mut flyout = Flyout::grid(id, categories, tools_entry, Placement::RightEdgeAlignedTop);
+        let ctx = egui::Context::default();
+        crate::install(&ctx);
+        let window = Rect::from_min_size(Pos2::ZERO, vec2(width, 703.0));
+        // An area's first frame is egui's sizing pass.
+        for frame in 0..3 {
+            let input = egui::RawInput { screen_rect: Some(window), time: Some(frame as f64 / 60.0), ..Default::default() };
+            ctx.set_pixels_per_point(ppp);
+            let mut out = ctx.run_ui(input, |ui| {
+                flyout.show(ui, window);
+            });
+            out.textures_delta.clear();
+        }
+        let layer = Id::new((id, "grid"));
+        let cells = counts
+            .iter()
+            .enumerate()
+            .map(|(ci, &n)| (0..n).map(|i| ctx.read_response(layer.with((ci, i))).expect("a tool's button").rect).collect())
+            .collect();
+        (flyout.rects()[0], cells)
+    }
+
+    /// ShareX's tools are three columns wide at every width and scale
+    /// (`UniformGrid Columns="3"`): a narrow window cuts the popup to fit
+    /// (`ResizeX`) and the columns share what's left, rather than the
+    /// first one filling it and the others being clipped off.
+    #[test]
+    fn the_tool_grid_is_always_three_columns_wide() {
+        for ppp in [1.0, 1.25, 1.5] {
+            let mut full_width = None;
+            for width in [1400.0, 900.0, 760.0, 600.0, 400.0] {
+                let (popup, cells) = tool_grid_cells(width, ppp);
+                let full = *full_width.get_or_insert(popup.width());
+                let at = format!("{width} points wide at {ppp}x, popup {popup:?}");
+                assert!(popup.width() <= full + 0.01, "{at}");
+                assert!(popup.max.x <= width + 0.01, "{at}: the popup stays in the window");
+                for category in &cells {
+                    for (i, cell) in category.iter().enumerate() {
+                        let (row, col) = (i / 3, i % 3);
+                        assert!(popup.contains_rect(*cell), "{at}: tool {i} at {cell:?} is outside the popup");
+                        assert!((cell.width() - category[0].width()).abs() < 0.01, "{at}: the columns are as wide");
+                        assert!((cell.min.y - category[0].min.y - row as f32 * cell.height()).abs() < 0.01, "{at}: tool {i} is on row {row}");
+                        assert!((cell.min.x - category[0].min.x - col as f32 * cell.width()).abs() < 0.01, "{at}: tool {i} is in column {col}");
+                        // Each column starts on a device pixel.
+                        let px = (cell.min.x - category[0].min.x) * ppp;
+                        assert!((px - px.round()).abs() < 0.01, "{at}: column {col} at {px} px");
+                    }
+                    // Three columns fill the grid's width (less the rounding):
+                    // the popup less its 1px border and `ToolGrid.Padding`.
+                    let pad = density(&egui::Context::default()).tool_grid_padding;
+                    let grid_w = popup.width() - 2.0 - pad.left - pad.right;
+                    assert!((3.0 * category[0].width() - grid_w).abs() <= 1.5 / ppp + 0.01, "{at}: {} x 3 vs {grid_w}", category[0].width());
+                }
+            }
+        }
     }
 
     #[test]
