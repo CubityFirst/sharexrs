@@ -67,8 +67,10 @@ pub struct Screenshot {
     /// Hide the taskbar while capturing a window over it
     /// (`AutoHideTaskbar`).
     pub auto_hide_taskbar: bool,
-    /// `HDRScreenshotColorCorrection`: not ported (DXGI desktop
-    /// duplication); captures are taken as GDI gives them.
+    /// `HDRScreenshotColorCorrection`: on Windows, the GDI capture is
+    /// corrected from a DXGI duplication of every HDR monitor it touches
+    /// (`HDRScreenCapture`, [`crate::hdr`]); ShareX does nothing with it
+    /// elsewhere.
     pub hdr_color_correction: bool,
 }
 
@@ -143,12 +145,7 @@ impl Screenshot {
         if rect.w <= 0 || rect.h <= 0 {
             return None;
         }
-        let mut image = platform::capture_rectangle(rect)?;
-        // `CaptureRectangleGDI`: `CursorData.DrawCursor(dc, rect.Location)`.
-        if self.capture_cursor {
-            platform::draw_cursor_gdi(&mut image, (rect.x, rect.y));
-        }
-        Some(image)
+        capture_rectangle_native(rect, self.capture_cursor, self.hdr_color_correction)
     }
 
     /// `CaptureFullscreen`: every monitor.
@@ -209,9 +206,41 @@ impl Screenshot {
             capture_shadow: self.capture_shadow,
             shadow_offset: self.shadow_offset,
             capture_cursor: self.capture_cursor,
+            hdr_color_correction: self.hdr_color_correction,
         };
         t.capture(handle, window_image, &|| self.capture_window(screens, handle))
     }
+}
+
+/// `CaptureRectangleNative`: the screen's pixels in `rect` through GDI,
+/// with the pointer drawn by `DrawIconEx`; with HDR correction (Windows),
+/// GDI without the pointer, corrected from a DXGI duplication of the HDR
+/// monitors (`HDRScreenCapture.ApplyColorCorrection`; a failure is logged
+/// and leaves GDI's), then the pointer drawn as
+/// `CursorData.DrawCursor(SKBitmap, rect.Location)` does.
+pub(crate) fn capture_rectangle_native(rect: Rect, capture_cursor: bool, hdr_color_correction: bool) -> Option<RgbaImage> {
+    if rect.w == 0 || rect.h == 0 {
+        return None;
+    }
+    #[cfg(windows)]
+    if hdr_color_correction {
+        let mut image = platform::capture_rectangle(rect)?;
+        if let Err(e) = platform::windows_hdr::apply_color_correction(&mut image, rect) {
+            eprintln!("HDR screenshot color correction failed. {e}");
+        }
+        if capture_cursor && let Some(cursor) = cursor_image(&image, (rect.x, rect.y)) {
+            draw_cursor(&mut image, &cursor);
+        }
+        return Some(image);
+    }
+    #[cfg(not(windows))]
+    let _ = hdr_color_correction;
+    let mut image = platform::capture_rectangle(rect)?;
+    // `CaptureRectangleGDI`: `CursorData.DrawCursor(dc, rect.Location)`.
+    if capture_cursor {
+        platform::draw_cursor_gdi(&mut image, (rect.x, rect.y));
+    }
+    Some(image)
 }
 
 /// `CursorData`: the pointer as it shows now, positioned for a screenshot

@@ -13,11 +13,14 @@
 //!   ordinal ignoring case) that sorting and matching depend on.
 //! - [`zip_manager`]: `ZipManager`, the archives of settings backups and
 //!   image effect packages.
+//! - [`display_config`]: `DisplayConfigHelper.GetSdrWhiteScale`, an HDR
+//!   display's SDR white level.
 
 pub mod cli;
 pub mod code_menu;
 pub mod culture;
 pub mod date_format;
+pub mod display_config;
 pub mod dotnet_sort;
 pub mod emoji;
 pub mod file_helpers;

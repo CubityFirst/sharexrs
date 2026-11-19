@@ -1,0 +1,439 @@
+[
+  {
+    "Name": "fp16-ramp",
+    "Format": "fp16",
+    "Width": 64,
+    "Height": 8,
+    "RowPitch": 512,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Capture": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-ramp-white25",
+    "Format": "fp16",
+    "Width": 64,
+    "Height": 8,
+    "RowPitch": 512,
+    "White": 2.5,
+    "Peak": 600,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Capture": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-ramp-peak-floor",
+    "Format": "fp16",
+    "Width": 64,
+    "Height": 8,
+    "RowPitch": 512,
+    "White": 125,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Capture": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-ramp-peak-ceiling",
+    "Format": "fp16",
+    "Width": 64,
+    "Height": 8,
+    "RowPitch": 512,
+    "White": 1,
+    "Peak": 100000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Capture": [
+      0,
+      0,
+      64,
+      8
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-special",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Capture": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Pattern": "special"
+  },
+  {
+    "Name": "fp16-colors",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1.5,
+    "Peak": 800,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Capture": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "fp16-pitch",
+    "Format": "fp16",
+    "Width": 37,
+    "Height": 5,
+    "RowPitch": 320,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      37,
+      5
+    ],
+    "Capture": [
+      0,
+      0,
+      37,
+      5
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-rot90",
+    "Format": "fp16",
+    "Width": 7,
+    "Height": 5,
+    "RowPitch": 56,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 2,
+    "Bounds": [
+      -30,
+      4,
+      5,
+      7
+    ],
+    "Capture": [
+      -33,
+      2,
+      6,
+      12
+    ],
+    "Pattern": "alpha"
+  },
+  {
+    "Name": "fp16-rot180",
+    "Format": "fp16",
+    "Width": 7,
+    "Height": 5,
+    "RowPitch": 56,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 3,
+    "Bounds": [
+      -30,
+      4,
+      7,
+      5
+    ],
+    "Capture": [
+      -33,
+      2,
+      12,
+      6
+    ],
+    "Pattern": "alpha"
+  },
+  {
+    "Name": "fp16-rot270",
+    "Format": "fp16",
+    "Width": 7,
+    "Height": 5,
+    "RowPitch": 56,
+    "White": 2,
+    "Peak": 1000,
+    "Rotation": 4,
+    "Bounds": [
+      -30,
+      4,
+      5,
+      7
+    ],
+    "Capture": [
+      -33,
+      2,
+      6,
+      12
+    ],
+    "Pattern": "alpha"
+  },
+  {
+    "Name": "fp16-colors-rot90",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 2,
+    "Bounds": [
+      0,
+      0,
+      4,
+      16
+    ],
+    "Capture": [
+      0,
+      0,
+      4,
+      16
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "fp16-colors-rot270",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 4,
+    "Bounds": [
+      0,
+      0,
+      4,
+      16
+    ],
+    "Capture": [
+      0,
+      0,
+      4,
+      16
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "fp16-unspecified",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 0,
+    "Bounds": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Capture": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "fp16-offset",
+    "Format": "fp16",
+    "Width": 32,
+    "Height": 16,
+    "RowPitch": 256,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      100,
+      50,
+      32,
+      16
+    ],
+    "Capture": [
+      90,
+      60,
+      30,
+      20
+    ],
+    "Pattern": "ramp"
+  },
+  {
+    "Name": "fp16-inside",
+    "Format": "fp16",
+    "Width": 32,
+    "Height": 16,
+    "RowPitch": 256,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      32,
+      16
+    ],
+    "Capture": [
+      4,
+      3,
+      10,
+      8
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "fp16-size-mismatch",
+    "Format": "fp16",
+    "Width": 16,
+    "Height": 4,
+    "RowPitch": 128,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      16,
+      5
+    ],
+    "Capture": [
+      0,
+      0,
+      16,
+      4
+    ],
+    "Pattern": "colors"
+  },
+  {
+    "Name": "hdr10-codes",
+    "Format": "hdr10",
+    "Width": 64,
+    "Height": 16,
+    "RowPitch": 256,
+    "White": 1,
+    "Peak": 1000,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      64,
+      16
+    ],
+    "Capture": [
+      0,
+      0,
+      64,
+      16
+    ],
+    "Pattern": "codes"
+  },
+  {
+    "Name": "hdr10-white2-rot90",
+    "Format": "hdr10",
+    "Width": 32,
+    "Height": 8,
+    "RowPitch": 128,
+    "White": 2,
+    "Peak": 1000,
+    "Rotation": 2,
+    "Bounds": [
+      0,
+      0,
+      8,
+      32
+    ],
+    "Capture": [
+      2,
+      1,
+      8,
+      30
+    ],
+    "Pattern": "codes"
+  },
+  {
+    "Name": "hdr10-pitch",
+    "Format": "hdr10",
+    "Width": 13,
+    "Height": 3,
+    "RowPitch": 64,
+    "White": 3,
+    "Peak": 400,
+    "Rotation": 1,
+    "Bounds": [
+      0,
+      0,
+      13,
+      3
+    ],
+    "Capture": [
+      0,
+      0,
+      13,
+      3
+    ],
+    "Pattern": "codes"
+  }
+]

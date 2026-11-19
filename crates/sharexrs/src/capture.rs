@@ -78,8 +78,7 @@ pub enum CaptureError {
 /// `TaskHelpers.GetScreenshot(taskSettings)`: the pointer drawn in
 /// (`ShowCursor`), a window's client area only, clipped to the monitors,
 /// the shadow and its offset for transparent window captures, hiding the
-/// taskbar over a window. (`HDRScreenshotColorCorrection` is carried but
-/// not applied: see `Screenshot::hdr_color_correction`.)
+/// taskbar over a window, HDR correction (`HDRScreenshotColorCorrection`).
 pub(crate) fn task_screenshot(task: &TaskSettings) -> Screenshot {
     screenshot(task)
 }
