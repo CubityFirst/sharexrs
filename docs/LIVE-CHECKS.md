@@ -573,3 +573,46 @@ SHA-256 sidecars start with `pass4-`.
 | SET2-04 | 120 (125%) | In the same unresized window, click the first `native-%i` field and press Escape with the menu open. | The variable menu opens right of the field at `1823,473`. Escape closes the menu and leaves settings open. | Same opening side, categories and dismissal at `1822,472`. The popup is 230 px tall versus 226 px as previously documented. | PASS | `pass4-naming-popup-dark.png` in SX and RS. |
 | HOT3-02 | 120 (125%) | Seed two unbound Hash checker rows with the first set to `UseDefaultAfterCaptureJob=false` and `AfterCaptureJob=None`. In the 850×750 physical client, dwell 1.1 s at the original coordinates `594,139` and `801,139`, the blue pencil's interior at `511,139`, and measured stroke pixels. | No tooltip at the original coordinates or the blue pencil interior. The pencil stroke at `504,142` shows This task has custom settings. The status stroke at `802,149` shows Not configured. | Same no-tooltip results on the centers. Stroke hits at `506,144` and `801,149` show the same labels. | PASS | `pass4-hotkey-*-centre-dark.png` in both. SX `pass4-hotkey-*-stroke-tip-dark.png` and RS `pass4-hotkey-*-stroke-repeat-dark.png`. Stroke spots were measured separately from each app's pixels. |
 | REG4-01 | 120 (125%) | Open each hotkey-launched Hash Checker's Hash type dropdown and press Escape. | Opens a 126×270 owned popup that extends below the client. Escape dismisses the popup. | Same position, size, and Escape behavior. | PASS | `pass4-hash-dropdown-dark.png` in SX and RS. |
+| ACT4-02 | 120 (125%) | With the test pattern in front, invoke `-ToggleTrayMenu` and choose Application settings from the tray menu. | The settings window becomes the foreground HWND. | Same result. | PASS | `pass4-tray-menu-dark.png` and `pass4-tray-application-settings-dark.png` in SX and RS. The shell reported both notification-area icons at its hidden-icons overflow anchor, which was covered by the host, so the menu was opened with its command-line job. |
+| SWP4-02 | 120 (125%) | Start an unfixed-duration native recording over the verified `900,540,640,480` test pattern using `-ScreenRecorderCustomRegion` twice. While recording, invoke `-ExitShareX` and choose Yes. Cursor, audio and camera are off. | The warning asks whether to abort the active screen recording, with Yes and No. Yes closes the recording frame, leaves ShareX running, and produces no completed MP4. | Same wording, actions and outcome. | PASS | `pass4-recording-exit-dark.png` in SX and RS. Both rectangle preflights passed at 1.0000. The dialogs were moved beyond the recording region before clicking Yes. |
+| REG4-02 | 120 (125%) | Launch `-ImageEditor` on the generated 640×400 `pattern-01.png`. Leave Rectangle selected, open the Solid stroke-style dropdown, and inspect the selected row. Press Escape. | Image Editor takes the foreground. The dropdown lists Solid, Dash, Dot, Dash Dot and Dash Dot Dot. Solid has black text on the blue selection. Escape closes the editor. | Same activation, options and Escape behavior. Solid has light text on the blue selection. | FAIL | New visual mismatch observed in the sweep. `pass4-editor-stroke-style-dark.png` in SX and RS. |
+
+### Pass 4 coverage and teardown
+
+Pass 4 recorded **15 PASS, 2 FAIL and 0 BLOCKED**. HIL2-02 is the
+remaining failure from the requested re-checks. REG4-02 is a newly
+observed failure from the optional editor sweep.
+
+The first disposable profile had recent-task saving off and reused one
+global hotkey across both apps. The corrected profiles enabled saving,
+used distinct shortcuts and loaded all three fixture cards. A plain
+click opened the generated `recent-local.txt` in Notepad. The generated
+tab was closed and modifier-click was used to select the cards for the
+shortcut checks.
+
+An early active-window recording launched through a shell start that
+changed the foreground. The 1124×878 MP4 was rejected on dimensions
+and deleted unviewed. Another setup was aborted when the window
+geometry showed the console had taken the foreground. The successful
+repeats used a no-console launcher and verified the pattern HWND and
+PID immediately before each forward. Several toast grab preflights and
+two saved crops were rejected and deleted unviewed. The mismatching
+area was under the automation cursor overlay. Moving the overlay clear
+of the crop yielded 1.0000 preflights, source images and clipboard
+images. The scratch captures and recordings were removed after checking.
+
+The original ShareX PID 53424 and all disposable ShareX instances
+honored `-ExitShareX`. All 13 original profile files matched their
+backup SHA-256 hashes before restart. The original reference restarted
+without arguments as **PID 19224**. Startup used a temporary
+`AutoCheckUpdate=false` value and the original config bytes were copied
+back afterward. The hotkey warning was dismissed. The main window was
+the only remaining ShareX window. Twelve hashes still matched, and the
+monthly log retained its exact original bytes followed by 2,663 bytes
+from normal startup.
+
+The disposable apps, test patterns and OLE source exited. The backup
+and all test profiles and fixtures were deleted. The clipboard
+reported zero formats. Display settings were unchanged. All 63 new
+PrintWindow PNGs and DPI sidecars passed hash verification. The offline
+build and macOS Clippy check completed.
