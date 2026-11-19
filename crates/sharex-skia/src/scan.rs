@@ -44,7 +44,7 @@ pub fn anti_fill_path_rle(path: &Path, clip: IRect, blitter: &mut dyn Blitter, f
         if clip.contains(&ir) || !(clip.left > ir.left || clip.right < ir.right) {
             blitter
         } else {
-            rect_clip = RectClipBlitter { inner: blitter };
+            rect_clip = RectClipBlitter { inner: blitter, clip };
             &mut rect_clip
         };
     if should_use_aaa(path) {
@@ -54,29 +54,110 @@ pub fn anti_fill_path_rle(path: &Path, clip: IRect, blitter: &mut dyn Blitter, f
     }
 }
 
-/// `SkRectClipBlitter` (the inner blitter clips to the device itself).
+/// `SkRectClipBlitter`: every call clipped to `clip`. It doesn't override
+/// `blitAntiH2`/`blitAntiV2` (they reach it as `blitAntiH`), and its
+/// `blitAntiRect` turns a clipped side's alpha to 255, so a rect chopped at
+/// the clip blends its first (or last) column through `blitV`.
 struct RectClipBlitter<'a> {
     inner: &'a mut dyn Blitter,
+    clip: IRect,
+}
+
+impl RectClipBlitter<'_> {
+    fn y_in(&self, y: i32) -> bool {
+        y >= self.clip.top && y < self.clip.bottom
+    }
 }
 
 impl Blitter for RectClipBlitter<'_> {
     fn blit_h(&mut self, x: i32, y: i32, width: i32) {
-        self.inner.blit_h(x, y, width);
+        if !self.y_in(y) {
+            return;
+        }
+        let left = x.max(self.clip.left);
+        let right = (x + width).min(self.clip.right);
+        if right > left {
+            self.inner.blit_h(left, y, right - left);
+        }
     }
+
     fn blit_anti_h(&mut self, x: i32, y: i32, aa: &[u8], runs: &[i16]) {
-        self.inner.blit_anti_h(x, y, aa, runs);
+        if !self.y_in(y) || x >= self.clip.right {
+            return;
+        }
+        // SkAlphaRuns::BreakAt at both clip edges, then one blitAntiH.
+        let (mut out_aa, mut out_runs) = (Vec::new(), Vec::new());
+        let (mut px, mut i, mut x0) = (x, 0usize, None);
+        loop {
+            let count = runs[i] as i32;
+            if count <= 0 {
+                break;
+            }
+            let l = px.max(self.clip.left);
+            let r = (px + count).min(self.clip.right);
+            if r > l {
+                x0.get_or_insert(l);
+                let n = (r - l) as usize;
+                out_runs.push(n as i16);
+                out_runs.extend(std::iter::repeat_n(0, n - 1));
+                out_aa.push(aa[i]);
+                out_aa.extend(std::iter::repeat_n(0, n - 1));
+            }
+            px += count;
+            i += count as usize;
+        }
+        if let Some(x0) = x0 {
+            out_runs.push(0);
+            self.inner.blit_anti_h(x0, y, &out_aa, &out_runs);
+        }
     }
+
     fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
-        self.inner.blit_v(x, y, height, alpha);
+        if x < self.clip.left || x >= self.clip.right {
+            return;
+        }
+        let y0 = y.max(self.clip.top);
+        let y1 = (y + height).min(self.clip.bottom);
+        if y0 < y1 {
+            self.inner.blit_v(x, y0, y1 - y0, alpha);
+        }
     }
+
     fn blit_rect(&mut self, x: i32, y: i32, width: i32, height: i32) {
-        self.inner.blit_rect(x, y, width, height);
+        let mut r = IRect::from_ltrb(x, y, x + width, y + height);
+        if r.intersect(&self.clip) {
+            self.inner.blit_rect(r.left, r.top, r.width(), r.height());
+        }
     }
-    fn blit_anti_rect(&mut self, x: i32, y: i32, width: i32, height: i32, la: u8, ra: u8) {
-        self.inner.blit_anti_rect(x, y, width, height, la, ra);
+
+    fn blit_anti_rect(&mut self, left: i32, y: i32, width: i32, height: i32, la: u8, ra: u8) {
+        // The true width of the rect blitted is width + 2.
+        let mut r = IRect::from_ltrb(left, y, left + width + 2, y + height);
+        if !r.intersect(&self.clip) {
+            return;
+        }
+        let (mut la, mut ra) = (la, ra);
+        if r.left != left {
+            la = 255;
+        }
+        if r.right != left + width + 2 {
+            ra = 255;
+        }
+        if la == 255 && ra == 255 {
+            self.inner.blit_rect(r.left, r.top, r.width(), r.height());
+        } else if r.width() == 1 {
+            let alpha = if r.left == left { la } else { ra };
+            self.inner.blit_v(r.left, r.top, r.height(), alpha);
+        } else {
+            self.inner.blit_anti_rect(r.left, r.top, r.width() - 2, r.height(), la, ra);
+        }
     }
+
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
-        self.inner.blit_mask(mask, bounds, row_bytes, clip);
+        let mut r = clip;
+        if r.intersect(&self.clip) {
+            self.inner.blit_mask(mask, bounds, row_bytes, r);
+        }
     }
 }
 

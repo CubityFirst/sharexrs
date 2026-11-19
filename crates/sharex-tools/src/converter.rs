@@ -89,7 +89,7 @@ pub fn encode(bmp: &Bitmap, o: &ConvertOptions) -> Vec<u8> {
             let flattened = flatten_background(bmp, o.background);
             imaging::save_jpeg_with(&flattened, o.quality, o.jpeg_subsampling, true)
         }
-        OutputFormat::Webp => imaging::save_webp(bmp, o.webp_lossless, o.quality.clamp(0, 100)),
+        OutputFormat::Webp => imaging::save_webp(bmp, o.webp_lossless, o.quality.clamp(0, 100), true),
     }
 }
 

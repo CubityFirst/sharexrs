@@ -21,8 +21,12 @@ pub(crate) enum Coverage {
         bottom: i32,
     },
     /// Per pixel of the destination: the call that covered it (`None`: untouched)
-    /// and its coverage.
-    Mask(Vec<Option<(Call, u8)>>),
+    /// and its coverage; then per pixel the x where its span starts (the
+    /// `shadeSpan` call Skia's shader blitters make for it: a `blitH` span,
+    /// a `blitAntiH` run, the mask row's clip, or the pixel alone for
+    /// `blitV`/`blitAntiH2`). Legacy image shaders step their coordinates
+    /// from a span's start, so it changes the pixels.
+    Mask(Vec<Option<(Call, u8)>>, Vec<i32>),
     /// Each blit in order, for scan converters that can cover a pixel more
     /// than once (hairlines): x, y, call, coverage.
     Hits(Vec<(i32, i32, Call, u8)>),
@@ -39,11 +43,11 @@ pub(crate) fn fill_path_aa_clip(
 ) -> Coverage {
     let mut rec = Recorder::new(width, height);
     if clip.is_empty() {
-        return Coverage::Mask(rec.cells);
+        return rec.into_mask();
     }
     let mut bounds = clip.bounds();
     if !bounds.intersect(&rec.clip()) {
-        return Coverage::Mask(rec.cells);
+        return rec.into_mask();
     }
     {
         let mut blitter = crate::aaclip::AAClipBlitter {
@@ -52,7 +56,7 @@ pub(crate) fn fill_path_aa_clip(
         };
         crate::scan::anti_fill_path_rle(path, bounds, &mut blitter, true);
     }
-    Coverage::Mask(rec.cells)
+    rec.into_mask()
 }
 
 /// A rect through an anti-aliased clip (`SkScan::FillRect`/`AntiFillRect`
@@ -61,11 +65,11 @@ pub(crate) fn fill_path_aa_clip(
 pub(crate) fn rect_aa_clip(r: Rect, anti_alias: bool, clip: &crate::aaclip::AAClip, width: u32, height: u32) -> Coverage {
     let mut rec = Recorder::new(width, height);
     if clip.is_empty() {
-        return Coverage::Mask(rec.cells);
+        return rec.into_mask();
     }
     let mut bounds = clip.bounds();
     if !bounds.intersect(&rec.clip()) {
-        return Coverage::Mask(rec.cells);
+        return rec.into_mask();
     }
     {
         let mut blitter = crate::aaclip::AAClipBlitter {
@@ -87,7 +91,7 @@ pub(crate) fn rect_aa_clip(r: Rect, anti_alias: bool, clip: &crate::aaclip::AACl
             }
         }
     }
-    Coverage::Mask(rec.cells)
+    rec.into_mask()
 }
 
 /// A path (device space) through a normal blur mask filter of device
@@ -103,12 +107,12 @@ pub(crate) fn mask_blur_path(
     let mut rec = Recorder::new(width, height);
     let clip = crate::blitter::device_clip(rec.clip());
     if clip.is_empty() {
-        return Some(Coverage::Mask(rec.cells));
+        return Some(rec.into_mask());
     }
     if !crate::maskblur::filter_path(path, sigma, hairline, clip, &mut rec) {
         return None;
     }
-    Some(Coverage::Mask(rec.cells))
+    Some(rec.into_mask())
 }
 
 /// An anti-aliased hairline of `path` (device space) with `cap`
@@ -163,13 +167,13 @@ pub(crate) fn mask_blur_rrect(r: Rect, rx: f32, ry: f32, sigma: f32, width: u32,
     let mut rec = Recorder::new(width, height);
     let clip = crate::blitter::device_clip(rec.clip());
     if clip.is_empty() {
-        return Some(Coverage::Mask(rec.cells));
+        return Some(rec.into_mask());
     }
     let rect = crate::geom::Rect::from_ltrb(r.left, r.top, r.right, r.bottom);
     if !crate::maskblur::filter_rrect(rect, rx, ry, sigma, clip, &mut rec) {
         return None;
     }
-    Some(Coverage::Mask(rec.cells))
+    Some(rec.into_mask())
 }
 
 /// A blitter that records every blit in order, clipped to the destination.
@@ -250,7 +254,7 @@ pub(crate) fn anti_fill_rect(r: Rect, width: u32, height: u32) -> Coverage {
         rec.clip(),
         &mut rec,
     );
-    Coverage::Mask(rec.cells)
+    rec.into_mask()
 }
 
 /// A filled path (already in device space), anti-aliased or not.
@@ -259,13 +263,13 @@ pub(crate) fn fill_path(path: &crate::Path, anti_alias: bool, width: u32, height
         let mut rec = Recorder::new(width, height);
         let clip = rec.clip();
         crate::scan::anti_fill_path(path, clip, &mut rec);
-        return Coverage::Mask(rec.cells);
+        return rec.into_mask();
     }
     let Some(path) = path.to_tiny_skia() else {
-        return Coverage::Mask(vec![None; width as usize * height as usize]);
+        return Recorder::new(width, height).into_mask();
     };
     let Some(mut pm) = tiny_skia::Pixmap::new(width.max(1), height.max(1)) else {
-        return Coverage::Mask(Vec::new());
+        return Coverage::Mask(Vec::new(), Vec::new());
     };
     let mut paint = tiny_skia::Paint::default();
     paint.set_color_rgba8(255, 255, 255, 255);
@@ -278,13 +282,22 @@ pub(crate) fn fill_path(path: &crate::Path, anti_alias: bool, width: u32, height
         tiny_skia::Transform::identity(),
         None,
     );
-    // Aliased scan conversion only blits whole spans (`blitH`).
-    Coverage::Mask(
-        pm.data()
-            .chunks_exact(4)
-            .map(|p| (p[3] != 0).then_some((Call::H, 255)))
-            .collect(),
-    )
+    // Aliased scan conversion only blits whole spans (`blitH`): each row's
+    // runs of covered pixels.
+    let cells: Vec<Option<(Call, u8)>> =
+        pm.data().chunks_exact(4).map(|p| (p[3] != 0).then_some((Call::H, 255))).collect();
+    let w = width.max(1) as usize;
+    let mut spans = vec![0i32; cells.len()];
+    for (row, chunk) in cells.chunks(w).enumerate() {
+        let mut start = 0;
+        for (x, c) in chunk.iter().enumerate() {
+            if c.is_none() || x == 0 || chunk[x - 1].is_none() {
+                start = x as i32;
+            }
+            spans[row * w + x] = start;
+        }
+    }
+    Coverage::Mask(cells, spans)
 }
 
 /// A blitter that records each covered pixel's call and coverage, clipped to the
@@ -293,6 +306,7 @@ struct Recorder {
     width: i32,
     height: i32,
     cells: Vec<Option<(Call, u8)>>,
+    spans: Vec<i32>,
 }
 
 impl Recorder {
@@ -301,16 +315,24 @@ impl Recorder {
             width: width as i32,
             height: height as i32,
             cells: vec![None; width as usize * height as usize],
+            spans: vec![0; width as usize * height as usize],
         }
+    }
+
+    fn into_mask(self) -> Coverage {
+        Coverage::Mask(self.cells, self.spans)
     }
 
     fn clip(&self) -> IRect {
         IRect::from_ltrb(0, 0, self.width, self.height)
     }
 
-    fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8) {
+    /// Records `(x, y)` as covered by `call` at `alpha`, in a span from `span`.
+    fn put(&mut self, x: i32, y: i32, call: Call, alpha: u8, span: i32) {
         if x >= 0 && y >= 0 && x < self.width && y < self.height {
-            self.cells[(y * self.width + x) as usize] = Some((call, alpha));
+            let i = (y * self.width + x) as usize;
+            self.cells[i] = Some((call, alpha));
+            self.spans[i] = span;
         }
     }
 }
@@ -318,7 +340,7 @@ impl Recorder {
 impl Blitter for Recorder {
     fn blit_h(&mut self, x: i32, y: i32, width: i32) {
         for i in 0..width {
-            self.put(x + i, y, Call::H, 255);
+            self.put(x + i, y, Call::H, 255, x);
         }
     }
 
@@ -332,7 +354,7 @@ impl Blitter for Recorder {
             }
             if aa[i] != 0 {
                 for k in 0..count {
-                    self.put(px + k, y, Call::AntiH, aa[i]);
+                    self.put(px + k, y, Call::AntiH, aa[i], px);
                 }
             }
             px += count;
@@ -343,28 +365,30 @@ impl Blitter for Recorder {
     fn blit_v(&mut self, x: i32, y: i32, height: i32, alpha: u8) {
         if alpha != 0 {
             for i in 0..height {
-                self.put(x, y + i, Call::V, alpha);
+                self.put(x, y + i, Call::V, alpha, x);
             }
         }
     }
 
     fn blit_anti_h2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
         // Kept even at 0: the translucent legacy blitter still changes the pixel.
-        self.put(x, y, Call::AntiH2, a0);
-        self.put(x + 1, y, Call::AntiH2, a1);
+        // Two runs of one pixel (SkBlitter::blitAntiH2).
+        self.put(x, y, Call::AntiH2, a0, x);
+        self.put(x + 1, y, Call::AntiH2, a1, x + 1);
     }
 
     fn blit_anti_v2(&mut self, x: i32, y: i32, a0: u8, a1: u8) {
-        self.put(x, y, Call::AntiH2, a0);
-        self.put(x, y + 1, Call::AntiH2, a1);
+        self.put(x, y, Call::AntiH2, a0, x);
+        self.put(x, y + 1, Call::AntiH2, a1, x);
     }
 
     fn blit_mask(&mut self, mask: &[u8], bounds: IRect, row_bytes: i32, clip: IRect) {
+        // SkARGB32_Shader_Blitter::blitMask: shadeSpan(clip.fLeft, y, width).
         for y in clip.top..clip.bottom {
             for x in clip.left..clip.right {
                 let a = mask[((y - bounds.top) * row_bytes + (x - bounds.left)) as usize];
                 if a != 0 {
-                    self.put(x, y, Call::Mask, a);
+                    self.put(x, y, Call::Mask, a, clip.left);
                 }
             }
         }
@@ -391,7 +415,7 @@ pub(crate) fn anti_frame_rect(
         }
         None => crate::scan::anti_frame_rect(gr, sx, sy, &mut rec),
     }
-    Coverage::Mask(rec.cells)
+    rec.into_mask()
 }
 
 /// `SkScan::FrameRect`: the stroke's four sides as aliased rects (or one
@@ -404,7 +428,7 @@ pub(crate) fn frame_rect(r: Rect, dx: f32, dy: f32, width: u32, height: u32) -> 
         if let Coverage::Rect { left, top, right, bottom } = fill_rect(r, width, height) {
             for y in top..bottom {
                 for x in left..right {
-                    rec.put(x, y, Call::H, 255);
+                    rec.put(x, y, Call::H, 255, left);
                 }
             }
         }
@@ -417,5 +441,5 @@ pub(crate) fn frame_rect(r: Rect, dx: f32, dy: f32, width: u32, height: u32) -> 
         fill(Rect::ltrb(outer.left, outer.top + dy, outer.left + dx, outer.bottom - dy));
         fill(Rect::ltrb(outer.right - dx, outer.top + dy, outer.right, outer.bottom - dy));
     }
-    Coverage::Mask(rec.cells)
+    rec.into_mask()
 }

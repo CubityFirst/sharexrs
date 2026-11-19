@@ -173,14 +173,11 @@ pub fn run(ctx: &Ctx, c: &Value) -> Outcome {
             write(&ctx.ours(name, &ext), &data);
             let loaded = sxrb(ctx, name, ".loaded.sxrb", &src, if file.ends_with(".jpg") { JPEG_TOLERANCE } else { 0 });
             let file_cmp = match o.format {
-                converter::OutputFormat::Bmp | converter::OutputFormat::Gif => {
+                converter::OutputFormat::Bmp | converter::OutputFormat::Gif | converter::OutputFormat::Webp => {
                     let b = compare::bytes("file", &data, &ctx.theirs(name, &ext));
                     if b.kind == Kind::Exact { b } else { b.and(compare::image_files("decoded", &ctx.ours(name, &ext), &ctx.theirs(name, &ext), 0)) }
                 }
                 converter::OutputFormat::Jpeg => compare::image_files("file", &ctx.ours(name, &ext), &ctx.theirs(name, &ext), JPEG_TOLERANCE),
-                converter::OutputFormat::Webp if !o.webp_lossless => {
-                    Outcome::skip("lossy WebP: libwebp's VP8 encoder isn't ported (written lossless)")
-                }
                 _ => compare::image_files("file", &ctx.ours(name, &ext), &ctx.theirs(name, &ext), 0),
             };
             loaded.and(file_cmp)

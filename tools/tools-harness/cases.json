@@ -5602,6 +5602,390 @@
   "format": "Png"
  },
  {
+  "name": "conv-alpha_64x48_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-alpha_64x48_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "alpha_64x48.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-big_420x300_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "big_420x300.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-odd_33x77_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "odd_33x77.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-alpha_odd_45x29_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "alpha_odd_45x29.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-tiny_1x1_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "tiny_1x1.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossy-q0",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 0
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossless-e0",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 0
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossy-q1",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 1
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossless-e1",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 1
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossy-q50",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 50
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossless-e50",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 50
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossy-q100",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": false,
+  "quality": 100
+ },
+ {
+  "name": "conv-huge_1900x1100_png-webp-lossless-e100",
+  "tool": "converter",
+  "file": "huge_1900x1100.png",
+  "format": "Webp",
+  "webpLossless": true,
+  "quality": 100
+ },
+ {
   "name": "wm-img-big_420x300-TopLeft",
   "tool": "watermark",
   "file": "big_420x300.png",

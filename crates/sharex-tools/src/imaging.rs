@@ -8,10 +8,9 @@
 //! Pixels are [`Bitmap`]s: premultiplied RGBA, the same values as ShareX's
 //! premultiplied BGRA `SKBitmap`s in another channel order.
 //!
-//! JPEG, BMP and GIF are written byte for byte as ShareX writes them. PNG and
-//! lossless WebP decode to the same pixels (Skia's zlib streams and libwebp's
-//! encoder choices differ); lossy WebP is written lossless (there's no pure Rust
-//! VP8 encoder). See docs/TOOLS.md.
+//! JPEG, BMP, GIF and WebP (lossy and lossless, with ShareX's libwebp) are
+//! written byte for byte as ShareX writes them. PNGs decode to the same pixels
+//! (Skia's zlib streams differ). See docs/TOOLS.md.
 
 use std::path::Path;
 
@@ -572,15 +571,14 @@ pub fn save_jpeg_with(bmp: &Bitmap, quality: i32, subsampling: JpegDownsample, i
     crate::jpeg::encode_rgb(&rgb, bmp.width() as usize, bmp.height() as usize, quality.clamp(0, 100), sub, icc)
 }
 
-/// `SKPixmap.Encode(SKWebpEncoderOptions)`. Lossless output decodes to the same
-/// pixels as libwebp's; lossy is written lossless as well (no VP8 encoder here).
-pub fn save_webp(bmp: &Bitmap, _lossless: bool, _quality: i32) -> Vec<u8> {
-    let rgba: Vec<u8> = straight_pixels(bmp).into_iter().flatten().collect();
-    let mut out = Vec::new();
-    let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut out);
-    image::ImageEncoder::write_image(enc, &rgba, bmp.width(), bmp.height(), image::ExtendedColorType::Rgba8)
-        .expect("webp");
-    out
+/// `SKPixmap.Encode(SKWebpEncoderOptions(compression, quality))` (the image
+/// converter, `SkiaImageHelpers.SaveWebP`): libwebp as Skia drives it
+/// ([`crate::webp`]), byte for byte. `icc`: the bitmap has a colour space
+/// (decoded by SkCodec and kept), so Skia's sRGB profile is embedded. Empty
+/// when libwebp can't encode it (an empty bitmap, over 16383 px).
+pub fn save_webp(bmp: &Bitmap, lossless: bool, quality: i32, icc: bool) -> Vec<u8> {
+    let compression = if lossless { crate::webp::Compression::Lossless } else { crate::webp::Compression::Lossy };
+    crate::webp::encode(bmp, compression, quality.clamp(0, 100) as f32, icc).unwrap_or_default()
 }
 
 /// `SkiaImageHelpers.Quantize(bitmap, quality)`.
@@ -606,7 +604,8 @@ pub fn encode(bmp: &Bitmap, format: ImageFileFormat, quality: i32) -> Vec<u8> {
         ImageFileFormat::Png => encode_png(bmp),
         // SKImage.Encode(Jpeg, q): libjpeg-turbo, 4:2:0.
         ImageFileFormat::Jpeg => save_jpeg(bmp, quality, JpegDownsample::Downsample420),
-        ImageFileFormat::Webp => save_webp(bmp, false, quality),
+        // SKBitmap.Encode(Webp, q): SkEncodeImage's lossy WebP.
+        ImageFileFormat::Webp => save_webp(bmp, false, quality, false),
     }
 }
 

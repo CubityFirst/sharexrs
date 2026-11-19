@@ -370,6 +370,27 @@ pub fn build_geometry(font: &FontFace, layout: &TextLayout, origin: (f64, f64)) 
 /// `OutlinedTextControl.Render` for a `TextAnnotation`: the text (wrapped
 /// to the annotation's width less its padding, aligned) as glyph
 /// outlines, stroked (round joins) then filled, clipped to the control.
+/// The text annotation's arranged control and its transform:
+/// `TextAnnotation.GetBounds` (at least 10x10), laid out.
+fn text_frame_of(c: &crate::model::Common) -> (super::layout::Arranged, super::layout::AMatrix) {
+    let (l, t, mut r, mut b) = super::shapes::bounds(c);
+    if r - l < 10.0 {
+        r = l + 10.0;
+    }
+    if b - t < 10.0 {
+        b = t + 10.0;
+    }
+    let a = super::layout::arrange(l as f64, t as f64, ((r - l) as f64).max(1.0), ((b - t) as f64).max(1.0));
+    let ctm = super::layout::visual_transform(&a, c.rotation_angle);
+    (a, ctm)
+}
+
+/// [`text_frame_of`] as the drop shadow needs it: the size and transform.
+pub(super) fn text_frame(c: &crate::model::Common) -> ((f64, f64), super::layout::AMatrix) {
+    let (a, ctm) = text_frame_of(c);
+    ((a.width, a.height), ctm)
+}
+
 pub fn draw_text_annotation(
     pm: &mut sharex_skia::Pixmap,
     c: &crate::model::Common,
@@ -383,22 +404,7 @@ pub fn draw_text_annotation(
     let Some(font) = load_face(&p.font_family, p.is_bold, p.is_italic) else {
         return;
     };
-    // TextAnnotation.GetBounds: at least 10x10.
-    let (mut l, mut t, mut r, mut b) = super::shapes::bounds(c);
-    if r - l < 10.0 {
-        r = l + 10.0;
-    }
-    if b - t < 10.0 {
-        b = t + 10.0;
-    }
-    let _ = (&mut l, &mut t);
-    let a = super::layout::arrange(
-        l as f64,
-        t as f64,
-        ((r - l) as f64).max(1.0),
-        ((b - t) as f64).max(1.0),
-    );
-    let ctm = super::layout::visual_transform(&a, c.rotation_angle);
+    let (a, ctm) = text_frame_of(c);
 
     let stroke = c.stroke_width as f64;
     let hp = TEXT_PADDING + stroke;
@@ -425,8 +431,11 @@ pub fn draw_text_annotation(
     };
 
     // ClipToBounds: the control's rectangle (in device space when unrotated).
-    let clip = (c.rotation_angle == 0.0).then(|| {
-        sharex_skia::IRect::from_xywh(a.x as i32, a.y as i32, a.width as i32, a.height as i32)
+    let layer = super::layout::in_layer_space();
+    let clip = (c.rotation_angle == 0.0 || layer).then(|| {
+        let (ox, oy) = super::layout::device_offset();
+        let (x, y) = if layer { (0.0, 0.0) } else { (a.x, a.y) };
+        sharex_skia::IRect::from_xywh((x + ox) as i32, (y + oy) as i32, a.width as i32, a.height as i32)
     });
     let text_color = super::color::parse_color(&p.text_color);
     let stroke_color = super::color::parse_color(&c.stroke_color);

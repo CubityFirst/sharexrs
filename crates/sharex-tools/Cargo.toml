@@ -33,6 +33,11 @@ chrono = "0.4.45"
 regex = "1"
 roxmltree = "0.20"
 tiny-skia = "0.11.4"
+# Lossy and lossless WebP: libwebp built from source with `cc`. 0.14.4 bundles
+# exactly the libwebp SkiaSharp 3.119.4 compiles into libSkiaSharp
+# (tools/tools-harness/libwebp-sources.md5: all 112 files match), so
+# ShareX's WebP files come out byte for byte. Pinned for that reason.
+libwebp-sys = { version = "=0.14.4", default-features = false }
 
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Globalization", "Win32_Storage_FileSystem", "Win32_Graphics_Gdi", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }

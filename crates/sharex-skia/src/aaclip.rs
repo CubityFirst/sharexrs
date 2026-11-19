@@ -102,6 +102,46 @@ impl AAClip {
         self.bounds
     }
 
+    /// `SkAAClip::op(rect, kIntersect)` with an aliased rect
+    /// (`clipRect(rect, kIntersect, antialias: false)` on an anti-aliased
+    /// clip): the clip's coverage inside `r`, nothing outside, trimmed. The
+    /// clip stays an `SkAAClip` (draws through it keep going through
+    /// `SkAAClipBlitter`).
+    pub fn intersect_rect(&self, r: IRect) -> AAClip {
+        let mut b = self.bounds;
+        if self.is_empty() || !b.intersect(&r) {
+            return AAClip::default();
+        }
+        let mut builder = Builder::new(b);
+        let width = b.width() as usize;
+        let mut line = vec![0u8; width];
+        for y in b.top..b.bottom {
+            let (row, _) = self.find_row(y);
+            let data = &self.rows[row].data;
+            let mut x = self.bounds.left;
+            let mut off = 0;
+            while off + 1 < data.len() {
+                let n = data[off] as i32;
+                for px in x.max(b.left)..(x + n).min(b.right) {
+                    line[(px - b.left) as usize] = data[off + 1];
+                }
+                x += n;
+                off += 2;
+            }
+            let mut i = 0;
+            while i < width {
+                let a = line[i];
+                let mut n = 1;
+                while i + n < width && line[i + n] == a {
+                    n += 1;
+                }
+                builder.add_run(b.left + i as i32, y, a, n as i32);
+                i += n;
+            }
+        }
+        builder.finish()
+    }
+
     /// The clip's coverage of a pixel.
     pub fn alpha_at(&self, x: i32, y: i32) -> u8 {
         if self.is_empty()

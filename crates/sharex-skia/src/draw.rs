@@ -2,6 +2,7 @@
 //! an N32 surface: strokes are turned into a fill path in local
 //! coordinates, then transformed by the CTM and filled with anti-aliasing.
 
+use crate::aaclip::{AAClip, AAClipBlitter};
 use crate::blitter::ColorBlitter;
 use crate::geom::{IRect, Rect};
 use crate::path::{FillType, Matrix, Path};
@@ -49,6 +50,35 @@ pub struct Stroke {
     pub dash: Option<(Vec<f32>, f32)>,
 }
 
+thread_local! {
+    static AA_CLIP: std::cell::RefCell<Option<AAClip>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `f` with the device's clip anti-aliased (`SkRasterClip` holding an
+/// `SkAAClip`): [`fill_path`] and [`hair_path`] draw through
+/// `SkAAClipBlitter` over the clip's bounds, as `SkScan::AntiFillPath` and
+/// `AntiHairPath` do on such a clip (fills forcing RLE).
+pub fn with_aa_clip<R>(clip: AAClip, f: impl FnOnce() -> R) -> R {
+    let previous = AA_CLIP.with(|c| c.replace(Some(clip)));
+    let r = f();
+    AA_CLIP.with(|c| *c.borrow_mut() = previous);
+    r
+}
+
+/// Runs `f` without the clip of [`with_aa_clip`] (drawing into a surface
+/// of its own).
+pub fn with_no_aa_clip<R>(f: impl FnOnce() -> R) -> R {
+    let previous = AA_CLIP.with(|c| c.replace(None));
+    let r = f();
+    AA_CLIP.with(|c| *c.borrow_mut() = previous);
+    r
+}
+
+/// The clip of [`with_aa_clip`], if any.
+pub fn aa_clip() -> Option<AAClip> {
+    AA_CLIP.with(|c| c.borrow().clone())
+}
+
 /// Fills `path` (already in device space) with `color`, anti-aliased.
 pub fn fill_path(pm: &mut Pixmap, path: &Path, color: Color, clip: Option<IRect>) {
     let full = IRect::from_ltrb(0, 0, pm.width() as i32, pm.height() as i32);
@@ -57,7 +87,18 @@ pub fn fill_path(pm: &mut Pixmap, path: &Path, color: Color, clip: Option<IRect>
         return;
     }
     let mut blitter = ColorBlitter::new(pm, color.a, color.r, color.g, color.b, Some(c));
-    scan::anti_fill_path(path, c, &mut blitter);
+    AA_CLIP.with(|aa| match aa.borrow().as_ref() {
+        // SkScan::AntiFillPath(path, SkRasterClip): an AA clip's bounds as
+        // the region, its coverage through SkAAClipBlitter, forceRLE.
+        Some(aa) => {
+            let mut bounds = aa.bounds();
+            if !aa.is_empty() && bounds.intersect(&c) {
+                let mut wrapped = AAClipBlitter { inner: &mut blitter, clip: aa };
+                scan::anti_fill_path_rle(path, bounds, &mut wrapped, true);
+            }
+        }
+        None => scan::anti_fill_path(path, c, &mut blitter),
+    });
 }
 
 /// The device a draw goes to, as far as stroking cares: the CTM and the
@@ -192,7 +233,32 @@ pub fn hair_path(pm: &mut Pixmap, path: &Path, cap: Cap, color: Color, clip: Opt
         return;
     }
     let mut blitter = ColorBlitter::new(pm, color.a, color.r, color.g, color.b, Some(c));
-    crate::hair::anti_hair_path(path, cap, c, &mut blitter);
+    AA_CLIP.with(|aa| match aa.borrow().as_ref() {
+        // SkScan::AntiHairPath on an AA clip: SkAAClipBlitterWrapper, unless
+        // the clip contains the path's bounds (outset for the cap) fully.
+        Some(aa) => {
+            if aa.is_empty() {
+                return;
+            }
+            let out = if cap == Cap::Butt { 1 } else { 2 };
+            let b = path.bounds().round_out();
+            let ib = IRect::from_ltrb(b.left - out, b.top - out, b.right + out, b.bottom + out);
+            let mut test = ib;
+            if !test.intersect(&aa.bounds()) {
+                return;
+            }
+            if aa.quick_contains(ib.left, ib.top, ib.right, ib.bottom) {
+                crate::hair::anti_hair_path(path, cap, c, &mut blitter);
+            } else {
+                let mut bounds = c;
+                if bounds.intersect(&aa.bounds()) {
+                    let mut wrapped = AAClipBlitter { inner: &mut blitter, clip: aa };
+                    crate::hair::anti_hair_path(path, cap, bounds, &mut wrapped);
+                }
+            }
+        }
+        None => crate::hair::anti_hair_path(path, cap, c, &mut blitter),
+    });
 }
 
 /// `SkCanvas::drawPath` with a stroke paint: strokes in local space, maps

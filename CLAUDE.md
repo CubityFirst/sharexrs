@@ -22,8 +22,10 @@ first: it has the rules, the architecture and the tracker.
 - Licence: GPL-3.0-or-later (it's a port of ShareX).
 - Build: `cargo build`; render a screen: `target/debug/sharexrs --render main --out shots/x.png`.
 - Before committing, also lint macOS from Windows:
+  `powershell -File scripts/clippy-macos.ps1`, i.e.
   `cargo clippy --workspace --all-targets --target aarch64-apple-darwin -- -D warnings`
-  (`rustup target add aarch64-apple-darwin` once). Linux can't be checked on
+  with a stub C compiler for libwebp-sys's build script (no macOS SDK here;
+  clippy doesn't link). `rustup target add aarch64-apple-darwin` once. Linux can't be checked on
   Windows (system libraries); CI covers it, so check CI after every push.
 - Tests that compare against ShareX's Windows screenshots or depend on
   Windows fonts, folders or environment (Segoe UI layout, `Documents`,

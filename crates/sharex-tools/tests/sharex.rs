@@ -86,6 +86,26 @@ fn converter_outputs_are_byte_identical() {
     let _ = PngBitDepth::Automatic;
 }
 
+/// Lossy and lossless WebP through libwebp as Skia drives it: the same bytes
+/// as ShareX's (libSkiaSharp's libwebp, Skia's settings, the ICCP chunk).
+#[test]
+fn webp_is_byte_identical() {
+    let webp = |lossless: bool, quality: i32| converter::ConvertOptions {
+        format: converter::OutputFormat::Webp,
+        webp_lossless: lossless,
+        quality,
+        ..Default::default()
+    };
+    let alpha = converter::load_image(&input("alpha_64x48.png")).unwrap();
+    let photo = converter::load_image(&input("photo_q90.jpg")).unwrap();
+    let odd = converter::load_image(&input("odd_33x77.png")).unwrap();
+    assert_eq!(converter::encode(&alpha, &webp(false, 90)), expected("conv-alpha_64x48_png-webp-lossy.webp"), "lossy, alpha");
+    assert_eq!(converter::encode(&photo, &webp(false, 90)), expected("conv-photo_q90_jpg-webp-lossy.webp"), "lossy photo");
+    assert_eq!(converter::encode(&odd, &webp(false, 1)), expected("conv-odd_33x77_png-webp-lossy-q1.webp"), "lossy q1, odd size");
+    assert_eq!(converter::encode(&alpha, &webp(true, 75)), expected("conv-alpha_64x48_png-webp-lossless.webp"), "lossless");
+    assert_eq!(converter::encode(&alpha, &webp(true, 0)), expected("conv-alpha_64x48_png-webp-lossless-e0.webp"), "lossless e0");
+}
+
 #[test]
 fn gif_maker_is_byte_identical() {
     let files = [input("opaque_97x61.png"), input("odd_33x77.png")];
