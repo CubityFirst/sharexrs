@@ -90,6 +90,15 @@ ShareX (`System.Globalization.UseNls`, as ShareX.runtimeconfig.json sets).
 parameter sets cover its options; docs/TOOLS.md lists what they cover per
 tool.
 
+## The pointer (`--cursors <dir>`)
+
+`CursorCases.cs` runs ShareX's `CursorData` for six standard cursors
+(`LoadCursor`) with the hotspot at (32, 32) of a 64x64 test pattern frame,
+and writes `<name>-bitmap.png` (`DrawCursor(SKBitmap)`, the region
+capture's way) and `<name>-gdi.png` (`DrawCursor(hdc)`, a screenshot's
+`DrawIconEx`). `SHAREXRS_CURSOR_OUT=<dir> cargo test -p sharex-capture
+standard_cursors` writes ShareXrs's; they're pixel-identical.
+
 ## Analyze image (`--analyze`)
 
 `AnalyzeCases.cs` runs ShareX's `AnalyzeImageService` (the four AI
