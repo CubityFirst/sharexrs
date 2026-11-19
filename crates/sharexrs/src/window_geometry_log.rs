@@ -8,6 +8,7 @@
 use std::sync::Mutex;
 
 /// `MaximumEntries`.
+#[cfg_attr(not(windows), allow(dead_code))]
 const MAXIMUM_ENTRIES: usize = 10;
 
 /// `WindowGeometryEntry`.
@@ -37,6 +38,7 @@ pub fn entries() -> Vec<Entry> {
     ENTRIES.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn push(entry: Entry) {
     let mut e = ENTRIES.lock().unwrap_or_else(|e| e.into_inner());
     e.push(entry);

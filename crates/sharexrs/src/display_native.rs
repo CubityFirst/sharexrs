@@ -144,6 +144,7 @@ pub struct Snapshot {
 }
 
 /// `DisplayConfigHelper.GetOutputTechnologyName`.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn output_technology_name(value: u32) -> String {
     match value {
         0xFFFF_FFFF => "Other".into(),
@@ -171,6 +172,7 @@ pub fn output_technology_name(value: u32) -> String {
 }
 
 /// Windows 11 still says "Windows 10" in `ProductName`.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn windows_edition(product_name: &str, build: &str) -> String {
     match build.parse::<u32>() {
         Ok(b) if b >= 22000 => product_name.replace("Windows 10", "Windows 11"),

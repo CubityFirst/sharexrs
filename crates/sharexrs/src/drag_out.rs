@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 /// What the drag ended with (`DragDropEffects`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum Effect {
     None,
     Copy,
