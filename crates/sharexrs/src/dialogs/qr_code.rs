@@ -5,8 +5,6 @@
 
 use egui::{Rect, Vec2, pos2, vec2};
 use image::RgbaImage;
-use qrcode::bits::Bits;
-use qrcode::{EcLevel, QrCode, Version};
 use sharex_strings::tools as s;
 use sharex_ui::controls::{Button, DecimalUpDown, TextBox};
 use sharex_ui::icons;
@@ -18,115 +16,43 @@ use super::layout;
 use super::{Cx, Dialog, Effect, Spec, UploadRequest};
 
 /// `QRCodeViewModel.MaximumContentBytes` (`CheckQRCodeContent`).
-pub const MAXIMUM_CONTENT_BYTES: usize = 2952;
+pub const MAXIMUM_CONTENT_BYTES: usize = sharex_tools::qr::MAXIMUM_CONTENT_BYTES;
 
 /// `TaskHelpers.CheckQRCodeContent`.
 pub fn check_content(text: &str) -> bool {
-    !text.is_empty() && text.len() <= MAXIMUM_CONTENT_BYTES
+    sharex_tools::qr::check_content(text)
 }
 
-/// ZXing's `Encoder.chooseMode` for UTF-8 content: numeric when it's all
-/// digits, alphanumeric when it's all of the 45 characters, else bytes.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Mode {
-    Numeric,
-    Alphanumeric,
-    Byte,
-}
-
-fn choose_mode(text: &str) -> Mode {
-    const ALNUM: &str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-    let (mut numeric, mut alnum) = (false, false);
-    for c in text.chars() {
-        if c.is_ascii_digit() {
-            numeric = true;
-        } else if ALNUM.contains(c) {
-            alnum = true;
-        } else {
-            return Mode::Byte;
-        }
-    }
-    if alnum {
-        Mode::Alphanumeric
-    } else if numeric {
-        Mode::Numeric
-    } else {
-        Mode::Byte
-    }
-}
-
-fn bits_for(text: &str, mode: Mode, version: i16) -> Option<Bits> {
-    let mut bits = Bits::new(Version::Normal(version));
-    let data = text.as_bytes();
-    match mode {
-        Mode::Numeric => bits.push_numeric_data(data).ok()?,
-        Mode::Alphanumeric => bits.push_alphanumeric_data(data).ok()?,
-        Mode::Byte => {
-            // `CharacterSet = "UTF-8"`: ZXing writes the UTF-8 ECI (26)
-            // before byte data.
-            bits.push_eci_designator(26).ok()?;
-            bits.push_byte_data(data).ok()?;
-        }
-    }
-    bits.push_terminator(EcLevel::L).ok()?;
-    Some(bits)
-}
-
-/// The modules of `text`'s QR code at ZXing's defaults (error correction
-/// L, the smallest version it fits), without the quiet zone.
-pub fn qr_matrix(text: &str) -> Option<(usize, Vec<bool>)> {
-    let mode = choose_mode(text);
-    let bits = (1..=40).find_map(|v| bits_for(text, mode, v))?;
-    let code = QrCode::with_bits(bits, EcLevel::L).ok()?;
-    let width = code.width();
-    Some((width, code.to_colors().into_iter().map(|c| c == qrcode::Color::Dark).collect()))
-}
-
-/// `TaskHelpers.GenerateQRCode(text, size)`: `BarcodeWriterGeneric` with
-/// `Margin = 1`: the modules scaled by the largest whole number that fits
-/// `size` (with a module of quiet zone each side), centred, black on white.
+/// `TaskHelpers.GenerateQRCode(text, size)` (`sharex_tools::qr`: ZXing's
+/// writer, a one-module quiet zone, black on white).
 pub fn generate(text: &str, size: u32) -> Option<RgbaImage> {
-    if !check_content(text) {
-        return None;
-    }
-    let (width, modules) = qr_matrix(text)?;
-    let input = width as u32;
-    let qr_width = input + 2;
-    let output = size.max(qr_width);
-    let multiple = (output / qr_width).max(1);
-    let left = (output - input * multiple) / 2;
-    let mut image = RgbaImage::from_pixel(output, output, image::Rgba([255, 255, 255, 255]));
-    for y in 0..input {
-        for x in 0..input {
-            if modules[(y * input + x) as usize] {
-                for dy in 0..multiple {
-                    for dx in 0..multiple {
-                        image.put_pixel(left + x * multiple + dx, left + y * multiple + dy, image::Rgba([0, 0, 0, 255]));
-                    }
-                }
-            }
-        }
-    }
-    Some(image)
+    let bmp = sharex_tools::qr::generate(text, size.min(i32::MAX as u32) as i32)?;
+    RgbaImage::from_raw(bmp.width(), bmp.height(), bmp.to_straight())
 }
 
-/// `BarcodeScan`: the QR codes' texts in an image.
+/// `BarcodeScan(bitmap)`: the codes' texts in an image (any format, as
+/// `ScanQRCodeAsync` asks), through `sharex_tools::qr` (ZXing's readers).
 pub fn scan(image: &RgbaImage) -> Vec<String> {
     let (w, h) = image.dimensions();
-    let mut prepared = rqrr::PreparedImage::prepare_from_greyscale(w as usize, h as usize, |x, y| {
-        let p = image.get_pixel(x as u32, y as u32);
-        ((p[0] as u32 * 299 + p[1] as u32 * 587 + p[2] as u32 * 114) / 1000) as u8
-    });
-    let mut out: Vec<String> = prepared.detect_grids().into_iter().filter_map(|g| g.decode().ok().map(|(_, t)| t)).filter(|t| !t.is_empty()).collect();
-    if out.is_empty() {
-        // `TryInverted`.
-        let mut inverted = rqrr::PreparedImage::prepare_from_greyscale(w as usize, h as usize, |x, y| {
-            let p = image.get_pixel(x as u32, y as u32);
-            255 - ((p[0] as u32 * 299 + p[1] as u32 * 587 + p[2] as u32 * 114) / 1000) as u8
-        });
-        out = inverted.detect_grids().into_iter().filter_map(|g| g.decode().ok().map(|(_, t)| t)).filter(|t| !t.is_empty()).collect();
+    if w == 0 || h == 0 {
+        return Vec::new();
     }
-    out
+    let bmp = sharex_tools::imaging::Bitmap::from_straight(w, h, image.as_raw());
+    sharex_tools::qr::scan(&bmp, false).unwrap_or_default()
+}
+
+/// `SkiaImageHelpers.LoadImage(filePath)` then `BarcodeScan`; `None` when
+/// the file isn't an image (`ScanAsync` gets null).
+pub fn scan_file(path: &std::path::Path) -> Option<Vec<String>> {
+    let bmp = sharex_tools::imaging::load_image(path)?;
+    Some(sharex_tools::qr::scan(&bmp, false).unwrap_or_default())
+}
+
+/// `QRCodeWindowOptions.InitialScanMode`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanMode {
+    Screen,
+    Region,
 }
 
 /// `GetSuggestedFileName`: the first 80 characters with invalid ones as
@@ -146,21 +72,34 @@ pub struct QrCodeWindow {
     preview: Option<(String, u32, RgbaImage)>,
     texture: Option<egui::TextureHandle>,
     pub status: String,
+    /// `InitialScanMode`, run when the window opens.
+    pub initial_scan: Option<ScanMode>,
+    /// The scans' notification sound (off for `--render`).
+    pub play_sound: bool,
 }
 
 impl QrCodeWindow {
     /// `TaskHelpers.OpenQRCode(text)`: the clipboard's text when there's none.
     pub fn new(text: Option<String>) -> Self {
         let text = text.or_else(|| sharex_capture::clipboard::get_text().filter(|t| check_content(t))).unwrap_or_default();
-        Self { text, size: 0.0, available: 400, preview: None, texture: None, status: String::new() }
+        Self::with_text(text)
+    }
+
+    /// The window with `text` as it is (no clipboard read).
+    pub fn with_text(text: String) -> Self {
+        Self { text, size: 0.0, available: 400, preview: None, texture: None, status: String::new(), initial_scan: None, play_sound: true }
+    }
+
+    /// `OpenQRCodeScanScreen` / `OpenQRCodeScanRegion`.
+    pub fn scan_mode(mode: ScanMode) -> Self {
+        Self { initial_scan: Some(mode), ..Self::with_text(String::new()) }
     }
 
     /// `QRCodeWindowOptions { InitialImageFilePath }`: no text, then the
     /// image's codes (`ScanAsync(QRCodeScanMode.ImageFile, path)`).
     pub fn scan_image_file(path: &std::path::Path) -> Self {
-        let mut w = Self { text: String::new(), size: 0.0, available: 400, preview: None, texture: None, status: String::new() };
-        let results = image::open(path).ok().map(|i| scan(&i.to_rgba8()));
-        w.apply_scan(results);
+        let mut w = Self::with_text(String::new());
+        w.apply_scan(scan_file(path));
         w
     }
 
@@ -199,9 +138,9 @@ impl QrCodeWindow {
     }
 
     /// `ApplyScanResultsAsync`.
-    fn apply_scan(&mut self, results: Option<Vec<String>>) {
+    pub fn apply_scan(&mut self, results: Option<Vec<String>>) {
         let results = results.unwrap_or_default();
-        self.text = results.join("\r\n\r\n");
+        self.text = sharex_tools::qr::join_results(&results);
         self.status = if results.is_empty() {
             s::QRCodeViewModel_No_QR_code().to_owned()
         } else if results.len() == 1 {
@@ -209,7 +148,9 @@ impl QrCodeWindow {
         } else {
             s::QRCodeViewModel_Decoded_many().replace("{0}", &results.len().to_string())
         };
-        crate::sound::play_action_completed();
+        if self.play_sound {
+            crate::sound::play_action_completed();
+        }
     }
 
     fn save(&mut self) {
@@ -224,7 +165,7 @@ impl QrCodeWindow {
             .save_file();
         let Some(path) = file else { return };
         let saved = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg")) {
-            qr_svg(&self.text, size).map(|svg| std::fs::write(&path, svg).map_err(|e| e.to_string()))
+            sharex_tools::qr::generate_svg_file(&self.text, size as i32).map(|svg| std::fs::write(&path, svg).map_err(|e| e.to_string()))
         } else {
             generate(&self.text, size).map(|image| image::DynamicImage::ImageRgba8(image).to_rgb8().save(&path).map_err(|e| e.to_string()))
         };
@@ -234,29 +175,6 @@ impl QrCodeWindow {
             None => {}
         }
     }
-}
-
-/// `BarcodeWriterSvg` (`Margin` left at ZXing's default, 4 modules): one
-/// black rectangle per module on a white square.
-fn qr_svg(text: &str, size: u32) -> Option<String> {
-    let (width, modules) = qr_matrix(text)?;
-    let input = width as u32;
-    let qr_width = input + 8;
-    let output = size.max(qr_width);
-    let multiple = (output / qr_width).max(1);
-    let left = (output - input * multiple) / 2;
-    let mut svg = format!(
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{output}\" height=\"{output}\" viewBox=\"0 0 {output} {output}\"><rect x=\"0\" y=\"0\" width=\"{output}\" height=\"{output}\" fill=\"#FFFFFF\"/>"
-    );
-    for y in 0..input {
-        for x in 0..input {
-            if modules[(y * input + x) as usize] {
-                svg += &format!("<rect x=\"{}\" y=\"{}\" width=\"{multiple}\" height=\"{multiple}\" fill=\"#000000\"/>", left + x * multiple, left + y * multiple);
-            }
-        }
-    }
-    svg += "</svg>";
-    Some(svg)
 }
 
 /// A `Button` with an icon (at the button's 13px font size) and a
@@ -289,6 +207,12 @@ impl Dialog for QrCodeWindow {
         self.apply_scan(results);
     }
 
+    /// `ScanCaptureAsync(Region)`: the region captured with the window
+    /// minimised, scanned.
+    fn replace_image(&mut self, image: RgbaImage, _ctx: &egui::Context) {
+        self.apply_scan(Some(scan(&image)));
+    }
+
     fn spec(&self) -> Spec {
         Spec::sized(crate::rs_title(s::QRCodeWindow_ShareX_QR_Code()), 940.0, 610.0, 760.0, 520.0)
     }
@@ -298,6 +222,12 @@ impl Dialog for QrCodeWindow {
         let full = layout::background(ui);
         let grid = full.shrink(16.0);
         let mut out = Vec::new();
+        // `InitializeAsync`: `InitialScanMode` (`ScanCaptureAsync`).
+        match self.initial_scan.take() {
+            Some(ScanMode::Screen) => out.push(Effect::ScanScreen),
+            Some(ScanMode::Region) => out.push(Effect::OcrSelectRegion),
+            None => {}
+        }
         // Row 0: the scan buttons.
         let scans = [(icon::QrScan, s::QRCodeWindow_Scan_screen()), (icon::ScanLine, s::QRCodeWindow_Scan_region()), (icon::FileSearch, s::QRCodeWindow_Scan_image())];
         let mut x = grid.min.x;
@@ -339,10 +269,12 @@ impl Dialog for QrCodeWindow {
             links: Some(p.link),
             ..TextBox::default()
         };
+        let before = self.text.chars().count();
         tb.show(ui, text_rect, ui.id().with("content"), &mut self.text);
-        if self.text.len() > MAXIMUM_CONTENT_BYTES {
-            // `MaxLength="2952"` (characters, as Avalonia counts them).
-            self.text = self.text.chars().take(MAXIMUM_CONTENT_BYTES).collect();
+        if self.text.chars().count() > MAXIMUM_CONTENT_BYTES.max(before) {
+            // `MaxLength="2952"` (characters, as Avalonia counts them) holds
+            // typing back; text set otherwise (a scan, the clipboard) stays.
+            self.text = self.text.chars().take(MAXIMUM_CONTENT_BYTES.max(before)).collect();
         }
         let size_row = Rect::from_min_max(pos2(inner.min.x, inner.max.y - size_row_h), inner.max);
         let nf = font(13.0, 400);
@@ -384,15 +316,14 @@ impl Dialog for QrCodeWindow {
             match i {
                 // `ScanCaptureAsync`: the window hides while the screen is grabbed.
                 0 => out.push(Effect::ScanScreen),
-                1 => out.push(Effect::NotPorted("QR code region scan")),
+                1 => out.push(Effect::OcrSelectRegion),
                 _ => {
                     let file = rfd::FileDialog::new()
                         .set_title(s::QRCodeWindow_Select_image_dialog())
                         .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"])
                         .pick_file();
                     if let Some(path) = file {
-                        let results = image::open(&path).ok().map(|i| scan(&i.to_rgba8()));
-                        self.apply_scan(results);
+                        self.apply_scan(scan_file(&path));
                     }
                 }
             }
@@ -418,13 +349,6 @@ impl Dialog for QrCodeWindow {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn modes_as_zxing_chooses_them() {
-        assert_eq!(choose_mode("0123"), Mode::Numeric);
-        assert_eq!(choose_mode("HTTP://A.B"), Mode::Alphanumeric);
-        assert_eq!(choose_mode("https://example.com"), Mode::Byte);
-    }
 
     #[test]
     fn codes_scan_back() {
