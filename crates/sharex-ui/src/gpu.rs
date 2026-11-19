@@ -51,8 +51,16 @@ impl Gpu {
             .ok_or("no usable graphics adapter")?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("sharexrs"),
-            // As large as the hardware allows, for very wide monitors.
-            required_limits: adapter.limits(),
+            // As large as the hardware allows, for very wide monitors, but
+            // for the bindings: on DX12 that's the size of the one
+            // shader-visible descriptor heap, made up front in video memory
+            // and mapped into the process (1,000,000 descriptors, 32 MB on
+            // NVIDIA). egui binds one per texture, and 65,536 textures (2 MB
+            // of descriptors) would be gigabytes of thumbnails.
+            required_limits: wgpu::Limits {
+                max_non_sampler_bindings: adapter.limits().max_non_sampler_bindings.min(65_536),
+                ..adapter.limits()
+            },
             // wgpu's default (`Performance`) reserves its memory in blocks of
             // 128 MB of video memory and 64 MB of upload memory (DX12 and
             // Vulkan), both mapped into the process: 192 MB of GPU memory
