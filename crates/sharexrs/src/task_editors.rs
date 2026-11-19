@@ -527,7 +527,11 @@ impl NotificationButtonsEditor {
         let entries: Vec<MenuEntry<sharex_settings::ToastClickAction>> = self
             .addable()
             .into_iter()
-            .map(|a| MenuEntry::item(a.localized_description(), crate::dialogs::notification::ActionButton::default_icon(&a), a))
+            // A plain `IconPresenter { FontSize = 15, Width = 18 }` (the item's foreground) in Fluent's 16x16 icon `Viewbox`.
+            .map(|a| {
+                let key = crate::dialogs::notification::ActionButton::default_icon(&a);
+                MenuEntry::item(a.localized_description(), key, a).icon(sharex_ui::menu::MenuIcon::Plain(key, 15.0 * 16.0 / 18.0))
+            })
             .collect();
         if entries.is_empty() {
             return;
