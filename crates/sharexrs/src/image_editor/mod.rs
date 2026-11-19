@@ -74,6 +74,8 @@ enum Modal {
 const BUTTON: f32 = 40.0;
 const SPACING: f32 = 4.0;
 const PADDING: f32 = 4.0;
+/// `Border.toolbar-drag-handle`'s width (`MainToolbarLeadingContent`).
+const HANDLE: f32 = 14.0;
 /// The File menu button's `MinWidth`.
 const FILE_BUTTON: f32 = 54.0;
 
@@ -150,8 +152,6 @@ enum Bottom {
     Pin,
     Print,
     Upload,
-    CaptureRegion,
-    CaptureFullscreen,
 }
 
 impl Bottom {
@@ -166,8 +166,6 @@ impl Bottom {
             Bottom::Pin => app_icons::Pin,
             Bottom::Print => app_icons::Printer,
             Bottom::Upload => app_icons::CloudUpload,
-            Bottom::CaptureRegion => app_icons::Region,
-            Bottom::CaptureFullscreen => app_icons::Fullscreen,
         }
     }
 }
@@ -244,6 +242,17 @@ pub struct EditorWindow {
     toolbars_hidden: bool,
     /// The top toolbar's horizontal scroll (its `ScrollViewer`).
     top_scroll: f32,
+    /// How far the user dragged the top toolbar (`_topToolbarOffset`,
+    /// ShareX #9296); it's drawn clamped inside the view.
+    top_offset: Vec2,
+    /// The view, the toolbar's undragged rectangle and its options row's
+    /// height, as last laid out (what the clamp needs).
+    top_bounds: Option<(Rect, Rect, f32)>,
+    /// Where it's drawn (`_topToolbarTransform`).
+    top_drawn: Vec2,
+    /// A drag of its handle: the pointer and drawn offset it started
+    /// from, and the offset before it.
+    top_drag: Option<(Pos2, Vec2, Vec2)>,
     effects: Vec<Effect>,
     title: String,
     /// A canvas press is being dragged (the pointer captured).
@@ -301,6 +310,8 @@ pub struct EditorWindow {
 
 struct Layout {
     top: Option<Rect>,
+    /// The top toolbar's drag handle (`TopToolbarDragHandle`).
+    handle: Option<Rect>,
     items: Vec<(Item, Rect)>,
     options: Option<options_row::OptionsLayout>,
     bottom: Option<Rect>,
@@ -316,6 +327,7 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             top: None,
+            handle: None,
             items: Vec::new(),
             options: None,
             bottom: None,
@@ -393,6 +405,11 @@ impl EditorWindow {
             zoom_rect: None,
             toolbars_hidden: false,
             top_scroll: 0.0,
+            // `OnDataContextChanged`: the remembered offset.
+            top_offset: vec2(sanitize_offset(options.TopToolbarOffsetX), sanitize_offset(options.TopToolbarOffsetY)),
+            top_bounds: None,
+            top_drawn: Vec2::ZERO,
+            top_drag: None,
             effects: Vec::new(),
             title: String::new(),
             capturing: false,
@@ -1185,9 +1202,11 @@ impl EditorWindow {
 
     // Layout and drawing.
 
-    /// The top toolbar's content width (items, spacing, separators).
+    /// The top toolbar's content width (the drag handle, items, spacing,
+    /// separators).
     fn top_content_width(&self) -> f32 {
-        let mut w = 0.0;
+        // `MainToolbarLeadingContent`: the 14px handle, then the row's spacing.
+        let mut w = HANDLE + SPACING;
         for (i, b) in self.visible_bar().iter().enumerate() {
             if i > 0 {
                 w += SPACING;
@@ -1205,7 +1224,15 @@ impl EditorWindow {
         let natural = content + 2.0 * (PADDING + 1.0);
         let width = natural.min(full.width());
         let left = (full.center().x - width / 2.0).round_ties_even();
-        let rect = Rect::from_min_size(pos2(left, full.min.y), vec2(width, BUTTON + 2.0 * (PADDING + 1.0)));
+        let docked = Rect::from_min_size(pos2(left, full.min.y), vec2(width, BUTTON + 2.0 * (PADDING + 1.0)));
+        // The options row hangs under it, in the same `AnnotationToolbar`
+        // (as last laid out).
+        let below = match (&self.layout.options, self.layout.top) {
+            (Some(o), Some(t)) => (o.rect.max.y - t.max.y).max(0.0),
+            _ => 0.0,
+        };
+        self.apply_top_offset(full, docked, below);
+        let rect = docked.translate(self.top_drawn);
         let max_scroll = (natural - width).max(0.0);
         let modal_open = self.modal.is_some();
         if ui.rect_contains_pointer(rect) && !modal_open {
@@ -1213,9 +1240,13 @@ impl EditorWindow {
             self.top_scroll = (self.top_scroll - d.x - d.y).clamp(0.0, max_scroll);
         }
         self.top_scroll = self.top_scroll.clamp(0.0, max_scroll);
+        // `ZIndex="1"`: over the bottom toolbar when dragged onto it (it's
+        // painted after it).
         let painter = ui.painter();
-        // `MainToolbarCornerRadius="0,0,4,4"`, a 1px border.
-        let radius = CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 };
+        // Docked to the top edge it keeps its flat top
+        // (`MainToolbarCornerRadius="0,0,4,4"`); anywhere else it's a
+        // floating panel (4 all round). A 1px border.
+        let radius = if self.top_drawn.y > 0.0 { CornerRadius::same(4) } else { CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 } };
         painter.rect_filled(rect, radius, p.background_toolbar);
         painter.rect_stroke(rect, radius, Stroke::new(1.0, p.border), StrokeKind::Inside);
         // The `ScrollViewer` sits inside the border and `Padding="4"`, and
@@ -1225,6 +1256,19 @@ impl EditorWindow {
         let top = rect.min.y + 1.0 + PADDING;
         let mut x = rect.min.x + 1.0 + PADDING - self.top_scroll;
         self.layout.items.clear();
+        // `TopToolbarDragHandle`: 14 wide, the row's height, its 6x14 dots
+        // centred (`Text.Secondary`, `Text` under the pointer).
+        let handle = Rect::from_min_size(pos2(x, top), vec2(HANDLE, BUTTON));
+        let handle_hovered = (!modal_open && ui.rect_contains_pointer(handle.intersect(viewport))) || self.top_drag.is_some();
+        let dots = if handle_hovered { p.text } else { p.text_secondary };
+        let origin = handle.center() - vec2(3.0, 7.0);
+        for row in 0..4 {
+            for col in 0..2 {
+                clip.rect_filled(Rect::from_min_size(origin + vec2(col as f32 * 4.0, row as f32 * 4.0), Vec2::splat(2.0)), 0.0, dots);
+            }
+        }
+        self.layout.handle = Some(handle.intersect(viewport));
+        x += HANDLE + SPACING;
         let active = self.ws.active_tool();
         for (i, b) in self.visible_bar().into_iter().enumerate() {
             let it = b.item;
@@ -1294,9 +1338,10 @@ impl EditorWindow {
         // chevron (`Margin="8,0,4,0"`), in the button's 10px padding.
         let zoom_w = (2.0 + 20.0 + 20.0 + 6.0 + widgets::text_width(ui, &zoom_text, font.clone()).ceil() + 8.0 + 10.0 + 4.0).max(80.0);
         // Items: zoom, separator, task grid (90 + margins 4/10), six
-        // buttons, separator, two capture buttons.
+        // buttons (ShareX 45fe7f2 took the New from screenshot buttons
+        // after them out).
         let sep = 1.0 + 8.0;
-        let content = zoom_w + SPACING + sep + SPACING + 4.0 + 90.0 + 10.0 + SPACING + 6.0 * BUTTON + 5.0 * SPACING + SPACING + sep + SPACING + 2.0 * BUTTON + SPACING;
+        let content = zoom_w + SPACING + sep + SPACING + 4.0 + 90.0 + 10.0 + SPACING + 6.0 * BUTTON + 5.0 * SPACING;
         let width = content + 2.0 * (PADDING + 1.0);
         let height = BUTTON + 2.0 * (PADDING + 1.0);
         let rect = Rect::from_min_size(pos2((full.center().x - width / 2.0).round_ties_even(), full.max.y - height), vec2(width, height));
@@ -1351,15 +1396,6 @@ impl EditorWindow {
             } else {
                 disabled_button(ui, painter, p, r, b.icon());
             }
-            x += BUTTON + SPACING;
-        }
-        x += 4.0;
-        painter.rect_filled(Rect::from_min_size(pos2(x, top + 1.0), vec2(1.0, 38.0)), 0.0, p.separator);
-        x += 1.0 + 4.0 + SPACING;
-        for b in [Bottom::CaptureRegion, Bottom::CaptureFullscreen] {
-            let r = Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON));
-            captb::button(painter, p, r, b.icon(), false, hover(r), 1.0);
-            items.push((b, r));
             x += BUTTON + SPACING;
         }
         self.layout.bottom = Some(rect);
@@ -1746,8 +1782,32 @@ impl EditorWindow {
     fn toolbar_clicks(&mut self, ui: &Ui) {
         // (The effect browser's scrim covers them too.)
         if self.toolbars_hidden || self.modal.is_some() || self.fx.browser_visible() {
+            self.top_drag = None;
             return;
         }
+        // The bottom toolbar's first: the top one is over it (egui
+        // hit-tests the last widget first).
+        for (b, r) in self.layout.bottom_items.clone() {
+            if ui.interact(r, Id::new(("editor-bottom", b as u8)), Sense::click()).clicked() {
+                match b {
+                    Bottom::Zoom => self.zoom_open = !self.zoom_open,
+                    Bottom::Continue => self.run(Command::Continue),
+                    // `CancelCommand`: `RequestClose`.
+                    Bottom::Cancel => self.request_close(false),
+                    Bottom::Copy => self.run(Command::CopyImage),
+                    Bottom::Save => self.run(Command::Save),
+                    Bottom::SaveAs => self.run(Command::SaveAs),
+                    Bottom::Pin => self.run(Command::PinToScreen),
+                    Bottom::Print => self.run(Command::Print),
+                    Bottom::Upload => self.run(Command::Upload),
+                }
+            }
+        }
+        // The top toolbar's background takes the pointer over the bottom one.
+        if let Some(r) = self.layout.top {
+            let _ = ui.interact(r, Id::new("editor-top-toolbar"), Sense::click());
+        }
+        self.top_toolbar_drag(ui);
         for (it, r) in self.layout.items.clone() {
             let resp = ui.interact(r, Id::new(("editor-item", format!("{it:?}"))), Sense::click());
             if resp.clicked() {
@@ -1790,24 +1850,82 @@ impl EditorWindow {
                 }
             }
         }
-        for (b, r) in self.layout.bottom_items.clone() {
-            if ui.interact(r, Id::new(("editor-bottom", b as u8)), Sense::click()).clicked() {
-                match b {
-                    Bottom::Zoom => self.zoom_open = !self.zoom_open,
-                    Bottom::Continue => self.run(Command::Continue),
-                    // `CancelCommand`: `RequestClose`.
-                    Bottom::Cancel => self.request_close(false),
-                    Bottom::Copy => self.run(Command::CopyImage),
-                    Bottom::Save => self.run(Command::Save),
-                    Bottom::SaveAs => self.run(Command::SaveAs),
-                    Bottom::Pin => self.run(Command::PinToScreen),
-                    Bottom::Print => self.run(Command::Print),
-                    Bottom::Upload => self.run(Command::Upload),
-                    Bottom::CaptureRegion => self.menu_command(MenuCmd::NewRegion),
-                    Bottom::CaptureFullscreen => self.menu_command(MenuCmd::NewFullscreen),
-                }
+    }
+
+    /// The top toolbar's drag handle (`OnTopToolbarDragHandlePointer*`,
+    /// ShareX #9296): a drag moves the toolbar, a double click puts it
+    /// back; the offset it ends at is remembered in the options.
+    fn top_toolbar_drag(&mut self, ui: &Ui) {
+        let Some(handle) = self.layout.handle.filter(|r| r.is_positive()) else {
+            self.top_drag = None;
+            return;
+        };
+        let resp = ui
+            .interact(handle, Id::new("editor-top-toolbar-handle"), Sense::click_and_drag())
+            .on_hover_cursor(egui::CursorIcon::Move)
+            .on_hover_text(ie::EditorBuiltInToolbars_MoveToolbar());
+        if self.top_drag.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Move);
+        }
+        let pointer = ui.ctx().pointer_interact_pos();
+        if resp.double_clicked() || resp.triple_clicked() {
+            // `ClickCount >= 2`: back to the top centre.
+            self.top_drag = None;
+            self.top_offset = Vec2::ZERO;
+            self.save_top_offset();
+            ui.ctx().request_repaint();
+            return;
+        }
+        let pressed = ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary)) && pointer.is_some_and(|p| handle.contains(p));
+        if pressed && self.top_drag.is_none() {
+            // From where it's drawn (maybe clamped); a drag that ends where
+            // it started keeps the remembered offset.
+            self.top_drag = Some((pointer.unwrap_or_default(), self.top_drawn, self.top_offset));
+        }
+        let Some((start, start_drawn, before)) = self.top_drag else { return };
+        if let Some(p) = pointer {
+            let delta = p - start;
+            self.top_offset = if delta == Vec2::ZERO { before } else { start_drawn + delta };
+            ui.ctx().request_repaint();
+        }
+        if !ui.input(|i| i.pointer.primary_down()) {
+            // `EndTopToolbarDrag`: saved where it ended up after clamping.
+            self.top_drag = None;
+            if self.top_offset != before {
+                self.top_offset = self.top_drawn_for(self.top_offset);
+                self.save_top_offset();
             }
         }
+    }
+
+    /// `ApplyTopToolbarOffset`: the offset clamped so the toolbar (at
+    /// `docked` without one, `below` its options row) stays inside the
+    /// view `full`.
+    fn apply_top_offset(&mut self, full: Rect, docked: Rect, below: f32) {
+        self.top_bounds = Some((full, docked, below));
+        self.top_drawn = self.top_drawn_for(self.top_offset);
+    }
+
+    /// Where `offset` draws the toolbar (`Math.Clamp` against the view).
+    fn top_drawn_for(&self, offset: Vec2) -> Vec2 {
+        let Some((full, docked, below)) = self.top_bounds else { return Vec2::ZERO };
+        if docked.width() <= 0.0 || full.width() <= 0.0 {
+            return Vec2::ZERO;
+        }
+        let left = docked.min.x - full.min.x;
+        let top = docked.min.y - full.min.y;
+        let height = docked.height() + below;
+        let clamp = |v: f32, lo: f32, hi: f32| v.max(lo).min(hi);
+        vec2(
+            clamp(offset.x, (-left).min(0.0), (full.width() - left - docked.width()).max(0.0)),
+            clamp(offset.y, (-top).min(0.0), (full.height() - top - height).max(0.0)),
+        )
+    }
+
+    /// `SaveTopToolbarOffset`.
+    fn save_top_offset(&mut self) {
+        self.ws.tools.options.TopToolbarOffsetX = self.top_offset.x as f64;
+        self.ws.tools.options.TopToolbarOffsetY = self.top_offset.y as f64;
     }
 
     /// An options row control: a toggle flips, a dropdown opens its popup.
@@ -2305,6 +2423,11 @@ impl EditorWindow {
     }
 }
 
+/// `SanitizeOffset`: a saved offset that isn't a number is none.
+fn sanitize_offset(v: f64) -> f32 {
+    if v.is_finite() { v as f32 } else { 0.0 }
+}
+
 /// `ShareX.Brush.Checkered`: 30px tiles of two 15px squares (scaled by
 /// `zoom`) from `origin`, over `rect`.
 pub(super) fn paint_checkered(painter: &egui::Painter, rect: Rect, origin: Pos2, zoom: f32, p: &Palette) {
@@ -2412,8 +2535,9 @@ impl Dialog for EditorWindow {
             self.bg_panel.rect = None;
         }
         if !self.toolbars_hidden {
-            self.paint_top(ui, &p, full);
+            // The bottom first: the top toolbar is over it (`ZIndex="1"`).
             self.paint_bottom(ui, &p, full);
+            self.paint_top(ui, &p, full);
             self.toolbar_clicks(ui);
             if std::mem::take(&mut self.open_file_menu)
                 && let Some((_, r)) = self.layout.items.iter().find(|(it, _)| *it == Item::File)
@@ -2429,6 +2553,7 @@ impl Dialog for EditorWindow {
             }
         } else {
             self.layout.top = None;
+            self.layout.handle = None;
             self.layout.options = None;
             self.layout.bottom = None;
             self.layout.bottom_items.clear();
@@ -2682,6 +2807,12 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
         Some("canvas-size") => w.canvas_resize_on_open = true,
+        // `--state toolbar-offset:<x>,<y>`: the top toolbar dragged that far
+        // (`TopToolbarOffsetX/Y`, drawn clamped inside the view).
+        Some(st) if st.starts_with("toolbar-offset:") => {
+            let (x, y) = st["toolbar-offset:".len()..].split_once(',').ok_or("toolbar-offset:<x>,<y>")?;
+            w.top_offset = vec2(x.trim().parse().map_err(|_| "toolbar-offset x")?, y.trim().parse().map_err(|_| "toolbar-offset y")?);
+        }
         Some(st) if st.starts_with("beautifier") => {
             // `--state beautifier[:<ratio>]`: the Image beautifier as it opens
             // (`openBackgroundPanel`: the panel open, the toolbar where it
@@ -2891,6 +3022,87 @@ impl crate::App {
             Some(img) => self.open_image_editor(event_loop, Some(img), Some(path.to_path_buf()), task, None),
             None => eprintln!("Image editor: couldn't load {}", path.display()),
         }
+    }
+}
+
+#[cfg(test)]
+mod toolbar_drag_tests {
+    use super::*;
+
+    /// ShareX #9296: the top toolbar moves by its handle, stays inside the
+    /// view, keeps its offset on a plain click, remembers where a drag
+    /// ended, and a double click puts it back.
+    #[test]
+    fn the_top_toolbar_moves_by_its_handle() {
+        let image = RgbaImage::from_pixel(640, 400, image::Rgba([40, 90, 160, 255]));
+        let mut w = EditorWindow::new(Some(image), None, TaskSettings::default(), false, PathBuf::new());
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut settings = sharex_settings::ApplicationConfig::default();
+        let store = crate::upload::UploadersConfigStore::loaded(Default::default());
+        let mut t = 0.0;
+        let mut frame = |w: &mut EditorWindow, events: Vec<egui::Event>| {
+            t += 1.0 / 60.0;
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 800.0))), time: Some(t), events, ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                let mut cx = Cx { settings: &mut settings, uploaders: &store };
+                let _ = w.ui(ui, &mut cx);
+            });
+            out.textures_delta.clear();
+        };
+        let button = |p: Pos2, pressed| egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        for _ in 0..3 {
+            frame(&mut w, vec![]);
+        }
+        let docked = w.layout.top.unwrap();
+        assert_eq!(docked.min.y, 0.0);
+        let h = w.layout.handle.unwrap().center();
+        // A drag of 100,200: the toolbar follows and the offset is saved.
+        frame(&mut w, vec![egui::Event::PointerMoved(h), button(h, true)]);
+        frame(&mut w, vec![egui::Event::PointerMoved(h + vec2(50.0, 100.0))]);
+        frame(&mut w, vec![egui::Event::PointerMoved(h + vec2(100.0, 200.0))]);
+        frame(&mut w, vec![button(h + vec2(100.0, 200.0), false)]);
+        frame(&mut w, vec![]);
+        assert_eq!(w.layout.top.unwrap().min, docked.min + vec2(100.0, 200.0));
+        assert_eq!((w.ws.tools.options.TopToolbarOffsetX, w.ws.tools.options.TopToolbarOffsetY), (100.0, 200.0));
+        // A plain click keeps it.
+        let h = w.layout.handle.unwrap().center();
+        frame(&mut w, vec![egui::Event::PointerMoved(h), button(h, true)]);
+        frame(&mut w, vec![button(h, false)]);
+        frame(&mut w, vec![]);
+        assert_eq!(w.top_offset, vec2(100.0, 200.0));
+        // Far down: clamped inside the view, and saved as clamped.
+        let h = w.layout.handle.unwrap().center();
+        ctx.memory_mut(|m| m.reset_areas());
+        frame(&mut w, vec![egui::Event::PointerMoved(h + vec2(0.0, 2.0)), button(h + vec2(0.0, 2.0), true)]);
+        frame(&mut w, vec![egui::Event::PointerMoved(h + vec2(0.0, 2000.0))]);
+        frame(&mut w, vec![button(h + vec2(0.0, 2000.0), false)]);
+        frame(&mut w, vec![]);
+        let top = w.layout.top.unwrap();
+        let bottom = w.layout.options.as_ref().map_or(top.max.y, |o| o.rect.max.y);
+        assert_eq!(bottom, 800.0);
+        assert_eq!(w.ws.tools.options.TopToolbarOffsetY as f32, top.min.y);
+        // A double click: back to the top centre.
+        let h = w.layout.handle.unwrap().center();
+        frame(&mut w, vec![egui::Event::PointerMoved(h + vec2(1.0, 0.0))]);
+        for _ in 0..2 {
+            frame(&mut w, vec![button(h, true)]);
+            frame(&mut w, vec![button(h, false)]);
+        }
+        frame(&mut w, vec![]);
+        assert_eq!(w.layout.top.unwrap().min, docked.min);
+        assert_eq!((w.ws.tools.options.TopToolbarOffsetX, w.ws.tools.options.TopToolbarOffsetY), (0.0, 0.0));
+    }
+
+    #[test]
+    fn a_saved_offset_is_restored_and_a_bad_one_ignored() {
+        let mut task = TaskSettings::default();
+        let mut opts = crate::capture_job::image_editor_options(&task);
+        opts.TopToolbarOffsetX = 12.0;
+        opts.TopToolbarOffsetY = f64::NAN;
+        task.ToolsSettings.get_or_insert_default().ImageEditorOptions = opts.to_value();
+        let w = EditorWindow::new(None, None, task, false, PathBuf::new());
+        assert_eq!(w.top_offset, vec2(12.0, 0.0));
     }
 }
 

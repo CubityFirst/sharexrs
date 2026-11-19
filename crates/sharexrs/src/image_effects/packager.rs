@@ -144,7 +144,8 @@ impl Dialog for PackagerWindow {
         if tools::text_button(ui, cr, Id::new("packager-create"), create, true).clicked() {
             effects = self.package();
         }
-        if tools::text_button(ui, xr, Id::new("packager-close"), close, true).clicked() {
+        // Close is `IsCancel` (ShareX 6f27b49): Escape clicks it.
+        if tools::text_button(ui, xr, Id::new("packager-close"), close, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
             effects.push(Effect::Close);
         }
         effects

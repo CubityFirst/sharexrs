@@ -714,12 +714,20 @@ impl OcrWindow {
         let b = Button { primary: true, ..Button::default() };
         let bw = b.width(&ui, close).max(96.0);
         let br = Rect::from_min_size(pos2(c.max.x - bw, y), vec2(bw, 40.0));
-        if b.show(&ui, br, Id::new("ocr-svc-close"), close, true).clicked() || sharex_ui::popup::escape_pressed(ui.ctx()) {
+        // `OnKeyDown` (ShareX #9276): Escape, without modifiers, backs out of
+        // the service editor before it closes the window.
+        if b.show(&ui, br, Id::new("ocr-svc-close"), close, true).clicked() || escape(ui.ctx()) {
             // `CloseServiceEditor`.
             self.editor = None;
             self.save_options();
         }
     }
+}
+
+/// Escape for the window (`OnKeyDown`): only without modifiers, and not
+/// while a popup takes it.
+fn escape(ctx: &egui::Context) -> bool {
+    sharex_ui::popup::escape_pressed(ctx) && ctx.input(|i| i.modifiers.is_none())
 }
 
 /// A 40x40 `Button` with only an icon (`Padding="0"`).
@@ -785,7 +793,7 @@ impl Dialog for OcrWindow {
             self.finish(r);
         }
         let live = self.editor.is_none();
-        if live && sharex_ui::popup::escape_pressed(ui.ctx()) && !ComboBox::is_open(ui.ctx(), Id::new("ocr-service")) {
+        if live && escape(ui.ctx()) && !ComboBox::is_open(ui.ctx(), Id::new("ocr-service")) {
             self.effects.push(Effect::Close);
         }
         let p = palette(ui.ctx());

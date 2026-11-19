@@ -2901,6 +2901,10 @@ impl Dialog for DestinationSettingsWindow {
             Self::normalize(config);
         }
         let j = serde_json::to_value(&*config).unwrap_or(Value::Null);
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window.
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.effects.push(Effect::Close);
+        }
         let p = palette(ui.ctx());
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);

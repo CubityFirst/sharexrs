@@ -36,8 +36,12 @@ pub enum PropKind {
     Margins,
     /// `GradientInfo`: Edit gradient... with the `GradientOptionsPanel` flyout.
     Gradient,
-    /// Anything else (strings, fonts, flags): a `TextBox` through the
-    /// property's `TypeConverter`.
+    /// A flags enum: a `CheckBox` per single-bit flag in a `WrapPanel`
+    /// (`CreateFlagsEditor`, ShareX #9287). `flags` in `Enum.GetValues`
+    /// order; `resource` the type's name in the `ImageEffectEnum_*` keys.
+    Flags { flags: &'static [(u8, &'static str)], resource: &'static str },
+    /// Anything else (strings, fonts): a `TextBox` through the property's
+    /// `TypeConverter`.
     Text,
 }
 
@@ -699,7 +703,8 @@ impl Sides {
     pub const LEFT: u8 = 4;
     pub const RIGHT: u8 = 8;
     pub const ALL: Sides = Sides(15);
-    const NAMES: [(u8, &'static str); 4] = [(1, "Top"), (2, "Bottom"), (4, "Left"), (8, "Right")];
+    /// The single-bit flags, in `Enum.GetValues` order (`None` is 0).
+    pub const NAMES: [(u8, &'static str); 4] = [(1, "Top"), (2, "Bottom"), (4, "Left"), (8, "Right")];
 
     pub fn has(self, flag: u8) -> bool {
         self.0 & flag != 0
@@ -1037,7 +1042,7 @@ prop_meta! {
     f64 => PropKind::Float,
     String => PropKind::Text,
     Option<ImageFont> => PropKind::Text,
-    Sides => PropKind::Text,
+    Sides => PropKind::Flags { flags: &Sides::NAMES, resource: "AnchorStyles" },
     Color => PropKind::Color,
     Point => PropKind::Point,
     Size => PropKind::Size,

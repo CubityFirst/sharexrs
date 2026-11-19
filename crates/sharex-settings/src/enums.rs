@@ -352,7 +352,7 @@ dotnet_enum! {
     /// `ShareX.ScreenCaptureLib.RegionCaptureAction`.
     pub enum RegionCaptureAction {
         None, CancelCapture, RemoveShapeCancelCapture, RemoveShape, SwapToolType, CaptureFullscreen,
-        CaptureActiveMonitor, CaptureLastRegion,
+        CaptureActiveMonitor, CaptureLastRegion, CaptureSelection,
     }
 }
 

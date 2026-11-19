@@ -1126,11 +1126,8 @@ impl RegionCapture {
         let region = self.region_tool_active;
         match key {
             Key::Enter => {
-                if region && !self.has_any_region() && self.hover.is_valid() {
-                    self.set_selection(CaptureRegion::new(self.hover_shape(), self.hover), self.hover_candidate);
-                }
-                if self.has_any_region() {
-                    return self.complete_selection();
+                if let Some(outcome) = self.try_complete_selection() {
+                    return outcome;
                 }
             }
             Key::Space if region => return self.complete_rects(vec![self.bounds()], false),
@@ -1256,8 +1253,11 @@ impl RegionCapture {
     /// `OnCaptureHostPointerPressed` and the editor's own press.
     fn annotation_pressed(&mut self, p: PointF, button: Button, m: Modifiers) -> Outcome {
         self.last_pointer = self.clamp(p);
-        if button == Button::Middle {
-            return self.run_annotation_action(self.options.RegionCaptureActionMiddleClick.clone(), p);
+        match button {
+            Button::Middle => return self.run_annotation_action(self.options.RegionCaptureActionMiddleClick.clone(), p),
+            Button::X1 => return self.run_annotation_action(self.options.RegionCaptureActionX1Click.clone(), p),
+            Button::X2 => return self.run_annotation_action(self.options.RegionCaptureActionX2Click.clone(), p),
+            _ => {}
         }
         let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
         match button {
@@ -1396,7 +1396,21 @@ impl RegionCapture {
             RegionCaptureAction::CaptureFullscreen => self.complete_rects(vec![self.bounds()], false),
             RegionCaptureAction::CaptureActiveMonitor => self.complete_active_monitor(),
             RegionCaptureAction::CaptureLastRegion => self.complete_last_region(),
+            RegionCaptureAction::CaptureSelection => self.try_complete_selection().unwrap_or(Outcome::Continue),
         }
+    }
+
+    /// `TryCompleteSelection`: captures the selection and any added
+    /// regions, or the hovered window or control when nothing is selected
+    /// yet; `None` when there's nothing to capture.
+    fn try_complete_selection(&mut self) -> Option<Outcome> {
+        if !self.has_any_region() && self.region_tool_active && self.hover.is_valid() {
+            self.set_selection(CaptureRegion::new(self.hover_shape(), self.hover), self.hover_candidate);
+        }
+        if !self.has_any_region() {
+            return None;
+        }
+        Some(self.complete_selection())
     }
 
     /// `TryRemoveRegionAt`: the selection, else an added region.

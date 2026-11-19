@@ -28,6 +28,10 @@ settings! {
         WindowX: Option<i32> = None,
         WindowY: Option<i32> = None,
         AutoSizeWindow: bool = false,
+        /// How far the top toolbar was dragged from its top centre, in DIPs
+        /// (ShareX #9296).
+        TopToolbarOffsetX: f64 = 0.0,
+        TopToolbarOffsetY: f64 = 0.0,
         ShowExitConfirmation: bool = true,
         ZoomToFitOnOpen: bool = false,
         QuickCrop: bool = true,

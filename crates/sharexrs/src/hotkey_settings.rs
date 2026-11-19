@@ -39,6 +39,8 @@ pub enum Effect {
     Removed(usize),
     /// Two hotkeys swapped places (`Move`): from, to.
     Moved(usize, usize),
+    /// `Close()`: Escape (`OnWindowKeyDown`, ShareX #9304).
+    Close,
 }
 
 /// The hotkeys and what registers them (`IHotkeySettingsService`). The
@@ -310,6 +312,12 @@ impl HotkeySettingsWindow {
         // A menu opened this frame isn't dismissed by the press that opened
         // it (a click's press and release can arrive in one frame).
         let had_menu = self.task_menu.is_some();
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // the reset confirmation open it hides that instead. A hotkey being
+        // recorded takes Escape before this (`OnHotkeyKeyDown` tunnels).
+        if !modal && !had_menu && self.capturing.is_none() && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.effects.push(Effect::Close);
+        }
         let toolbar = self.toolbar(ui, content, svc, modal);
         // The banner's row keeps its `RowSpacing` when it's collapsed.
         let mut y = toolbar.max.y + 5.0;

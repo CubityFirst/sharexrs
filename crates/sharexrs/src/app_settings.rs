@@ -62,6 +62,8 @@ pub enum Effect {
     ImportSettings,
     /// `ResetAsync`: the question, then the reset.
     ResetSettings,
+    /// `Close()`: Escape (`OnWindowKeyDown`, ShareX #9304).
+    Close,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -92,6 +94,10 @@ struct FormatEditor {
     description: String,
     format: String,
     focus: bool,
+    /// `ClipboardFormatEditorErrorText` (ShareX #9305): why Save didn't.
+    error: Option<&'static str>,
+    /// The box to focus with its text selected (`ShowClipboardFormatEditorError`).
+    select: Option<Id>,
 }
 
 /// The text box a variable menu inserts into.
@@ -270,7 +276,23 @@ impl ApplicationSettings {
     pub fn open_format_editor(&mut self, settings: &ApplicationConfig, index: Option<usize>) {
         let g = |i: usize, k: &str| settings.ClipboardContentFormats.get(i).and_then(|v| v.get(k)).and_then(|x| x.as_str()).unwrap_or_default().to_string();
         let (description, format) = index.map_or((String::new(), String::new()), |i| (g(i, "Description"), g(i, "Format")));
-        self.editor = Some(FormatEditor { index, description, format, focus: true });
+        self.editor = Some(FormatEditor { index, description, format, focus: true, error: None, select: None });
+    }
+
+    /// The open clipboard format editor as Save left it with an empty
+    /// Description, or an empty Format (`--render` states).
+    pub fn format_editor_error(&mut self, format: bool) {
+        if let Some(ed) = self.editor.as_mut() {
+            if format {
+                ed.description = "Description".into();
+                ed.error = Some(s::ApplicationSettingsWindow_FormatCantBeEmpty());
+                ed.select = Some(Id::new("format-text"));
+                ed.focus = false;
+            } else {
+                ed.error = Some(s::ApplicationSettingsWindow_DescriptionCantBeEmpty());
+                ed.select = Some(Id::new("format-description"));
+            }
+        }
     }
 
     /// Scrolls page `page` to `y` (clamped when drawn); `f32::MAX` is the end.
@@ -319,6 +341,11 @@ impl ApplicationSettings {
     /// Draws the window over all of `ui`, changing `settings`; returns what
     /// the app should do.
     pub fn ui(&mut self, ui: &mut Ui, settings: &mut ApplicationConfig) -> Vec<Effect> {
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // the clipboard format editor open it closes that instead.
+        if self.editor.is_none() && self.code_menu.is_none() && !self.color_open && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            self.effects.push(Effect::Close);
+        }
         let p = palette(ui.ctx());
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);
@@ -591,7 +618,9 @@ impl ApplicationSettings {
         let hint_lh = line_height(&ui, &hint);
         let title_h = line_height(&ui, &font(19.0, 600)) + 1.0 + hint_lh;
         let tb_h = (1.0 + 4.0 + line_height(&ui, &TextBox::font()) + 4.0 + 1.0).max(d.settings_control_min_height);
-        let body_h = lh + 3.0 + tb_h + 8.0 + lh + 3.0 + 150.0 + 3.0 + hint_lh + 8.0 + vars_h;
+        // The error under the variables, when it shows: `FontWeight="Normal"`, wrapped.
+        let error_h = ed.error.map_or(0.0, |e| 8.0 + controls::wrapped(&ui, pos2(0.0, 0.0), inner_w, e, body.clone(), p.cancel_border, false));
+        let body_h = lh + 3.0 + tb_h + 8.0 + lh + 3.0 + 150.0 + 3.0 + hint_lh + 8.0 + vars_h + error_h;
         let h = (1.0 + 16.0 + title_h.max(21.0) + 12.0 + body_h + 12.0 + d.settings_control_min_height + 16.0 + 1.0).min(560.0);
         let c = Rect::from_center_size(full.center(), vec2(w, h));
         let card = Rect::from_min_size(pos2(c.min.x.round_ties_even(), c.min.y.round_ties_even()), c.size().round());
@@ -614,7 +643,7 @@ impl ApplicationSettings {
             ui.ctx().memory_mut(|m| m.request_focus(desc_id));
         }
         y += tb_h + 8.0;
-        ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_Format(), body, p.text_secondary, f32::INFINITY), p.text_secondary);
+        ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_Format(), body.clone(), p.text_secondary, f32::INFINITY), p.text_secondary);
         y += lh + 3.0;
         let multi = TextBox { padding: d.settings_control_padding, multiline: true, ..Default::default() };
         let format_rect = Rect::from_min_size(pos2(inner.min.x, y), vec2(inner_w, 150.0));
@@ -654,6 +683,17 @@ impl ApplicationSettings {
         ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_RightClickToInsertAVariable(), hint.clone(), p.text_secondary, f32::INFINITY), p.text_secondary);
         y += hint_lh + 8.0;
         controls::wrapped(&ui, pos2(inner.min.x, y), inner_w, &vars, hint, p.text_secondary, true);
+        if let Some(e) = ed.error {
+            controls::wrapped(&ui, pos2(inner.min.x, y + vars_h + 8.0), inner_w, e, body.clone(), p.cancel_border, true);
+        }
+        // `field.Focus(); field.SelectAll()`.
+        if let Some(id) = ed.select.take() {
+            let text = if id == desc_id { &ed.description } else { &ed.format };
+            let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(text.chars().count()))));
+            state.store(ui.ctx(), id);
+            ui.ctx().memory_mut(|m| m.request_focus(id));
+        }
         // Save and Cancel, right-aligned, `MinWidth="84"`.
         let button = Button::compact(d.settings_button_padding);
         let bh = d.settings_control_min_height;
@@ -669,7 +709,22 @@ impl ApplicationSettings {
         if let Some(pos) = context {
             self.open_code_menu(CodeTarget::ClipboardFormat, format_id, format_rect, Some(pos));
         }
-        if saved {
+        // `OnSaveClipboardFormatClick` (ShareX #9305): neither may be empty.
+        let ed = self.editor.as_mut().unwrap();
+        let invalid = if !saved {
+            None
+        } else if ed.description.trim().is_empty() {
+            Some((s::ApplicationSettingsWindow_DescriptionCantBeEmpty(), desc_id))
+        } else if ed.format.trim().is_empty() {
+            Some((s::ApplicationSettingsWindow_FormatCantBeEmpty(), format_id))
+        } else {
+            None
+        };
+        if let Some((error, field)) = invalid {
+            ed.error = Some(error);
+            ed.select = Some(field);
+            ui.ctx().request_repaint();
+        } else if saved {
             let ed = self.editor.take().unwrap();
             let value = serde_json::json!({ "Description": ed.description, "Format": ed.format });
             match ed.index {
@@ -1299,11 +1354,11 @@ fn page_clipboard_formats(f: &mut Form) {
             &[(s::ApplicationSettingsWindow_Add(), true), (s::ApplicationSettingsWindow_Edit(), has), (s::ApplicationSettingsWindow_Remove(), has)],
             5.0,
         ) {
-            Some(0) => f.w.editor = Some(FormatEditor { index: None, description: String::new(), format: String::new(), focus: true }),
+            Some(0) => f.w.editor = Some(FormatEditor { index: None, description: String::new(), format: String::new(), focus: true, error: None, select: None }),
             Some(1) => {
                 let i = f.w.clipboard_selected.unwrap_or(0);
                 let (d, fm) = formats[i].clone();
-                f.w.editor = Some(FormatEditor { index: Some(i), description: d, format: fm, focus: true });
+                f.w.editor = Some(FormatEditor { index: Some(i), description: d, format: fm, focus: true, error: None, select: None });
             }
             Some(_) => {
                 // `RemoveSelectedClipboardFormat`: the next one is selected.
@@ -1350,7 +1405,7 @@ fn clipboard_list(f: &mut Form, formats: &[(String, String)]) {
             f.w.clipboard_selected = Some(i);
         }
         if resp.double_clicked() {
-            f.w.editor = Some(FormatEditor { index: Some(i), description: d.clone(), format: fm.clone(), focus: true });
+            f.w.editor = Some(FormatEditor { index: Some(i), description: d.clone(), format: fm.clone(), focus: true, error: None, select: None });
         }
     }
 }
@@ -1716,6 +1771,12 @@ mod variable_menu_click_tests {
     /// Application settings on `page` at `ppp` (with the clipboard format
     /// editor open for `clipboard-formats`), after these frames of input.
     fn after(page: &str, seq: &[Vec<egui::Event>], ppp: f32) -> ApplicationSettings {
+        run(page, seq, ppp).0
+    }
+
+    /// [`after`], with how many times the window asked to close.
+    fn run(page: &str, seq: &[Vec<egui::Event>], ppp: f32) -> (ApplicationSettings, usize) {
+        let mut closes = 0;
         let ctx = egui::Context::default();
         sharex_ui::install(&ctx);
         let mut settings = ApplicationConfig::default();
@@ -1730,14 +1791,14 @@ mod variable_menu_click_tests {
             let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(950.4, 720.0))), time: Some(t), events, ..Default::default() };
             input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(ppp);
             let mut out = ctx.run_ui(input, |ui| {
-                state.ui(ui, &mut settings);
+                closes += state.ui(ui, &mut settings).iter().filter(|e| matches!(e, Effect::Close)).count();
             });
             out.textures_delta.clear();
         };
         for ev in std::iter::repeat_n(vec![], 3).chain(seq.iter().cloned()).chain(std::iter::repeat_n(vec![], 3)) {
             frame(ev);
         }
-        state
+        (state, closes)
     }
 
     /// Whether the Sub folder pattern menu is open after these frames.
@@ -1761,8 +1822,70 @@ mod variable_menu_click_tests {
         let once = after("clipboard-formats", &[click.clone(), vec![escape.clone()]], 1.25);
         assert!(once.code_menu.is_none());
         assert!(once.editor.is_some());
-        let twice = after("clipboard-formats", &[click, vec![escape.clone()], vec![escape]], 1.25);
+        let (twice, closes) = run("clipboard-formats", &[click, vec![escape.clone()], vec![escape]], 1.25);
         assert!(twice.editor.is_none());
+        // Neither Escape closed the window.
+        assert_eq!(closes, 0);
+    }
+
+    #[test]
+    fn save_needs_a_description_and_a_format() {
+        // ShareX #9305: Save with an empty (or blank) field shows why and
+        // keeps the editor; with both it saves.
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut settings = ApplicationConfig::default();
+        let before = settings.ClipboardContentFormats.len();
+        let mut state = ApplicationSettings::new(&settings, true, std::env::temp_dir()).with_integration(Box::new(crate::integration::NoIntegration));
+        state.page = PAGES.iter().position(|p| *p == "clipboard-formats").unwrap();
+        state.open_format_editor(&settings, None);
+        let mut t = 0.0;
+        let mut frame = |state: &mut ApplicationSettings, settings: &mut ApplicationConfig, events: Vec<egui::Event>| {
+            t += 1.0 / 60.0;
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(950.4, 720.0))), time: Some(t), events, ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                state.ui(ui, settings);
+            });
+            out.textures_delta.clear();
+        };
+        let save_click = |state: &mut ApplicationSettings, settings: &mut ApplicationConfig, frame: &mut dyn FnMut(&mut ApplicationSettings, &mut ApplicationConfig, Vec<egui::Event>)| {
+            let r = ctx.read_response(Id::new("format-save")).expect("Save is drawn").rect;
+            let p = r.center();
+            let button = |pressed| egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+            frame(state, settings, vec![egui::Event::PointerMoved(p)]);
+            frame(state, settings, vec![button(true)]);
+            frame(state, settings, vec![button(false)]);
+            frame(state, settings, vec![]);
+        };
+        for _ in 0..3 {
+            frame(&mut state, &mut settings, vec![]);
+        }
+        state.editor.as_mut().unwrap().description = "  ".into();
+        save_click(&mut state, &mut settings, &mut frame);
+        assert_eq!(state.editor.as_ref().unwrap().error, Some(s::ApplicationSettingsWindow_DescriptionCantBeEmpty()));
+        assert!(ctx.memory(|m| m.has_focus(Id::new("format-description"))));
+        state.editor.as_mut().unwrap().description = "Short URL".into();
+        save_click(&mut state, &mut settings, &mut frame);
+        assert_eq!(state.editor.as_ref().unwrap().error, Some(s::ApplicationSettingsWindow_FormatCantBeEmpty()));
+        assert!(ctx.memory(|m| m.has_focus(Id::new("format-text"))));
+        assert_eq!(settings.ClipboardContentFormats.len(), before);
+        state.editor.as_mut().unwrap().format = "$shorturl".into();
+        save_click(&mut state, &mut settings, &mut frame);
+        assert!(state.editor.is_none());
+        assert_eq!(settings.ClipboardContentFormats.len(), before + 1);
+        assert_eq!(settings.ClipboardContentFormats[before]["Format"], "$shorturl");
+    }
+
+    #[test]
+    fn escape_closes_the_window_once_nothing_else_takes_it() {
+        // ShareX #9304: `OnWindowKeyDown` closes the window on Escape, after
+        // the clipboard format editor.
+        let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
+        assert_eq!(run("general", &[vec![escape.clone()]], 1.0).1, 1);
+        let (editor_closed, closes) = run("clipboard-formats", &[vec![escape.clone()]], 1.0);
+        assert!(editor_closed.editor.is_none());
+        assert_eq!(closes, 0);
+        assert_eq!(run("clipboard-formats", &[vec![escape.clone()], vec![escape]], 1.0).1, 1);
     }
 
     #[test]

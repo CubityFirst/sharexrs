@@ -822,14 +822,29 @@ pub fn window_handle(window: &winit::window::Window) -> Option<isize> {
 /// when a window may be captured right after), plus what snapr learnt: a
 /// tool window, so browsers' occlusion tracking doesn't stall, and no Alt
 /// menu mode (which captures the mouse until the next click).
+///
+/// The tool window style is set before the window is first shown and kept
+/// whenever winit rewrites the styles (it does as it shows the window), as
+/// ShareX's `Win32Properties.AddWindowStylesCallback` keeps it (ShareX
+/// #9242): tools such as MicaForEveryone put a system backdrop on new
+/// windows unless they're tool windows, which fills a see-through overlay.
 pub fn prepare_overlay(window: &winit::window::Window) {
     use windows_sys::Win32::Foundation::{LRESULT, WPARAM};
     use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SC_KEYMENU, WM_SYSCOMMAND};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SC_KEYMENU, STYLESTRUCT, WM_STYLECHANGING, WM_SYSCOMMAND, WS_EX_LAYERED};
 
     unsafe extern "system" fn proc(h: HWND, msg: u32, w: WPARAM, l: LPARAM, _: usize, _: usize) -> LRESULT {
         if msg == WM_SYSCOMMAND && (w & 0xfff0) == SC_KEYMENU as usize {
             return 0;
+        }
+        if msg == WM_STYLECHANGING && w as i32 == GWL_EXSTYLE && l != 0 {
+            // SAFETY: WM_STYLECHANGING's lParam is the STYLESTRUCT being applied.
+            // A layered overlay (the transparent region) stays layered too:
+            // winit doesn't know it made it one.
+            unsafe {
+                let ss = &mut *(l as *mut STYLESTRUCT);
+                ss.styleNew |= WS_EX_TOOLWINDOW | (ss.styleOld & WS_EX_LAYERED);
+            }
         }
         // SAFETY: forwards to the next window procedure.
         unsafe { DefSubclassProc(h, msg, w, l) }

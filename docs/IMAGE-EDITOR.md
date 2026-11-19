@@ -1029,3 +1029,21 @@ One egui widget, `EditorWorkspace`, used by both hosts, as ShareX shares
 5. Each screen validated against ShareX with `scripts/winshot.ps1`,
    `sharexrs --render` and `scripts/compare.py` (reference screenshots in
    `shots/sharex/editor-*.png`), as `docs/PORTING.md` requires.
+
+## Upstream 30d1682
+
+- The top toolbar leads with a drag handle (#9296): 14px, ShareX's 6x14
+  dots, SizeAll, the "Drag to move the toolbar, double-click to reset its
+  position" tooltip. A drag moves it (with its options row) clamped inside
+  the view; it is drawn over the bottom bar and gets 4px corners all round
+  once off the top edge. A plain click keeps the offset, a double (or
+  triple) click puts it back, and the clamped offset is saved as
+  `ImageEditorOptions.TopToolbarOffsetX/Y`. `--render image-editor --state
+  toolbar-offset:<x>,<y>`. At 125% vs the new ShareX on the 640x400 image
+  (1600x900): docked 0.41%, moved (160,240) 0.33%; ShareX's toolbar is
+  2 px wider there (Avalonia rounds each element up to device pixels: the
+  File button, separators and handle; the open 125% work). Live: the same
+  drag gives the same clamp and offset in both; ShareX restored it after a
+  reopen and reset on a double click. `toolbar_drag_tests`.
+- The bottom bar ends with Upload: the New from screenshot (region,
+  fullscreen) buttons are gone (45fe7f2).

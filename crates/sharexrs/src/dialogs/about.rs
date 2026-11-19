@@ -204,6 +204,10 @@ impl Dialog for AboutWindow {
         let p = palette(ui.ctx());
         let full = super::layout::background(ui);
         let mut out = Vec::new();
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window.
+        if sharex_ui::popup::escape_pressed(ui.ctx()) {
+            out.push(Effect::Close);
+        }
         self.clicker.tick();
 
         // The panel.

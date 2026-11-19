@@ -3,7 +3,8 @@
 //!
 //! - `image-effects` (`--image <file>`: Tool mode on it; else Presets mode
 //!   on the sample image; `--select N`: the N-th effect; `--state
-//!   add-menu|editor`),
+//!   add-menu|editor`; `--content add:<Type>`: that effect added, as Add
+//!   effect... does, after the selected one),
 //! - `image-effects-confirm`, `image-effects-packager`.
 
 use std::path::PathBuf;
@@ -32,6 +33,10 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             w.set_sync();
             if let Some(&i) = o.select.first() {
                 w.selected_effect = Some(i);
+            }
+            if let Some(ty) = o.content.as_deref().and_then(|c| c.strip_prefix("add:")) {
+                let kind = sharex_image_effects::effects::EffectKind::create(ty, &mut sharex_image_effects::random::RandomFast::new()).ok_or_else(|| format!("no effect {ty}"))?;
+                w.add_effect(sharex_image_effects::preset::ImageEffect::new(kind));
             }
             if o.state.as_deref() == Some("add-menu") {
                 w.open_add_menu();

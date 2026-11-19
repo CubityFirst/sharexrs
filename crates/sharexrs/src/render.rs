@@ -780,6 +780,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     // The clipboard format editor: Add, or Edit on the first format.
                     "add" => state.open_format_editor(&settings, None),
                     "edit" => state.open_format_editor(&settings, Some(0)),
+                    // Save on an empty Description, or on an empty Format (ShareX #9305).
+                    "description-empty" => state.format_editor_error(false),
+                    "format-empty" => state.format_editor_error(true),
                     "no-formats" => settings.ClipboardContentFormats.clear(),
                     other => match other.strip_prefix("busy-phase:") {
                         Some(t) => state.busy_phase = Some(t.parse().map_err(|_| "busy-phase:<seconds>")?),

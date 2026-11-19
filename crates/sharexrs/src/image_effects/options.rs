@@ -3,18 +3,19 @@
 //! (`TypeDescriptor.GetProperties`, browsable and writable, in declaration
 //! order), chosen from the property's type as `CreateEditor` does: a
 //! `ToggleSwitch`, an enum `ComboBox`, a `NumericUpDown`, the colour button,
-//! X/Y or width/height boxes, the four margin boxes, Edit gradient... or a
+//! X/Y or width/height boxes, the four margin boxes, Edit gradient..., a
+//! check box per flag (a flags enum) or a
 //! `TextBox` through the type's converter; a value that doesn't convert
 //! shows its error under the editors (`ValidationText`).
 
 use egui::{Color32, Id, Rect, Ui, pos2, vec2};
 use serde_json::Value;
-use sharex_image_effects::dotnet::{Color, GradientInfo, GradientMode, GradientStop, Margins, Point, Prop, PropKind, Size};
+use sharex_image_effects::dotnet::{Color, GradientInfo, GradientMode, GradientStop, Margins, Point, Prop, PropKind, Sides, Size};
 use sharex_image_effects::localization;
 use sharex_image_effects::preset::ImageEffect;
 use sharex_strings::image_effects_lib as s;
 use sharex_ui::border::{self, Brush};
-use sharex_ui::controls::{self, Button, ComboBox, ComboItem, DecimalUpDown, TextBox, ToggleSwitch};
+use sharex_ui::controls::{self, Button, CheckBox, ComboBox, ComboItem, DecimalUpDown, TextBox, ToggleSwitch};
 use sharex_ui::theme::{Thickness, fluent, palette};
 use sharex_ui::widgets::{center_y, font, line_height, text_width};
 
@@ -69,6 +70,11 @@ fn color32(c: &Color) -> Color32 {
 }
 
 impl OptionsPanel {
+    /// A colour or gradient flyout is open (it takes Escape).
+    pub fn flyout_open(&self) -> bool {
+        self.flyout.is_some()
+    }
+
     /// `SetEffect`: the editors made again for another effect (`key`).
     pub fn set_effect(&mut self, key: Option<usize>) {
         if self.built_for != key {
@@ -80,11 +86,12 @@ impl OptionsPanel {
         }
     }
 
-    /// One editor row's height for `kind`.
-    fn row_height(ui: &Ui, kind: PropKind) -> f32 {
+    /// One editor row's height for `kind`, its editor `editor_w` wide.
+    fn row_height(ui: &Ui, kind: PropKind, editor_w: f32) -> f32 {
         let editor = match kind {
             PropKind::Bool => ToggleSwitch::SIZE.y,
             PropKind::Margins => line_height(ui, &font(13.0, 400)) + 3.0 + 40.0,
+            PropKind::Flags { flags, resource } => flag_lines(ui, flags, resource, editor_w).len().max(1) as f32 * FLAG_HEIGHT,
             _ => 40.0,
         };
         editor.max(ROW_MIN)
@@ -120,7 +127,8 @@ impl OptionsPanel {
             tools::text_at(ui, pos2(view.min.x, view.min.y + 4.0), s::ImageEffectOptionsPanel_No_configurable_properties(), nf, p.text_secondary);
             return false;
         }
-        let heights: Vec<f32> = kinds.iter().map(|k| Self::row_height(ui, *k)).collect();
+        let editor_w = view.width() - 12.0 - LABEL_WIDTH - 10.0;
+        let heights: Vec<f32> = kinds.iter().map(|k| Self::row_height(ui, *k, editor_w)).collect();
         let content_h = 8.0 + tools::stack_height(&heights, 8.0);
         let max_scroll = (content_h - view.height()).max(0.0);
         if live && ui.rect_contains_pointer(view) && self.flyout.is_none() {
@@ -183,6 +191,26 @@ impl OptionsPanel {
                 let current = value.as_str().and_then(|v| names.iter().position(|n| n.eq_ignore_ascii_case(v)));
                 let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: live };
                 combo.show(ui, Rect::from_min_size(rect.min, vec2(rect.width(), 40.0)), id, &items, current).map(|i| Value::String(names[i].to_string()))
+            }
+            PropKind::Flags { flags, resource } => {
+                // `CreateFlagsEditor`: a `WrapPanel` of check boxes (string
+                // content, `FontWeight.Normal`, `Margin="0,0,12,0"`), its
+                // lines from the top of the row.
+                let mut current = Sides::from_json(&value).map_or(0, |s| s.0);
+                let before = current;
+                for (line, items) in flag_lines(ui, flags, resource, rect.width()).into_iter().enumerate() {
+                    let mut x = rect.min.x;
+                    for (bit, text) in items {
+                        let cb = flag_check_box(&text, live);
+                        let w = flag_width(ui, &text);
+                        let r = Rect::from_min_size(pos2(x, rect.min.y + line as f32 * FLAG_HEIGHT), vec2(w, FLAG_HEIGHT));
+                        let mut on = current & bit != 0;
+                        cb.show(ui, r, id.with(bit), &mut on);
+                        current = if on { current | bit } else { current & !bit };
+                        x += w + 12.0;
+                    }
+                }
+                (current != before).then(|| Value::from(current))
             }
             PropKind::Int | PropKind::Float => {
                 let float = kind == PropKind::Float;
@@ -439,6 +467,43 @@ impl OptionsPanel {
         }
         (changed, keep)
     }
+}
+
+/// A flag's `CheckBox` (`MinHeight` 32).
+const FLAG_HEIGHT: f32 = 32.0;
+
+fn flag_check_box(text: &str, live: bool) -> CheckBox<'_> {
+    CheckBox { text, text_font: controls::content_font(13.0, 400), text_color: None, min_height: FLAG_HEIGHT, enabled: live }
+}
+
+/// A flag check box's width as Avalonia measures it: the box (20), the
+/// content's 8px padding and its text, each desired size rounded up to
+/// whole device pixels (`LayoutHelper.RoundLayoutSizeUp`).
+fn flag_width(ui: &Ui, text: &str) -> f32 {
+    let px = sharex_ui::color_view::Px::of(ui.ctx());
+    let raw = sharex_ui::widgets::galley(ui, text, controls::content_font(13.0, 400), Color32::WHITE, f32::INFINITY).size().x;
+    px.up(20.0 + 8.0 + px.up(raw))
+}
+
+/// The flags' check boxes as `WrapPanel` lays them out in `width`: lines
+/// of (bit, text). Only single-bit flags get one (`bit & (bit - 1)`).
+fn flag_lines(ui: &Ui, flags: &[(u8, &str)], resource: &str, width: f32) -> Vec<Vec<(u8, String)>> {
+    let mut lines: Vec<Vec<(u8, String)>> = Vec::new();
+    let mut x = 0.0;
+    for &(bit, name) in flags {
+        if bit == 0 || bit & (bit - 1) != 0 {
+            continue;
+        }
+        let text = localization::enum_value(resource, name).to_string();
+        let w = flag_width(ui, &text) + 12.0;
+        if lines.is_empty() || (x + w > width && x > 0.0) {
+            lines.push(Vec::new());
+            x = 0.0;
+        }
+        x += w;
+        lines.last_mut().unwrap().push((bit, text));
+    }
+    lines
 }
 
 /// A `NumericUpDown` without its spinner (`CreateIntegerInput`).

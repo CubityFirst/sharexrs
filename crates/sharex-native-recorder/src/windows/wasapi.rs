@@ -368,7 +368,10 @@ fn run(wanted: &Wanted, mixer: &AudioMixer, time: &dyn TimeSource, start: &Event
         let mut endpoints: Vec<(WasapiEndpoint, DrainState)> = Vec::new();
         for (on, kind, id, gain) in wanted {
             if *on {
-                endpoints.push((WasapiEndpoint::open(&enumerator, *kind, id.as_deref(), *gain)?, DrainState::default()));
+                match crate::audio::open_or_skip(*kind, WasapiEndpoint::open(&enumerator, *kind, id.as_deref(), *gain))? {
+                    Some(e) => endpoints.push((e, DrainState::default())),
+                    None => continue,
+                }
             }
         }
         let _ = prepared.send(Ok(()));

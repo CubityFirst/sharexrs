@@ -505,6 +505,11 @@ impl Dialog for CustomUploaderSettingsWindow {
                 Err(_) => self.testing = None,
             }
         }
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // the syntax test open it closes that (below) instead.
+        if self.syntax.is_none() && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            out.push(Effect::Close);
+        }
         let p = palette(ui.ctx());
         let full = layout::background(ui);
         // The library: 260px, toolbar background, a 1px right border.

@@ -144,6 +144,11 @@ impl Dialog for DebugLogWindow {
         let left = full.min.x + MARGIN;
         let right = full.max.x - MARGIN;
         let modal = self.confirm_upload;
+        // `OnWindowKeyDown` (ShareX #9304): Escape closes the window; with
+        // the upload confirmation open it hides that (below) instead.
+        if !modal && sharex_ui::popup::escape_pressed(ui.ctx()) {
+            out.push(Effect::Close);
+        }
 
         // The toolbar.
         let bar = Rect::from_min_max(pos2(left, full.min.y), pos2(right, full.min.y + TOOLBAR_PADDING * 2.0 + BUTTON_HEIGHT + 1.0));

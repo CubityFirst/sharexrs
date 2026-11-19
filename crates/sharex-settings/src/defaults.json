@@ -275,6 +275,8 @@
     "WindowX": null,
     "WindowY": null,
     "AutoSizeWindow": false,
+    "TopToolbarOffsetX": 0.0,
+    "TopToolbarOffsetY": 0.0,
     "ShowExitConfirmation": true,
     "ZoomToFitOnOpen": false,
     "QuickCrop": true,
