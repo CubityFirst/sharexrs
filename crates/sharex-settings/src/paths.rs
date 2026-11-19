@@ -65,11 +65,14 @@ pub fn base_directory() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// `FileHelpers.GetAbsolutePath`: expands folder variables, then resolves
-/// relative paths against the executable's folder.
+/// `FileHelpers.GetAbsolutePath`: expands folder variables, resolves
+/// relative paths against the executable's folder, then `Path.GetFullPath`
+/// (on Windows `/` becomes `\`, `.` and `..` go, as `GetFullPathNameW`
+/// does), so the path compares equal to the ones a folder listing returns.
 pub fn absolute_path(path: &str) -> PathBuf {
     let path = PathBuf::from(expand_folder_variables(path));
-    if path.is_absolute() { path } else { base_directory().join(path) }
+    let path = if path.is_absolute() { path } else { base_directory().join(path) };
+    std::path::absolute(&path).unwrap_or(path)
 }
 
 /// `AppPaths.DefaultPersonalFolder`: `Documents/ShareXrs`.

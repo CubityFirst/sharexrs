@@ -48,6 +48,11 @@ impl Images {
         if !path.is_file() || !sharex_helpers::file_helpers::is_image_file(&path.to_string_lossy()) {
             return false;
         }
+        // ShareX's callers pass full paths (`GetAbsolutePath` ends in
+        // `Path.GetFullPath`); normalise here too, so `G:/a/b.png` or
+        // `G:\a\c\..\b.png` finds itself among `Directory.GetFiles`' results.
+        let full = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let path = full.as_path();
         let mut files: Vec<PathBuf> = path
             .parent()
             .and_then(|d| std::fs::read_dir(d).ok())
@@ -408,6 +413,16 @@ mod tests {
         assert!(images.navigate(-1));
         assert_eq!(images.status(), "1 / 2  |  a.png  |  3 × 2");
         assert!(!images.navigate(-1));
+        // APP-08a: a path in another spelling (forward slashes, `..`) still
+        // finds the folder's other images.
+        let mut other = Images::default();
+        let spelled = format!("{}/sub/../a.png", dir.to_string_lossy().replace('\\', "/"));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        assert!(other.load_file(Path::new(&spelled)));
+        assert_eq!(other.files.len(), 2);
+        assert_eq!(other.index, 0);
+        assert!(other.navigate(1));
+        assert_eq!(other.status(), "2 / 2  |  b.png  |  3 × 2");
         let mut one = Images::default();
         one.load_image(RgbaImage::new(5, 4), None);
         assert_eq!(one.status(), "5 × 4");
