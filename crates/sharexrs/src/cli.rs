@@ -299,6 +299,10 @@ impl App {
         if let Some(args) = self.router.initial.take() {
             self.use_command_line_args(event_loop, &args);
         }
+        // `if (ActionsToolbarRunAtStartup) TaskHelpers.OpenActionsToolbar()`.
+        if self.settings.settings.ActionsToolbarRunAtStartup {
+            self.open_actions_toolbar(event_loop);
+        }
         for (at, args) in std::mem::take(&mut self.router.pending) {
             if at.elapsed() > STARTUP_TIMEOUT {
                 eprintln!("Arguments were not processed because application startup did not complete within 5 seconds.");
@@ -407,12 +411,13 @@ impl App {
                     self.open_video_tool(event_loop, key, Some(task), Some(file.to_string_lossy().into_owned()));
                 }
             }
+            // `TaskHelpers.OpenImageViewer(filePath)`.
+            HotkeyType::ImageViewer => self.show_image_file(event_loop, std::path::Path::new(&file)),
             // The image tools on a file: their windows aren't ported.
             HotkeyType::PhotoEditor
             | HotkeyType::PixelEditor
             | HotkeyType::ImageBeautifier
             | HotkeyType::ImageEffects
-            | HotkeyType::ImageViewer
             | HotkeyType::HashCheck
             | HotkeyType::Metadata
             | HotkeyType::StripMetadata => eprintln!("{} with a file: not ported yet", job.name()),

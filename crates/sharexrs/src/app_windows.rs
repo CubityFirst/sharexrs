@@ -76,10 +76,15 @@ impl App {
             self.hotkey_window.as_ref().map(|s| &s.window),
             self.task_window.as_ref().map(|s| &s.window),
         ];
-        for w in windows.into_iter().flatten().chain(self.dialogs.iter().map(|d| &d.window)) {
+        for w in windows.into_iter().flatten() {
             sharex_ui::theme::apply(w.ctx());
             set_theme(w, a.theme);
             w.window.request_redraw();
+        }
+        for d in &self.dialogs {
+            sharex_ui::theme::apply(d.window.ctx());
+            set_theme(&d.window, d.dialog.theme().unwrap_or(a.theme));
+            d.window.window.request_redraw();
         }
     }
 
@@ -219,6 +224,7 @@ impl App {
                 Effect::OpenFolder(path) => open_path(&path),
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::QuickTaskMenuEditor => self.show_quick_task_editor(event_loop),
                 Effect::PrintSettings => {
                     // `ShowImagePrintSettings`: the active monitor, preview only.
                     let screens = sharex_capture::screenshot::screens();

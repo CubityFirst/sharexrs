@@ -118,6 +118,9 @@ pub enum UiRequest {
     Annotate(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
+    /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
+    /// to write (`None`: cancelled).
+    FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
 }
 
 impl std::fmt::Debug for UiRequest {
@@ -131,6 +134,7 @@ impl std::fmt::Debug for UiRequest {
             Self::ImageEffects(..) => f.write_str("ImageEffects"),
             Self::Annotate(..) => f.write_str("Annotate"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
+            Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
         }
     }
 }

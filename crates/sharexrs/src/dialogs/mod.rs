@@ -10,16 +10,27 @@
 //! `BeforeUploadWindowIntegration.Show`) answer through a channel the
 //! task's thread waits on.
 
+pub mod about;
+pub mod actions_toolbar;
+pub mod after_capture;
 pub mod after_upload;
 pub mod before_upload;
 pub mod clipboard_upload;
 pub mod confirm;
 pub mod custom_uploaders;
+pub mod debug_log;
+pub mod display_diagnostics;
 pub mod destination_settings;
 pub mod drop_window;
+pub mod file_exist;
+pub mod icon_pack_prompt;
+pub mod image_viewer;
 pub mod layout;
+pub mod notification;
+pub mod output_box;
 pub mod print_window;
 pub mod qr_code;
+pub mod quick_task_editor;
 pub mod render;
 pub mod response;
 pub mod text_upload;
@@ -215,6 +226,32 @@ pub enum Effect {
     /// the window's task settings, its message when FFmpeg is missing),
     /// then [`Dialog::trimmer_export`] with the path.
     TrimmerExport,
+    /// The after capture window's Continue (or copy): the task starts with
+    /// the settings it chose.
+    AfterCaptureAccepted(Box<after_capture::Accepted>),
+    /// `ImageViewerWindowIntegration.ShowImage(image)`.
+    ShowImage(RgbaImage),
+    /// `ImageViewerWindowIntegration.ShowImage(imageData, displayName)`.
+    ShowImageNamed(RgbaImage, String),
+    /// The window's client size (points), where it is.
+    SetInnerSize(f32, f32),
+    /// The Actions toolbar's title context menu, at the pointer.
+    ActionsToolbarMenu,
+    /// `TaskHelpers.ExecuteJob(job)` with the default task settings.
+    RunJob(sharex_settings::HotkeyType),
+    /// The Actions toolbar shows the list as it is now.
+    RefreshActionsToolbar,
+    /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
+    /// (the notification's Delete file).
+    DeleteFile(PathBuf),
+    /// `TaskHelpers.AnnotateImageAsync(image, null, defaults)`: the image
+    /// editor on an image that was never saved.
+    AnnotateImage(RgbaImage),
+    /// `ThemeManager.ApplyConfiguredSettings` after the settings' theme
+    /// options changed (the icon pack prompt).
+    ApplyAppearance,
+    /// `SettingManager.SaveApplicationConfigAsync`.
+    SaveSettings,
 }
 
 /// `HistoryWindowServices`: what the history windows hand a file to.
@@ -253,7 +290,8 @@ pub enum UploadRequest {
     /// `UploadFile(files)`: asks first when there are more than 10, unless
     /// already `confirmed`.
     Files { files: Vec<PathBuf>, task: TaskSettings, confirmed: bool },
-    /// `UploadImage(image)` of a generated QR code.
+    /// `UploadImage(image)` of a generated QR code (or of the notification's
+    /// image).
     QrCodeImage(RgbaImage),
 }
 
@@ -280,6 +318,16 @@ pub struct Cx<'a> {
 /// One of ShareX's upload windows.
 pub trait Dialog {
     fn spec(&self) -> Spec;
+
+    /// The width of the content (`SizeToContent="WidthAndHeight"`), when
+    /// it has one.
+    fn content_width(&mut self, ui: &mut egui::Ui) -> Option<f32> {
+        let _ = ui;
+        None
+    }
+
+    /// The window moved (`PositionChanged`), to this outer position.
+    fn moved(&mut self, _x: i32, _y: i32, _cx: &mut Cx) {}
 
     /// The height of the content for [`Spec::size_to_content`].
     fn content_height(&mut self, ui: &mut egui::Ui) -> f32 {
@@ -371,6 +419,11 @@ pub trait Dialog {
     /// The video trimmer's export, once FFmpeg is resolved (`None`: missing).
     fn trimmer_export(&mut self, _ffmpeg: Option<std::path::PathBuf>) {}
 
+    /// `Deactivated`.
+    fn deactivated(&mut self) -> Vec<Effect> {
+        Vec::new()
+    }
+
     /// The scrolling capture window, for the app to report to.
     fn as_scrolling(&mut self) -> Option<&mut crate::scrolling_capture::window::ScrollingCaptureWindow> {
         None
@@ -378,6 +431,12 @@ pub trait Dialog {
 
     /// The auto capture window, for the app to drive.
     fn as_auto_capture(&mut self) -> Option<&mut crate::auto_capture::window::AutoCaptureWindow> {
+        None
+    }
+
+    /// A theme of its own whatever the app's (`RequestedThemeVariant =
+    /// ThemeManager.ShareXDark`: the notification window).
+    fn theme(&self) -> Option<egui::Theme> {
         None
     }
 
@@ -425,7 +484,7 @@ impl App {
     }
 
     fn try_open_dialog_window(&mut self, event_loop: &ActiveEventLoop, mut dialog: Box<dyn Dialog>) -> Result<(), String> {
-        let theme = self.theme();
+        let theme = dialog.theme().unwrap_or(self.theme());
         let gpu = match &self.gpu {
             Some(g) => g,
             None => self.gpu.insert(sharex_ui::gpu::Gpu::new()?),
@@ -439,8 +498,8 @@ impl App {
             w.clear_color = Some([0.0; 4]);
         }
         if spec.size_to_content {
-            let height = w.paint(|ui| dialog.content_height(ui));
-            let _ = w.window.request_inner_size(LogicalSize::new(spec.width, height));
+            let (width, height) = w.paint(|ui| (dialog.content_width(ui), dialog.content_height(ui)));
+            let _ = w.window.request_inner_size(LogicalSize::new(width.unwrap_or(spec.width), height));
         }
         clamp_to_max_track_size(&w.window, &spec);
         let size = w.window.outer_size();
@@ -480,6 +539,14 @@ impl App {
                 d.window.on_event(event);
                 d.window.window.request_redraw();
                 d.dialog.activated()
+            }
+            WindowEvent::Focused(false) => {
+                d.window.on_event(event);
+                d.dialog.deactivated()
+            }
+            WindowEvent::Moved(p) => {
+                d.dialog.moved(p.x, p.y, &mut cx);
+                Vec::new()
             }
             WindowEvent::RedrawRequested => {
                 let dialog = &mut d.dialog;
@@ -686,6 +753,35 @@ impl App {
                         eprintln!("couldn't open the message box: {e}");
                     }
                 }
+                Effect::ApplyAppearance => self.apply_appearance(),
+                Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
+                Effect::SetInnerSize(w, h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                    }
+                }
+                Effect::ActionsToolbarMenu => self.open_actions_toolbar_menu(event_loop),
+                Effect::RunJob(job) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.run_job_now(event_loop, job, task);
+                }
+                Effect::RefreshActionsToolbar => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.dialog.single() == Some("actions-toolbar")) {
+                        d.window.window.request_redraw();
+                    }
+                }
+                Effect::AfterCaptureAccepted(accepted) => self.after_capture_accepted(*accepted),
+                Effect::ShowImage(image) => self.show_image(event_loop, image, None),
+                Effect::ShowImageNamed(image, name) => self.show_image(event_loop, image, Some(name)),
+                Effect::AnnotateImage(image) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.open_image_editor(event_loop, Some(image), None, task, None);
+                }
+                Effect::SaveSettings => {
+                    if let Err(e) = self.settings.save_application_config(false) {
+                        eprintln!("couldn't save the settings: {e}");
+                    }
+                }
                 Effect::MinimizeAndFlash => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         d.window.window.set_minimized(true);
@@ -715,7 +811,7 @@ impl App {
             }
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
             FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
-            FileService::ShowImage => eprintln!("Image viewer: not ported yet"),
+            FileService::ShowImage => self.show_image_file(event_loop, &path),
         }
     }
 

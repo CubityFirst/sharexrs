@@ -166,6 +166,7 @@ impl App {
                 Box::new(w)
             }
             super::UiRequest::QrCodeScanFile(path) => Box::new(dialogs::qr_code::QrCodeWindow::scan_image_file(&path)),
+            super::UiRequest::FileExists(path, reply) => Box::new(dialogs::file_exist::FileExistWindow::new(&path, Some(reply))),
             super::UiRequest::PinToScreen(image, task) => {
                 self.pin_image(event_loop, *image, None, &task);
                 return;
@@ -226,21 +227,41 @@ impl App {
                     if report.play_sound {
                         sound::play_error();
                     }
-                    if report.show_toast && !info.result.errors.is_empty() {
+                    if report.show_toast
+                        && let Some(text) = info.result.errors.first().filter(|t| !t.is_empty())
+                        && !self.notifications_blocked(report)
+                    {
                         let title =
                             if info.result.error_title.is_empty() { s::TaskManager_task_UploadCompleted_Error() } else { &info.result.error_title };
-                        eprintln!("Notification not ported yet: ShareXrs - {title}");
+                        // `ShowNotificationTip(error.Text, "ShareX - " + title, 5000)`.
+                        let tip = crate::dialogs::notification::NotificationConfig::tip(&self.default_general(), text, &format!("ShareXrs - {title}"), 5000);
+                        self.pending_notification = Some(tip);
                     }
                 }
                 _ => {
                     eprintln!("Task completed. File name: {}, Duration: {duration} ms", info.file_name);
-                    if !task.stop_requested && info.job != TaskJob::ShareURL && !result.is_empty() {
-                        if report.play_sound {
-                            sound::play_task_completed();
+                    let has_result = !result.is_empty();
+                    // An image only copied to the clipboard still gets a toast showing it.
+                    if !task.stop_requested && info.job != TaskJob::ShareURL && (has_result || report.image.is_some()) {
+                        let mut text = result.clone();
+                        if has_result {
+                            if report.play_sound {
+                                sound::play_task_completed();
+                            }
+                            if let Some(t) = &report.balloon_text {
+                                text = t.clone();
+                            }
                         }
-                        if report.show_toast {
+                        if report.show_toast && (!text.is_empty() || report.image.is_some()) && !self.notifications_blocked(report) {
                             // `NotificationWindow.Show`, then the after upload window with it.
-                            eprintln!("Notification not ported yet: {result}");
+                            let general = report.general.as_deref().cloned().unwrap_or_default();
+                            let mut config = crate::dialogs::notification::NotificationConfig::new(&general).with_clicks(&general);
+                            config.file_path = info.file_path_str();
+                            config.image = report.image.clone();
+                            config.title = format!("ShareXrs - {}", s::TaskManager_task_UploadCompleted_ShareX___Task_completed());
+                            config.text = text;
+                            config.url = info.result.text().to_owned();
+                            self.pending_notification = Some(config);
                             if report.show_after_upload_window && report.is_upload_job {
                                 self.show_after_upload_window(id, report);
                             }
@@ -250,6 +271,10 @@ impl App {
             }
         }
         self.store_recent_tasks();
+        // The native tray menus (macOS, Linux) are built ahead: Recent items.
+        if cfg!(not(windows)) {
+            self.refresh_menus();
+        }
         let busy = self.state.tasks.manager.tasks.iter().any(|t| t.is_busy());
         // `TaskManager`'s `if (!IsBusy && StartupOptions.AutoClose) ApplicationLifecycle.Exit()`.
         if !busy && self.auto_close {

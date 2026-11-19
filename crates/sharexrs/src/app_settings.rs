@@ -49,6 +49,8 @@ pub enum Effect {
     NotPorted(&'static str),
     /// Image print settings (`ShowImagePrintSettings`).
     PrintSettings,
+    /// `QuickTaskMenuEditorIntegration.Show`.
+    QuickTaskMenuEditor,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -513,7 +515,7 @@ fn page_general(f: &mut Form) {
             }
         }
         if f.button(s::ApplicationSettingsWindow_EditQuickTaskMenu(), true) {
-            f.effect(Effect::NotPorted("quick task menu editor"));
+            f.effect(Effect::QuickTaskMenuEditor);
         }
     });
     // Updates (`UpdatesVisible`: not with `DisableUpdateCheck`).

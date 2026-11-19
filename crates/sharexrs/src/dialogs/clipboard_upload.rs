@@ -156,8 +156,9 @@ impl Dialog for ClipboardUploadWindow {
         let cancel = compact.show(ui, rects[0], ui.id().with("cancel"), labels[0], false, true).clicked();
         let upload = compact.show(ui, rects[1], ui.id().with("upload"), labels[1], true, enabled).clicked();
         let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
-        if preview_clicked {
-            return vec![Effect::NotPorted("The image viewer")];
+        if preview_clicked && let Some(ClipboardContent::Image(image)) = &self.content {
+            // `ImageViewerWindowIntegration.ShowImage(image)`.
+            return vec![Effect::ShowImage(image.clone())];
         }
         if cancel || escape {
             return vec![Effect::Close];

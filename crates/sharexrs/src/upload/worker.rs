@@ -721,9 +721,18 @@ impl<'a> Worker<'a> {
             play_sound: general.PlaySoundAfterUpload,
             show_after_upload_window: self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow),
             data_type: self.data_type,
-            image: self.image.clone().filter(|_| self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow)),
+            // `task.KeepImage`: the toast and the after upload window show it.
+            image: self.image.clone().filter(|_| general.ShowToastNotificationAfterTaskCompleted || self.task.AfterUploadJob.contains(AfterUploadTasks::ShowAfterUploadWindow)),
             auto_close_after_upload_form: self.task.AdvancedSettings.as_ref().is_some_and(|a| a.AutoCloseAfterUploadForm),
             show_toast: general.ShowToastNotificationAfterTaskCompleted,
+            balloon_text: self
+                .task
+                .AdvancedSettings
+                .as_ref()
+                .map(|a| a.BalloonTipContentFormat.clone())
+                .filter(|f| !f.is_empty())
+                .map(|f| super::after_upload::parse_upload_info(&self.info_fields(), &f)),
+            general: Some(Box::new(general.clone())),
             upload_duration: self.upload_duration,
             history: Some(history),
             history_ocr: self.history_ocr.clone(),

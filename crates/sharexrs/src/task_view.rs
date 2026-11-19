@@ -219,7 +219,7 @@ pub mod link_formats {
 pub enum TaskAction {
     /// Run a command on these tasks (the selection, in the order it was made).
     Command(TaskCommand, Vec<u64>),
-    /// `ShowImagesInViewer`: the image viewer isn't ported yet.
+    /// `ShowImagesInViewer`.
     OpenImageViewer(PathBuf),
     /// Open a file (a thumbnail title's click, `ExecuteThumbnailClick`).
     OpenFile(PathBuf),
