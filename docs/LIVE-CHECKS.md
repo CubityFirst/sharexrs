@@ -195,3 +195,36 @@ The startup used `AutoCheckUpdate=false`, then the exact original
 `ApplicationConfig.json` bytes were restored and reverified. The test
 pattern stopped and the backup and temporary portable profiles were
 removed.
+
+## Pass 2 · Windows desktop checks
+
+ShareX `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+`832b1efdf9904c9a79b68c64afb578ff126034fc`. Both ran with generated
+portable profiles. ShareXrs was built with `cargo build` offline.
+One 2560×1600 display ran at 120 DPI (125%) throughout. The display
+settings were left as found. `SX` and `RS` refer to the same evidence
+directories as in pass 1. The prior 16 failures remain in the pass 1
+tables. Rows for the new master behavior use the pass 2 executable.
+
+### Native recording
+
+The fixed region was `320,260,640,480` over `--test-pattern`. The MP4
+frame check decoded every frame with FFmpeg and compared RGB values at
+sample points inside the generated 16 px tiles. The check allows 22
+levels per channel for H.264 and 40 for indexed GIF. First and last
+decoded frames were then compared byte for byte for accepted pairs.
+Every recording was deleted after checking.
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| REC2-01 | Native recorder | 120 (125%) | Run `-ScreenRecorderCustomRegion` twice to open the built-in bar and record. Set 30 fps and 3 s fixed duration with cursor, audio and camera off. | H.264, 640×480, 30 fps, 3.000 s, 90 frames, 540,424 bytes. NVIDIA hardware encoder, zero dropped frames. | Same stream properties, encoder and frame count. 540,423 bytes. | PASS | Preflight region matched 100%. Every decoded frame passed at 1.0000. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-02 | Native recorder | 120 (125%) | Repeat REC2-01 with `-ScreenRecorderGIFCustomRegion` and the default 15 fps GIF rate. | 640×480, 3.000 s, 45 recorder slots. The GIF stores one image held over the full static clip. 120,539 bytes. | Same recorder slots, encoded image count, timing and byte size. | PASS | Sequential repeat SHA-256 `8ab65d9693e9931a12f8c2e0a88c035fd16ef5238a6e304c3e58c8e06f279b4a` in both apps. FFprobe average rate `100/300`. Decoded RGB matched across apps and passed the pattern check at 1.0000. |
+| REC2-03a | Native recorder | 120 (125%) | Leave the main window visible. Launch `--test-pattern --window 320,260,801,601`, activate its uniquely titled test window and verify foreground HWND and PID. Forward `-ScreenRecorderActiveWindow` twice with `CaptureClientArea=false` and REC2-01's settings. | 800×600, 30 fps, 3.000 s, 90 frames, 942,006 bytes, alternate pattern verified on all decoded frames. | On two attempts the selected target had the main window's dimensions, rounded even to 1124×878. The repeat was 30 fps, 3.000 s, 90 frames and 1,690,621 bytes. The requested pattern matched at 0.0007. | FAIL | Both ShareXrs recordings were rejected and deleted unviewed. The ShareXrs main window measured 1125×879. The tray-hidden control is REC2-03b. |
+| REC2-03b | Native recorder | 120 (125%) | Repeat REC2-03a with each app's main window hidden to the tray before activating the test window. | 800×600, 30 fps, 3.000 s, 90 frames, 942,006 bytes. | Same stream properties and frame count. 942,005 bytes. | PASS | Alternate pattern passed at 1.0000 on every decoded frame. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-04a | Native recorder | 120 (125%) | Start REC2-01 over the alternate pattern, forward `-PauseScreenRecording` about 1.25 s after Record and leave it paused beyond the 3 s fixed duration. Forward the same command to resume in place. | Completed after resuming. 640×480, 30 fps, 3.000 s, 90 frames, 544,464 bytes. | Same behavior and stream properties. 544,463 bytes. | PASS | All decoded frames matched the alternate pattern at 0.9992. First and last decoded RGB frames were pixel-identical across apps. |
+| REC2-04b | Native recorder | 120 (125%) | Drag the paused recording frame to a different region before resuming. | The paused tool window was verified by HWND and PID. The Windows input tool could not select it and its PrintWindow client was black. | The frame was listed by the input tool and its PrintWindow client was also black. No drag was issued. | BLOCKED | REC2-04a establishes pause and resume in place. |
+| REC2-05 | Native recorder | 120 (125%) | Select the non-default GoXLR Sample output, verify it differs from all three default output roles and has no active foreign playback session. Play a generated 1 kHz tone there for 5 s with a scratch WASAPI player. Run REC2-01 with only system audio enabled. | AAC 48 kHz stereo, 3.007979 s, 1 kHz present in all thirty 100 ms windows. 614,063 bytes. | Same codec, rate, channels, duration and tone coverage. 614,089 bytes. | PASS | Playback session guard found no active foreign streams. FFmpeg decoded 144,384 samples per channel in both files. Video was 640×480 at 30 fps, 90 frames, with 1.0000 pattern match and pixel-identical first and last decoded frames. |
+| REC2-06 | Native recorder | 120 (125%) | Make a short recording with a verified muted microphone or a virtual input fed silence. | No safe microphone state was verified. | No microphone recording attempted. | BLOCKED | Microphone was disabled for every recording. |
+| REC2-07 | Native recorder | 120 (125%) | Enable a covered or virtual camera and verify its placement and lifetime. | No covered or synthetic camera was verified. | No camera recording attempted. | BLOCKED | Camera was disabled for every recording. |
+| REC2-08 | Native recorder | 120 (125%) | In Task settings › Capture › Screen recorder, compare all three device lists. Select Sample output, Sample input, and Cam Link 4K, turn capture sources off, close settings, and compare saved IDs. | Order after the default row: **output** Chat, Game, Music, Sample, System (all GoXLR). **Input** Broadcast Stream Mix and Chat Mic (GoXLR), HDMI (Cam Link 4K), Microphone (HD Pro Webcam C920), Sample (GoXLR). **Camera** Cam Link 4K, HD Pro Webcam C920. | Same default labels, names and order. All three selected IDs were nonempty and matched byte for byte across apps. | PASS | `pass2-device-{system,mic,camera}-dark.png` under SX and RS. All sources were confirmed off after the list test. |
+| REC2-09 | Native recorder | 120 (125%) | Compare the three source dropdowns on the recorder bar itself. | The reference bar HWND was verified for PrintWindow and unavailable as an input target. | The ShareXrs bar was targetable. A side-by-side list comparison from this surface was unavailable. | BLOCKED | Task settings list and ID results are in REC2-08. |
