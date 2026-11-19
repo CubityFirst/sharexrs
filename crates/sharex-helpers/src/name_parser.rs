@@ -46,6 +46,8 @@ pub struct NameParser {
     /// trusted patterns.
     pub allow_file_read: bool,
     pub is_preview_mode: bool,
+    /// `CustomTimeZone`: the time is `TimeZoneInfo.ConvertTime(DateTime.Now, zone)`.
+    pub custom_time_zone: Option<crate::time_zone::TimeZoneInfo>,
 }
 
 const MONTHS: [&str; 12] = [
@@ -236,7 +238,14 @@ impl NameParser {
         let height = if self.image_height > 0 { self.image_height.to_string() } else { String::new() };
         sb = sb.replace(&p("width"), &width).replace(&p("height"), &height);
 
-        let dt = Local::now();
+        let dt = match &self.custom_time_zone {
+            Some(zone) => {
+                let now = chrono::Utc::now();
+                let ticks = crate::time_zone::UNIX_EPOCH_TICKS + now.timestamp_micros() * 10 + (now.timestamp_subsec_nanos() as i64 % 1000) / 100;
+                crate::time_zone::to_naive(zone.convert_from_utc(ticks))
+            }
+            None => Local::now().naive_local(),
+        };
         let month = MONTHS[dt.month0() as usize];
         sb = sb
             .replace(&p("mon2"), month)
@@ -257,8 +266,8 @@ impl NameParser {
             .replace(&p("h"), &hour)
             .replace(&p("mi"), &zeroes(dt.minute(), 2))
             .replace(&p("s"), &zeroes(dt.second(), 2))
-            .replace(&p("ms"), &zeroes(dt.timestamp_subsec_millis(), 3))
-            .replace(&p("wy"), &week_of_year(dt.date_naive()).to_string())
+            .replace(&p("ms"), &zeroes(dt.and_utc().timestamp_subsec_millis(), 3))
+            .replace(&p("wy"), &week_of_year(dt.date()).to_string())
             .replace(&p("w2"), day)
             .replace(&p("w"), day)
             .replace(&p("pm"), if dt.hour() >= 12 { "PM" } else { "AM" });
@@ -412,6 +421,20 @@ mod tests {
         let now = Local::now();
         let folder = NameParser::new(NameParserType::FilePath).parse("%y-%mo");
         assert_eq!(folder, format!("{}-{:02}", now.year(), now.month()));
+    }
+
+    /// `CustomTimeZone`: the time in that zone (Nepal: UTC+05:45, no rules).
+    #[test]
+    fn custom_time_zone_converts_now() {
+        use crate::time_zone::{TICKS_PER_MINUTE, TimeZoneInfo};
+        let zone = TimeZoneInfo { id: "Nepal Standard Time".into(), base_utc_offset: 345 * TICKS_PER_MINUTE, ..TimeZoneInfo::utc() };
+        let mut p = NameParser::new(NameParserType::Text);
+        p.custom_time_zone = Some(zone);
+        let expect = |t: chrono::DateTime<chrono::Utc>| (t + chrono::Duration::minutes(345)).format("%Y-%m-%d %H:%M").to_string();
+        let before = expect(chrono::Utc::now());
+        let got = p.parse("%y-%mo-%d %h:%mi");
+        let after = expect(chrono::Utc::now());
+        assert!(got == before || got == after, "{got} vs {before}");
     }
 
     #[test]

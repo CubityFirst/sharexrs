@@ -200,6 +200,9 @@ pub struct TaskSettingsWindow {
     /// Where the Screen recorder page's device lists come from, and the
     /// lists as last read (system audio, microphones, cameras).
     devices: Box<dyn crate::capture_devices::CaptureDevices>,
+    /// `TimeZoneInfo.GetSystemTimeZones()`, read when File naming is first
+    /// built (`None` until then).
+    time_zones: Option<Vec<sharex_helpers::time_zone::TimeZoneInfo>>,
     device_lists: [Option<Result<Vec<crate::capture_devices::CaptureDevice>, String>>; 3],
     /// The variable menus of the name pattern, pixel info and upload info
     /// boxes (`_activeCodeMenu`).
@@ -243,6 +246,7 @@ impl TaskSettingsWindow {
             color_open: false,
             accounts: UploaderAccounts::default(),
             devices: Box::new(crate::capture_devices::SystemDevices),
+            time_zones: None,
             device_lists: [None, None, None],
             variables: Default::default(),
             effects: Vec::new(),
@@ -1565,6 +1569,9 @@ fn page_file_naming(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_NamePatterns());
         let adv = f.s.task.AdvancedSettings.clone().unwrap_or_default();
+        // `CustomTimeZone = upload.UseCustomTimeZone ? upload.CustomTimeZone : null`.
+        let up = sec!(f, UploadSettings);
+        let zone = if up.UseCustomTimeZone { sharex_helpers::time_zone::from_settings(&up.CustomTimeZone) } else { None };
         let preview = |pattern: &str, window: bool| {
             use sharex_helpers::name_parser::{NameParser, NameParserType};
             let mut p = NameParser::new(NameParserType::FileName);
@@ -1574,6 +1581,7 @@ fn page_file_naming(f: &mut Form) {
             p.max_name_length = adv.NamePatternMaxLength.max(0) as usize;
             p.max_title_length = adv.NamePatternMaxTitleLength.max(0) as usize;
             p.is_preview_mode = true;
+            p.custom_time_zone = zone.clone();
             if window {
                 p.window_text = Some(s::TaskSettingsWindow_ShareXTaskSettings().to_string());
                 p.process_name = Some("ShareX".into());
@@ -1603,9 +1611,7 @@ fn page_file_naming(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_TimeZone());
         let custom = chk!(f, s::TaskSettingsWindow_UseCustomTimeZone(), UploadSettings.UseCustomTimeZone);
-        // The system's time zones aren't listed yet: the saved one shows.
-        let name = jstr(&sec!(f, UploadSettings).CustomTimeZone, "DisplayName");
-        f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &[ComboItem::text(name)], Some(0), ComboSize::default(), custom);
+        time_zone_row(f, custom);
     });
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_URLReplacement());
@@ -1613,6 +1619,32 @@ fn page_file_naming(f: &mut Form) {
         text!(f, s::TaskSettingsWindow_Pattern(), on, UploadSettings.URLRegexReplacePattern);
         text!(f, s::TaskSettingsWindow_Replacement(), on, UploadSettings.URLRegexReplaceReplacement);
     });
+}
+
+/// `ObjectCombo(TimeZoneInfo.GetSystemTimeZones(), ...)`: the zones by
+/// `DisplayName`; the saved zone selects the item it `Equals` (else the
+/// first, the saved zone kept until another is picked). Where there's no
+/// list (macOS, Linux: not ported) the saved zone shows alone.
+fn time_zone_row(f: &mut Form, enabled: bool) {
+    use sharex_helpers::time_zone::{self, TimeZoneInfo};
+    if f.w.time_zones.is_none() {
+        f.w.time_zones = Some(time_zone::system_time_zones());
+    }
+    let saved = sec!(f, UploadSettings).CustomTimeZone.clone();
+    let zones = f.w.time_zones.clone().unwrap_or_default();
+    if zones.is_empty() {
+        let name = jstr(&saved, "DisplayName");
+        f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &[ComboItem::text(name)], Some(0), ComboSize::default(), enabled);
+        return;
+    }
+    let current = time_zone::from_settings(&saved).unwrap_or_else(TimeZoneInfo::utc);
+    let selected = zones.iter().position(|z| z.equals(&current)).unwrap_or(0);
+    let items: Vec<ComboItem> = zones.iter().map(|z| ComboItem::text(z.display_name.clone())).collect();
+    if let Some(i) = f.combo(s::TaskSettingsWindow_TimeZoneLabel(), LABEL_W, &items, Some(selected), ComboSize::default(), enabled) {
+        let json = zones[i].to_json();
+        time_zone::note_chosen(&json);
+        sec!(f, UploadSettings).CustomTimeZone = json;
+    }
 }
 
 fn page_clipboard_upload(f: &mut Form) {

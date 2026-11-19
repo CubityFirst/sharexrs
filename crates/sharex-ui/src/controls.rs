@@ -605,6 +605,9 @@ pub fn paint_chevron_down(ui: &Ui, rect: Rect, color: Color32) {
     border::polygon(ui.painter(), &points, color);
 }
 
+/// Fluent's `ComboBox` `MaxDropDownHeight`.
+pub const MAX_DROP_DOWN_HEIGHT: f32 = 504.0;
+
 /// The dropdown: Fluent's `PopupBorder` (`SystemControlTransientBackgroundBrush`,
 /// the transient border, `OverlayCornerRadius` 5) with ShareX's 6px
 /// `ComboBoxDropdownContentMargin`, items `Padding="10,8"` with 4px corners,
@@ -620,9 +623,9 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     };
     let item_font = ComboBox::item_font();
     let row_h = line_height(ui, &item_font) + 16.0;
-    let widest = items.iter().map(|i| item_width(ui, i) + 20.0).fold(0.0, f32::max);
-    let width = anchor.width().max(widest + 14.0);
     let full = row_h * items.len() as f32 + 14.0;
+    // Fluent's `MaxDropDownHeight="504"`.
+    let wanted = full.min(MAX_DROP_DOWN_HEIGHT);
     let screen = ui.ctx().content_rect();
     // Below the combo box, else above it, else wherever it fits best.
     let below = screen.max.y - anchor.max.y;
@@ -630,27 +633,33 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
     // With no items the popup is just its padding (the background remover's
     // empty model list: 14 px).
     let least = if items.is_empty() { full } else { row_h + 14.0 };
-    let (top, height) = if full <= below || below >= above {
-        (anchor.max.y, full.min(below).max(least))
+    let (top, height) = if wanted <= below || below >= above {
+        (anchor.max.y, wanted.min(below).max(least))
     } else {
-        let h = full.min(above);
+        let h = wanted.min(above);
         (anchor.min.y - h, h)
     };
+    let max_scroll = (full - height).max(0.0);
+    // Opening scrolls the selected item into view (`ScrollIntoView`: the
+    // least scrolling, so one further down ends at the bottom).
+    let open_scroll = |s: usize| (row_h * (s + 1) as f32 + 14.0 - height).clamp(0.0, max_scroll);
+    let scroll_id = id.with("scroll");
+    let width_id = id.with("width");
+    let mut scroll: f32 = if just_opened { None } else { ui.ctx().data(|d| d.get_temp(scroll_id)) }.unwrap_or_else(|| selected.map_or(0.0, open_scroll));
+    // The list virtualizes its items: the popup is as wide as the items it
+    // has realized (those in view), growing as wider ones scroll in.
+    let first = (scroll / row_h).floor().max(0.0) as usize;
+    let last = (((scroll + height - 14.0) / row_h).ceil() as usize).min(items.len());
+    let widest = items.get(first..last).unwrap_or_default().iter().map(|i| item_width(ui, i) + 20.0).fold(0.0, f32::max);
+    let seen: f32 = if just_opened { 0.0 } else { ui.ctx().data(|d| d.get_temp(width_id)).unwrap_or(0.0) };
+    let width = anchor.width().max(widest + 14.0).max(seen);
+    ui.ctx().data_mut(|d| d.insert_temp(width_id, width));
     let popup = Rect::from_min_size(pos2(anchor.min.x, top), vec2(width, height));
     let mut picked = None;
-    let scroll_id = id.with("scroll");
     let area = egui::Area::new(id.with("dropdown")).order(Order::Foreground).fixed_pos(popup.min).constrain(false).fade_in(false).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(popup.size(), Sense::click());
         border::border(ui.painter(), rect, 5.0, 1.0, Some(Brush::Solid(popup_bg)), Some(f.transient_border));
         let view = rect.shrink(1.0);
-        let max_scroll = (full - height).max(0.0);
-        let mut scroll: f32 = ui.ctx().data(|d| d.get_temp(scroll_id)).unwrap_or_else(|| {
-            // Opening shows the selected item.
-            selected.map_or(0.0, |s| (row_h * s as f32 - (height - row_h) / 2.0).clamp(0.0, max_scroll))
-        });
-        if just_opened {
-            scroll = selected.map_or(0.0, |s| (row_h * s as f32 - (height - row_h) / 2.0).clamp(0.0, max_scroll));
-        }
         if ui.rect_contains_pointer(view) {
             scroll = (scroll - ui.input(|i| i.smooth_scroll_delta.y)).clamp(0.0, max_scroll);
         }
@@ -706,7 +715,10 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
         keep = false;
     }
     if !keep || picked.is_some() {
-        ctx.data_mut(|d| d.remove::<f32>(scroll_id));
+        ctx.data_mut(|d| {
+            d.remove::<f32>(scroll_id);
+            d.remove::<f32>(width_id);
+        });
     }
     (picked, keep)
 }

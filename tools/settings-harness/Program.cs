@@ -4,6 +4,7 @@
 //
 //   SettingsHarness --extract <cases.json> <fixtures> <scratch> <results.json>
 //   SettingsHarness --compress <scratch> <results.json> [<sharexrs-export.sxb>]
+//   SettingsHarness --time-zones <out.json>   (TimeZones.cs: the time zone list)
 //
 // No window opens. --extract writes only under <scratch>; --compress writes
 // one archive and one file there.
@@ -26,7 +27,11 @@ static class Program
         {
             return Compress(args[1], args[2], args.Length == 4 ? args[3] : null);
         }
-        Console.Error.WriteLine("usage: SettingsHarness --extract <cases> <fixtures> <scratch> <out> | --compress <scratch> <out> [<sharexrs archive>]");
+        if (args.Length == 2 && args[0] == "--time-zones")
+        {
+            return TimeZoneHarness.Run(args[1]);
+        }
+        Console.Error.WriteLine("usage: SettingsHarness --extract <cases> <fixtures> <scratch> <out> | --compress <scratch> <out> [<sharexrs archive>] | --time-zones <out>");
         return 2;
     }
 

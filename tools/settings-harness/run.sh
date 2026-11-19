@@ -23,3 +23,14 @@ target/settings-harness/SettingsHarness.exe --compress \
   "$fixtures\sharexrs-export.sxb"
 
 cargo test -p sharex-helpers --test zip
+
+# The time zone list, ShareX's JSON for each zone and their offsets, then
+# the same reloaded as on machines in Tokyo and California (the local zone
+# swapped inside the harness process only).
+tz="target/settings-harness-scratch"
+target/settings-harness/SettingsHarness.exe --time-zones "$tz/tz-base.json"
+HARNESS_LOCAL_TZ="Tokyo Standard Time" target/settings-harness/SettingsHarness.exe --time-zones "$tz/tz-tokyo.json"
+HARNESS_LOCAL_TZ="Pacific Standard Time" target/settings-harness/SettingsHarness.exe --time-zones "$tz/tz-pacific.json"
+python -I tools/settings-harness/time_zone_fixtures.py crates/sharex-helpers/tests/fixtures/time_zones \
+  "$tz/tz-base.json" "$tz/tz-tokyo.json" "$tz/tz-pacific.json"
+cargo test -p sharex-helpers --test time_zones
