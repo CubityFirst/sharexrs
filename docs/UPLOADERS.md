@@ -456,9 +456,6 @@ the other files (exit, tray menu close, `SaveSettingsAfterTaskCompleted`).
 
 ## Not ported yet
 
-- The image viewer the remote storage browser's View opens (the rest
-  of the windows: [The Destination settings window's
-  services](#the-destination-settings-windows-services)).
 - FTPS: presenting the client certificate (see above). SFTP: the
   post-quantum key exchanges, AES-GCM/ChaCha20 transport ciphers and
   certificates SSH.NET also has.
@@ -485,8 +482,9 @@ it), Download (save dialog; a failed download's file deleted), Upload
 (file dialog or dropped files), Open/Copy URL; the empty, busy and
 drop-target overlays. Every provider call runs on a worker thread, one
 at a time (`RunOperationAsync`); closing cancels it and disposes the
-providers. View downloads the image, but ShareX's image viewer isn't
-ported, so it's logged. Built from source, no shot (a populated browser
+providers. View downloads the image and opens it in the image viewer
+(`ImageViewerWindowIntegration.ShowImage(data, name)`; no data opens
+nothing, an image that won't decode is logged). Built from source, no shot (a populated browser
 needs a live provider): `--render remote-storage --state
 listed|empty|loading|filtered|no-match|selected|context-menu|sorted-size|sorted-modified-desc|drag-over|folder|error|two-providers`
 from an in-memory provider. The data side is

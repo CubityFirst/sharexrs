@@ -76,7 +76,8 @@ enum Done {
     Listed { slot: usize, path: String, items: Vec<RemoteStorageItem>, location: String },
     Ok,
     HasChildren(bool),
-    Bytes,
+    /// A file read for View.
+    Bytes(Vec<u8>),
 }
 
 /// What to do once an operation succeeds.
@@ -298,6 +299,7 @@ impl RemoteStorageBrowserWindow {
                 if let Some(s) = running.success.filter(|s| !s.trim().is_empty()) {
                     self.status = s;
                 }
+                let mut viewed = None;
                 match done {
                     Done::Listed { slot, path, items, location } => self.listed(slot, path, items, location),
                     Done::HasChildren(children) => {
@@ -315,14 +317,20 @@ impl RemoteStorageBrowserWindow {
                         }
                         return;
                     }
-                    Done::Bytes | Done::Ok => {}
+                    Done::Ok => {}
+                    Done::Bytes(data) => viewed = Some(data),
                 }
                 match running.then {
                     Then::Browse(path) => self.browse(path),
                     Then::View(name) => {
-                        // `ImageViewerWindowIntegration.ShowImage(data, name)`.
-                        eprintln!("Image viewer: not ported yet ({name})");
-                        self.effects.push(Effect::NotPorted("image viewer"));
+                        // `ImageViewerWindowIntegration.ShowImage(data, name)`:
+                        // nothing for no data; the viewer decodes the rest.
+                        if let Some(data) = viewed.filter(|d| !d.is_empty()) {
+                            match image::load_from_memory(&data) {
+                                Ok(img) => self.effects.push(Effect::ShowImageNamed(img.to_rgba8(), name)),
+                                Err(e) => eprintln!("Image viewer: can't decode {name}: {e}"),
+                            }
+                        }
                     }
                     Then::Nothing | Then::DeleteAfterCheck(_) => {}
                 }
@@ -559,7 +567,7 @@ impl RemoteStorageBrowserWindow {
                 self.run(Some(success), Then::View(name), move |p, cancel| {
                     let mut data = Vec::new();
                     p.download(&item, &mut data, cancel)?;
-                    Ok(Done::Bytes)
+                    Ok(Done::Bytes(data))
                 });
             }
             Cmd::OpenUrl => {
