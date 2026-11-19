@@ -121,3 +121,17 @@ Checks from [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#live-checks-for-the-deskto
 | SET-03b | Settings windows | — | Choose Yes and check the reset, theme and hotkey reload. | Skipped. Reset reloads defaults with automatic update checks enabled. | Skipped for the same reason. | BLOCKED | [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#export-import-reset) |
 | SET-04a | Settings windows | 120 (125%) | At 125% open Application settings › Paths and click inside the first Sub folder pattern box where it shows `%y-%mo`. | Opens the variable menu next to the field on focus. | The same click focuses the box with no variable menu visible. | FAIL | `SX/settings-path-focus-dark.png`, `SX/settings-path-focus-popup-dark.png`, `RS/settings-path-focus-dark.png`. |
 | SET-09 | Settings windows | — | Toggle each Integration checkbox and exercise Send To. | Skipped. Writes real registry or shell integration. | Skipped for the same reason. | BLOCKED | [SETTINGS-WINDOWS.md](SETTINGS-WINDOWS.md#live-checks-for-the-desktop-agent) |
+
+## Image tools and Image editor
+
+Checks from [TOOLS.md](TOOLS.md#the-images-windows-in-sharexrs) and
+[IMAGE-EDITOR.md](IMAGE-EDITOR.md#the-rest), including the AutoSizeWindow
+case mentioned in `e4df0e5`.
+
+| ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
+|---|---|---|---|---|---|---|---|
+| IMG-01 | Image tools | 120 (125%) | Run `-ImageEffects pattern-01.png` on the generated 640×400 image with the same Canvas and Text watermark options. | Opens Image effects and shows both enabled effects and the preview. | Same effects and preview content. | PASS | `images-effects-dark.png` under both directories. |
+| IMG-02 | Image tools | 120 (125%) | Run `-ImageBeautifier pattern-01.png`. | Opens the image, with the Background panel and Auto ratio selected. | Same entry point and Background panel state. | PASS | `images-beautifier-dark.png` under both directories. |
+| IMG-03 | Image tools | — | Exercise Photo editor and Pixel editor. | Skipped as requested. | Skipped as requested. | BLOCKED | [TOOLS.md](TOOLS.md) |
+| ED-01 | Image editor | 120 (125%) | Run `-ImageEditor pattern-01.png` with the 640×400 generated image. At the initial 100% zoom, measure the canvas in physical pixels. | Opens maximized with the image at 640×400 physical pixels. | Opens maximized with the image at 800×500 physical pixels at the same 100% zoom. | FAIL | `images-editor-dark.png` under both directories. Client image bounds in ShareX `960,556,640,400` and ShareXrs `880,506,800,500`. |
+| ED-02 | Image editor | — | Open the system print dialog. | Skipped as requested. | Skipped as requested. | BLOCKED | [IMAGE-EDITOR.md](IMAGE-EDITOR.md#print-printrs-dialogsprint_windowrs) |
