@@ -547,6 +547,13 @@ impl Dialog for NotificationWindow {
         // The card's border.
         border::border(painter, card, 4.0, 1.0, None, Some(p.accent_border));
 
+        // The card's own clicks (`OnCardPointerPressed`/`Released`), sensed
+        // before the action buttons: egui's hit test gives the pointer to
+        // the last widget sensing clicks, and the buttons sit on the card
+        // (registered after it, they get their hover, tooltip and click;
+        // LIVE-CHECKS TOAST2-02, TOAST2-03).
+        let card_r = ui.interact(card, ui.id().with("card"), Sense::click());
+
         let buttons = self.buttons();
         if self.hovered {
             // `ImageCaption`: the title and text over the image's top.
@@ -649,7 +656,6 @@ impl Dialog for NotificationWindow {
         }
 
         // A click on the card (`OnCardPointerReleased`).
-        let card_r = ui.interact(card, ui.id().with("card"), Sense::click());
         let over_button = self.tip.is_some();
         if card_r.is_pointer_button_down_on() && !over_button {
             if !self.card_pressed && ui.input(|i| i.pointer.primary_pressed()) {
@@ -775,6 +781,59 @@ mod tests {
         let actions: Vec<_> = b.iter().map(|b| b.action.clone()).collect();
         assert_eq!(actions, [ToastClickAction::CopyImageToClipboard, ToastClickAction::AnnotateImage, ToastClickAction::PinToScreen, ToastClickAction::Upload]);
         assert!(b.iter().all(|b| b.dismiss));
+    }
+
+    /// The action buttons sit on the card and get the pointer: resting on
+    /// Copy image asks for its tooltip after 400 ms, and a click runs it
+    /// (LIVE-CHECKS TOAST2-02, TOAST2-03: the card took both).
+    #[test]
+    fn the_action_buttons_get_their_tooltip_and_click() {
+        let mut c = config();
+        c.image = Some(Arc::new(RgbaImage::from_pixel(640, 480, image::Rgba([40, 90, 160, 255]))));
+        c.duration = Duration::from_secs(60);
+        let mut w = NotificationWindow::new(c).expect("an image toast");
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut settings = sharex_settings::ApplicationConfig::default();
+        let store = crate::upload::UploadersConfigStore::loaded(Default::default());
+        let mut t = 0.0;
+        let mut frame = |w: &mut NotificationWindow, events: Vec<egui::Event>| {
+            t += 1.0 / 60.0;
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(500.0, 400.0))), time: Some(t), events, ..Default::default() };
+            let mut effects = Vec::new();
+            let out = ctx.run_ui(input, |ui| {
+                let mut cx = Cx { settings: &mut settings, uploaders: &store };
+                effects = w.ui(ui, &mut cx);
+            });
+            let mut out = out;
+            out.textures_delta.clear();
+            effects
+        };
+        let card = Rect::from_min_size(pos2(SHADOW_MARGIN, SHADOW_MARGIN), vec2(w.card_width(), 330.0));
+        frame(&mut w, vec![egui::Event::PointerMoved(card.center())]);
+        frame(&mut w, vec![egui::Event::PointerMoved(card.center())]);
+        // Find Copy image (the first button) along the bottom band.
+        let mut at = None;
+        'scan: for y in (card.max.y as i32 - 60..card.max.y as i32).step_by(4) {
+            for x in (card.min.x as i32..card.max.x as i32).step_by(4) {
+                let p = pos2(x as f32, y as f32);
+                frame(&mut w, vec![egui::Event::PointerMoved(p)]);
+                frame(&mut w, vec![egui::Event::PointerMoved(p)]);
+                if w.tip.is_some_and(|(i, _)| i == 0) {
+                    at = Some(p);
+                    break 'scan;
+                }
+            }
+        }
+        let at = at.expect("Copy image takes the pointer");
+        std::thread::sleep(TOOLTIP_DELAY + Duration::from_millis(50));
+        let effects = frame(&mut w, vec![egui::Event::PointerMoved(at)]);
+        let label = w.buttons()[0].label();
+        assert!(effects.iter().any(|e| matches!(e, Effect::Tooltip(Some((text, _))) if *text == label)), "no tooltip for {label}");
+        let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut w, vec![press(true)]);
+        let effects = frame(&mut w, vec![press(false)]);
+        assert!(effects.iter().any(|e| matches!(e, Effect::CopyImage(_))), "the click didn't copy the image");
     }
 
     #[test]
