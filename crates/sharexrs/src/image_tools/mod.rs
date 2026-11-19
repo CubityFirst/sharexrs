@@ -567,7 +567,11 @@ impl Picture {
 /// `ProgressBar` while loading, and the `ImageComparisonSlider` (only a
 /// `RightImage`, `StretchDirection="DownOnly"`) inside `Margin="12"`; the
 /// 54px image icon when there are no images.
-pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: Option<&mut Picture>, loading: Option<f64>, has_images: bool) {
+/// Returns the image viewer's effect when the preview is pressed
+/// (`OnPreviewPointerPressed`: `ImageViewerWindowIntegration.ShowImage`
+/// with the preview file's name; the `Border Margin="12" Cursor="Hand"`).
+pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: Option<&mut Picture>, loading: Option<f64>, has_images: bool) -> Option<crate::dialogs::Effect> {
+    let mut out = None;
     let p = palette(ui.ctx());
     panel(ui, rect);
     let inner = rect.shrink(1.0);
@@ -587,7 +591,13 @@ pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: O
     }
     let body = Rect::from_min_max(pos2(inner.min.x, header.max.y), inner.max);
     if let Some(pic) = preview {
-        slider::ComparisonSlider::draw_single(ui, body.shrink(12.0), pic, slider::Stretch::DownOnly);
+        let surface = body.shrink(12.0);
+        slider::ComparisonSlider::draw_single(ui, surface, pic, slider::Stretch::DownOnly);
+        let r = ui.interact(surface, ui.id().with("tool-preview"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if r.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed()) {
+            let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            out = Some(crate::dialogs::Effect::ShowImageNamed(pic.image.clone(), name));
+        }
     } else if !has_images {
         let s = 54.0;
         let ir = Rect::from_min_size(pos2(body.min.x + ((body.width() - s) / 2.0).round_ties_even(), body.min.y + ((body.height() - s) / 2.0).round_ties_even()), Vec2::splat(s));
@@ -598,6 +608,7 @@ pub fn preview_pane(ui: &Ui, rect: Rect, path: &str, size_text: &str, preview: O
         controls::indeterminate_progress(ui.painter(), bar, t);
         ui.ctx().request_repaint();
     }
+    out
 }
 
 /// `Border.tool-panel` with the message (`TextWrapping="Wrap"`, secondary):
