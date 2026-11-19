@@ -940,3 +940,33 @@ fn a_file_upload_runs_its_actions_and_uploads_their_output() {
     let (name, body) = multipart_file(&log[0].body, "file");
     assert_eq!((name.as_str(), body), ("other.bin", &b"plain"[..]));
 }
+
+#[test]
+fn process_images_during_file_upload_runs_the_after_capture_tasks() {
+    let mock = Mock::start();
+    mock.reset(json!({ "responses": [ok(IMAGE_RESPONSE)] }));
+    let dir = TempDir::new("file-process-image");
+    let file = dir.0.join("made-up.bmp");
+    let pixels = image::RgbaImage::from_fn(12, 8, |x, y| image::Rgba([x as u8 * 20, y as u8 * 30, 7, 255]));
+    image::DynamicImage::ImageRgba8(pixels.clone()).to_rgb8().save(&file).unwrap();
+    let mut task = task_settings();
+    task.ImageDestination = ImageDestination::CustomImageUploader;
+    task.AfterCaptureJob = AfterCaptureTasks::UploadImageToHost;
+    task.AdvancedSettings.get_or_insert_default().ProcessImagesDuringFileUpload = true;
+    let mut app = app_settings();
+    let counter = app.NameParserAutoIncrementNumber;
+    let t = manager::create_file_uploader_task(&file, task, &mut new_task_context(&mut app, &dir.0)).unwrap();
+    // `TaskJob.Job` with the file's name and path, the counter untouched.
+    assert_eq!(t.job, TaskJob::Job);
+    assert_eq!(t.file_name, "made-up.bmp");
+    assert_eq!(t.file_path.as_deref(), Some(file.as_path()));
+    assert_eq!(app.NameParserAutoIncrementNumber, counter);
+    let out = run(t, config_with(vec![image_host(&mock)]), &dir.0, Options::default());
+    let log = mock.log();
+    assert_eq!(log.len(), 1, "{log:?}");
+    // Prepared as the task's image format (PNG) under the file's name.
+    let (name, body) = multipart_file(&log[0].body, "file");
+    assert_eq!(name, "made-up.png");
+    assert_eq!(image::load_from_memory(body).unwrap().to_rgba8(), pixels);
+    assert_eq!(out.status(), TaskStatus::Completed);
+}

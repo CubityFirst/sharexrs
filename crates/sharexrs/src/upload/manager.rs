@@ -101,7 +101,25 @@ pub fn create_file_uploader_task(path: &Path, task: TaskSettings, ctx: &mut NewT
         file_name = name_pattern_file_name(&task, ctx, &ext);
     }
     if task.AdvancedSettings.as_ref().is_some_and(|a| a.ProcessImagesDuringFileUpload) && data_type == EDataType::Image {
-        eprintln!("Processing images during file upload isn't ported yet; uploading the file.");
+        // `task.Info.Job = TaskJob.Job; task.Image = SkiaImageHelpers.LoadImage(...)`:
+        // the image goes through the after capture tasks like a capture,
+        // under the file's name (or the name pattern's), its path the
+        // file's until the image is saved elsewhere.
+        let Some(bmp) = sharex_tools::imaging::load_image(path) else {
+            // ShareX's task has no image then, and nothing to upload.
+            eprintln!("{}: not an image ShareXrs can load.", path.display());
+            return None;
+        };
+        let image = RgbaImage::from_raw(bmp.width(), bmp.height(), bmp.to_straight()).unwrap_or_default();
+        let metadata = Metadata { image, window_title: None, process_name: None };
+        // No name from the pattern here (the counter stays as it is).
+        let counter = ctx.app.NameParserAutoIncrementNumber;
+        let mut image_task = ImageTask::new(metadata, task, ctx.app, &ctx.screenshots_parent.clone(), ctx.image_effects_folder.clone());
+        ctx.app.NameParserAutoIncrementNumber = counter;
+        image_task.file_name = file_name;
+        let mut upload = create_image_uploader_task(image_task);
+        upload.file_path = Some(path.to_path_buf());
+        return Some(upload);
     }
     // `LoadFileStream`.
     let file = match std::fs::File::open(path) {
