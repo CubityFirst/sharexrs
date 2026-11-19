@@ -46,6 +46,21 @@ jobs:
       - name: Release notes from the commits since the last version
         run: bash scripts/release-notes.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" > notes.md
 
+      # A pre-release may go out without the macOS certificate (package.yml):
+      # say so first, since its testers' permissions reset once it arrives.
+      - name: Note an ad hoc signed macOS build
+        env:
+          P12: ${{ secrets.MACOS_SIGNING_P12 }}
+        run: |
+          if [ -z "$P12" ]; then
+            {
+              echo '> [!WARNING]'
+              echo '> This pre-release is for testing. Its macOS app is **ad hoc signed**: macOS asks again for Screen Recording and Accessibility after each update, and once more when releases move to ShareXrs'"'"'s own certificate. On first launch, right-click ShareXrs.app › Open (or allow it in System Settings › Privacy & Security).'
+              echo
+              cat notes.md
+            } > notes.tmp && mv notes.tmp notes.md
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           pattern: ShareXrs-*

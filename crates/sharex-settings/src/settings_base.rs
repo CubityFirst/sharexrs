@@ -33,10 +33,18 @@ macro_rules! impl_settings_file {
 }
 impl_settings_file!(ApplicationConfig, HotkeysConfig);
 
+/// The ShareX version whose file formats ShareXrs ports.
+pub const SHAREX_FORMAT_VERSION: &str = "22.4.0";
+
 /// `Helpers.GetApplicationVersion()`: what ShareXrs writes as
-/// `ApplicationVersion` (ShareX's version it ports: "22.4.0").
+/// `ApplicationVersion` (settings, hotkeys, uploaders, custom uploaders'
+/// `Version`, backup names). It's ShareX's version it ports, not ShareXrs's
+/// own (Cargo's, e.g. 0.1.0-alpha): ShareX reads it back to decide which
+/// upgrade migrations to run (`IsUpgradeFrom("14.1.2")` and so on), so a
+/// lower number would make ShareX, and ShareXrs's port of it, migrate
+/// settings that are already current.
 pub fn application_version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
+    SHAREX_FORMAT_VERSION
 }
 
 /// What [`load`] found.

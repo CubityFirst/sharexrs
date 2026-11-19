@@ -4806,7 +4806,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-capture"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "arboard",
  "egui",
@@ -4832,7 +4832,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-helpers"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "chrono",
  "getrandom 0.3.4",
@@ -4844,7 +4844,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-history"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "chrono",
  "regex",
@@ -4858,7 +4858,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-image-editor"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "fontdb",
  "harfrust",
@@ -4874,7 +4874,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-image-effects"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "fontdb",
  "getrandom 0.3.4",
@@ -4890,7 +4890,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-native-recorder"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "flate2",
  "serde_json",
@@ -4904,7 +4904,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-ocr"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "flate2",
  "image",
@@ -4915,7 +4915,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-screen-recording"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "regex",
  "serde",
@@ -4926,7 +4926,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-settings"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "chrono",
  "dirs",
@@ -4939,21 +4939,21 @@ dependencies = [
 
 [[package]]
 name = "sharex-skia"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "tiny-skia",
 ]
 
 [[package]]
 name = "sharex-strings"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "roxmltree",
 ]
 
 [[package]]
 name = "sharex-tools"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -4986,7 +4986,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-ui"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "dwrote",
  "egui",
@@ -4999,7 +4999,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-update"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "chrono",
  "flate2",
@@ -5017,7 +5017,7 @@ dependencies = [
 
 [[package]]
 name = "sharex-uploaders"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "aes",
  "argon2",
@@ -5063,7 +5063,7 @@ dependencies = [
 
 [[package]]
 name = "sharexrs"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "ab_glyph",
  "base64 0.22.1",
@@ -5115,7 +5115,7 @@ dependencies = [
 
 [[package]]
 name = "sharexrs-native-messaging"
-version = "22.4.0"
+version = "0.1.0-alpha"
 dependencies = [
  "getrandom 0.3.4",
  "serde_json",

@@ -168,7 +168,16 @@ if an extension asks for ShareXrs's host name.
   pushes and on pull requests that touch packaging. These packages are signed ad hoc
   on the Mac, have no API keys, and are kept for 3 days.
 - A tag fails if it isn't `v<Cargo.toml version>`, or if the macOS signing secrets
-  are missing.
+  are missing. A pre-release tag (with a hyphen, e.g. `v0.1.0-alpha`) may go out
+  without them: its macOS app is signed ad hoc and the release notes open with a
+  warning saying so (its testers' permissions reset once the certificate arrives).
+- **Versions.** Cargo's `[workspace.package] version` is ShareXrs's own version
+  (the User-Agent, the update check, the title bar, the packages). The version
+  written into ShareX's files as `ApplicationVersion` (settings, hotkeys,
+  uploaders, custom uploaders' `Version`, backup names) stays ShareX's,
+  `sharex_settings::settings_base::SHAREX_FORMAT_VERSION` (22.4.0): ShareX reads it
+  to choose its upgrade migrations. macOS's bundle versions take the numeric part
+  only (`0.1.0`); so does the Windows installer's `VersionInfoVersion`.
 
 ### Artifacts
 
