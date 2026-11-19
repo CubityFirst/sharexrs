@@ -577,6 +577,13 @@ impl App {
                 return;
             }
             Action::Task(_) => {}
+            // `SetToolVisibility`: saved at once.
+            Action::HiddenTools(hidden) => {
+                self.settings.settings.HiddenTools = hidden;
+                if let Err(e) = self.settings.save_application_config(false) {
+                    eprintln!("couldn't save the settings: {e}");
+                }
+            }
         }
         w.window.request_redraw();
     }
@@ -716,6 +723,7 @@ impl App {
         // `BuildWorkflowsMenu`: the hotkeys as they are.
         m.workflows = main_menu::workflows_from_hotkeys(&self.settings.hotkeys.Hotkeys);
         m.workflows_only_show_edited = s.WorkflowsOnlyShowEdited;
+        m.hidden_tools = s.HiddenTools.clone();
         self.refresh_recent_items();
         let m = &mut self.state.menu_state;
         m.list_windows = true;
@@ -1500,7 +1508,11 @@ impl App {
             Some(g) => Ok(g),
             None => Gpu::new().map(|g| &*self.gpu.insert(g)),
         }
-        .and_then(|gpu| TrayMenu::open(event_loop, gpu, &screens, cursor, entries, theme, open));
+        .and_then(|gpu| TrayMenu::open(event_loop, gpu, &screens, cursor, entries, theme, open))
+        .map(|mut m| {
+            m.set_hidden_tools(self.settings.settings.HiddenTools.clone());
+            m
+        });
         match menu {
             Ok(m) => self.tray_menu = Some(m),
             Err(e) => eprintln!("couldn't open the tray menu: {e}"),
@@ -1742,6 +1754,13 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if let Some(menu) = self.tray_menu.as_mut().filter(|m| m.owns(id)) {
             let out = menu.window_event(event);
+            if let Some(hidden) = menu.take_hidden_tools() {
+                self.settings.settings.HiddenTools = hidden;
+                self.state.menu_state.hidden_tools = self.settings.settings.HiddenTools.clone();
+                if let Err(e) = self.settings.save_application_config(false) {
+                    eprintln!("couldn't save the settings: {e}");
+                }
+            }
             if out.closed {
                 self.close_tray_menu();
             }

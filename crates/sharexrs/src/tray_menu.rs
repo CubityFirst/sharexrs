@@ -86,6 +86,7 @@ impl<C: Clone> TrayMenu<C> {
         let anchor = egui::Rect::from_min_size(at, egui::vec2(ANCHOR_SIZE.0, ANCHOR_SIZE.1) / scale);
         let mut flyout = Flyout::menu(egui::Id::new("tray-menu"), entries, anchor, Placement::BottomEdgeAlignedLeft);
         flyout.edit_label = sharex_strings::sharex::MainMenuBuilder_EditTools().to_string();
+        flyout.finish_label = sharex_strings::sharex::MainMenuBuilder_FinishEditingTools().to_string();
         if !open.is_empty() {
             flyout.open_path(open);
         }
@@ -137,6 +138,16 @@ impl<C: Clone> TrayMenu<C> {
         me.paint();
         me.window.window.request_redraw();
         Ok(me)
+    }
+
+    /// The tool grid's edit mode changed the hidden tools: them, once.
+    pub fn take_hidden_tools(&mut self) -> Option<Vec<String>> {
+        std::mem::take(&mut self.flyout.tools_changed).then(|| self.flyout.hidden_tools.clone())
+    }
+
+    /// The tools the grid leaves out (`ApplicationConfig.HiddenTools`).
+    pub fn set_hidden_tools(&mut self, hidden: Vec<String>) {
+        self.flyout.hidden_tools = hidden;
     }
 
     pub fn owns(&self, id: WindowId) -> bool {

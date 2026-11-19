@@ -444,6 +444,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     state.open_nav(i, anchor);
                     if let Some(f) = &mut state.flyout {
                         f.open_path(&open);
+                        // `--state tools-edit`: the tool grid's edit mode.
+                        f.editing_tools = dialog.state.as_deref() == Some("tools-edit");
                     }
                 }
                 let ev = if frame >= 3 { events.clone() } else { Vec::new() };

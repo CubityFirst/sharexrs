@@ -198,6 +198,8 @@ pub struct MenuState {
     pub show_recent_items: bool,
     /// Recent items › the tasks.
     pub recent_items: Vec<RecentItem>,
+    /// `ApplicationConfig.HiddenTools`: the tool grid leaves these out.
+    pub hidden_tools: Vec<String>,
 }
 
 /// A window in Capture › Window.
@@ -270,6 +272,7 @@ impl Default for MenuState {
             hotkeys_disabled: false,
             show_recent_items: false,
             recent_items: Vec::new(),
+            hidden_tools: Vec::new(),
         }
     }
 }
