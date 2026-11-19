@@ -249,7 +249,7 @@ impl Popups {
                     if let Some(v) = list(ui, p, inner.shrink(8.0), id, &BORDER_STYLES, |v| *v == cur, |painter, r, v, fg| {
                         text_left(ui, painter, r, options_row::border_style_name(v), 14.0, fg);
                         let right = r.max.x - 8.0;
-                        options_row::dashed_preview(painter, right - 36.0 + 2.0, right - 2.0, r.center().y, v, fg, 1.0);
+                        options_row::dashed_preview(painter, right - 36.0 + 2.0, right - 2.0, r.center().y, v, p.text, 1.0);
                     }) {
                         ws.set_option(|s, t| s.set_border_style(v, t));
                         close = true;
@@ -259,7 +259,7 @@ impl Popups {
                     let cur = ws.tools.arrow_style.clone();
                     if let Some(v) = list(ui, p, inner.shrink(8.0), id, &ARROW_STYLES, |v| *v == cur, |painter, r, v, fg| {
                         text_left(ui, painter, r, options_row::arrow_style_name(v), 14.0, fg);
-                        options_row::arrow_style_preview(ui, painter, r.max.x - 8.0 - 36.0, r.center().y, v, fg, 1.0);
+                        options_row::arrow_style_preview(ui, painter, r.max.x - 8.0 - 36.0, r.center().y, v, p.text, 1.0);
                     }) {
                         ws.set_option(|s, t| s.set_arrow_style(v, t));
                         close = true;
@@ -719,6 +719,7 @@ fn grid<T: Clone>(
 }
 
 /// A vertical `StackPanel` of 32px picker buttons; returns the one clicked.
+/// `paint` gets the colour of the item's text and icons.
 fn list<T: Clone>(
     ui: &egui::Ui,
     p: &Palette,
@@ -735,8 +736,13 @@ fn list<T: Clone>(
         let resp = ui.interact(ir, id.with(("item", i)), Sense::click());
         let on = active(v);
         picker_background(painter, p, ir, resp.hovered(), on);
-        // `TextBlock`s keep `ShareX.Brush.Text` (a local value).
-        paint(painter, ir, v, p.text);
+        // The item template's `Foreground="{DynamicResource
+        // ShareX.Brush.Text}"` is set at Template priority, so on the active
+        // row `Button.active /template/ ContentPresenter TextBlock` (and
+        // `IconPresenter`) win with the accent foreground; the previews'
+        // `Path` strokes keep `ShareX.Brush.Text` (`--control-dump
+        // borderstyle`).
+        paint(painter, ir, v, if on { p.accent_foreground } else { p.text });
         if resp.clicked() {
             chosen = Some(v.clone());
         }

@@ -52,6 +52,11 @@ for the DatePicker, its popup's placement), the source of the History
 window's search suggestions and date picker flyout; `-hover` sets each
 column host's `:pointerover`, showing the up/down `RepeatButton`s (their
 brushes, delay and interval).
+`--control-dump borderstyle` opens the image editor's stroke-style dropdown
+(`BorderStylePickerDropdown`) on Solid and prints its popup's tree and, per
+item `TextBlock`, the `Foreground` that wins and its priority (the item
+template's local value is at Template priority, so the active row's
+`Button.active ... TextBlock` style wins).
 `--control-dump colorview [out dir]` lays out Avalonia's `ColorView` in
 ShareX's three hosts (the mouse highlighter's `Flyout`, the image effects'
 `Flyout` with `MinWidth` 320, `ColorPickerDropdown`'s popup) on each tab
