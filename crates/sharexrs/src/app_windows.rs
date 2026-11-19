@@ -7,7 +7,7 @@
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Icon, WindowAttributes, WindowId};
+use winit::window::{WindowAttributes, WindowId};
 
 use sharex_ui::gpu::Gpu;
 
@@ -16,7 +16,7 @@ use crate::hotkey_settings::{self, HotkeySettingsWindow};
 use crate::task_settings_window::{self, TaskCtx, TaskSettingsWindow};
 use crate::start_screen::StartScreen;
 use crate::window::EguiWindow;
-use crate::{App, app_icon, appearance, center, set_theme};
+use crate::{App, appearance, center, set_theme};
 
 pub struct StartWindow {
     pub window: EguiWindow,
@@ -54,7 +54,7 @@ pub struct TaskWindow {
 fn framed(title: &str, theme: egui::Theme) -> WindowAttributes {
     WindowAttributes::default()
         .with_title(title)
-        .with_window_icon(Icon::from_rgba(app_icon::rgba64(), 64, 64).ok())
+        .with_window_icon(crate::app_icon::window_icon())
         .with_theme(Some(match theme {
             egui::Theme::Dark => winit::window::Theme::Dark,
             egui::Theme::Light => winit::window::Theme::Light,

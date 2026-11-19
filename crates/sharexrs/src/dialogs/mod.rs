@@ -52,12 +52,12 @@ use sharex_settings::{ApplicationConfig, TaskSettings};
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Icon, WindowAttributes, WindowButtons, WindowId, WindowLevel};
+use winit::window::{WindowAttributes, WindowButtons, WindowId, WindowLevel};
 
 use crate::upload::UploadersConfigStore;
 use crate::upload::manager::ClipboardContent;
 use crate::window::EguiWindow;
-use crate::{App, app_icon, center, set_theme};
+use crate::{App, center, set_theme};
 
 /// How a dialog's window is made (its `Window` attributes in the `.axaml`).
 #[derive(Clone, Debug)]
@@ -1014,7 +1014,7 @@ impl App {
 fn attributes(spec: &Spec, theme: egui::Theme) -> WindowAttributes {
     let mut attrs = WindowAttributes::default()
         .with_title(&spec.title)
-        .with_window_icon(Icon::from_rgba(app_icon::rgba64(), 64, 64).ok())
+        .with_window_icon(crate::app_icon::window_icon())
         .with_inner_size(LogicalSize::new(spec.width, spec.height))
         .with_resizable(spec.resizable)
         .with_theme(Some(match theme {
