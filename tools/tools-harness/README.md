@@ -93,6 +93,15 @@ python tools/tools-harness/make_fixtures.py G:/scripts/sharexrs-ref/tools-harnes
   never read); `WindowStyles.ToString()` and `FormatRectangle`;
   `BackgroundRemovalService` on the CPU over `inputs/bgmodels`; `MonitorTestPatternControl` rendered
   to a `RenderTargetBitmap` through Avalonia.Headless (Skia, no window).
+- How a capture is encoded (`CaptureCases.cs`): `TaskHelpers.PrepareImage`
+  with a `TaskSettings` whose `ImageSettings` get the case's fields
+  (Json.NET's `PopulateObject`) and `ApplicationState.Settings` (internal,
+  set by reflection) for `PNGStripColorSpaceInformation`, over the bitmaps
+  ShareX hands it: a capture (`Bgra8888`, unpremultiplied, no colour space,
+  every alpha 255, as `WindowsImageInterop.Capture` makes it) or a tool's
+  image (premultiplied, no colour space). It writes the file and its format
+  (`<case>.json`); `tools_validate` runs `sharex_tools::capture_image`
+  over the image the app would hold (straight RGBA).
 
 The image, data and video tools need no Avalonia application (their view
 models only use CommunityToolkit's observable properties); the Monitor test
@@ -101,7 +110,7 @@ ShareX (`System.Globalization.UseNls`, as ShareX.runtimeconfig.json sets).
 
 ## Cases
 
-`make_cases.py` writes `cases.json` (1381 cases): `{ "name", "tool",
+`make_cases.py` writes `cases.json` (1493 cases): `{ "name", "tool",
 ...parameters }`, with input file names relative to `inputs/`. Each tool's
 parameter sets cover its options; docs/TOOLS.md lists what they cover per
 tool.

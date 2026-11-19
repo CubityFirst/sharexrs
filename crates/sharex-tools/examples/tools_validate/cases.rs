@@ -274,6 +274,7 @@ pub fn run(ctx: &Ctx, c: &Value) -> Outcome {
             write(&ctx.ours(name, ".gif"), &data);
             compare::bytes("gif", &data, &ctx.theirs(name, ".gif"))
         }
+        "capture" => crate::cases_capture::run(ctx, c),
         other => crate::cases_data::run(ctx, c, other),
     }
 }

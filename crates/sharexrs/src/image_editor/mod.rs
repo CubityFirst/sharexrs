@@ -710,27 +710,19 @@ impl EditorWindow {
             let name = crate::capture_job::file_name(&self.task, &mut counter, ext, &meta);
             path = Some(self.folder.join(name));
         }
-        if ask {
-            let mut d = rfd::FileDialog::new().add_filter("PNG", &["png"]).add_filter("JPEG", &["jpg", "jpeg"]).add_filter("BMP", &["bmp"]);
-            if let Some(p) = &path {
-                if let Some(dir) = p.parent() {
-                    d = d.set_directory(dir);
-                }
-                if let Some(n) = p.file_name().and_then(|n| n.to_str()) {
-                    d = d.set_file_name(n);
-                }
-            }
-            match d.save_file() {
-                Some(p) => path = Some(p),
+        let Some(path) = path else { return };
+        // `SaveImageAsRequested`: `SkiaImageHelpers.SaveImageFileDialog`;
+        // `SaveImageRequested`: `SkiaImageHelpers.SaveImage`.
+        let saved = if ask {
+            match crate::image_tools::save_image_file_dialog(&img, &path) {
+                Some(p) => Ok(p),
                 None => return,
             }
-        }
-        let Some(path) = path else { return };
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        match img.save(&path) {
-            Ok(()) => {
+        } else {
+            crate::image_tools::save_image(&img, &path).map(|()| path.clone())
+        };
+        match saved {
+            Ok(path) => {
                 eprintln!("Image editor: saved {}", path.display());
                 let message = Self::file_message(ie::MainViewModel_ImageSavedToFile(), &path);
                 self.file_path = Some(path);
@@ -2322,15 +2314,8 @@ fn disabled_button(ui: &Ui, painter: &egui::Painter, p: &Palette, r: Rect, icon:
 
 /// The task's image format's extension (`ImageFormat.GetFileExtension`).
 fn image_extension(task: &TaskSettings) -> &'static str {
-    let format = task.ImageSettings.as_ref().map(|s| format!("{:?}", s.ImageFormat)).unwrap_or_default();
-    match format.as_str() {
-        "JPEG" => "jpg",
-        "BMP" => "bmp",
-        "GIF" => "gif",
-        "TIFF" => "tif",
-        "WebP" => "webp",
-        _ => "png",
-    }
+    let format = task.ImageSettings.as_ref().map_or(sharex_settings::EImageFormat::PNG, |s| s.ImageFormat.clone());
+    sharex_tools::capture_image::extension(&format)
 }
 
 impl Dialog for EditorWindow {

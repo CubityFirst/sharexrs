@@ -212,6 +212,50 @@ pub fn open_image_file_dialog() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// `SkiaImageHelpers.SaveImage(img, filePath)`: encoded by the extension
+/// (PNG unless it's JPEG, WebP, GIF or BMP) at quality 100, the folder
+/// created.
+pub fn save_image(img: &image::RgbaImage, path: &Path) -> std::io::Result<()> {
+    let bmp = sharex_tools::imaging::Bitmap::from_straight(img.width(), img.height(), img.as_raw());
+    sharex_tools::imaging::save_image(&bmp, &path.to_string_lossy())
+}
+
+/// `SkiaImageHelpers.SaveImageFilter`'s types, in its order.
+pub const SAVE_IMAGE_FILTERS: [(&str, &[&str]); 5] = [
+    ("PNG (*.png)", &["png"]),
+    ("JPEG (*.jpg, *.jpeg, *.jpe, *.jfif)", &["jpg", "jpeg", "jpe", "jfif"]),
+    ("WebP (*.webp)", &["webp"]),
+    ("GIF (*.gif)", &["gif"]),
+    ("BMP (*.bmp)", &["bmp"]),
+];
+
+/// `SkiaImageHelpers.SaveImageFileDialog(img, filePath)`: the save dialog
+/// in the file's folder with its name and ShareX's five image types (`png`
+/// by default), then [`save_image`]; the path saved, or `None`. (The
+/// dialog can't preselect the file's type as ShareX's `filterIndex` does.)
+pub fn save_image_file_dialog(img: &image::RgbaImage, path: &Path) -> Option<PathBuf> {
+    let mut d = rfd::FileDialog::new();
+    for (name, exts) in SAVE_IMAGE_FILTERS {
+        d = d.add_filter(name, exts);
+    }
+    if let Some(dir) = path.parent().filter(|d| d.is_dir()) {
+        d = d.set_directory(dir);
+    }
+    if let Some(name) = path.file_name() {
+        d = d.set_file_name(name.to_string_lossy());
+    }
+    let out = d.save_file()?;
+    // `DefaultExtension = "png"`.
+    let out = if out.extension().is_none() { out.with_extension("png") } else { out };
+    match save_image(img, &out) {
+        Ok(()) => Some(out),
+        Err(e) => {
+            eprintln!("couldn't save {}: {e}", out.display());
+            None
+        }
+    }
+}
+
 /// The folder picker, starting in `start` when it exists.
 pub fn pick_folder(title: &str, start: &str) -> Option<String> {
     let mut d = rfd::FileDialog::new().set_title(title);
