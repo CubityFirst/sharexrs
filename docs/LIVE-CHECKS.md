@@ -371,3 +371,30 @@ or exited. The generated Notepad tabs were closed and the clipboard
 offered zero formats again. New PNGs and sidecars are in the pass 2
 evidence set under SX and RS. The offline build and macOS Clippy check
 completed.
+
+
+## Pass 3 · Windows desktop checks
+
+ShareX reference `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+built from local master `11f9e78` at the start of the run. Master advanced
+during the session. The codec, shared-control popup and settings popup
+repeats marked below also use `81fab7e`. Both builds completed with
+`cargo build` offline. The apps used generated portable profiles, and
+the reference test executable was a SHA-256-identical copy of
+`ShareX-build/ShareX.exe`. The test display measured 2560×1600 with a
+2560×1540 work area at 120 DPI (125%). The existing display settings
+were used throughout.
+
+Evidence uses the same `SX` and `RS` directories as earlier passes.
+Every Pass 3 screenshot has a `pass3-` prefix and a JSON sidecar with
+its client rectangle, DPI, process, build and SHA-256. The original
+Pass 1 and Pass 2 tables remain historical results.
+
+### App windows and History
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| APP-08a | 120 (125%) | Open `-ImageViewer` on the generated `viewer/../viewer/pattern-03.png` with `pattern-04.png` as its only sibling. Confirm fullscreen, press Right once, then Escape. | Fullscreen at 2560×1600. Right changes the image to pattern-04. Escape closes the viewer. | Same fullscreen, image change and dismissal. | PASS | `pass3-app-viewer-{initial,next}-dark.png` in SX and RS. In both, the centre changes from RGB `53,149,109` to `117,87,167`. |
+| APP-13a | 120 (125%) | With the toolbar position unset, run `-ToggleActionsToolbar`. Drag from client `26,19` by `-160,-80` in 12 steps via `scripts/input.ps1`. Middle-click the title. | Moves the exact delta and closes. Saves `2082, 1411`. | Moves the exact delta and closes. Saves `2071, 1410`. | PASS | `pass3-app-toolbar-{first,dragged}-dark.png` in SX and RS. Both started flush with the work area. Toolbar clients were 318×49 and 329×50 respectively. The original absolute `611, 600` position requires the former 96 DPI work area. |
+| APP-26a | 120 (125%) | Enable `ShowClipboardContentViewer`, put `Generated clipboard viewer test text` on the clipboard, focus the main window and press Ctrl+V. Dismiss with Escape. | Opens Clipboard upload containing the generated text. Escape closes it. | Same viewer, text and dismissal. | PASS | `pass3-app-clipboard-shortcut-dark.png` in SX and RS. Clipboard cleared after the pair. |
+| HIS-06 | 120 (125%) | History › Advanced › Date range. Click the day column of the first date and leave the pointer there. | Day column shows up and down controls. | The same two controls appear. | PASS | `SX/pass3-history-date-flyout-popup0-dark.png` and `RS/pass3-history-date-flyout-owner-dark.png`. |
