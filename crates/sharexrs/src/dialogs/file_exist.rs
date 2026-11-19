@@ -130,6 +130,7 @@ fn eq_ignore_case(a: &str, b: &str) -> bool {
 
 /// A `Button.action-button`: an icon, then a title and (optionally) a file
 /// name under it in a `StackPanel` with `Spacing="1"`.
+#[allow(clippy::too_many_arguments)]
 fn action_button(ui: &egui::Ui, rect: Rect, id: Id, key: &str, accent: bool, title: &str, file: Option<&str>, enabled: bool) -> egui::Response {
     let p = palette(ui.ctx());
     let b = Button { padding: ACTION_PADDING, ..Button::default() };
