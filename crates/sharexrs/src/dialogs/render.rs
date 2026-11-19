@@ -284,6 +284,18 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             };
             Box::new(super::output_box::OutputBoxWindow::new(&text, sharex_strings::helpers_lib::FFmpegCLIManager_Error_title(), true))
         }
+        // A report of two synthetic monitors (the second 150%, above the
+        // first's right half), the pointer on the first.
+        "display-diagnostics" => {
+            use sharex_capture::{Rect as R, Screen};
+            let screens = [
+                Screen { bounds: R::new(0, 0, 1920, 1080), work_area: R::new(0, 0, 1920, 1032), scale: 1.0, primary: true },
+                Screen { bounds: R::new(960, -1440, 2560, 1440), work_area: R::new(960, -1440, 2560, 1440), scale: 1.5, primary: false },
+            ];
+            let at = chrono::Local::now();
+            let data = super::display_diagnostics::collect(&screens, Some((640, 480)), Some((R::new(510, 170, 900, 740), 1.0)), &ApplicationConfig::default(), at);
+            Box::new(super::display_diagnostics::DisplayDiagnosticsWindow::with_data(data))
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -461,6 +473,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "actions-toolbar"
             | "actions-toolbar-editor"
             | "output-box"
+            | "display-diagnostics"
             | "before-upload"
             | "after-upload"
             | "qr-code"

@@ -705,6 +705,8 @@ impl App {
             }
             // `TaskHelpers.OpenDebugLog`.
             MenuCommand::DebugLog => self.open_dialog_window(event_loop, Box::new(dialogs::debug_log::DebugLogWindow::new())),
+            // `DisplayDiagnosticsWindowIntegration.Show`.
+            MenuCommand::DisplayDiagnostics => self.open_dialog_window(event_loop, Box::new(dialogs::display_diagnostics::DisplayDiagnosticsWindow::new())),
             other => eprintln!("menu: {other:?}: not ported yet"),
         }
         self.refresh_menus();
