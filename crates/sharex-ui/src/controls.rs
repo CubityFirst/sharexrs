@@ -1255,6 +1255,12 @@ fn checkered_swatch(ui: &Ui, rect: Rect, color: Color32) -> [Part; 2] {
 /// Avalonia's `ColorView` isn't ported: egui's HSV picker stands in for it.
 /// Returns whether the colour changed and whether the popup stays open.
 pub fn color_popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool) -> (bool, bool) {
+    color_popup_with_alpha(ui, id, anchor, color, just_opened, false)
+}
+
+/// [`color_popup`] with an alpha slider when `alpha` (`ColorView`'s
+/// `IsAlphaEnabled`/`IsAlphaVisible`).
+pub fn color_popup_with_alpha(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_opened: bool, alpha: bool) -> (bool, bool) {
     let p = palette(ui.ctx());
     let mut changed = false;
     let pos = pos2(anchor.min.x, anchor.max.y + 4.0);
@@ -1267,7 +1273,8 @@ pub fn color_popup(ui: &Ui, id: Id, anchor: Rect, color: &mut Color32, just_open
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                 ui.spacing_mut().slider_width = 240.0;
-                changed |= egui::widgets::color_picker::color_picker_color32(ui, color, egui::widgets::color_picker::Alpha::Opaque);
+                let mode = if alpha { egui::widgets::color_picker::Alpha::OnlyBlend } else { egui::widgets::color_picker::Alpha::Opaque };
+                changed |= egui::widgets::color_picker::color_picker_color32(ui, color, mode);
             });
     });
     let ctx = ui.ctx();

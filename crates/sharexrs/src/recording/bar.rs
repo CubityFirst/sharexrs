@@ -25,6 +25,8 @@ use sharex_ui::controls::{ComboBox, ComboItem, Slider};
 use sharex_ui::theme::Thickness;
 
 use super::bar_sources::{self as sources, DeviceLister, Source, SourceKind};
+use crate::screen_tools::highlighter_settings::SettingsControl;
+use sharex_tools::mouse_highlighter::MouseHighlighterOptions;
 
 /// `Recorder.Record.Background` / `Hover` / `Pressed`.
 const RECORD: Color32 = Color32::from_rgb(0xB8, 0x32, 0x3F);
@@ -74,6 +76,12 @@ pub struct Bar {
     delay_menu: Option<Flyout<u32>>,
     /// Where the start delay's split control was drawn (the menu's anchor).
     delay_anchor: Rect,
+    /// `_draft.MouseHighlighter`: the Mouse highlighter panel edits it.
+    pub highlighter: MouseHighlighterOptions,
+    highlighter_control: SettingsControl,
+    /// The panel changed the options (`Changed()`'s `RefreshOptions`); the
+    /// app takes it.
+    pub highlighter_changed: bool,
 }
 
 /// The parts of one toolbar control.
@@ -98,6 +106,9 @@ impl Bar {
             error: None,
             delay_menu: None,
             delay_anchor: Rect::NOTHING,
+            highlighter: MouseHighlighterOptions::default(),
+            highlighter_control: SettingsControl::new("bar-mh"),
+            highlighter_changed: false,
         };
         // `AddSource`'s `RefreshSource`, then `BuildBar`'s `ValidateSources`.
         for i in 0..bar.sources.len() {
@@ -158,8 +169,19 @@ impl Bar {
 
     /// The rectangles the window shows (the bar, and the start delay menu
     /// when open), relative to the bar's top-left, for the window region.
-    pub fn popup_rects(&self) -> Vec<Rect> {
-        self.delay_menu.as_ref().map(|m| m.rects().to_vec()).unwrap_or_default()
+    pub fn popup_rects(&self, ctx: &egui::Context) -> Vec<Rect> {
+        let mut rects = self.delay_menu.as_ref().map(|m| m.rects().to_vec()).unwrap_or_default();
+        if self.panel == Some(Panel::Highlighter) {
+            rects.extend(self.highlighter_control.popup_rects(ctx));
+        }
+        rects
+    }
+
+    /// `new ScreenRecorderBarSettings(settings)`'s `MouseHighlighter`: the
+    /// options the panel starts from (validated, as the control does).
+    pub fn set_highlighter(&mut self, mut options: MouseHighlighterOptions) {
+        options.validate();
+        self.highlighter = options;
     }
 
     fn labels(&self) -> bool {
@@ -349,9 +371,6 @@ impl Bar {
             self.refresh_source(i);
             self.validate_sources();
         }
-        if panel == Panel::Highlighter && self.panel.is_some() {
-            eprintln!("The mouse highlighter's options in the recorder bar aren't ported yet (Task settings › Mouse highlighter has them).");
-        }
     }
 
     /// Opens source `i`'s panel (on the camera's Capture tab).
@@ -360,6 +379,11 @@ impl Bar {
             self.camera_tab = usize::from(capture_tab);
             self.toggle_panel(Panel::Source(i));
         }
+    }
+
+    /// Opens the Mouse highlighter panel (its arrow).
+    pub fn open_highlighter_panel(&mut self) {
+        self.toggle_panel(Panel::Highlighter);
     }
 
     /// Opens the Options panel on its Recording (or Bar) tab.
@@ -397,7 +421,13 @@ impl Bar {
     fn panel_size(&self, ui: &Ui, panel: Panel) -> (f32, f32) {
         let (cw, ch) = match panel {
             Panel::Options => self.options_size(ui),
-            Panel::Highlighter => (260.0, line_height(ui, &widgets::font(13.0, 400))),
+            // `BuildHighlighterPanel`: the control with `Margin="0,8"`, as
+            // wide as the bar or as it asks.
+            Panel::Highlighter => {
+                let (row, _) = self.row_widths(ui);
+                let w = SettingsControl::desired_width(ui, &self.highlighter).max(row - 26.0);
+                (w, 8.0 + SettingsControl::height(ui, &self.highlighter, w) + 8.0)
+            }
             Panel::Source(i) => self.source_panel_size(ui, i),
         };
         (cw + 26.0, 13.0 + 28.0 + 8.0 + ch + 13.0)
@@ -418,7 +448,10 @@ impl Bar {
         match panel {
             Panel::Options => self.options_ui(ui, body),
             Panel::Highlighter => {
-                widgets::text_left(ui, body, body.min.x, s::TaskSettingsWindow_MouseHighlighterOptions(), widgets::font(13.0, 400), p.text_secondary);
+                if self.highlighter_control.ui(ui, body.min.x, body.min.y + 8.0, body.width(), &mut self.highlighter) {
+                    self.highlighter.validate();
+                    self.highlighter_changed = true;
+                }
             }
             Panel::Source(i) => self.source_panel_ui(ui, body, i),
         }
