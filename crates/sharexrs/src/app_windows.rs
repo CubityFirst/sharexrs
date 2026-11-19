@@ -224,6 +224,7 @@ impl App {
                 Effect::OpenFolder(path) => open_path(&path),
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::QuickTaskMenuEditor => self.show_quick_task_editor(event_loop),
                 Effect::PrintSettings => {
                     // `ShowImagePrintSettings`: the active monitor, preview only.
                     let screens = sharex_capture::screenshot::screens();

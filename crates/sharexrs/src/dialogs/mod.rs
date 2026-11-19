@@ -27,6 +27,7 @@ pub mod layout;
 pub mod notification;
 pub mod print_window;
 pub mod qr_code;
+pub mod quick_task_editor;
 pub mod render;
 pub mod response;
 pub mod text_upload;

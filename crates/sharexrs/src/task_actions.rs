@@ -119,6 +119,20 @@ impl App {
     /// `UploadManager.RunImageTask`: the after capture window first, when
     /// the task asks for it (`TaskHelpers.ShowAfterCaptureWindow`).
     pub(super) fn run_image_task(&mut self, job: capture_job::ImageTask) {
+        // `QuickTaskMenu.ShowMenu()` first, with `ShowQuickTaskMenu`.
+        if job.task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowQuickTaskMenu) {
+            self.pending_quick_task = Some(job);
+            return;
+        }
+        self.run_image_task_skipping_quick_menu(job);
+    }
+
+    /// `RunImageTask(metadata, taskSettings, skipQuickTaskMenu: true)`.
+    pub(crate) fn run_image_task_after_quick_menu(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, job: capture_job::ImageTask) {
+        self.run_image_task_skipping_quick_menu(job);
+    }
+
+    fn run_image_task_skipping_quick_menu(&mut self, job: capture_job::ImageTask) {
         if job.task.AfterCaptureJob.contains(sharex_settings::AfterCaptureTasks::ShowAfterCaptureWindow) {
             self.pending_dialogs.push(self.after_capture_window(job));
             return;

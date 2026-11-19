@@ -11,6 +11,7 @@ mod app_settings;
 mod app_windows;
 mod logger;
 mod main_commands;
+mod quick_task;
 mod appearance;
 mod auto_capture;
 mod capture;
@@ -268,6 +269,8 @@ fn main() {
         desktop_icons: None,
         icon_pack_prompt: false,
         pending_notification: None,
+        quick_task: None,
+        pending_quick_task: None,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -401,6 +404,10 @@ struct App {
     icon_pack_prompt: bool,
     /// A toast to show once the event loop is at hand.
     pending_notification: Option<dialogs::notification::NotificationConfig>,
+    /// The quick task menu, while a capture waits on it.
+    quick_task: Option<quick_task::QuickTaskMenu>,
+    /// A capture for the quick task menu, once the event loop is at hand.
+    pending_quick_task: Option<capture_job::ImageTask>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -1718,6 +1725,9 @@ impl ApplicationHandler<UserEvent> for App {
             }
             return;
         }
+        if self.quick_task.as_ref().is_some() && self.quick_task_event(event_loop, id, event.clone()) {
+            return;
+        }
         if let Some(menu) = self.tray_menu.as_mut().filter(|m| m.owns(id)) {
             let out = menu.window_event(event);
             if out.closed {
@@ -1809,6 +1819,9 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(config) = self.pending_notification.take() {
             self.show_notification(event_loop, config);
         }
+        if let Some(job) = self.pending_quick_task.take() {
+            self.show_quick_task_menu(event_loop, job);
+        }
         for d in std::mem::take(&mut self.pending_dialogs) {
             self.open_dialog_window(event_loop, d);
         }
@@ -1844,6 +1857,7 @@ impl ApplicationHandler<UserEvent> for App {
             auto_capture,
             self.main.as_ref().and_then(|w| w.repaint_at),
             self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
+            self.quick_task_due(now),
             region,
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),

@@ -30,6 +30,9 @@ pub struct TrayMenu<C: Clone = MenuCommand> {
     flyout: Flyout<C>,
     /// The levels the window region was last cut to.
     shown: Vec<egui::Rect>,
+    /// Losing the activation closes it (the tray menu); the quick task
+    /// menu closes only on an explicit action.
+    light_dismiss: bool,
 }
 
 /// What the menu did.
@@ -86,12 +89,37 @@ impl<C: Clone> TrayMenu<C> {
         if !open.is_empty() {
             flyout.open_path(open);
         }
-        let mut me = Self { window: w, flyout, shown: Vec::new() };
+        let mut me = Self { window: w, flyout, shown: Vec::new(), light_dismiss: true };
         // Laid out once to know where the menu goes, then drawn, then shown.
         me.paint();
         me.paint();
         me.window.window.set_visible(true);
         me.window.window.focus_window();
+        me.window.window.request_redraw();
+        Ok(me)
+    }
+
+    /// `QuickTaskMenu.ShowMenu`: the menu with its first item centred on
+    /// `cursor` (`popup.HorizontalOffset/VerticalOffset = -center`), slid
+    /// to stay on the work area, closed only by its own items or Escape.
+    pub fn open_centred(event_loop: &ActiveEventLoop, gpu: &Gpu, screens: &[Screen], cursor: (i32, i32), entries: Vec<MenuEntry<C>>, theme: egui::Theme) -> Result<Self, String> {
+        let mut me = Self::open(event_loop, gpu, screens, cursor, entries, theme, &[])?;
+        me.light_dismiss = false;
+        me.flyout.style = sharex_ui::menu::MenuStyle::CompactPlainSeparators;
+        let scale = me.window.window.scale_factor() as f32;
+        let screen = sharex_capture::screenshot::screen_from_point(screens, cursor).ok_or("no monitors found")?;
+        let at = egui::pos2((cursor.0 - screen.work_area.x) as f32 / scale, (cursor.1 - screen.work_area.y) as f32 / scale);
+        me.flyout.set_placement(Placement::Slide(at));
+        me.paint();
+        if let Some(root) = me.flyout.rects().first().copied() {
+            // The first item's centre: the border, the menu's padding and
+            // Fluent's 4px scroller margin above a menu item's height.
+            let d = sharex_ui::theme::density(me.window.ctx());
+            let centre = egui::vec2((root.width() / 2.0).round(), 1.0 + d.menu_padding.top + 4.0 + d.menu_item_height / 2.0);
+            me.flyout.set_placement(Placement::Slide(at - centre));
+            me.paint();
+            me.paint();
+        }
         me.window.window.request_redraw();
         Ok(me)
     }
@@ -130,7 +158,8 @@ impl<C: Clone> TrayMenu<C> {
         match event {
             WindowEvent::RedrawRequested => self.paint(),
             // `OnTrayMenuAnchorDeactivated`.
-            WindowEvent::Focused(false) | WindowEvent::CloseRequested => Output { command: None, closed: true },
+            WindowEvent::Focused(false) if self.light_dismiss => Output { command: None, closed: true },
+            WindowEvent::CloseRequested => Output { command: None, closed: true },
             other => {
                 self.window.on_event(&other);
                 Output::default()

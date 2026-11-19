@@ -250,6 +250,17 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             let (w, h) = (o.width.unwrap_or(1024) as i32, o.height.unwrap_or(720) as i32);
             Box::new(ImageViewerWindow::new(images).with_size(w, h))
         }
+        // `--state add-overlay|edit-overlay|reset-confirm`.
+        "quick-task-editor" => {
+            let mut w = super::quick_task_editor::QuickTaskMenuEditorWindow::new();
+            match o.state.as_deref() {
+                Some("add-overlay") => w.open_editor(None),
+                Some("edit-overlay") => w.open_editor(Some(0)),
+                Some("reset-confirm") => w.confirm_reset = true,
+                _ => {}
+            }
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -423,6 +434,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "notification"
             | "after-capture"
             | "image-viewer"
+            | "quick-task-editor"
             | "before-upload"
             | "after-upload"
             | "qr-code"

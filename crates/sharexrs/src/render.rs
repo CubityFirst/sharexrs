@@ -459,6 +459,37 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             crop
         }
+        // The quick task menu with ShareX's default presets, its first item
+        // focused (`continueItem.Focus()`), cropped to the popup (`--hover`
+        // for the pointer).
+        "quick-task" => {
+            let mut screen = Offscreen::new([600, 600], scale, dark)?;
+            screen.transparent = true;
+            let entries = crate::quick_task::entries(&sharex_settings::QuickTaskInfo::default_presets());
+            let at = egui::pos2(0.0, 0.0);
+            let mut flyout = sharex_ui::menu::Flyout::menu(egui::Id::new("quick-task"), entries, egui::Rect::from_min_size(at, egui::Vec2::ZERO), sharex_ui::menu::Placement::Slide(at));
+            flyout.style = sharex_ui::menu::MenuStyle::CompactPlainSeparators;
+            flyout.select_first();
+            let events: Vec<egui::Event> = hover.map(egui::Event::PointerMoved).into_iter().collect();
+            for frame in 0..8 {
+                let ev = if frame >= 1 { events.clone() } else { Vec::new() };
+                screen.run(ev, &mut |ui: &mut egui::Ui| {
+                    let bounds = ui.max_rect();
+                    flyout.show(ui, bounds);
+                });
+            }
+            let full = screen.draw();
+            let r = *flyout.rects().first().ok_or("no menu")?;
+            let (x, y) = ((r.min.x * scale).round() as u32, (r.min.y * scale).round() as u32);
+            let (cw, ch) = ((r.width() * scale).round() as u32, (r.height() * scale).round() as u32);
+            let mut crop = image::imageops::crop_imm(&full, x, y, cw, ch).to_image();
+            for p in crop.pixels_mut() {
+                let a = p[3] as u32;
+                let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+                *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+            }
+            crop
+        }
         "hotkey-failed" => {
             // The message box ShareX shows when hotkeys fail to register
             // (`--unregistered`, default 0,3: Ctrl/Shift + Print Screen).

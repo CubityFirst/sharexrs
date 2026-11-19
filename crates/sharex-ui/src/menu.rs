@@ -222,6 +222,9 @@ pub enum Placement {
     BottomEdgeAlignedLeft,
     /// At the pointer (context menus).
     Pointer(Pos2),
+    /// Top-left at this point, slid (never flipped) to stay in the bounds:
+    /// `PlacementConstraintAdjustment = SlideX | SlideY` (the quick task menu).
+    Slide(Pos2),
 }
 
 enum Content<C> {
@@ -236,6 +239,10 @@ pub enum MenuStyle {
     /// padding, the hover background on pointer over.
     #[default]
     Compact,
+    /// Compact items with plain `Separator`s between them (no
+    /// `compact-menu-separator` class): a 1px line, no margin (the quick
+    /// task menu).
+    CompactPlainSeparators,
     /// A plain `ContextMenu MenuItem` (ControlStyles.axaml): `Padding="12,8"`,
     /// as tall as its content, the accent fill and accent foreground on
     /// pointer over (the hotkey and task pickers).
@@ -254,7 +261,7 @@ pub enum MenuStyle {
 impl MenuStyle {
     fn item_padding(self, d: &crate::theme::Density) -> crate::theme::Thickness {
         match self {
-            MenuStyle::Compact => d.menu_item_padding,
+            MenuStyle::Compact | MenuStyle::CompactPlainSeparators => d.menu_item_padding,
             MenuStyle::Standard => crate::theme::Thickness::hv(12.0, 8.0),
             MenuStyle::Flyout => crate::theme::Thickness::new(11.0, 2.0 + 4.0, 11.0, 2.0 + 7.0),
         }
@@ -262,7 +269,7 @@ impl MenuStyle {
 
     fn item_height(self, d: &crate::theme::Density) -> f32 {
         match self {
-            MenuStyle::Compact => d.menu_item_height,
+            MenuStyle::Compact | MenuStyle::CompactPlainSeparators => d.menu_item_height,
             // The padding around an 18px content row (measured on ShareX's
             // task picker: 34px items).
             MenuStyle::Standard => 8.0 + 18.0 + 8.0,
@@ -295,7 +302,7 @@ impl MenuStyle {
     fn separator_margin(self, d: &crate::theme::Density) -> crate::theme::Thickness {
         match self {
             MenuStyle::Compact => d.menu_separator_margin,
-            MenuStyle::Standard => crate::theme::Thickness::all(0.0),
+            MenuStyle::Standard | MenuStyle::CompactPlainSeparators => crate::theme::Thickness::all(0.0),
             MenuStyle::Flyout => crate::theme::Thickness::new(0.0, 4.0, 0.0, 4.0),
         }
     }
@@ -388,6 +395,12 @@ impl<C: Clone> Flyout<C> {
             rects: Vec::new(),
             style: MenuStyle::Compact,
         }
+    }
+
+    /// Moves the flyout (the quick task menu centres its first item on the
+    /// pointer once it knows its size).
+    pub fn set_placement(&mut self, placement: Placement) {
+        self.placement = placement;
     }
 
     /// Whether `pos` is on the flyout or one of its submenus (as drawn
@@ -669,7 +682,7 @@ impl<C: Clone> Flyout<C> {
 
     fn anchor_rect(&self) -> Rect {
         match self.placement {
-            Placement::Pointer(p) => Rect::from_min_size(p, Vec2::ZERO),
+            Placement::Pointer(p) | Placement::Slide(p) => Rect::from_min_size(p, Vec2::ZERO),
             _ => self.anchor,
         }
     }
@@ -834,8 +847,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
     let (mut x, mut y) = match placement {
         Placement::RightEdgeAlignedTop => (anchor.max.x + offset_x, anchor.min.y),
         Placement::BottomEdgeAlignedLeft => (anchor.min.x, anchor.max.y),
-        Placement::Pointer(p) => (p.x, p.y),
+        Placement::Pointer(p) | Placement::Slide(p) => (p.x, p.y),
     };
+    let slide_only = matches!(placement, Placement::Slide(_));
     let fits_x = |x: f32| x >= bounds.min.x && x + size.x <= bounds.max.x;
     let fits_y = |y: f32| y >= bounds.min.y && y + size.y <= bounds.max.y;
     if !fits_x(x) {
@@ -844,9 +858,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
             // a submenu flipped to the left sits 4px clear of its item.
             Placement::RightEdgeAlignedTop => anchor.min.x + offset_x - size.x,
             Placement::BottomEdgeAlignedLeft => anchor.max.x - size.x,
-            Placement::Pointer(p) => p.x - size.x,
+            Placement::Pointer(p) | Placement::Slide(p) => p.x - size.x,
         };
-        if fits_x(flipped) {
+        if fits_x(flipped) && !slide_only {
             x = flipped;
         }
     }
@@ -858,9 +872,9 @@ fn place(anchor: Rect, placement: Placement, size: Vec2, offset_x: f32, bounds: 
         let flipped = match placement {
             Placement::RightEdgeAlignedTop => anchor.max.y - size.y,
             Placement::BottomEdgeAlignedLeft => anchor.min.y - size.y,
-            Placement::Pointer(p) => p.y - size.y,
+            Placement::Pointer(p) | Placement::Slide(p) => p.y - size.y,
         };
-        if fits_y(flipped) {
+        if fits_y(flipped) && !slide_only {
             y = flipped;
         }
     }
