@@ -1236,12 +1236,16 @@ pub fn list_item_background(painter: &egui::Painter, rect: Rect, radius: f32, ho
 }
 
 /// `ProgressBar` with `IsIndeterminate="True"` (Fluent's template): the
-/// `SystemControlHighlightAccentBrush` indicators sliding across a
-/// transparent track (`ProgressBarIndeterminateBackground`), clipped to
-/// `rect`. `t` is seconds since the bar appeared; Fluent's animation runs
-/// two indicators over a 2 s cycle.
+/// `SystemControlHighlightAccentBrush` indicators sliding across the
+/// `SystemControlBackgroundBaseLowBrush` track (the template's `Background`,
+/// which no `:indeterminate` style changes; ShareX's GIF and video
+/// trimmers' loading shots show it), clipped to `rect`. `t` is seconds
+/// since the bar appeared; Fluent's animation runs two indicators over a
+/// 2 s cycle.
 pub fn indeterminate_progress(painter: &egui::Painter, rect: Rect, t: f64) {
     let p = palette(painter.ctx());
+    let f = fluent(painter.ctx());
+    border::border(painter, rect, 3.0, 0.0, Some(Brush::Solid(f.base_low)), None);
     let w = rect.width();
     let clip = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
     let phase = (t % 2.0) as f32 / 2.0;

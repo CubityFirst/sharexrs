@@ -91,6 +91,8 @@ pub struct AnimatedGifTrimmerWindow {
     task: TaskSettings,
     /// Loads and renders on this thread (`--render`).
     sync: bool,
+    /// A load's error message box is open.
+    error_open: bool,
     /// Shown exporting (`--render`) without writing.
     fake_export: bool,
 }
@@ -120,6 +122,7 @@ impl AnimatedGifTrimmerWindow {
             crop_drag: None,
             task,
             sync: false,
+            error_open: false,
             fake_export: false,
         };
         // `Opened`: the command line's file.
@@ -392,11 +395,11 @@ impl AnimatedGifTrimmerWindow {
         let ctx = egui::Context::default();
         match state {
             "" | "empty" | "loaded" | "invalid" | "timeline-drag" => {}
-            "trimmed" => self.edit(|s, _| {
-                set_start_index(s, 1.min(s.frame_count - 1));
-                let end = 5.min(s.frame_count).max(s.start_index + 1);
-                set_end_index(s, end);
-            }),
+            // Next frame, then Set start here (the reference shot's route).
+            "trimmed" => {
+                self.step(1);
+                self.set_start_here();
+            }
             "crop" => self.edit(|s, _| {
                 let (w, h) = (s.width, s.height);
                 s.set_crop(CropRect { x: w / 4, y: h / 4, width: w / 2, height: h / 2 });
@@ -446,8 +449,11 @@ impl AnimatedGifTrimmerWindow {
                     self.load = None;
                 }
                 LoadMsg::Failed(e) => {
+                    // `ShowErrorRequested` is a modal message box: `IsLoading`
+                    // stays until it's dismissed (`finally`).
                     self.clear_document();
-                    self.loading = false;
+                    self.load = None;
+                    self.error_open = true;
                     self.status_text = e.clone();
                     effects.push(self.error_box(&e));
                 }
@@ -524,7 +530,8 @@ impl AnimatedGifTrimmerWindow {
             let x0 = area.min.x + ((area.width() - widest) / 2.0).round_ties_even();
             let y0 = area.min.y + ((area.height() - (36.0 + 12.0 + lh)) / 2.0).round_ties_even();
             let ir = Rect::from_min_size(pos2(x0 + ((widest - 36.0) / 2.0).round_ties_even(), y0), vec2(36.0, 36.0));
-            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, p.text);
+            // The `IconPresenter` keeps Fluent's foreground (base high).
+            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, sharex_ui::theme::fluent(ui.ctx()).base_high);
             tools::text_at(ui, pos2(x0 + ((widest - tw) / 2.0).round_ties_even(), y0 + 48.0), text, nf, p.text);
         }
         border::clip_corners(ui.painter(), area, 4.0, p.background_panel);
@@ -805,7 +812,11 @@ impl Dialog for AnimatedGifTrimmerWindow {
         // Row 1: preview, transport, timeline, progress, times, size.
         tools::panel(ui, row1);
         let q = row1.shrink(13.0);
-        let fixed = 4.0 + 40.0 + timeline::HEIGHT + 4.0 + 40.0 + 40.0 + 5.0 * 8.0;
+        // The progress bar's row is empty unless working (`IsWorking`); the
+        // `RowSpacing` around it stays.
+        let working = self.loading || self.is_exporting();
+        let bar_h = if working { 4.0 } else { 0.0 };
+        let fixed = 4.0 + 40.0 + timeline::HEIGHT + bar_h + 40.0 + 40.0 + 5.0 * 8.0;
         let preview = Rect::from_min_size(q.min, vec2(q.width(), (q.height() - fixed).max(0.0)));
         self.preview_area(ui, preview);
         let mut y = preview.max.y + 8.0 + 4.0;
@@ -817,9 +828,11 @@ impl Dialog for AnimatedGifTrimmerWindow {
         };
         let texts = [format_time(position), "/".to_string(), format_time(duration), self.sel.as_ref().map(|s| s.frame_text()).unwrap_or_default()];
         let widths: Vec<f32> = texts.iter().map(|t| text_width(ui, t, nf.clone())).collect();
-        let shown: Vec<usize> = (0..4).filter(|&i| !texts[i].is_empty()).collect();
+        // An empty `TextBlock` (no GIF: no frame text) still takes its `Spacing`.
+        let shown: Vec<usize> = (0..4).collect();
         let times_w = shown.iter().map(|&i| widths[i]).sum::<f32>() + 8.0 * shown.len().saturating_sub(1) as f32;
-        let total = 40.0 * 3.0 + 16.0 + times_w;
+        // Three 40px buttons 8 apart, 16 to the times.
+        let total = 40.0 * 3.0 + 2.0 * 8.0 + 16.0 + times_w;
         let mut x = q.min.x + ((q.width() - total) / 2.0).round_ties_even();
         let can_play = self.can_play();
         let play_icon = if self.playing { icon::Pause } else { icon::Play };
@@ -896,7 +909,7 @@ impl Dialog for AnimatedGifTrimmerWindow {
         } else if self.is_exporting() {
             sharex_ui::controls::determinate_progress(ui.painter(), bar, self.progress / 100.0);
         }
-        y += 4.0 + 8.0;
+        y += bar_h + 8.0;
 
         // Start, End, Duration, Reset (`ColumnDefinitions="*,*,Auto,Auto"`).
         let dur_label = s::VideoTrimmer_Duration();
@@ -978,6 +991,12 @@ impl Dialog for AnimatedGifTrimmerWindow {
             self.load_input(&f.to_string_lossy());
         }
         Vec::new()
+    }
+
+    fn answered(&mut self, _yes: bool) {
+        if std::mem::take(&mut self.error_open) {
+            self.loading = false;
+        }
     }
 
     fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {

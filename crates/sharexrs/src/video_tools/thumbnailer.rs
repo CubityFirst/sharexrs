@@ -268,7 +268,10 @@ impl Dialog for VideoThumbnailerWindow {
         let control = tools::label_row(ui, row(y), 125.0, s::VideoThumbnailerWindow_Image_format());
         let items: Vec<ComboItem> = FORMATS.iter().map(|(_, n)| ComboItem::normal(*n)).collect();
         let selected = FORMATS.iter().position(|(f, _)| *f == self.options.image_format).unwrap_or(0);
-        if let Some(i) = (ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true }).show(ui, control, Id::new("vthumb-format"), &items, Some(selected)) {
+        // Fluent's `ComboBox` is `HorizontalAlignment="Left"`: as wide as its item.
+        let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true };
+        let control = Rect::from_min_size(control.min, vec2(combo.auto_width(ui, &items, Some(selected)), 40.0));
+        if let Some(i) = combo.show(ui, control, Id::new("vthumb-format"), &items, Some(selected)) {
             self.options.image_format = FORMATS[i].0;
         }
         y += 50.0;
@@ -290,20 +293,26 @@ impl Dialog for VideoThumbnailerWindow {
             true,
         );
 
-        // Left, bottom: the output.
+        // Left, bottom: the output. Its `Grid` (all `Auto` rows) is stretched
+        // to the panel, and Avalonia's `SetFinalSize` rounding then gives each
+        // non-empty row a pixel more (ShareX's shot: the combo 1px lower).
         let panel = Rect::from_min_max(pos2(left.min.x, panel.max.y + 12.0), left.max);
         tools::panel(ui, panel);
         let q = panel.shrink(13.0);
         tools::heading(ui, Rect::from_min_size(q.min, vec2(q.width(), hh)), s::VideoThumbnailerWindow_Output());
-        let mut y = q.min.y + hh + 10.0;
-        let control = tools::label_row(ui, Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 40.0)), 125.0, s::VideoThumbnailerWindow_Save_to());
+        let mut y = q.min.y + hh + 10.0 + 1.0;
+        let label_row = Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 41.0));
+        tools::row_label(ui, Rect::from_min_size(label_row.min, vec2(125.0, 41.0)), s::VideoThumbnailerWindow_Save_to());
         let names = [s::VideoThumbnailerViewModel_Default_screenshots_folder(), s::VideoThumbnailerViewModel_Same_folder_as_video(), s::VideoThumbnailerViewModel_Custom_folder()];
         let items: Vec<ComboItem> = names.iter().map(|n| ComboItem::normal(*n)).collect();
         let selected = LOCATIONS.iter().position(|l| *l == self.options.output_location).unwrap_or(0);
-        if let Some(i) = (ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true }).show(ui, control, Id::new("vthumb-location"), &items, Some(selected)) {
+        let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true };
+        // `VerticalAlignment="Top"` in its row.
+        let control = Rect::from_min_size(pos2(q.min.x + 135.0, y), vec2(combo.auto_width(ui, &items, Some(selected)), 40.0));
+        if let Some(i) = combo.show(ui, control, Id::new("vthumb-location"), &items, Some(selected)) {
             self.options.output_location = LOCATIONS[i];
         }
-        y += 40.0;
+        y += 41.0;
         if self.options.output_location == OutputLocation::CustomFolder {
             y += 10.0;
             let bbw = tools::text_button_width(ui, browse);
@@ -319,7 +328,7 @@ impl Dialog for VideoThumbnailerWindow {
             {
                 self.options.custom_output_directory = f;
             }
-            y += 40.0;
+            y += 41.0;
         }
         y += 10.0;
         let r = Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 32.0));
@@ -335,6 +344,8 @@ impl Dialog for VideoThumbnailerWindow {
         let size = ToggleSwitch::SIZE;
         ToggleSwitch { enabled: idle }.show(ui, pos2(header.max.x - size.x, header.min.y), Id::new("vthumb-combine"), &mut self.options.combine_screenshots);
         let enabled = self.options.combine_screenshots && idle;
+        // The options `Grid` fills the panel's `*` row: each of its rows a
+        // pixel taller (see the output panel).
         let mut y = header.max.y + 12.0;
         let o = &mut self.options;
         for (k, (label, value, max)) in [
@@ -345,13 +356,13 @@ impl Dialog for VideoThumbnailerWindow {
         .into_iter()
         .enumerate()
         {
-            let control = tools::label_row(ui, Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 40.0)), 150.0, label);
+            let control = tools::label_row(ui, Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 41.0)), 150.0, label);
             let min = if k == 0 { 1 } else { 0 };
             let mut v = *value as i64;
             if (NumericUpDown { minimum: min, maximum: max, enabled }).show(ui, control, Id::new(("vthumb-sheet", k)), &mut v) {
                 *value = (v as i32).max(min as i32);
             }
-            y += 50.0;
+            y += 51.0;
         }
         for (k, (label, value)) in [
             (s::VideoThumbnailerWindow_Add_video_information(), &mut o.add_video_info),
@@ -363,8 +374,8 @@ impl Dialog for VideoThumbnailerWindow {
         .into_iter()
         .enumerate()
         {
-            Self::toggle_row(ui, Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 32.0)), Id::new(("vthumb-toggle", k)), label, value, enabled);
-            y += 42.0;
+            Self::toggle_row(ui, Rect::from_min_size(pos2(q.min.x, y), vec2(q.width(), 33.0)), Id::new(("vthumb-toggle", k)), label, value, enabled);
+            y += 43.0;
         }
 
         // Row 2.

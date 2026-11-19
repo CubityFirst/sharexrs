@@ -662,7 +662,7 @@ impl App {
                     }
                 }
                 Effect::MessageBox(message) => {
-                    if let Err(e) = self.open_dialog(event_loop, *message, crate::DialogPurpose::Information) {
+                    if let Err(e) = self.open_dialog(event_loop, *message, crate::DialogPurpose::Owned(id)) {
                         eprintln!("couldn't open the message box: {e}");
                     }
                 }
@@ -706,8 +706,13 @@ impl App {
             }
             FileService::EditImage => self.annotate_file(event_loop, &path, None),
             FileService::EditImageInPhotoEditor => eprintln!("Photo editor: deferred"),
-            FileService::TrimVideo => eprintln!("Video trimmer: not ported yet"),
-            FileService::TrimAnimatedGif => eprintln!("Animated GIF trimmer: not ported yet"),
+            // `OpenVideoTrimmer(inputFilePath: filePath)`, `OpenAnimatedGifTrimmer(filePath)`.
+            FileService::TrimVideo => {
+                self.open_video_tool(event_loop, "MainMenuBuilder_VideoTrimmer", None, Some(path.to_string_lossy().into_owned()));
+            }
+            FileService::TrimAnimatedGif => {
+                self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
+            }
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
             FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
             FileService::ShowImage => eprintln!("Image viewer: not ported yet"),

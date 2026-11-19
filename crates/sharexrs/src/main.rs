@@ -284,6 +284,9 @@ enum DialogPurpose {
     /// A question a command line asked (importing a custom uploader or an
     /// image effect).
     CommandLine(cli::CliQuestion),
+    /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
+    /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
+    Owned(winit::window::WindowId),
 }
 
 struct App {
@@ -1163,6 +1166,11 @@ impl App {
         } else if matches!(dialog.purpose, DialogPurpose::UpdateSignature) {
             if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("update-downloader")) {
                 d.dialog.answered(result == DialogResult::Yes);
+                d.window.window.request_redraw();
+            }
+        } else if let DialogPurpose::Owned(owner) = dialog.purpose {
+            if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == owner) {
+                d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
                 d.window.window.request_redraw();
             }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {

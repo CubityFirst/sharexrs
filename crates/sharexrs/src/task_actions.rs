@@ -216,6 +216,15 @@ impl App {
                 let o = if horizontal { sharex_tools::combiner::Orientation::Horizontal } else { sharex_tools::combiner::Orientation::Vertical };
                 self.combine_images(files, o);
             }
+            // `TaskHelpers.OpenVideoTrimmer(taskSettings, filePath)` /
+            // `OpenAnimatedGifTrimmer(filePath, taskSettings)`, with the
+            // default task settings (tasks here don't keep theirs).
+            TaskCommand::TrimVideo if sel.is_video_file => {
+                self.open_video_tool(event_loop, "MainMenuBuilder_VideoTrimmer", None, Some(path.to_string_lossy().into_owned()));
+            }
+            TaskCommand::TrimAnimatedGif if sel.is_file_exist && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("gif")) => {
+                self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
+            }
             TaskCommand::AddImageEffects if sel.is_image_file => {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.open_image_effects_tool(event_loop, Some(path.clone()), task);

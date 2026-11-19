@@ -111,7 +111,9 @@ pub fn icon_button(ui: &Ui, rect: Rect, id: Id, key: &str, text: &str, active: b
     let lh = line_height(ui, &body);
     let top = center_y(inner, lh);
     let (icon_color, text_color) = if active { (p.accent_foreground, p.accent_foreground) } else { (p.text, p.text_secondary) };
-    icons::paint(ui.painter(), Rect::from_min_size(pos2(x, top + (lh - 13.0) / 2.0), Vec2::splat(13.0)), key, icon_color.gamma_multiply(opacity));
+    // The icon centred in the `StackPanel`'s line, its offset rounded as
+    // Avalonia's layout rounds it (half to even: 2.5 is 2).
+    icons::paint(ui.painter(), Rect::from_min_size(pos2(x, top + ((lh - 13.0) / 2.0).round_ties_even()), Vec2::splat(13.0)), key, icon_color.gamma_multiply(opacity));
     let c = text_color.gamma_multiply(opacity);
     ui.painter().galley(pos2(x + 21.0, top), galley(ui, text, body, c, f32::INFINITY), c);
     r

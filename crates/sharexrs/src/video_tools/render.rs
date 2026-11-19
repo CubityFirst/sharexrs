@@ -5,26 +5,27 @@
 //!   (Loop on, repeat count 3) or `created` (the GIF written to `--text`)).
 //!
 //! - `video-converter` (`--image <input>`, `--state codec-no-rate-control`
-//!   (NVENC), `bitrate`, `encoding` (at `--count` percent), `result` (a
-//!   real conversion with FFmpeg on the PATH or `SHAREXRS_FFMPEG`), and
-//!   `--content <codec index>`).
+//!   (NVENC), `bitrate`, `encoding` (at `--count` percent), `result` (the
+//!   existing output probed with FFmpeg from `SHAREXRS_FFMPEG` or the
+//!   PATH), and `--content <codec index>`).
 //!
 //! - `video-thumbnailer` (`--image <video>`, `--state custom-output`,
 //!   `progress` (at `--count` of 9), `results` (a real run into `--text`,
 //!   uploads off), `invalid` (a run on a file FFmpeg can't read)).
 //!
-//! - `gif-trimmer` (`--image <gif>`, `--state trimmed` (frames 2 to 5),
+//! - `gif-trimmer` (`--image <gif>`, `--state trimmed` (Next frame, Set start here),
 //!   `crop` (a crop of the middle half), `resize-reencode` (half size),
 //!   `exporting` (at `--count` percent), `saved` (written to `--text`),
 //!   `invalid`; `--select N` steps to frame N).
 //!
-//! - `video-player` (`--image <video>`, `--state paused` (at `--count`
-//!   seconds), `controls-hidden`, `muted`, `invalid`; the controls shown
-//!   unless hidden).
+//! - `video-player` (`--image <video>`, paused at `--count` ms; `--state
+//!   paused`, `controls-hidden` (also what a client-area capture of ShareX
+//!   shows: its controls are a popup window of their own), `muted`,
+//!   `invalid`).
 //!
 //! - `video-trimmer` (`--image <video>`, `--state paused` (at `--count`
-//!   seconds), `trimmed-copy` (2 s to 6 s), `reencode` (that, Re-encode),
-//!   `exporting` (at `--count` percent), `saved` (a real copy trim to
+//!   seconds), `trimmed-copy` (the start at `--count` ms), `reencode`
+//!   (that, Re-encode), `exporting` (40%), `saved` (a real copy trim to
 //!   `--text`), `invalid`).
 //!
 //! Previews are made at once, on the drawing thread.
@@ -73,17 +74,15 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             if let Some(i) = o.content.as_deref().and_then(|c| c.parse::<usize>().ok()) {
                 w.codec = *Codec::ALL.get(i).ok_or("--content <codec index>")?;
             }
+            // The reference profile has the folder opening turned off.
+            w.auto_open_folder = false;
             match state {
                 "" | "empty" | "input" | "codec-menu" | "rate-control-menu" => {}
                 "codec-no-rate-control" => w.codec = Codec::H264Nvenc,
                 "bitrate" => w.use_bitrate = true,
                 "encoding" => w.set_encoding(o.count as f64),
-                "result" => {
-                    let mut settings = sharex_settings::ApplicationConfig::default();
-                    let store = crate::upload::UploadersConfigStore::default();
-                    let mut cx = crate::dialogs::Cx { settings: &mut settings, uploaders: &store };
-                    w.convert_now(&mut cx);
-                }
+                // The output a conversion left (probed, not written again).
+                "result" => w.show_result(),
                 other => return Err(format!("no video-converter state {other}")),
             }
             Box::new(w)
@@ -95,6 +94,8 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             if let Some(p) = &o.image {
                 w.load_video(&p.to_string_lossy());
             }
+            // The reference profile has uploads off (never on in a render).
+            w.options.upload_thumbnails = false;
             match state {
                 "" | "empty" | "input" | "format-menu" | "output-location-menu" => {}
                 "custom-output" => {
@@ -129,10 +130,10 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
             if let Some(p) = &o.image {
                 w.load_input(&p.to_string_lossy());
                 w.poll(&egui::Context::default());
-                // Paused where the shot is (`--count` seconds).
+                // Paused where the shot is (`--count` milliseconds).
                 w.player.pause();
                 if o.count > 0 {
-                    w.player.seek(o.count as f64);
+                    w.player.seek(o.count as f64 / 1000.0);
                 }
                 w.position = w.player.position();
             }
@@ -151,11 +152,13 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 w.load_input(&p.to_string_lossy());
                 w.poll(&egui::Context::default());
             }
+            // The shots' route: Next frame, Set start here. Media Foundation's
+            // step left the playhead at `--count` ms (249 in the shots).
+            let at = o.count as f64 / 1000.0;
             let trimmed = |w: &mut trimmer::VideoTrimmerWindow| {
-                w.end = 6.0f64.min(w.duration);
-                w.start = 2.0f64.min(w.end);
-                w.player.seek(w.end);
-                w.position = w.end;
+                w.start = at.min(w.duration);
+                w.player.seek(at);
+                w.position = at;
             };
             match state {
                 "" | "empty" | "invalid" | "timeline-drag" => {}
@@ -170,7 +173,7 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
                 }
                 "exporting" => {
                     trimmed(&mut w);
-                    w.set_exporting(o.count as f64);
+                    w.set_exporting(40.0);
                 }
                 "saved" => {
                     trimmed(&mut w);

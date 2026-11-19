@@ -89,6 +89,8 @@ pub struct VideoTrimmerWindow {
     task: TaskSettings,
     /// Shown exporting (`--render`) without FFmpeg running.
     fake_export: bool,
+    /// A load's error message box is open.
+    error_open: bool,
 }
 
 impl VideoTrimmerWindow {
@@ -114,6 +116,7 @@ impl VideoTrimmerWindow {
             ffmpeg,
             task,
             fake_export: false,
+            error_open: false,
         };
         if let Some(f) = input.filter(|f| !f.is_empty()) {
             w.load_input(&f);
@@ -324,7 +327,8 @@ impl VideoTrimmerWindow {
                 }
             }
             Some(Err(e)) => {
-                self.loading = false;
+                // The modal error box: `IsLoading` until it's dismissed.
+                self.error_open = true;
                 self.duration = 0.0;
                 self.clear_thumbnails();
                 self.status_text = s::VideoTrimmer_PlaybackError().replace("{0}", &e);
@@ -479,9 +483,12 @@ impl Dialog for VideoTrimmerWindow {
         let status_h = if self.status_text.is_empty() {
             0.0
         } else {
-            sharex_ui::controls::wrapped(ui, pos2(0.0, 0.0), q.width(), &self.status_text, nf.clone(), p.text, false)
+            super::wrapped_text(ui, pos2(0.0, 0.0), q.width(), &self.status_text, nf.clone(), p.text, false)
         };
-        let fixed = 4.0 + 40.0 + timeline::HEIGHT + 4.0 + 40.0 + status_h + 5.0 * 8.0;
+        // The progress row is empty unless working (`IsWorking`), the status
+        // row unless there's a status; the `RowSpacing` around them stays.
+        let bar_h = if self.loading || self.is_exporting() { 4.0 } else { 0.0 };
+        let fixed = 4.0 + 40.0 + timeline::HEIGHT + bar_h + 40.0 + status_h + 5.0 * 8.0;
         let preview = Rect::from_min_size(q.min, vec2(q.width(), (q.height() - fixed).max(0.0)));
         border::border(ui.painter(), preview, 4.0, 0.0, Some(Brush::Solid(if has_video { Color32::BLACK } else { p.background_main })), None);
         if has_video {
@@ -501,7 +508,8 @@ impl Dialog for VideoTrimmerWindow {
             let x0 = preview.min.x + ((preview.width() - widest) / 2.0).round_ties_even();
             let y0 = preview.min.y + ((preview.height() - (36.0 + 12.0 + lh)) / 2.0).round_ties_even();
             let ir = Rect::from_min_size(pos2(x0 + ((widest - 36.0) / 2.0).round_ties_even(), y0), vec2(36.0, 36.0));
-            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, p.text);
+            // The `IconPresenter` keeps Fluent's foreground (base high).
+            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, sharex_ui::theme::fluent(ui.ctx()).base_high);
             tools::text_at(ui, pos2(x0 + ((widest - tw) / 2.0).round_ties_even(), y0 + 48.0), text, nf.clone(), p.text);
         }
         border::clip_corners(ui.painter(), preview, 4.0, p.background_panel);
@@ -511,7 +519,8 @@ impl Dialog for VideoTrimmerWindow {
         let texts = [format_time(self.position), "/".to_string(), format_time(self.duration)];
         let widths: Vec<f32> = texts.iter().map(|t| text_width(ui, t, nf.clone())).collect();
         let times_w = widths.iter().sum::<f32>() + 12.0;
-        let total = 40.0 * 3.0 + 16.0 + 16.0 + times_w;
+        // Three 40px buttons 8 apart, 16 to the times.
+        let total = 40.0 * 3.0 + 2.0 * 8.0 + 16.0 + times_w;
         let mut x = q.min.x + ((q.width() - total) / 2.0).round_ties_even();
         let play_icon = if self.player.is_playing() { icon::Pause } else { icon::Play };
         for (k, key) in [icon::StepBack, play_icon, icon::StepForward].into_iter().enumerate() {
@@ -570,7 +579,7 @@ impl Dialog for VideoTrimmerWindow {
         } else if exporting {
             sharex_ui::controls::determinate_progress(ui.painter(), bar, self.progress / 100.0);
         }
-        y += 4.0 + 8.0;
+        y += bar_h + 8.0;
 
         // Start, End, Duration, Reset.
         let dur_label = s::VideoTrimmer_Duration();
@@ -612,7 +621,7 @@ impl Dialog for VideoTrimmerWindow {
         y += 40.0 + 8.0;
         // The status (`HasStatus`).
         if status_h > 0.0 {
-            sharex_ui::controls::wrapped(ui, pos2(q.min.x, y), q.width(), &self.status_text, nf.clone(), p.text, true);
+            super::wrapped_text(ui, pos2(q.min.x, y), q.width(), &self.status_text, nf.clone(), p.text, true);
         }
         if export_clicked {
             effects.push(Effect::TrimmerExport);
@@ -627,6 +636,12 @@ impl Dialog for VideoTrimmerWindow {
             self.load_input(&f.to_string_lossy());
         }
         Vec::new()
+    }
+
+    fn answered(&mut self, _yes: bool) {
+        if std::mem::take(&mut self.error_open) {
+            self.loading = false;
+        }
     }
 
     fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {

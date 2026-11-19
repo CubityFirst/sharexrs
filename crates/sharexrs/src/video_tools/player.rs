@@ -207,10 +207,7 @@ impl VideoPlayerWindow {
             let handled = if key == egui::Key::O && modifiers.command_only() {
                 effects.extend(self.browse());
                 true
-            } else if key == egui::Key::F11 || key == egui::Key::Enter && modifiers.alt {
-                effects.push(self.toggle_fullscreen());
-                true
-            } else if key == egui::Key::Escape && self.fullscreen {
+            } else if key == egui::Key::F11 || key == egui::Key::Enter && modifiers.alt || key == egui::Key::Escape && self.fullscreen {
                 effects.push(self.toggle_fullscreen());
                 true
             } else if modifiers.is_none() {
@@ -330,7 +327,8 @@ impl Dialog for VideoPlayerWindow {
             let x0 = area.min.x + ((area.width() - widest) / 2.0).round_ties_even();
             let mut y = area.min.y + ((area.height() - total) / 2.0).round_ties_even();
             let ir = Rect::from_min_size(pos2(x0 + ((widest - 40.0) / 2.0).round_ties_even(), y), vec2(40.0, 40.0));
-            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, p.text);
+            // The `IconPresenter` keeps Fluent's foreground (base high).
+            sharex_ui::icons::paint(ui.painter(), ir, icon::Film, sharex_ui::theme::fluent(ui.ctx()).base_high);
             y += 56.0;
             for l in &lines {
                 // `TextAlignment="Center"`.

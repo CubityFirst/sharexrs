@@ -59,3 +59,18 @@ pub fn action_sound(task: &sharex_settings::TaskSettings) {
         crate::sound::play_action_completed();
     }
 }
+
+/// A wrapping `TextBlock`'s height: its lines at the font's exact line
+/// height, the total rounded up (Avalonia rounds the block, not each line:
+/// two Segoe UI 13 lines are 35 pixels, not 36). Draws it at `pos` when `paint`.
+pub fn wrapped_text(ui: &Ui, pos: egui::Pos2, width: f32, text: &str, font: egui::FontId, color: Color32, paint: bool) -> f32 {
+    let lines = sharex_ui::controls::wrap_lines(ui, text, &font, width);
+    let exact = ui.fonts_mut(|f| f.row_height(&font));
+    if paint {
+        for (i, line) in lines.iter().enumerate() {
+            let g = sharex_ui::widgets::galley(ui, line, font.clone(), color, f32::INFINITY);
+            ui.painter().galley(pos2(pos.x, pos.y + (exact * i as f32).round()), g, color);
+        }
+    }
+    (exact * lines.len().max(1) as f32).ceil()
+}

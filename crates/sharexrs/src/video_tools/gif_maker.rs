@@ -397,9 +397,7 @@ mod tests {
 
     #[test]
     fn preview_timer_stops_after_the_repeats() {
-        let mut w = AnimatedGifMakerWindow::default();
-        w.frames = (0..3).map(|_| Picture::new(image::RgbaImage::new(1, 1))).collect();
-        w.repeat_count = 1;
+        let mut w = AnimatedGifMakerWindow { frames: (0..3).map(|_| Picture::new(image::RgbaImage::new(1, 1))).collect(), repeat_count: 1, ..Default::default() };
         w.restart_preview();
         let mut shown = vec![w.frame_index];
         while w.next_tick.is_some() {
@@ -424,6 +422,6 @@ mod tests {
         assert!(w.can_create());
         w.delay = 5.0;
         assert!(!w.can_create());
-        assert_eq!(s::AnimatedGifMakerViewModel_Preview_info().contains("{1}"), true);
+        assert!(s::AnimatedGifMakerViewModel_Preview_info().contains("{1}"));
     }
 }

@@ -257,7 +257,17 @@ impl VideoConverterWindow {
         effects
     }
 
-    /// Runs a conversion to the end on this thread (`--render result`).
+    /// The state a finished conversion leaves, for the output file already
+    /// there (`--render result`): only probed, never written.
+    pub fn show_result(&mut self) {
+        let output = self.view().output_file_path();
+        self.output_info = self.ffmpeg_path.as_deref().and_then(|f| output_info(f, &output));
+        self.progress = 100.0;
+        self.status_text = s::VideoConverterViewModel_Conversion_complete().replace("{0}", &output);
+    }
+
+    /// Runs a conversion to the end on this thread (tests).
+    #[cfg(test)]
     pub fn convert_now(&mut self, cx: &mut Cx) -> Vec<Effect> {
         self.auto_open_folder = false;
         self.start(cx);
@@ -279,7 +289,7 @@ impl VideoConverterWindow {
 fn run_conversion(ffmpeg: &FFmpegCliManager, args: &str, output: &str) -> ConversionResult {
     let succeeded = ffmpeg.run(args);
     let was_cancelled = ffmpeg.stop_requested();
-    let error_message = (!succeeded && !was_cancelled).then(|| ffmpeg.output().split(['\r', '\n']).filter(|l| !l.is_empty()).next_back().unwrap_or_default().to_string());
+    let error_message = (!succeeded && !was_cancelled).then(|| ffmpeg.output().split(['\r', '\n']).rfind(|l| !l.is_empty()).unwrap_or_default().to_string());
     let output_info = (succeeded && !was_cancelled).then(|| output_info(ffmpeg.ffmpeg_path(), output)).flatten();
     ConversionResult { succeeded, was_cancelled, error_message, output_info }
 }
@@ -389,7 +399,8 @@ impl Dialog for VideoConverterWindow {
             y += nl + 5.0;
             let items: Vec<ComboItem> = Codec::ALL.iter().map(|c| ComboItem::text(c.display_name())).collect();
             let selected = Codec::ALL.iter().position(|c| *c == self.codec);
-            let combo = ComboBox { padding: Thickness::hv(12.0, 7.0), enabled: idle };
+            // ShareX's `ComboBox` style: `Padding="8,6"`.
+            let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: idle };
             if let Some(i) = combo.show(ui, Rect::from_min_size(pos2(x, y), vec2(w, 40.0)), Id::new("converter-codec"), &items, selected) {
                 self.codec = Codec::ALL[i];
                 // `OnSelectedCodecChanged`: the quality clamped to the codec's range.
@@ -595,6 +606,39 @@ mod tests {
         w.start(&mut cx);
         assert_eq!(w.status_text, s::VideoConverterViewModel_Select_existing_input());
         assert!(!w.is_encoding());
+    }
+
+    /// A real conversion with a local FFmpeg (skipped without one): a
+    /// generated 1 s clip to H.264, then the output probed.
+    #[test]
+    fn converts_with_a_local_ffmpeg() {
+        let Some(ffmpeg) = sharex_screen_recording::discovery::fallback_locations(&std::env::var_os("PATH").unwrap_or_default()).into_iter().find(|p| p.is_file()) else {
+            eprintln!("no FFmpeg: skipped");
+            return;
+        };
+        let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!("sharexrs-converter-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("in.mp4");
+        let made = std::process::Command::new(&ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10:duration=1", "-pix_fmt", "yuv420p"])
+            .arg(&input)
+            .status()
+            .is_ok_and(|s| s.success());
+        if made {
+            let defaults = TaskSettings::default();
+            let mut w = VideoConverterWindow::new(TaskSettings::default_task_settings(&defaults), &defaults, Some(ffmpeg), Some(input.to_string_lossy().into_owned()));
+            let mut settings = sharex_settings::ApplicationConfig::default();
+            let store = crate::upload::UploadersConfigStore::default();
+            let mut cx = Cx { settings: &mut settings, uploaders: &store };
+            let effects = w.convert_now(&mut cx);
+            assert!(effects.is_empty(), "the folder doesn't open in tests");
+            let info = w.output_info.clone().expect("probed");
+            assert_eq!((info.width, info.height), (Some(160), Some(90)));
+            assert!(dir.join("in-output.mp4").is_file());
+            assert_eq!(w.status_text, s::VideoConverterViewModel_Conversion_complete().replace("{0}", &dir.join("in-output.mp4").to_string_lossy()));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
