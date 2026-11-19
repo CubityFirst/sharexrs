@@ -121,6 +121,7 @@ Checks from [HISTORY.md](HISTORY.md#validation-of-the-windows) and commits
 | HIS-03 | History | 120 (125%) | Open Stats on the same fixture. | Total 60, all images, busiest day November 1, busiest hour 09:00–10:00. | Same counts and bins. | PASS | `local-stats-dark.png` under `SX` and `RS`. |
 | HIS-04 | History | — | Remote URL image preview and Stats Share. | Skipped. Requires download or upload. | Skipped for the same reason. | BLOCKED | [HISTORY.md](HISTORY.md#validation-of-the-windows) |
 | HIS-05 | History | 120 (125%) | Select the generated History row `item-59.png`, then press Ctrl+C and Ctrl+Shift+C. | Copies the fixture URL and the local `pattern-11.png` path. | Copies the same two values. Used the search filter for the exact row because the recording test added one History entry. | PASS | `SX/history-selected-row-dark.png`, `RS/history-selected-item59-dark.png`. Generated URL `https://example.invalid/item-59.png`. |
+| HIS-06 | History | 120 (125%) | Open History › Advanced, enable Date range, click the day column of the first date and leave the pointer on that column. | The day column exposes an up and a down button. | The flyout opens, but the `72045af` build exposes no up or down buttons on the day column. | FAIL | `SX/history-date-flyout-popup-dark.png` and `RS/history-date-flyout-owner-dark.png`. Reference sidecar has `PART_DayUpButton` and `PART_DayDownButton`. Item 25 on `master` appeared after this executable was built. |
 
 ## Settings windows
 
