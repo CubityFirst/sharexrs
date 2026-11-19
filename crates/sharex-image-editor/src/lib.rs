@@ -10,6 +10,7 @@
 pub mod editor;
 pub mod effects;
 pub mod emoji_catalog;
+pub mod integration;
 pub mod model;
 pub mod options;
 pub mod render;

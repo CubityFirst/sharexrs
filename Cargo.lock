@@ -4862,6 +4862,7 @@ dependencies = [
  "image",
  "serde",
  "serde_json",
+ "sha2",
  "sharex-settings",
  "sharex-skia",
  "ttf-parser",
