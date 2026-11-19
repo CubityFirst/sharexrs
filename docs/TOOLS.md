@@ -390,8 +390,9 @@ shows as ShareX shows it), the divider held, the device menu.
 
 Pressing the converter's, resizer's and watermark's preview (and Image
 effects') opens it in the image viewer (`OnPreviewPointerPressed`, named
-after the file). Not ported in these windows: Avalonia's `ColorView` flyout
-(the shared HSV popup stands in, opaque), a drop of several files
+after the file). The colour buttons are Avalonia's `ColorPicker` (its own
+flyout above the button, no alpha: `ColorPopup::Picker`, not yet compared
+with a ShareX shot). Not ported in these windows: a drop of several files
 on the splitter or icon converter takes the last one winit reports (ShareX
 the first), focus rings and keyboard navigation of the lists.
 
@@ -559,9 +560,9 @@ Behaviour, side by side over the same pattern:
   Skia's rasteriser into a layered window).
 
 The highlighter's colour buttons (window and recorder bar,
-`screen_tools/highlighter_settings.rs`) open the shared colour popup with
-an alpha slider, as the pin options' do (opaque). Not ported or not
-checked: Avalonia's `ColorView` itself (egui's HSV picker stands in), the colour picker's selection mode (`PickColor`,
+`screen_tools/highlighter_settings.rs`) open a `Flyout` with
+Avalonia's `ColorView` (alpha on), as the pin options' do. Not ported or not
+checked: the colour picker's selection mode (`PickColor`,
 used by no ported caller) and its Copy menu as an OS popup (drawn inside
 the window), the highlighter on macOS/Linux (hook and overlays), the
 highlighter while recording and the ripple animation checked live, the
@@ -590,7 +591,7 @@ browser is another port's.
 | `system_tools/native.rs` | `AvaloniaClipboard.Capture`, Avalonia.Win32's `OleDataObjectToDataTransferWrapper`/`ClipboardFormatRegistry`/`OleDataObjectHelper`, `InspectWindowService`, `WindowInfo`, `Ping`, `BorderlessWindowManager`'s natives | `ClipboardSource`, `WindowSource`, `IcmpPinger`, `NativeWindowOps` (below) |
 | `system_tools/clipboard_viewer.rs` | `ClipboardViewerWindow`, `ClipboardViewerViewModel` | formats with the count, the preview (Consolas text, an image in the comparison slider, the notice), details, Refresh keeping the selection, Clear |
 | `system_tools/inspect_window.rs` | `InspectWindowWindow`, `InspectWindowViewModel`, `InspectWindowPickerOverlay` | Pick window/control (the window hidden, a translucent topmost overlay per screen, `WindowFromPoint`/`GetAncestor`), the window list (icons), header and type badge, top-most switch and opacity slider, the property boxes, Copy all, Refresh |
-| `system_tools/monitor_test.rs` | `MonitorTestWindow`, `MonitorTestViewModel`, `MonitorTestPatternControl` | borderless and topmost on the screen under the pointer, the pattern texture, the five mode buttons (`.active`), each mode's options, colour buttons (the shared colour popup stands in for `ColorView`), clicks, wheel and keys |
+| `system_tools/monitor_test.rs` | `MonitorTestWindow`, `MonitorTestViewModel`, `MonitorTestPatternControl` | borderless and topmost on the screen under the pointer, the pattern texture, the five mode buttons (`.active`), each mode's options, colour buttons (`ColorView`, 320x320, in a `Flyout`), clicks, wheel and keys |
 | `system_tools/network_monitor.rs` | `NetworkMonitorWindow`, `NetworkMonitorViewModel`, `NetworkMonitorChart`, `NetworkMonitorEventLog` | monitoring from open, a probe per round on a thread (a failure probed again after 1 s), the pulsing dot, target/interval/range, cards, the chart, events, `Logs/NetworkMonitor.log`, Copy all, Clear log, Open log; the prober is injectable |
 | `system_tools/borderless_window.rs` | `BorderlessWindowWindow`, `BorderlessWindowViewModel`, `BorderlessWindowManager` (static) | window list, title, options into `BorderlessWindowSettings`, Toggle borderless (the session's manager, shared with the Make active window borderless hotkey), the error line (`SizeToContent`) |
 | `system_tools/open.rs` | `TaskHelpers.Open*`, `MakeActiveWindowBorderless`/`TopMost` | the Tools menu, hotkeys, `-ClipboardViewer`, `-InspectWindow`, `-MonitorTest`, `-NetworkMonitor`, `-BorderlessWindow`, the picker overlays' start and answer |
@@ -705,8 +706,8 @@ tooltip stays inside the rendered window where ShareX's popup may leave
 it. The states above are unchanged (same numbers), OCR's region hover
 without `--tip` still 1.16/1.12%.
 
-Not ported or not checked: `ColorView` flyouts (the shared HSV popup),
-Avalonia's
+Not ported or not checked: the monitor test's `ColorView` flyout against a
+ShareX shot, Avalonia's
 state-dependent `PNG`/`image/png` clipboard formats after its first image
 read (ShareXrs always lists them as bytes), the Network monitor's ICMP on
 macOS/Linux beyond the system `ping`, window lists, picking and

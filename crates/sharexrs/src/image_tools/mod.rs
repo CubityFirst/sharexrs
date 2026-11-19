@@ -773,7 +773,8 @@ pub fn color_picker(ui: &Ui, rect: Rect, id: Id, color: &mut Color32, enabled: b
     let mut changed = false;
     if open {
         let mut c = *color;
-        let (ch, keep) = controls::color_popup(ui, id, r, &mut c, just_opened);
+        // Avalonia's `ColorPicker` (`IsAlphaEnabled`/`IsAlphaVisible` false): its own flyout, above.
+        let (ch, keep) = controls::color_popup_styled(ui, id, r, &mut c, just_opened, controls::ColorPopup::Picker { alpha: false });
         if ch {
             *color = Color32::from_rgb(c.r(), c.g(), c.b());
             changed = true;

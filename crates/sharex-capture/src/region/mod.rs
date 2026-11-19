@@ -1789,6 +1789,7 @@ impl RegionCapture {
                 options_row::OptionItem::BorderColor => s.set_selected_color(&hex, t),
                 options_row::OptionItem::FillColor => s.set_fill_color(&hex, t),
                 options_row::OptionItem::TextColor => s.set_text_color(&hex, t),
+                options_row::OptionItem::Shadow => s.set_shadow_color(&hex),
                 _ => {}
             });
         }

@@ -1901,7 +1901,7 @@ fn parse_drawing_color(v: &str) -> egui::Color32 {
 
 /// `EnabledColorRow` / `ColorRow`: a check box (or label) and a button
 /// holding a 28x20 swatch; the button's flyout is the colour picker
-/// (`ColorView` with alpha; the shared colour popup stands in for it), which
+/// (a `Flyout` with a `ColorView` with alpha, `controls::color_popup_with_alpha`), which
 /// writes `DrawingColor.FromArgb(...)` back. Returns whether the check box
 /// changed.
 fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, o: &mut Value, key: &'static str) -> bool {

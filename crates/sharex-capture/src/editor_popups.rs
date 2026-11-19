@@ -17,31 +17,17 @@
 //! active). Text in popups is Segoe UI Regular (ShareX's SemiBold
 //! `TextBlock` style doesn't reach them).
 
-use std::sync::Mutex;
-
-use egui::{Color32, CornerRadius, Id, Order, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, pos2, vec2};
+use egui::{Color32, CornerRadius, Id, Order, Pos2, Rect, Sense, TextureHandle, pos2, vec2};
 use sharex_image_editor::editor::{ToolState, Workspace, system_font_families};
 use sharex_image_editor::model::{ArrowStyle, BorderStyle, CursorType, StepType, TextHorizontalAlignment};
 use sharex_strings::image_editor as ie;
 use sharex_ui::keys::app_icons;
-use sharex_ui::{Palette, icons, widgets};
+use sharex_ui::{Palette, color_view, icons, widgets};
 
 use crate::region::options_row::{self, OptionItem};
 
-/// `EditorRecentColors`: newest first, shared by every editor (a static).
-static RECENT_COLORS: Mutex<Vec<Color32>> = Mutex::new(Vec::new());
-/// `EditorRecentColors.MaxCount`.
-const MAX_RECENT_COLORS: usize = 32;
-/// `ColorPickerPanel.RecentColorCount`.
-const RECENT_COLOR_COUNT: usize = 5;
-
-/// `EditorRecentColors.Add`.
-pub fn add_recent_color(c: Color32) {
-    let mut list = RECENT_COLORS.lock().unwrap();
-    list.retain(|x| *x != c);
-    list.insert(0, c);
-    list.truncate(MAX_RECENT_COLORS);
-}
+/// `EditorRecentColors.Add` (shared with every `ColorPickerPanel`).
+pub use sharex_ui::color_view::add_recent_color;
 
 /// `MainViewModel.StrokeWidths`... `WidthPickerDropdown.GetDefaultWidthOptions`.
 const WIDTHS: [i32; 10] = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
@@ -88,28 +74,12 @@ const CURSOR_TYPES: [CursorType; 28] = [
     CursorType::WaitCursor,
 ];
 
-/// Avalonia's `FluentColorPalette` as `ColorView` lays it out (8 rows of
-/// 6), with `ColorPickerPanel.OnLoaded`'s three replacements (#EBEBEB,
-/// #141414 and transparent, the last).
-const PALETTE: [u32; 48] = [
-    0xFF4343, 0xE74856, 0x0078D7, 0x0099BC, 0x7A7574, 0x767676, //
-    0xD13438, 0xE81123, 0x0063B1, 0x2D7D9A, 0x5D5A50, 0x4C4A48, //
-    0xEF6950, 0xEA005E, 0x8E8CD8, 0x00B7C3, 0x68768A, 0x69797E, //
-    0xDA3B01, 0xC30052, 0x6B69D6, 0x038387, 0x515C6B, 0x4A5459, //
-    0xCA5010, 0xE3008C, 0x8764B8, 0x00B294, 0x567C73, 0x647C64, //
-    0xF7630C, 0xBF0077, 0x744DA9, 0x018574, 0x486860, 0xEBEBEB, //
-    0xFF8C00, 0xC239B3, 0xB146C2, 0x00CC6A, 0x498205, 0x141414, //
-    0xFFB900, 0x9A0089, 0x881798, 0x10893E, 0x107C10, 0x000000,
-];
-
 /// The open popup and what it keeps while open.
 #[derive(Default)]
 pub struct Popups {
     pub open: Option<OptionItem>,
     /// Opened this frame: the press that opened it isn't a light dismiss.
     just_opened: bool,
-    /// `ColorView.SelectedIndex` (1, the palette).
-    color_tab: usize,
     color_when_opened: Option<Color32>,
     font_size_text: String,
     font_search: String,
@@ -157,7 +127,6 @@ impl Popups {
         self.close();
         self.open = Some(item);
         self.just_opened = true;
-        self.color_tab = 1;
         self.color_when_opened = self.current_color(item, tools);
         self.font_size_text = format!("{}", tools.font_size);
         self.font_search.clear();
@@ -354,6 +323,11 @@ impl Popups {
                 }
                 OptionItem::Shadow => {
                     result.changed |= self.shadow_panel(ui, p, inner.shrink(10.0), id, ws);
+                    // Its colour dropdown's screen colour picker (the
+                    // dropdown closed for it; the shadow popup stays).
+                    if color_view::take_screen_pick(ui.ctx(), Id::new("editor-shadow-color")) {
+                        result.pick_screen_color = true;
+                    }
                 }
                 _ => {}
             }
@@ -387,7 +361,7 @@ impl Popups {
 
     fn sub_popup_contains(&self, ctx: &egui::Context, at: Pos2) -> bool {
         self.shadow_color_open
-            && ctx.memory(|m| m.area_rect(Id::new("editor-shadow-color"))).is_some_and(|r| r.contains(at))
+            && ctx.memory(|m| m.area_rect(Id::new("editor-shadow-color").with("color-popup"))).is_some_and(|r| r.contains(at))
     }
 
     /// The popup's size for `item`, in points.
@@ -396,7 +370,7 @@ impl Popups {
         let frame = |w: f32, h: f32| vec2(w + 18.0, h + 18.0);
         let list_w = |min: f32, widest: f32| min.max(widest);
         match item {
-            OptionItem::BorderColor | OptionItem::FillColor | OptionItem::TextColor => vec2(360.0, 450.0),
+            OptionItem::BorderColor | OptionItem::FillColor | OptionItem::TextColor => color_view::panel_size(color_view::Px::of(ui.ctx())) + vec2(10.0, 10.0),
             OptionItem::Thickness => frame(5.0 * 32.0, 2.0 * 32.0),
             OptionItem::CornerRadius => frame(5.0 * 36.0, 2.0 * 36.0),
             OptionItem::BorderStyle => {
@@ -438,139 +412,12 @@ impl Popups {
         }
     }
 
-    /// `ColorPickerPanel`: the `ColorView` (tabs, the palette, the preview
-    /// with its accents), then the screen colour picker button and the
+    /// `ColorPickerPanel` (`sharex_ui::color_view`): Avalonia's `ColorView`
+    /// on its palette tab, then the screen colour picker button and the
     /// recent colours. Returns whether the colour changed and whether the
     /// screen picker was asked for.
-    fn color_panel(&mut self, ui: &mut egui::Ui, p: &Palette, r: Rect, id: Id, c: &mut Color32) -> (bool, bool) {
-        let painter = ui.painter().clone();
-        let painter = &painter;
-        let mut changed = false;
-        // The tab strip: 48 high, `SystemControlBackgroundBaseLowBrush`, 3px
-        // corners, three equal tabs with 20px icons; the selected one has
-        // the accent pipe (2px over the bottom, 2px up).
-        let strip = Rect::from_min_size(r.min, vec2(350.0, 48.0));
-        painter.rect_filled(strip, CornerRadius::same(3), sharex_ui::theme::fluent(ui.ctx()).base_low);
-        let tab_w = strip.width() / 3.0;
-        // `PathIcon`: the geometry's bounds stretched uniformly into 20x20.
-        let tab_icons = [
-            (SPECTRUM_ICON, "2.5 2 15 16"),
-            (PALETTE_ICON, "1.89915 1.57663 17.29995 16.78697"),
-            (COMPONENTS_ICON, "2 3 16 14"),
-        ];
-        for (i, (icon, view_box)) in tab_icons.iter().enumerate() {
-            let tr = Rect::from_min_size(pos2(strip.min.x + tab_w * i as f32, strip.min.y), vec2(tab_w, 48.0));
-            let resp = ui.interact(tr, id.with(("tab", i)), Sense::click());
-            if resp.clicked() {
-                self.color_tab = i;
-            }
-            let fg = if self.color_tab == i { p.text } else { p.text_secondary };
-            paint_path_icon(painter, Rect::from_center_size(tr.center(), vec2(20.0, 20.0)), icon, view_box, fg);
-            if self.color_tab == i {
-                let pipe = Rect::from_min_max(pos2(tr.min.x + 6.0, tr.max.y - 4.0), pos2(tr.max.x - 6.0, tr.max.y - 2.0));
-                painter.rect_filled(pipe, CornerRadius::same(1), p.accent_start);
-            }
-        }
-        let content = Rect::from_min_size(pos2(r.min.x, strip.max.y + 2.0), vec2(350.0, 338.0 - 48.0));
-        match self.color_tab {
-            1 => {
-                // The palette: 12px in, 6 columns of 8 rows (54.33 x 33).
-                let grid = content.shrink(12.0);
-                let (cw, ch) = (grid.width() / 6.0, 33.0);
-                for (i, rgb) in PALETTE.iter().enumerate() {
-                    let (row, col) = (i / 6, i % 6);
-                    let cell = Rect::from_min_size(pos2(grid.min.x + cw * col as f32, grid.min.y + ch * row as f32), vec2(cw, ch));
-                    let color = if i == PALETTE.len() - 1 {
-                        Color32::TRANSPARENT
-                    } else {
-                        Color32::from_rgb((rgb >> 16) as u8, (rgb >> 8) as u8, *rgb as u8)
-                    };
-                    if color.a() < 255 {
-                        checkered(painter, cell, 4.0, p);
-                    }
-                    painter.rect_filled(cell, 0.0, color);
-                    let resp = ui.interact(cell, id.with(("palette", i)), Sense::click());
-                    let selected = *c == color;
-                    if selected || resp.hovered() {
-                        // `BorderRectangle`: 3px, the contrasting colour,
-                        // half opacity on hover.
-                        let lum = 0.299 * color.r() as f32 + 0.587 * color.g() as f32 + 0.114 * color.b() as f32;
-                        let contrast = if color.a() < 128 || lum > 127.0 { Color32::BLACK } else { Color32::WHITE };
-                        let k = if selected { contrast } else { contrast.gamma_multiply(0.5) };
-                        painter.rect_stroke(cell, 0.0, Stroke::new(3.0, k), StrokeKind::Inside);
-                    }
-                    if resp.clicked() && *c != color {
-                        *c = color;
-                        changed = true;
-                    }
-                }
-            }
-            _ => {
-                // The spectrum and components tabs (Avalonia's
-                // `ColorSpectrum`, `ColorSlider`s) aren't ported: egui's
-                // HSV picker stands in, as in the app's other colour popups.
-                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(content.shrink(12.0)));
-                child.spacing_mut().slider_width = 300.0;
-                changed |= egui::widgets::color_picker::color_picker_color32(&mut child, c, egui::widgets::color_picker::Alpha::OnlyBlend);
-            }
-        }
-        // `ColorPreviewer`: 17px below the tab content (338 + 12 margin),
-        // 40 high accents (V -0.2, -0.1, +0.1, +0.2) round a 50 high preview
-        // with its `0 0 10 2 #BF000000` shadow.
-        let pv = Rect::from_min_size(pos2(r.min.x + 12.0, r.min.y + 343.0), vec2(326.0, 40.0));
-        let accents = [-2, -1, 1, 2].map(|k| accent(*c, k));
-        let seg = |i: f32, w: f32| Rect::from_min_size(pos2(pv.min.x + i, pv.min.y), vec2(w, 40.0));
-        let left = [seg(0.0, 40.0), seg(40.0, 40.0)];
-        let right = [seg(246.0, 40.0), seg(286.0, 40.0)];
-        painter.rect_filled(left[0], CornerRadius { nw: 4, sw: 4, ne: 0, se: 0 }, accents[0]);
-        painter.rect_filled(left[1], 0.0, accents[1]);
-        painter.rect_filled(right[0], 0.0, accents[2]);
-        painter.rect_filled(right[1], CornerRadius { nw: 0, sw: 0, ne: 4, se: 4 }, accents[3]);
-        let main = Rect::from_min_size(pos2(pv.min.x + 80.0, pv.min.y - 5.0), vec2(166.0, 50.0));
-        let shadow = egui::epaint::Shadow { offset: [0, 0], blur: 10, spread: 2, color: Color32::from_black_alpha(0xBF) };
-        painter.add(shadow.as_shape(main, CornerRadius::same(4)));
-        if c.a() < 255 {
-            checkered(painter, main, 4.0, p);
-        }
-        painter.rect_filled(main, CornerRadius::same(4), *c);
-        for (i, r) in left.iter().chain(right.iter()).enumerate() {
-            if ui.interact(*r, id.with(("accent", i)), Sense::click()).clicked() {
-                *c = accents[i];
-                changed = true;
-            }
-        }
-        // The bottom row (`Margin="4"`, centred, 12 apart): the screen
-        // colour picker button (40x32), then five recent colours (28x28, 6
-        // apart).
-        let row_y = r.min.y + 400.0 + 4.0;
-        let row_w = 40.0 + 12.0 + RECENT_COLOR_COUNT as f32 * 28.0 + (RECENT_COLOR_COUNT as f32 - 1.0) * 6.0;
-        let x0 = (r.center().x - row_w / 2.0).round();
-        let br = Rect::from_min_size(pos2(x0, row_y), vec2(40.0, 32.0));
-        let bresp = ui.interact(br, id.with("screen-picker"), Sense::click());
-        let bg = if bresp.hovered() { p.control_background_hover } else { p.control_background };
-        bordered(ui, br, 4.0, bg, p.border);
-        icons::paint(painter, Rect::from_center_size(br.center(), vec2(16.0, 16.0)), app_icons::ScreenColorPicker, p.text);
-        let recent = RECENT_COLORS.lock().unwrap().clone();
-        for i in 0..RECENT_COLOR_COUNT {
-            let cr = Rect::from_min_size(pos2(x0 + 52.0 + i as f32 * 34.0, row_y + 2.0), vec2(28.0, 28.0));
-            match recent.get(i) {
-                Some(rc) => {
-                    let resp = ui.interact(cr, id.with(("recent", i)), Sense::click());
-                    checkered(painter, cr, 4.0, p);
-                    painter.rect_filled(cr, CornerRadius::same(4), *rc);
-                    let (w, k) = if resp.hovered() { (2.0, p.text_secondary) } else { (1.0, p.border) };
-                    painter.rect_stroke(cr, CornerRadius::same(4), Stroke::new(w, k), StrokeKind::Inside);
-                    if resp.clicked() {
-                        *c = *rc;
-                        changed = true;
-                    }
-                }
-                None => {
-                    painter.rect_stroke(cr, CornerRadius::same(4), Stroke::new(1.0, p.border.gamma_multiply(0.6)), StrokeKind::Inside);
-                }
-            }
-        }
-        (changed, bresp.clicked())
+    fn color_panel(&mut self, ui: &mut egui::Ui, _p: &Palette, r: Rect, id: Id, c: &mut Color32) -> (bool, bool) {
+        color_view::color_picker_panel(ui, r.min, id, c)
     }
 
     /// `FontSizePickerDropdown`: a 70x32 box for a custom size (Enter
@@ -761,7 +608,6 @@ impl ColorDropdown {
         }
         self.open = true;
         self.popups.just_opened = true;
-        self.popups.color_tab = 1;
         self.popups.color_when_opened = Some(color);
     }
 
@@ -783,7 +629,7 @@ impl ColorDropdown {
             return result;
         }
         let id = Id::new(("color-dropdown", key));
-        let mut size = vec2(360.0, 450.0);
+        let mut size = color_view::panel_size(color_view::Px::of(ui.ctx())) + vec2(10.0, 10.0);
         size.y = size.y.min(bounds.height());
         let mut pos = pos2((anchor.center().x - size.x / 2.0).round(), anchor.max.y + 4.0);
         if pos.y + size.y > bounds.max.y {
@@ -825,39 +671,6 @@ impl ColorDropdown {
         }
         result
     }
-}
-
-/// `AccentColorConverter`: the HSV value moved by 0.1 a step.
-fn accent(c: Color32, step: i32) -> Color32 {
-    let [r, g, b, a] = c.to_srgba_unmultiplied();
-    let (r, g, b) = (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
-    let max = r.max(g).max(b);
-    let min = r.min(g).min(b);
-    let d = max - min;
-    let h = if d == 0.0 {
-        0.0
-    } else if max == r {
-        60.0 * (((g - b) / d).rem_euclid(6.0))
-    } else if max == g {
-        60.0 * ((b - r) / d + 2.0)
-    } else {
-        60.0 * ((r - g) / d + 4.0)
-    };
-    let s = if max == 0.0 { 0.0 } else { d / max };
-    let v = (max + 0.1 * step as f32).clamp(0.0, 1.0);
-    let cc = v * s;
-    let x = cc * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
-    let m = v - cc;
-    let (r1, g1, b1) = match (h / 60.0) as i32 {
-        0 => (cc, x, 0.0),
-        1 => (x, cc, 0.0),
-        2 => (0.0, cc, x),
-        3 => (0.0, x, cc),
-        4 => (x, 0.0, cc),
-        _ => (cc, 0.0, x),
-    };
-    let to = |v: f32| ((v + m) * 255.0).round() as u8;
-    Color32::from_rgba_unmultiplied(to(r1), to(g1), to(b1), a)
 }
 
 /// `Border.popup-border`: its fill, 1px border and the open shadow.
@@ -984,18 +797,6 @@ pub fn alignment_name(a: &TextHorizontalAlignment) -> &'static str {
         TextHorizontalAlignment::Right => ie::TextHorizontalAlignmentHelper_Right(),
         _ => ie::TextHorizontalAlignmentHelper_Center(),
     }
-}
-
-/// Fluent UI System Icons used by `ColorView`'s tabs (20px boxes).
-const SPECTRUM_ICON: &str = "M3 2C3.27614 2 3.5 2.22386 3.5 2.5V5.5C3.5 5.77614 3.72386 6 4 6H16C16.2761 6 16.5 5.77614 16.5 5.5V2.5C16.5 2.22386 16.7239 2 17 2C17.2761 2 17.5 2.22386 17.5 2.5V5.5C17.5 6.32843 16.8284 7 16 7H15.809L12.2236 14.1708C12.0615 14.4951 11.7914 14.7431 11.4695 14.8802C11.4905 15.0808 11.5 15.2891 11.5 15.5C11.5 16.0818 11.4278 16.6623 11.2268 17.1165C11.019 17.5862 10.6266 18 10 18C9.37343 18 8.98105 17.5862 8.77323 17.1165C8.57222 16.6623 8.5 16.0818 8.5 15.5C8.5 15.2891 8.50952 15.0808 8.53051 14.8802C8.20863 14.7431 7.93851 14.4951 7.77639 14.1708L4.19098 7H4C3.17157 7 2.5 6.32843 2.5 5.5V2.5C2.5 2.22386 2.72386 2 3 2ZM9.11803 14H10.882C11.0714 14 11.2445 13.893 11.3292 13.7236L14.691 7H5.30902L8.67082 13.7236C8.75552 13.893 8.92865 14 9.11803 14ZM9.52346 15C9.50787 15.1549 9.5 15.3225 9.5 15.5C9.5 16.0228 9.56841 16.4423 9.6877 16.7119C9.8002 16.9661 9.90782 17 10 17C10.0922 17 10.1998 16.9661 10.3123 16.7119C10.4316 16.4423 10.5 16.0228 10.5 15.5C10.5 15.3225 10.4921 15.1549 10.4765 15H9.52346Z";
-const PALETTE_ICON: &str = "M9.75003 6.5C10.1642 6.5 10.5 6.16421 10.5 5.75C10.5 5.33579 10.1642 5 9.75003 5C9.33582 5 9.00003 5.33579 9.00003 5.75C9.00003 6.16421 9.33582 6.5 9.75003 6.5ZM12.75 7.5C13.1642 7.5 13.5 7.16421 13.5 6.75C13.5 6.33579 13.1642 6 12.75 6C12.3358 6 12 6.33579 12 6.75C12 7.16421 12.3358 7.5 12.75 7.5ZM15.25 9C15.25 9.41421 14.9142 9.75 14.5 9.75C14.0858 9.75 13.75 9.41421 13.75 9C13.75 8.58579 14.0858 8.25 14.5 8.25C14.9142 8.25 15.25 8.58579 15.25 9ZM14.5 12.75C14.9142 12.75 15.25 12.4142 15.25 12C15.25 11.5858 14.9142 11.25 14.5 11.25C14.0858 11.25 13.75 11.5858 13.75 12C13.75 12.4142 14.0858 12.75 14.5 12.75ZM13.25 14C13.25 14.4142 12.9142 14.75 12.5 14.75C12.0858 14.75 11.75 14.4142 11.75 14C11.75 13.5858 12.0858 13.25 12.5 13.25C12.9142 13.25 13.25 13.5858 13.25 14ZM13.6972 2.99169C10.9426 1.57663 8.1432 1.7124 5.77007 3.16636C4.55909 3.9083 3.25331 5.46925 2.51605 7.05899C2.14542 7.85816 1.89915 8.70492 1.90238 9.49318C1.90566 10.2941 2.16983 11.0587 2.84039 11.6053C3.45058 12.1026 3.98165 12.353 4.49574 12.3784C5.01375 12.404 5.41804 12.1942 5.73429 12.0076C5.80382 11.9666 5.86891 11.927 5.93113 11.8892C6.17332 11.7421 6.37205 11.6214 6.62049 11.5426C6.90191 11.4534 7.2582 11.4205 7.77579 11.5787C7.96661 11.637 8.08161 11.7235 8.16212 11.8229C8.24792 11.9289 8.31662 12.0774 8.36788 12.2886C8.41955 12.5016 8.44767 12.7527 8.46868 13.0491C8.47651 13.1594 8.48379 13.2855 8.49142 13.4176C8.50252 13.6098 8.51437 13.8149 8.52974 14.0037C8.58435 14.6744 8.69971 15.4401 9.10362 16.1357C9.51764 16.8488 10.2047 17.439 11.307 17.8158C12.9093 18.3636 14.3731 17.9191 15.5126 17.0169C16.6391 16.125 17.4691 14.7761 17.8842 13.4272C19.1991 9.15377 17.6728 5.03394 13.6972 2.99169ZM6.29249 4.01905C8.35686 2.75426 10.7844 2.61959 13.2403 3.88119C16.7473 5.68275 18.1135 9.28161 16.9284 13.1332C16.5624 14.3227 15.8338 15.4871 14.8919 16.2329C13.963 16.9684 12.8486 17.286 11.6305 16.8696C10.7269 16.5607 10.2467 16.1129 9.96842 15.6336C9.68001 15.1369 9.57799 14.5556 9.52644 13.9225C9.51101 13.733 9.50132 13.5621 9.49147 13.3884C9.48399 13.2564 9.47642 13.1229 9.46618 12.9783C9.44424 12.669 9.41175 12.3499 9.33968 12.0529C9.26719 11.7541 9.14902 11.4527 8.93935 11.1937C8.72439 10.9282 8.43532 10.7346 8.06801 10.6223C7.36648 10.408 6.80266 10.4359 6.31839 10.5893C5.94331 10.7082 5.62016 10.9061 5.37179 11.0582C5.31992 11.0899 5.2713 11.1197 5.22616 11.1463C4.94094 11.3146 4.75357 11.39 4.54514 11.3796C4.33279 11.3691 4.00262 11.2625 3.47218 10.8301C3.0866 10.5158 2.90473 10.0668 2.90237 9.48908C2.89995 8.89865 3.08843 8.20165 3.42324 7.47971C4.09686 6.0272 5.28471 4.63649 6.29249 4.01905Z";
-const COMPONENTS_ICON: &str = "M14.95 5C14.7184 3.85888 13.7095 3 12.5 3C11.2905 3 10.2816 3.85888 10.05 5H2.5C2.22386 5 2 5.22386 2 5.5C2 5.77614 2.22386 6 2.5 6H10.05C10.2816 7.14112 11.2905 8 12.5 8C13.7297 8 14.752 7.11217 14.961 5.94254C14.9575 5.96177 14.9539 5.98093 14.95 6H17.5C17.7761 6 18 5.77614 18 5.5C18 5.22386 17.7761 5 17.5 5H14.95ZM12.5 7C11.6716 7 11 6.32843 11 5.5C11 4.67157 11.6716 4 12.5 4C13.3284 4 14 4.67157 14 5.5C14 6.32843 13.3284 7 12.5 7ZM9.94999 14C9.71836 12.8589 8.70948 12 7.5 12C6.29052 12 5.28164 12.8589 5.05001 14H2.5C2.22386 14 2 14.2239 2 14.5C2 14.7761 2.22386 15 2.5 15H5.05001C5.28164 16.1411 6.29052 17 7.5 17C8.70948 17 9.71836 16.1411 9.94999 15H17.5C17.7761 15 18 14.7761 18 14.5C18 14.2239 17.7761 14 17.5 14H9.94999ZM7.5 16C6.67157 16 6 15.3284 6 14.5C6 13.6716 6.67157 13 7.5 13C8.32843 13 9 13.6716 9 14.5C9 15.3284 8.32843 16 7.5 16Z";
-
-/// A `PathIcon` (`Stretch="Uniform"`) of path data in a 20px box.
-fn paint_path_icon(painter: &egui::Painter, r: Rect, data: &str, view_box: &str, color: Color32) {
-    let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"><path d="{data}" fill="currentColor"/></svg>"#);
-    let key = format!("colorview-tab-{}", data.len());
-    icons::paint_svg(painter, r, &key, &svg, color);
 }
 
 /// A `Border` with a background and a 1px border.

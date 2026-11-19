@@ -302,8 +302,8 @@ the ones applied.
 
 Not checked against ShareX: the Add menu's submenus and the gradient and
 colour flyouts (ShareX's popups didn't stay open under synthetic input;
-Avalonia's `ColorView` isn't ported, the shared HSV popup stands in, opaque,
-keeping the colour's alpha), float editors (the default preset has none),
+the colour flyouts are Avalonia's `ColorView` with alpha, `ColorPopup::Flyout`,
+as the Shared controls row of PORTING.md compares it), float editors (the default preset has none),
 the packager and confirmation windows, Editor mode live (only its plumbing
 is tested), Save image and Upload image live. The preview's click (the image
 viewer) only logs.

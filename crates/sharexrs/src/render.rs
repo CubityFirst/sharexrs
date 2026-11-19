@@ -182,6 +182,60 @@ fn render_popup<C: Clone>(entries: Vec<sharex_ui::menu::MenuEntry<C>>, style: sh
     Ok(crop)
 }
 
+/// `--render color-view`: one colour popup host (`sharex_ui::color_view`)
+/// with its top-left at the image's, its corners on black as a popup
+/// window's transparent corners come out.
+#[allow(clippy::too_many_arguments)]
+fn render_color_view(content: Option<&str>, state: Option<&str>, text: Option<&str>, hover: Option<egui::Pos2>, clicks: &[egui::Pos2], scale: f32, dark: bool) -> Result<image::RgbaImage, String> {
+    use sharex_ui::color_view::{self, ColorPopup};
+    let style = match content.unwrap_or("flyout") {
+        "dropdown" => ColorPopup::Dropdown,
+        "flyout" => ColorPopup::Flyout { alpha: true, size: None },
+        "flyout-opaque" => ColorPopup::Flyout { alpha: false, size: None },
+        "picker" => ColorPopup::Picker { alpha: false },
+        "monitor" => ColorPopup::Flyout { alpha: true, size: Some(egui::vec2(320.0, 320.0)) },
+        other => return Err(format!("no colour popup host {other}")),
+    };
+    // The mouse highlighter's default primary colour unless given.
+    let text = text.unwrap_or("166, 54, 169, 225");
+    let argb: Vec<u8> = if let Some(hex) = text.strip_prefix('#') {
+        let v = u32::from_str_radix(hex, 16).map_err(|_| "--text #AARRGGBB")?;
+        let v = if hex.len() == 6 { v | 0xFF00_0000 } else { v };
+        v.to_be_bytes().to_vec()
+    } else {
+        text.split(',').map(|p| p.trim().parse::<u8>().map_err(|_| "--text A, R, G, B".to_string())).collect::<Result<_, _>>()?
+    };
+    let [a, r, g, b] = argb[..] else { return Err("--text A, R, G, B".into()) };
+    let mut color = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
+    let (tab, hsv_model) = match state.unwrap_or("") {
+        "" => (if style == ColorPopup::Dropdown { 1 } else { 0 }, false),
+        "spectrum" => (0, false),
+        "palette" => (1, false),
+        "components" => (2, false),
+        "components-hsv" => (2, true),
+        other => return Err(format!("no colour view state {other}")),
+    };
+    let size = style.size_at(color_view::Px(scale));
+    let mut screen = Offscreen::new([(size.x * scale).ceil() as u32, (size.y * scale).ceil() as u32], scale, dark)?;
+    screen.transparent = true;
+    let id = egui::Id::new("render-color-view");
+    let mut preset = true;
+    let full = render_frames(&mut screen, hover, clicks, &mut |ui| {
+        if preset {
+            color_view::preset(ui.ctx(), id, style, [r, g, b, a], tab, hsv_model);
+            preset = false;
+        }
+        color_view::popup_at(ui.ctx(), id, egui::Pos2::ZERO, &mut color, style);
+    });
+    let mut out = full;
+    for p in out.pixels_mut() {
+        let a = p[3] as u32;
+        let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+        *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+    }
+    Ok(out)
+}
+
 fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
     let mut hotkeys = HotkeysConfig::new(&TaskSettings::default()).Hotkeys;
     for (i, h) in hotkeys.iter_mut().enumerate() {
@@ -741,6 +795,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
             })
         }
         "controls-gallery" => crate::controls_gallery::render(dark)?,
+        // A colour popup on its own, as a capture of its popup window:
+        // `--content dropdown|flyout|flyout-opaque|picker|monitor` (the
+        // host), `--state spectrum|palette|components|components-hsv`,
+        // `--text` the colour ("A, R, G, B" or #AARRGGBB).
+        "color-view" => render_color_view(dialog.content.as_deref(), dialog.state.as_deref(), dialog.text.as_deref(), hover, &click, scale, dark)?,
         "ffmpeg-options" | "recording-toolbar" | "recorder-bar" => {
             crate::appearance::apply(&theme_settings(dark, accent.as_deref(), legacy, compact), None);
             let o = crate::recording::RenderOptions {
