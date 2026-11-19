@@ -490,7 +490,9 @@ impl TimeZoneInfo {
     }
 
     /// `CacheTransitionsForYear`: the year's transitions (UTC start, end,
-    /// offset from the base, daylight saving).
+    /// offset from the base, daylight saving). The comparisons are .NET's
+    /// as written (`x <= y - 1`), to read side by side with it.
+    #[allow(clippy::int_plus_one)]
     fn transitions_for_year(&self, year_: i32) -> Vec<Transition> {
         let rules = self.rules();
         let Some(mut num) = self.find_rule_for_year(year_) else { return Vec::new() };
@@ -987,6 +989,9 @@ fn rule_from_tzi(tzi: &RegTzi, start: i64, end: i64, default_bias: i32) -> Resul
     }))
 }
 
+/// A `Dynamic DST` key: `FirstEntry`, `LastEntry`, each year's `TZI`.
+pub type DynamicDst = (i32, i32, Vec<(i32, Option<RegTzi>)>);
+
 /// What a zone's registry key holds (`TZI`, the names, `Dynamic DST`).
 #[derive(Clone, Debug, Default)]
 pub struct RegistryZone {
@@ -996,7 +1001,7 @@ pub struct RegistryZone {
     pub standard: String,
     pub daylight: String,
     /// `FirstEntry`, `LastEntry` and each year's `TZI` (`None`: no key).
-    pub dynamic: Option<(i32, i32, Vec<(i32, Option<RegTzi>)>)>,
+    pub dynamic: Option<DynamicDst>,
 }
 
 /// `TryCreateAdjustmentRules`.

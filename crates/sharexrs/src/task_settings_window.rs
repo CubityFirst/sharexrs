@@ -2230,8 +2230,7 @@ mod tests {
 
     #[test]
     fn uploader_accounts_as_their_to_string() {
-        let mut c = sharex_uploaders::UploadersConfig::default();
-        c.FTPAccountList = serde_json::json!([{ "Name": "Home", "Host": "example.com", "Port": 2121 }]);
+        let mut c = sharex_uploaders::UploadersConfig { FTPAccountList: serde_json::json!([{ "Name": "Home", "Host": "example.com", "Port": 2121 }]), ..Default::default() };
         c.CustomUploadersList.0.push(sharex_uploaders::custom::CustomUploaderItem { request_url: Some("https://up.example.org/x".into()), ..Default::default() });
         let a = UploaderAccounts::from_config(&c);
         assert_eq!(a.ftp, ["Home (example.com:2121)"]);
