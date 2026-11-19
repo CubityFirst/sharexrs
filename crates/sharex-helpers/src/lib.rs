@@ -15,6 +15,7 @@
 //!   image effect packages.
 
 pub mod cli;
+pub mod code_menu;
 pub mod culture;
 pub mod date_format;
 pub mod dotnet_sort;

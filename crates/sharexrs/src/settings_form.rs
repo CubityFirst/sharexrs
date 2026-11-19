@@ -334,11 +334,17 @@ impl<S, W> Form<'_, '_, S, W> {
     /// A `TextBox.form-control` after an optional label column; it
     /// stretches (`MinWidth="300"`). Returns whether the text changed.
     pub fn text_row(&mut self, label: Option<(&str, f32)>, value: &mut String, enabled: bool, password: bool) -> bool {
+        self.text_row_with_box(label, value, enabled, password).0
+    }
+
+    /// [`Form::text_row`], also returning the text box (its response, rect
+    /// and id) when it was drawn: for a variable menu attached to it.
+    pub fn text_row_with_box(&mut self, label: Option<(&str, f32)>, value: &mut String, enabled: bool, password: bool) -> (bool, Option<(egui::Response, Rect, Id)>) {
         if let Some((l, _)) = label {
             self.text(l);
         }
         if self.collecting() {
-            return false;
+            return (false, None);
         }
         let th = self.control_height(&TextBox::font());
         let lh = line_height(self.ui, &Self::label_font());
@@ -353,8 +359,8 @@ impl<S, W> Form<'_, '_, S, W> {
         let tb = TextBox { padding: self.d.settings_control_padding, enabled: enabled && self.enabled, password, ..Default::default() };
         let id = self.id(&format!("text-{}", label.map_or("", |l| l.0)));
         let before = value.clone();
-        tb.show(self.ui, rect, id, value);
-        *value != before
+        let response = tb.show(self.ui, rect, id, value);
+        (*value != before, Some((response, rect, id)))
     }
 
     /// A stretching text box with buttons after it (`ColumnDefinitions="*,Auto,Auto"`).

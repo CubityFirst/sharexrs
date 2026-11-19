@@ -500,6 +500,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let entries = crate::quick_task::entries(&sharex_settings::QuickTaskInfo::default_presets());
             render_popup(entries, sharex_ui::menu::MenuStyle::CompactPlainSeparators, true, hover, scale, dark)?
         }
+        // Application settings' variable menus, alone as their popup windows:
+        // `path-variables-menu` (`--state capture`, the sub folder pattern's,
+        // or `window`) and `clipboard-format-menu`.
+        "path-variables-menu" => {
+            let target = match dialog.state.as_deref() {
+                Some("window") => crate::app_settings::CodeTarget::SubFolderWindow,
+                _ => crate::app_settings::CodeTarget::SubFolder,
+            };
+            render_popup(crate::app_settings::filename_pattern_menu(target), sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?
+        }
+        "clipboard-format-menu" => render_popup(crate::app_settings::clipboard_format_menu(), sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?,
         // The Actions toolbar's title menu (`CreateToolbarMenu`).
         "actions-toolbar-menu" => {
             let entries = crate::dialogs::actions_toolbar::toolbar_menu(&sharex_settings::ApplicationConfig::default());
@@ -610,24 +621,34 @@ pub fn run(args: &[String]) -> Result<(), String> {
             // `--state` on the Settings page: the export and import states
             // (built from source where ShareX's shots have none).
             let path = r"C:\Users\Public\ShareXrs-backup.sxb";
-            match dialog.state.as_deref() {
-                Some("none-selected") => (state.export_settings, state.export_history) = (false, false),
-                Some("busy-export") => {
-                    state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
-                    state.busy_phase = Some(1.847);
+            // Several states, comma-separated (`busy-import,add`: a shot taken
+            // while an import was still busy).
+            for st in dialog.state.as_deref().unwrap_or("").split(',').filter(|x| !x.is_empty()) {
+                match st {
+                    "none-selected" => (state.export_settings, state.export_history) = (false, false),
+                    "busy-export" => {
+                        state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
+                        state.busy_phase = Some(1.847);
+                    }
+                    "busy-import" => {
+                        state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
+                        // Where ShareX's shot caught the indicator.
+                        state.busy_phase = Some(1.847);
+                    }
+                    "exported" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportedTo().replace("{0}", path),
+                    "export-failed" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportFailed().into(),
+                    "imported" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportedFrom().replace("{0}", path),
+                    "import-failed" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportFailed().into(),
+                    "reset" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_SettingsReset().into(),
+                    // The clipboard format editor: Add, or Edit on the first format.
+                    "add" => state.open_format_editor(&settings, None),
+                    "edit" => state.open_format_editor(&settings, Some(0)),
+                    "no-formats" => settings.ClipboardContentFormats.clear(),
+                    other => match other.strip_prefix("busy-phase:") {
+                        Some(t) => state.busy_phase = Some(t.parse().map_err(|_| "busy-phase:<seconds>")?),
+                        None => return Err(format!("no settings state {other}")),
+                    },
                 }
-                Some("busy-import") => {
-                    state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
-                    // Where ShareX's shot caught the indicator.
-                    state.busy_phase = Some(1.847);
-                }
-                Some("exported") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportedTo().replace("{0}", path),
-                Some("export-failed") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportFailed().into(),
-                Some("imported") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportedFrom().replace("{0}", path),
-                Some("import-failed") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportFailed().into(),
-                Some("reset") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_SettingsReset().into(),
-                Some(other) => return Err(format!("no settings state {other}")),
-                None => {}
             }
             let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
             let h = height.unwrap_or((crate::app_settings::HEIGHT * scale) as u32);
