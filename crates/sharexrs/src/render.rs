@@ -736,6 +736,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 if !content.is_empty() {
                     task_settings_samples(task);
                 }
+                // `--state region:X,Y,W,H`: the preconfigured region (what
+                // Select region... chose in ShareX's shot).
+                if let Some(v) = dialog.state.as_deref().and_then(|st| st.strip_prefix("region:")) {
+                    let n: Vec<i32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                    let [x, y, w, h] = n[..] else { return Err("region:X,Y,W,H".into()) };
+                    task.CaptureSettings.get_or_insert_default().CaptureCustomRegion = sharex_settings::types::Rectangle::new(x, y, w, h);
+                }
                 use crate::task_editors::{ActionEditor, WatchFolderEditor};
                 let first = |t: &TaskSettings| t.ExternalPrograms.as_ref().and_then(|l| l.iter().position(|a| a.Name.as_deref() == Some("Optimize PNG")));
                 match content.as_str() {

@@ -41,6 +41,9 @@ type Form<'u, 'a, 'b> = settings_form::Form<'u, 'a, TaskCtx<'b>, TaskSettingsWin
 /// What the window asks of the app.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
+    /// Capture › Select region...: `RegionCaptureTasks.GetRectangleRegionAsync`
+    /// with the task's region options, into `CaptureCustomRegion`.
+    SelectRegion,
     /// A feature that isn't ported yet was asked for.
     NotPorted(&'static str),
     /// Screen recording options... (`ShowScreenRecordingOptions`).
@@ -1198,7 +1201,7 @@ fn page_capture(f: &mut Form) {
         f.title(s::TaskSettingsWindow_PreconfiguredRegion());
         region_grid(f);
         if f.button(s::TaskSettingsWindow_SelectRegionWithEllipsis(), true) {
-            f.effect(Effect::NotPorted("select region"));
+            f.effect(Effect::SelectRegion);
         }
     });
     f.enabled_card(Section::Capture, &mut |f| {
@@ -1935,7 +1938,11 @@ fn page_advanced(f: &mut Form) {
         f.title(s::TaskSettingsWindow_UploadText());
         text!(f, &format!("{}:", s::TaskSettingsWindow_TextFileExtension()), true, AdvancedSettings.TextFileExtension);
         text!(f, &format!("{}:", s::TaskSettingsWindow_TextFormat()), true, AdvancedSettings.TextFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_TextCustom()), true, AdvancedSettings.TextCustom);
+        // `TextCustom`: `AcceptsReturn`, `TextWrapping.Wrap`, `MinHeight="80"`.
+        let mut v = sec!(f, AdvancedSettings).TextCustom.clone();
+        if f.text_area_row((&format!("{}:", s::TaskSettingsWindow_TextCustom()), LABEL_W), &mut v, true, 80.0) {
+            sec!(f, AdvancedSettings).TextCustom = v;
+        }
         chk!(f, s::TaskSettingsWindow_TextCustomEncodeInput(), AdvancedSettings.TextCustomEncodeInput);
     });
     f.enabled_card(Section::Advanced, &mut |f| {

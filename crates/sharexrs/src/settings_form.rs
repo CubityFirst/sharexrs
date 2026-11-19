@@ -363,6 +363,27 @@ impl<S, W> Form<'_, '_, S, W> {
         (*value != before, Some((response, rect, id)))
     }
 
+    /// A label column, then a multiline `TextBox.form-control` that wraps
+    /// (`AcceptsReturn`, `TextWrapping="Wrap"`) at least `min_height` tall;
+    /// the label centred on it.
+    pub fn text_area_row(&mut self, label: (&str, f32), value: &mut String, enabled: bool, min_height: f32) -> bool {
+        self.text(label.0);
+        if self.collecting() {
+            return false;
+        }
+        let th = self.control_height(&TextBox::font());
+        let r = self.slot(min_height.max(th));
+        let p = palette(self.ui.ctx());
+        controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + label.1, r.max.y)), label.0, Self::label_font(), p.text_secondary);
+        let x = r.min.x + label.1 + 8.0;
+        let rect = Rect::from_min_max(pos2(x, r.min.y), pos2(r.max.x.max(x + 300.0), r.max.y));
+        let tb = TextBox { padding: self.d.settings_control_padding, enabled: enabled && self.enabled, multiline: true, ..Default::default() };
+        let id = self.id(&format!("text-{}", label.0));
+        let before = value.clone();
+        tb.show(self.ui, rect, id, value);
+        *value != before
+    }
+
     /// A stretching text box with buttons after it (`ColumnDefinitions="*,Auto,Auto"`).
     pub fn text_with_buttons(&mut self, key: &str, value: &mut String, buttons: &[&str]) -> (bool, Option<usize>) {
         for b in buttons {
@@ -542,7 +563,9 @@ impl<S, W> Form<'_, '_, S, W> {
         let button = Button::compact(self.d.settings_button_padding);
         let widths: Vec<f32> = buttons.iter().map(|b| button.width(self.ui, b)).collect();
         let total: f32 = widths.iter().map(|w| w + spacing).sum();
-        let tb_rect = Rect::from_min_size(pos2(r.min.x, center_y(r, th)), vec2((r.width() - total).max(300.0), th));
+        // The `TextBox` stretches to the row, which the button's margins make
+        // taller than the box would be.
+        let tb_rect = Rect::from_min_size(r.min, vec2((r.width() - total).max(300.0), r.height()));
         let tb = TextBox { padding: self.d.settings_control_padding, enabled: self.enabled, ..Default::default() };
         let before = value.clone();
         let id = self.id(key);

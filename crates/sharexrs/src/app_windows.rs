@@ -576,8 +576,10 @@ impl App {
                 let mut ffmpeg = false;
                 let mut watch = false;
                 let mut image_effects = false;
+                let mut select_region = false;
                 for e in effects {
                     match e {
+                        task_settings_window::Effect::SelectRegion => select_region = true,
                         task_settings_window::Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                         task_settings_window::Effect::FFmpegOptions => ffmpeg = true,
                         task_settings_window::Effect::WatchFoldersChanged => watch = true,
@@ -586,6 +588,10 @@ impl App {
                 }
                 if watch {
                     self.update_watch_folders();
+                }
+                if select_region {
+                    self.select_region_for_task(event_loop, target);
+                    return;
                 }
                 if image_effects {
                     let hotkey = match target {
