@@ -755,9 +755,12 @@ difference clip and rect/bitmap draws through an anti-aliased clip.
 
 Wallpaper: Windows' `SPI_GETDESKWALLPAPER` (then `TranscodedImageCache`),
 laid out as Fill, as `WindowsDesktopWallpaperService`;
-`SHAREXRS_TEST_WALLPAPER=<file>[;Layout]` stands in for it in tests. The
-macOS and Linux wallpaper services aren't ported (no Wallpaper option
-there).
+`SHAREXRS_TEST_WALLPAPER=<file>[;Layout]` stands in for it in tests. On
+macOS and Linux, ShareX's own `MacOSDesktopWallpaperService` and
+`LinuxDesktopWallpaperService`
+(`sharex_image_editor::integration::wallpaper`, docs/PLATFORMS.md); the
+Wallpaper option is there when the service's `IsSupported` is true, and
+the editor starts ShareX's prewarm when it opens.
 
 The shadow's shape is drawn in Skia's own layer: a draw with an image
 filter gets a layer the size of the shape's bounds (rounded out; m119's

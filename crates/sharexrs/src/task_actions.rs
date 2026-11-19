@@ -78,7 +78,7 @@ impl App {
         self.state.tasks.set_settings(settings);
         let store = self.uploads.config.clone();
         self.state.tasks.amazon_s3_valid = Some(std::sync::Arc::new(move || {
-            store.try_with(|c| sharex_uploaders::validator::file(&sharex_settings::FileDestination::AmazonS3, c)).unwrap_or(false)
+            store.peek(|c| sharex_uploaders::validator::file(&sharex_settings::FileDestination::AmazonS3, c)).unwrap_or(false)
         }));
         let c = &self.settings.settings;
         let max = c.RecentTasksMaxCount.clamp(1, 100) as usize;
@@ -607,7 +607,7 @@ impl App {
     /// behind `url` deleted on a thread (`TryGetObjectKey`,
     /// `DeleteObjectAsync`), then the tip.
     pub(crate) fn delete_remotely(&mut self, url: String) {
-        let Some(settings) = self.uploads.config.try_with(|c| c.AmazonS3Settings.clone()) else { return };
+        let Some(settings) = self.uploads.config.peek(|c| c.AmazonS3Settings.clone()) else { return };
         let proxy = self.proxy.clone();
         std::thread::spawn(move || {
             let ok = delete_amazon_s3_object(settings, &url);

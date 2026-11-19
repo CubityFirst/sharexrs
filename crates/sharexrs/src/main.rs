@@ -59,6 +59,7 @@ mod task_actions;
 mod task_editors;
 mod task_settings_window;
 mod task_view;
+mod variable_menu;
 mod tasks;
 #[cfg(test)]
 mod test_mock;
@@ -1229,8 +1230,7 @@ impl App {
             return;
         }
         if let Some(tray) = &mut self.tray {
-            let size = tray::Tray::icon_size();
-            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::current_icon(size) };
+            let image = if progress >= 0 { tray::progress_icon(tray::glyph_icon_size(), progress) } else { tray::current_icon(tray::Tray::icon_size()) };
             tray.set_icon(&image);
         }
         self.tray_progress = progress;
@@ -1245,6 +1245,7 @@ impl App {
     /// until it's closed).
     fn start(&mut self, event_loop: &ActiveEventLoop) {
         self.system_theme = event_loop.system_theme();
+        tray::set_system_light(self.system_theme == Some(winit::window::Theme::Light));
         self.apply_appearance();
         // The Start screen comes first, on a fresh profile.
         if self.settings.settings.ShowStartScreen && !self.settings.paths.sandbox {
@@ -1826,6 +1827,7 @@ impl ApplicationHandler<UserEvent> for App {
             && self.system_theme != Some(t)
         {
             self.system_theme = Some(t);
+            tray::set_system_light(t == winit::window::Theme::Light);
             let o = self.settings.settings.ThemeOptions.clone().unwrap_or_default();
             if o.UseSystemTheme || o.UseSystemAccentColor {
                 self.apply_appearance();

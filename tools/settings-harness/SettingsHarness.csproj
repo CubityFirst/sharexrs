@@ -13,6 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ShareX.HelpersLib"><HintPath>$(ShareXBuild)\ShareX.HelpersLib.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ShareXBuild)\Newtonsoft.Json.dll</HintPath></Reference>
     <!-- Everything else ShareX's libraries load. -->
     <None Include="$(ShareXBuild)\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>

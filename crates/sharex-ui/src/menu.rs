@@ -95,6 +95,8 @@ pub struct MenuEntry<C> {
     pub badge: Option<String>,
     /// The tool grid's id for Application settings › hidden tools.
     pub id: Option<String>,
+    /// `ToolTip.Tip` on the item (the clipboard format menu's descriptions).
+    pub tooltip: Option<String>,
 }
 
 impl<C> MenuEntry<C> {
@@ -135,7 +137,14 @@ impl<C> MenuEntry<C> {
             gesture: None,
             badge: None,
             id: None,
+            tooltip: None,
         }
+    }
+
+    /// `ToolTip.SetTip(item, text)`.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = Some(text.into());
+        self
     }
 
     pub fn command(mut self, command: C) -> Self {
@@ -631,7 +640,10 @@ impl<C: Clone> Flyout<C> {
                         }
                         let id = layer.with(i);
                         let sense = if entry.interactive() { Sense::click() } else { Sense::hover() };
-                        let r = ui.interact(*item, id, sense);
+                        let mut r = ui.interact(*item, id, sense);
+                        if let Some(tip) = &entry.tooltip {
+                            r = r.on_hover_text(tip.as_str());
+                        }
                         let state = ItemState {
                             hovered: hovered == Some((depth, i)),
                             selected: selected == Some(i),

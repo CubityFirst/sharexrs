@@ -60,12 +60,12 @@ impl UploadersConfigStore {
         loaded.wait_while(guard, |c| c.is_none()).expect("uploaders config")
     }
 
-    /// `UploadersConfigOrNull`: runs `f` on the config if it's loaded,
-    /// without waiting.
-    pub fn try_with<R>(&self, f: impl FnOnce(&mut UploadersConfig) -> R) -> Option<R> {
+    /// `ApplicationState.UploadersConfigOrNull`: `f` on the config if it's
+    /// loaded, without waiting for it.
+    pub fn peek<R>(&self, f: impl FnOnce(&UploadersConfig) -> R) -> Option<R> {
         let (lock, _) = &*self.0;
-        let mut guard = lock.lock().expect("uploaders config");
-        guard.as_mut().map(f)
+        let guard = lock.lock().expect("uploaders config");
+        guard.as_ref().map(f)
     }
 
     /// Runs `f` on the config once it's loaded.

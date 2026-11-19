@@ -4862,6 +4862,7 @@ dependencies = [
  "image",
  "serde",
  "serde_json",
+ "sha2",
  "sharex-settings",
  "sharex-skia",
  "ttf-parser",
@@ -4974,6 +4975,7 @@ dependencies = [
  "sharex-skia",
  "sharex-strings",
  "sharex-uploaders",
+ "socket2",
  "tiny-skia",
  "windows-sys 0.61.2",
 ]

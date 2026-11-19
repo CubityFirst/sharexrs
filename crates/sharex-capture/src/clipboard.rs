@@ -100,10 +100,13 @@ pub fn copy_files(paths: &[std::path::PathBuf], owner: Option<isize>) -> Result<
         let owner = owner.ok_or("no window to own the clipboard")?;
         crate::platform::set_clipboard(owner, &[(crate::platform::ClipboardFormat::Id(15), &drop_files(paths))]) // CF_HDROP
     }
+    // Avalonia's `Clipboard.SetFilesAsync`: file URLs on macOS,
+    // `text/uri-list` on Linux.
     #[cfg(not(windows))]
     {
         let _ = owner;
-        Err("copying files isn't ported to this platform yet".into())
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard.set().file_list(paths).map_err(|e| e.to_string())
     }
 }
 

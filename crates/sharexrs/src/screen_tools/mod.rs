@@ -193,6 +193,12 @@ impl App {
         if self.screen_tools.picker.is_some() {
             return;
         }
+        // `ScreenColorPickerWindow.OnLoaded`: outside Windows (no
+        // `GetCursorPos`) the picker completes with no colour at once.
+        if !cfg!(windows) {
+            self.screen_color_picked(purpose, None);
+            return;
+        }
         let defaults = &self.settings.settings.DefaultTaskSettings;
         let options = match &purpose {
             PickPurpose::Tool(task) => tools(task, defaults).ScreenColorPickerOptions,
