@@ -291,6 +291,11 @@ pub struct TaskReport {
     pub auto_close_after_upload_form: bool,
     /// `ShowToastNotificationAfterTaskCompleted`.
     pub show_toast: bool,
+    /// The task's general settings, for its toast.
+    pub general: Option<Box<sharex_settings::TaskSettingsGeneral>>,
+    /// `UploadInfoParser.Parse(info, BalloonTipContentFormat)` when the
+    /// format isn't empty.
+    pub balloon_text: Option<String>,
     /// `UploadDuration`.
     pub upload_duration: Option<Duration>,
     /// `TaskInfo.GetHistoryItem` at the task's end.

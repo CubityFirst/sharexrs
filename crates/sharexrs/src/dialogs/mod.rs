@@ -22,6 +22,7 @@ pub mod drop_window;
 pub mod file_exist;
 pub mod icon_pack_prompt;
 pub mod layout;
+pub mod notification;
 pub mod print_window;
 pub mod qr_code;
 pub mod render;
@@ -210,6 +211,12 @@ pub enum Effect {
     /// `UpdateMessageWindow.OnOpened` for a later automatic check: minimised,
     /// flashing in the taskbar (`FlashWindowEx`).
     MinimizeAndFlash,
+    /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
+    /// (the notification's Delete file).
+    DeleteFile(PathBuf),
+    /// `TaskHelpers.AnnotateImageAsync(image, null, defaults)`: the image
+    /// editor on an image that was never saved.
+    AnnotateImage(RgbaImage),
     /// `ThemeManager.ApplyConfiguredSettings` after the settings' theme
     /// options changed (the icon pack prompt).
     ApplyAppearance,
@@ -253,7 +260,8 @@ pub enum UploadRequest {
     /// `UploadFile(files)`: asks first when there are more than 10, unless
     /// already `confirmed`.
     Files { files: Vec<PathBuf>, task: TaskSettings, confirmed: bool },
-    /// `UploadImage(image)` of a generated QR code.
+    /// `UploadImage(image)` of a generated QR code (or of the notification's
+    /// image).
     QrCodeImage(RgbaImage),
 }
 
@@ -372,6 +380,12 @@ pub trait Dialog {
         None
     }
 
+    /// A theme of its own whatever the app's (`RequestedThemeVariant =
+    /// ThemeManager.ShareXDark`: the notification window).
+    fn theme(&self) -> Option<egui::Theme> {
+        None
+    }
+
     /// Where the window goes once it's sized; centred on the screen when
     /// `None` (`WindowStartupLocation="CenterScreen"`).
     fn position(&self, work_area: sharex_capture::Rect, size: (u32, u32)) -> Option<(i32, i32)> {
@@ -416,7 +430,7 @@ impl App {
     }
 
     fn try_open_dialog_window(&mut self, event_loop: &ActiveEventLoop, mut dialog: Box<dyn Dialog>) -> Result<(), String> {
-        let theme = self.theme();
+        let theme = dialog.theme().unwrap_or(self.theme());
         let gpu = match &self.gpu {
             Some(g) => g,
             None => self.gpu.insert(sharex_ui::gpu::Gpu::new()?),
@@ -658,6 +672,11 @@ impl App {
                     }
                 }
                 Effect::ApplyAppearance => self.apply_appearance(),
+                Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
+                Effect::AnnotateImage(image) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.open_image_editor(event_loop, Some(image), None, task, None);
+                }
                 Effect::SaveSettings => {
                     if let Err(e) = self.settings.save_application_config(false) {
                         eprintln!("couldn't save the settings: {e}");

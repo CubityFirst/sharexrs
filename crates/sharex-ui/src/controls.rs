@@ -1226,6 +1226,60 @@ pub fn wrap_lines(ui: &Ui, text: &str, font: &FontId, width: f32) -> Vec<String>
     lines
 }
 
+/// [`wrap_lines`] with the line break opportunity Avalonia's text layout
+/// also takes after a hyphen (UAX #14's HY class, not before a digit), as
+/// in a long path: `C:\a\sharexrs-` / `ref\b.png`.
+pub fn wrap_lines_at_hyphens(ui: &Ui, text: &str, font: &FontId, width: f32) -> Vec<String> {
+    let fits = |s: &str| text_width(ui, s.trim_end_matches(' '), font.clone()) <= width;
+    let mut lines = Vec::new();
+    for para in text.split('\n') {
+        // Segments, each ending at a break opportunity.
+        let chars: Vec<char> = para.chars().collect();
+        let mut segments: Vec<String> = Vec::new();
+        let mut seg = String::new();
+        for (i, &c) in chars.iter().enumerate() {
+            seg.push(c);
+            let next = chars.get(i + 1).copied();
+            let after_space = c == ' ' && next != Some(' ');
+            let after_hyphen = c == '-' && next.is_some_and(|n| !n.is_ascii_digit() && n != ' ');
+            if after_space || after_hyphen {
+                segments.push(std::mem::take(&mut seg));
+            }
+        }
+        if !seg.is_empty() {
+            segments.push(seg);
+        }
+        let mut line = String::new();
+        for seg in segments {
+            let candidate = format!("{line}{seg}");
+            if fits(&candidate) {
+                line = candidate;
+                continue;
+            }
+            if !line.is_empty() {
+                lines.push(line.trim_end_matches(' ').to_owned());
+                line.clear();
+            }
+            if fits(&seg) {
+                line = seg;
+                continue;
+            }
+            // A segment wider than the line breaks between characters.
+            for c in seg.chars() {
+                let next = format!("{line}{c}");
+                if !line.is_empty() && !fits(&next) {
+                    lines.push(std::mem::take(&mut line));
+                    line.push(c);
+                } else {
+                    line = next;
+                }
+            }
+        }
+        lines.push(line.trim_end_matches(' ').to_owned());
+    }
+    lines
+}
+
 /// The 1px `Border.divider`.
 pub fn divider(ui: &Ui, rect: Rect) {
     ui.painter().rect_filled(rect, 0.0, palette(ui.ctx()).border);

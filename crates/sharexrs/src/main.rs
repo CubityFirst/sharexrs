@@ -267,6 +267,7 @@ fn main() {
         auto_capture: Default::default(),
         desktop_icons: None,
         icon_pack_prompt: false,
+        pending_notification: None,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -289,6 +290,9 @@ enum DialogPurpose {
     /// A message that only needs reading (`CaptureCustomWindow`'s window
     /// not found).
     Information,
+    /// `TaskHelpers.ConfirmFileDelete` for one file (the notification's
+    /// Delete file).
+    DeletePath(std::path::PathBuf),
     /// Custom uploader settings' "Clear all..." confirmation.
     ClearCustomUploaders,
     /// FFmpeg is missing (`CheckFFmpeg`): Yes downloads it.
@@ -395,6 +399,8 @@ struct App {
     /// `IconPackPromptWindow.ShowOnceWithMainWindow`: shown when the main
     /// window first opens.
     icon_pack_prompt: bool,
+    /// A toast to show once the event loop is at hand.
+    pending_notification: Option<dialogs::notification::NotificationConfig>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -956,8 +962,14 @@ impl App {
         }
         self.hide_to_tray();
         if self.settings.settings.FirstTimeMinimizeToTray {
-            // `ShowNotificationTip`: notifications aren't ported yet.
-            eprintln!("{}", sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray());
+            // `ShowNotificationTip(ShareXIsMinimizedToTheSystemTray, "ShareX", 8000)`.
+            let tip = dialogs::notification::NotificationConfig::tip(
+                &self.default_general(),
+                sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray(),
+                "ShareXrs",
+                8000,
+            );
+            self.pending_notification = Some(tip);
             self.settings.settings.FirstTimeMinimizeToTray = false;
         }
         if let Err(e) = self.settings.save_all() {
@@ -1228,6 +1240,13 @@ impl App {
         let startup = matches!(dialog.purpose, DialogPurpose::HotkeysFailed);
         if let DialogPurpose::DeleteFiles(ids) = dialog.purpose {
             self.file_delete_answered(ids, result, dialog.message.checked);
+        } else if let DialogPurpose::DeletePath(path) = &dialog.purpose {
+            if result == DialogResult::Yes {
+                if dialog.message.checked {
+                    self.settings.settings.ShowFileDeleteConfirmation = false;
+                }
+                shell::delete_file_to_recycle_bin(path);
+            }
         } else if let DialogPurpose::DownloadFFmpeg(path) = &dialog.purpose {
             if result == DialogResult::Yes {
                 self.download_ffmpeg(path.clone());
@@ -1774,6 +1793,9 @@ impl ApplicationHandler<UserEvent> for App {
             self.exit_requested = false;
             self.exit(event_loop);
             return;
+        }
+        if let Some(config) = self.pending_notification.take() {
+            self.show_notification(event_loop, config);
         }
         if let Some(d) = &self.dialog
             && d.window.repaint_at.is_some_and(|at| at <= Instant::now())

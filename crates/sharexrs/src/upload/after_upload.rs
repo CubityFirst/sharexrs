@@ -170,7 +170,7 @@ fn expand(caps: &fancy_regex::Captures, names: &[Option<&str>], numbering: &[usi
 }
 
 impl Worker<'_> {
-    fn info_fields(&self) -> InfoFields<'_> {
+    pub(super) fn info_fields(&self) -> InfoFields<'_> {
         InfoFields {
             result: &self.result,
             file_name: &self.file_name,

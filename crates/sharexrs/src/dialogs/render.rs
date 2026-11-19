@@ -189,6 +189,33 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.confirm_upload = o.state.as_deref() == Some("upload-confirm");
             Box::new(w)
         }
+        // The toast: `--state tray-minimized` (the tip), else a finished
+        // task's with `--image` (or none) and `--text` (its file path);
+        // `--content hover` or `hover:<button>` draws the pointer over the
+        // card or a button (`tip:<button>` with its tooltip).
+        "notification" => {
+            use super::notification::{NotificationConfig, NotificationWindow};
+            let general = sharex_settings::TaskSettingsGeneral::default();
+            let config = if o.state.as_deref() == Some("tray-minimized") {
+                NotificationConfig::tip(&general, sharex_strings::sharex::ShareXIsMinimizedToTheSystemTray(), "ShareX", 8000)
+            } else {
+                let mut c = NotificationConfig::new(&general).with_clicks(&general);
+                c.title = format!("ShareX - {}", sharex_strings::sharex::TaskManager_task_UploadCompleted_ShareX___Task_completed());
+                c.text = o.text.clone().unwrap_or_default();
+                c.file_path = c.text.clone();
+                c.image = o.image.as_ref().map(|_| load_image(&o.image)).transpose()?.map(std::sync::Arc::new);
+                c
+            };
+            let mut w = NotificationWindow::new(config).ok_or("nothing to show")?;
+            w.force_hover = match o.content.as_deref() {
+                Some("hover") => Some(None),
+                Some(h) if h.starts_with("hover:") => Some(h["hover:".len()..].parse().ok()),
+                Some(h) if h.starts_with("tip:") => Some(h["tip:".len()..].parse().ok()),
+                _ => None,
+            };
+            w.force_tooltip = o.content.as_deref().is_some_and(|c| c.starts_with("tip:"));
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -359,6 +386,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "icon-pack-prompt"
             | "about"
             | "debug-log"
+            | "notification"
             | "before-upload"
             | "after-upload"
             | "qr-code"

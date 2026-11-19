@@ -443,6 +443,26 @@ impl App {
         }
     }
 
+    /// `TaskHelpers.ConfirmFileDelete`, then `FileHelpers.DeleteFile(path,
+    /// true)` (to the recycle bin).
+    pub(crate) fn confirm_delete_path(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, path: std::path::PathBuf) {
+        if !self.settings.settings.ShowFileDeleteConfirmation {
+            shell::delete_file_to_recycle_bin(&path);
+            return;
+        }
+        if self.dialog.is_some() {
+            return;
+        }
+        let message = MessageBox::yes_no_with_check_box(
+            format!("ShareXrs - {}", s::MainForm_tsmiDeleteSelectedFile_Click_File_delete_confirmation()),
+            s::MainForm_tsmiDeleteSelectedFile_Click_Do_you_really_want_to_delete_this_file_(),
+            s::FileDeleteConfirmation_DontRemindAgain(),
+        );
+        if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::DeletePath(path)) {
+            eprintln!("couldn't open the message box: {e}");
+        }
+    }
+
     /// The answer to `ConfirmFileDelete`.
     pub(super) fn file_delete_answered(&mut self, ids: Vec<u64>, result: DialogResult, dont_remind: bool) {
         if result != DialogResult::Yes {

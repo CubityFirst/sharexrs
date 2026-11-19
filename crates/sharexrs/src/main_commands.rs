@@ -65,3 +65,26 @@ pub enum Link {
     X,
     Discord,
 }
+
+impl App {
+    /// `ApplicationState.DefaultTaskSettings.GeneralSettings`.
+    pub(crate) fn default_general(&self) -> sharex_settings::TaskSettingsGeneral {
+        self.settings.settings.DefaultTaskSettings.GeneralSettings.clone().unwrap_or_default()
+    }
+
+    /// `DisableNotificationsOnFullscreen` while the active window is
+    /// fullscreen (`CaptureHelpers.IsActiveWindowFullscreen`).
+    pub(crate) fn notifications_blocked(&self, report: &crate::tasks::TaskReport) -> bool {
+        report.general.as_ref().is_some_and(|g| g.DisableNotificationsOnFullscreen) && sharex_capture::platform::is_active_window_fullscreen(&sharex_capture::screenshot::screens())
+    }
+
+    /// `NotificationWindow.Show(config)`: the open toast gives way to the
+    /// new one.
+    pub(crate) fn show_notification(&mut self, event_loop: &ActiveEventLoop, config: crate::dialogs::notification::NotificationConfig) {
+        let Some(window) = crate::dialogs::notification::NotificationWindow::new(config) else { return };
+        if let Some(i) = self.dialogs.iter().position(|d| d.dialog.single() == Some("notification")) {
+            self.dialogs.remove(i);
+        }
+        self.open_dialog_window(event_loop, Box::new(window));
+    }
+}

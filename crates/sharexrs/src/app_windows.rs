@@ -76,10 +76,15 @@ impl App {
             self.hotkey_window.as_ref().map(|s| &s.window),
             self.task_window.as_ref().map(|s| &s.window),
         ];
-        for w in windows.into_iter().flatten().chain(self.dialogs.iter().map(|d| &d.window)) {
+        for w in windows.into_iter().flatten() {
             sharex_ui::theme::apply(w.ctx());
             set_theme(w, a.theme);
             w.window.request_redraw();
+        }
+        for d in &self.dialogs {
+            sharex_ui::theme::apply(d.window.ctx());
+            set_theme(&d.window, d.dialog.theme().unwrap_or(a.theme));
+            d.window.window.request_redraw();
         }
     }
 
