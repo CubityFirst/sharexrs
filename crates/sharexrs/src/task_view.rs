@@ -135,6 +135,8 @@ pub enum TaskCommand {
     BeautifyImage,
     /// `UploadInfoManager.CombineImages(orientation)`: true for horizontally.
     CombineImages(bool),
+    /// `UploadInfoManager.AnalyzeImage`: the Analyze image window on the file.
+    AnalyzeImage,
     OpenFile,
     OpenFolder,
     CopyFile,
@@ -1786,7 +1788,7 @@ impl TaskView {
             item(s::MainWindow_DeleteItemRemotely(), icon::CloudOff, np("Delete remotely"), false),
             sub(s::MainWindow_ShortenSelectedUrl(), icon::ShortLink, shortener_menu(), uploads && ok && sel.is_url_exist),
             sub(s::MainWindow_ShareSelectedUrl(), icon::Share, sharing_menu(), uploads && ok && sel.is_url_exist),
-            item(s::MainWindow_AnalyzeImage(), icon::Robot, np("Analyze image"), ok && sel.is_image_file),
+            item(s::MainWindow_AnalyzeImage(), icon::Robot, TaskCommand::AnalyzeImage, ok && sel.is_image_file),
             item(
                 s::MainWindow_SearchWithGoogleLens(),
                 icon::Search,

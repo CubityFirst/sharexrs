@@ -1,0 +1,64 @@
+{
+  "sharex": [
+    {
+      "name": "ApplicationConfig.json",
+      "length": 24,
+      "crc32": 4165692569,
+      "data": "ew0KICAiU2hvd1RyYXkiOiB0cnVlDQp9",
+      "mtime": "2026-11-19 02:26:38"
+    },
+    {
+      "name": "UploadersConfig.json",
+      "length": 39,
+      "crc32": 3709804668,
+      "data": "ew0KICAiSW1ndXJBY2NvdW50VHlwZSI6ICJBbm9ueW1vdXMiDQp9",
+      "mtime": "2026-11-19 02:26:38"
+    },
+    {
+      "name": "HotkeysConfig.json",
+      "length": 21,
+      "crc32": 462881059,
+      "data": "ew0KICAiSG90a2V5cyI6IFtdDQp9",
+      "mtime": "2026-11-19 02:26:38"
+    },
+    {
+      "name": "History.db",
+      "length": 64,
+      "crc32": 132163308,
+      "data": "U1FMaXRlIGZvcm1hdCAzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "mtime": "2026-11-19 10:20:30"
+    }
+  ],
+  "sharexStarted": "2026-11-19 02:26:39",
+  "historyTime": "2026-11-19 10:20:30",
+  "sharexrs": [
+    {
+      "name": "ApplicationConfig.json",
+      "length": 24,
+      "crc32": 4165692569,
+      "data": "ew0KICAiU2hvd1RyYXkiOiB0cnVlDQp9",
+      "mtime": "2026-11-19 02:26:34"
+    },
+    {
+      "name": "UploadersConfig.json",
+      "length": 39,
+      "crc32": 3709804668,
+      "data": "ew0KICAiSW1ndXJBY2NvdW50VHlwZSI6ICJBbm9ueW1vdXMiDQp9",
+      "mtime": "2026-11-19 02:26:34"
+    },
+    {
+      "name": "HotkeysConfig.json",
+      "length": 21,
+      "crc32": 462881059,
+      "data": "ew0KICAiSG90a2V5cyI6IFtdDQp9",
+      "mtime": "2026-11-19 02:26:34"
+    },
+    {
+      "name": "History.db",
+      "length": 64,
+      "crc32": 132163308,
+      "data": "U1FMaXRlIGZvcm1hdCAzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "mtime": "2026-11-19 10:20:30"
+    }
+  ]
+}

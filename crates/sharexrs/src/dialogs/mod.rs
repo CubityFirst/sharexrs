@@ -253,6 +253,12 @@ pub enum Effect {
     /// the window's task settings, its message when FFmpeg is missing),
     /// then [`Dialog::trimmer_export`] with the path.
     TrimmerExport,
+    /// Inspect window's Pick window (true) / Pick control: the window
+    /// hidden, a picker overlay on each screen.
+    PickWindow(bool),
+    /// A picker overlay was clicked (`picked`) or cancelled: the overlays
+    /// closed, the window at the pointer handed to `owner`.
+    WindowPicked { owner: Option<WindowId>, picked: bool, top_level: bool },
     /// The after capture window's Continue (or copy): the task starts with
     /// the settings it chose.
     AfterCaptureAccepted(Box<after_capture::Accepted>),
@@ -320,6 +326,9 @@ pub enum UploadRequest {
     /// `UploadImage(image)` of a generated QR code (or of the notification's
     /// image).
     QrCodeImage(RgbaImage),
+    /// `TaskHelpers.OpenDirectoryIndexer`'s upload: a text upload of the
+    /// index, its file name taking the output's extension.
+    IndexFolder { source: String, output: sharex_tools::indexer::IndexerOutput, task: TaskSettings },
 }
 
 impl UploadRequest {
@@ -464,6 +473,17 @@ pub trait Dialog {
         None
     }
 
+    /// The window was made: its native handle (`TryGetPlatformHandle`).
+    fn opened(&mut self, _handle: Option<isize>) {}
+
+    /// Inspect window's picker answered with the window at the pointer.
+    fn window_picked(&mut self, _handle: isize, _top_level: bool) {}
+
+    /// A picker overlay: the window it picks for.
+    fn picker_owner(&self) -> Option<WindowId> {
+        None
+    }
+
     /// A theme of its own whatever the app's (`RequestedThemeVariant =
     /// ThemeManager.ShareXDark`: the notification window).
     fn theme(&self) -> Option<egui::Theme> {
@@ -556,6 +576,7 @@ impl App {
         if spec.activate {
             w.window.focus_window();
         }
+        dialog.opened(sharex_capture::platform::window_handle(&w.window));
         w.window.request_redraw();
         self.dialogs.push(DialogWindow { window: w, dialog });
         Ok(())
@@ -850,6 +871,12 @@ impl App {
                         eprintln!("couldn't open the message box: {e}");
                     }
                 }
+                Effect::PickWindow(top_level) => self.start_window_picking(event_loop, id, top_level),
+                Effect::WindowPicked { owner, picked, top_level } => {
+                    if let Some(owner) = owner {
+                        self.finish_window_picking(owner, picked, top_level);
+                    }
+                }
                 Effect::ApplyAppearance => self.apply_appearance(),
                 Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
                 Effect::SetInnerSize(w, h) => {
@@ -907,7 +934,10 @@ impl App {
                 self.open_video_tool(event_loop, "MainMenuBuilder_AnimatedGifTrimmer", None, Some(path.to_string_lossy().into_owned()));
             }
             FileService::PinToScreen => self.pin_file(event_loop, &path, None),
-            FileService::AnalyzeImage => eprintln!("Analyze image: not ported yet"),
+            FileService::AnalyzeImage => {
+                let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                self.run_data_job(event_loop, &sharex_settings::HotkeyType::AnalyzeImage, &task, Some(path.to_string_lossy().into_owned()));
+            }
             FileService::ShowImage => self.show_image_file(event_loop, &path),
         }
     }

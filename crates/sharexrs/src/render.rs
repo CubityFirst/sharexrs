@@ -296,6 +296,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let mut val = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
             "--pointer" | "--drag" | "--window" | "--steps" | "--options" => rest_args.push((a.clone(), val()?)),
+            // The region capture as `GetRectangleRegionAsync` opens it.
+            "--select-only" => rest_args.push((a.clone(), String::new())),
             "--out" => out = Some(val()?),
             "--theme" => dark = val()? != "light",
             "--width" => width = Some(val()?.parse::<u32>().map_err(|e| e.to_string())?),
@@ -518,6 +520,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let entries = crate::quick_task::entries(&sharex_settings::QuickTaskInfo::default_presets());
             render_popup(entries, sharex_ui::menu::MenuStyle::CompactPlainSeparators, true, hover, scale, dark)?
         }
+        // Application settings' variable menus, alone as their popup windows:
+        // `path-variables-menu` (`--state capture`, the sub folder pattern's,
+        // or `window`) and `clipboard-format-menu`.
+        "path-variables-menu" => {
+            let target = match dialog.state.as_deref() {
+                Some("window") => crate::app_settings::CodeTarget::SubFolderWindow,
+                _ => crate::app_settings::CodeTarget::SubFolder,
+            };
+            render_popup(crate::app_settings::filename_pattern_menu(target), sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?
+        }
+        "clipboard-format-menu" => render_popup(crate::app_settings::clipboard_format_menu(), sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?,
         // The Actions toolbar's title menu (`CreateToolbarMenu`).
         "actions-toolbar-menu" => {
             let entries = crate::dialogs::actions_toolbar::toolbar_menu(&sharex_settings::ApplicationConfig::default());
@@ -531,6 +544,44 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             let failed = crate::hotkeys::failed_hotkeys(&default_hotkeys(&unregistered)).ok_or("no failed hotkeys")?;
             let mut dialog = MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning);
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
+        // `-CustomUploader <file>`'s question for an image uploader named
+        // `--text` (ShareX's shot: "Generated reference dark").
+        "custom-uploader-import-prompt" => {
+            let name = dialog.text.clone().unwrap_or_else(|| "Custom uploader".into());
+            let (mut dialog, _) = crate::cli::custom_uploader_question(&name, sharex_uploaders::enums::CustomUploaderDestinationType::ImageUploader);
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
+        "settings-reset-confirm" | "settings-import-error" => {
+            // `ResetAsync`'s question; `SettingManager.Import`'s error box
+            // for a file that isn't a zip (the zip crate's message).
+            let mut dialog = if screen == "settings-reset-confirm" {
+                MessageBox::yes_no(
+                    format!("ShareXrs - {}", sharex_strings::sharex::Confirmation()),
+                    sharex_strings::sharex::ApplicationSettingsForm_btnResetSettings_Click_WouldYouLikeToResetShareXSettings(),
+                    MessageBoxIcon::Warning,
+                )
+            } else {
+                let e = crate::settings_backup::import_archive(std::path::Path::new("not-a-zip.sxb"), &std::env::temp_dir()).err().unwrap_or_default();
+                MessageBox::ok("ShareXrs - Error", sharex_strings::sharex::SettingManager_ImportBackupError().replace("{0}", &e), MessageBoxIcon::Error)
+            };
             let mut probe = Offscreen::new([1, 1], scale, dark)?;
             let mut h = 0.0;
             probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
@@ -599,8 +650,42 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let page = crate::app_settings::PAGES.iter().position(|p| *p == name).ok_or(format!("no settings page {name}"))?;
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             let parent = sharex_settings::paths::absolute_path("ShareXrs").join("Screenshots");
-            let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent);
+            // A fresh system: nothing integrated, nothing read from this one.
+            let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent).with_integration(Box::new(crate::integration::NoIntegration));
             state.page = page;
+            state.set_scroll(page, scroll);
+            // `--state` on the Settings page: the export and import states
+            // (built from source where ShareX's shots have none).
+            let path = r"C:\Users\Public\ShareXrs-backup.sxb";
+            // Several states, comma-separated (`busy-import,add`: a shot taken
+            // while an import was still busy).
+            for st in dialog.state.as_deref().unwrap_or("").split(',').filter(|x| !x.is_empty()) {
+                match st {
+                    "none-selected" => (state.export_settings, state.export_history) = (false, false),
+                    "busy-export" => {
+                        state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
+                        state.busy_phase = Some(1.847);
+                    }
+                    "busy-import" => {
+                        state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
+                        // Where ShareX's shot caught the indicator.
+                        state.busy_phase = Some(1.847);
+                    }
+                    "exported" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportedTo().replace("{0}", path),
+                    "export-failed" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportFailed().into(),
+                    "imported" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportedFrom().replace("{0}", path),
+                    "import-failed" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportFailed().into(),
+                    "reset" => state.status = sharex_strings::sharex::ApplicationSettingsWindow_SettingsReset().into(),
+                    // The clipboard format editor: Add, or Edit on the first format.
+                    "add" => state.open_format_editor(&settings, None),
+                    "edit" => state.open_format_editor(&settings, Some(0)),
+                    "no-formats" => settings.ClipboardContentFormats.clear(),
+                    other => match other.strip_prefix("busy-phase:") {
+                        Some(t) => state.busy_phase = Some(t.parse().map_err(|_| "busy-phase:<seconds>")?),
+                        None => return Err(format!("no settings state {other}")),
+                    },
+                }
+            }
             let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
             let h = height.unwrap_or((crate::app_settings::HEIGHT * scale) as u32);
             let mut screen = Offscreen::new([w, h], scale, dark)?;
@@ -629,6 +714,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
             for &i in &cleared {
                 hotkeys[i].HotkeyInfo = sharex_settings::HotkeyInfo::default();
             }
+            // `--state custom:N`: hotkey N overrides its after capture tasks,
+            // so it shows the "custom settings" mark.
+            if let Some(i) = dialog.state.as_deref().and_then(|st| st.strip_prefix("custom:")).and_then(|n| n.parse::<usize>().ok())
+                && let Some(h) = hotkeys.get_mut(i)
+            {
+                h.TaskSettings.UseDefaultAfterCaptureJob = false;
+            }
             let mut state = crate::hotkey_settings::HotkeySettingsWindow::default();
             state.selected = select.first().copied();
             state.reset_confirmation = hk_reset;
@@ -654,18 +746,43 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let mut settings = theme_settings(dark, accent.as_deref(), legacy, compact);
             let defaults = settings.DefaultTaskSettings.clone();
             let mut hotkeys = default_hotkeys(&[]);
+            {
+                let t = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
+                // `--state overrides`: the after capture, after upload and
+                // destination overrides on (Save image to file, no after
+                // upload task), as ShareX's override shots have them.
+                if dialog.state.as_deref() == Some("overrides") {
+                    t.UseDefaultAfterCaptureJob = false;
+                    t.AfterCaptureJob = sharex_settings::AfterCaptureTasks::SaveImageToFile;
+                    t.UseDefaultAfterUploadJob = false;
+                    t.AfterUploadJob = sharex_settings::AfterUploadTasks::None;
+                    t.UseDefaultDestinations = false;
+                }
+            }
             let mut state = if for_hotkey {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut hotkeys[0].TaskSettings, Some(&defaults))
             } else {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut settings.DefaultTaskSettings, None)
             };
             state.page = page;
+            state.set_scroll(page, scroll);
             {
                 let task = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
-                sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
+                // `--state no-actions`: a session where no image editor is
+                // installed (ShareX's shots of the action editor).
+                if dialog.state.as_deref() != Some("no-actions") {
+                    sharex_settings::external_program::add_default_external_programs(task.ExternalPrograms.get_or_insert_default(), &crate::shell::search_program_path);
+                }
                 let content = dialog.content.clone().unwrap_or_default();
                 if !content.is_empty() {
                     task_settings_samples(task);
+                }
+                // `--state region:X,Y,W,H`: the preconfigured region (what
+                // Select region... chose in ShareX's shot).
+                if let Some(v) = dialog.state.as_deref().and_then(|st| st.strip_prefix("region:")) {
+                    let n: Vec<i32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                    let [x, y, w, h] = n[..] else { return Err("region:X,Y,W,H".into()) };
+                    task.CaptureSettings.get_or_insert_default().CaptureCustomRegion = sharex_settings::types::Rectangle::new(x, y, w, h);
                 }
                 use crate::task_editors::{ActionEditor, WatchFolderEditor};
                 let first = |t: &TaskSettings| t.ExternalPrograms.as_ref().and_then(|l| l.iter().position(|a| a.Name.as_deref() == Some("Optimize PNG")));
@@ -688,6 +805,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::RegionCapture, &[]));
                     }
                     "watch-folder-editor" => state.watch_editor = Some(WatchFolderEditor::new(None, None)),
+                    // The notification buttons editor on the task's buttons;
+                    // `-empty` without any, `-add-menu` with its Add... menu.
+                    "notification-buttons" | "notification-buttons-empty" | "notification-buttons-add-menu" => {
+                        let g = task.GeneralSettings.get_or_insert_default();
+                        if content == "notification-buttons-empty" {
+                            g.ToastWindowButtons = serde_json::Value::Array(Vec::new());
+                        }
+                        let mut ed = crate::task_editors::NotificationButtonsEditor::new(&g.ToastWindowButtons);
+                        if content == "notification-buttons-add-menu" {
+                            ed.open_menu_next = true;
+                        }
+                        state.notification_editor = Some(ed);
+                    }
                     "watch-folder-editor-edit" => {
                         state.watch_selected = Some(0);
                         state.watch_editor = Some(WatchFolderEditor::new(Some(0), task.WatchFolderList.first()));
@@ -707,6 +837,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 };
                 state.ui(ui, &mut ctx);
             })
+        }
+        // The tray's icon (`ShareXResources.IconBytes`), `--width` pixels
+        // square; `--state white` the white one (`UseWhiteShareXIcon`).
+        "tray-icon" => {
+            let icon = crate::tray::app_icon(width.unwrap_or(256));
+            if dialog.state.as_deref() == Some("white") { crate::tray::white_icon(&icon) } else { icon }
         }
         "app-icon" => {
             let side = width.unwrap_or(256);

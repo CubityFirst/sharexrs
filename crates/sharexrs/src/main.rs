@@ -22,6 +22,7 @@ mod capture;
 mod capture_job;
 mod cli;
 mod controls_gallery;
+mod data_tools;
 mod dialogs;
 mod history;
 mod history_ui;
@@ -45,11 +46,13 @@ mod render;
 mod screen_tools;
 mod video_tools;
 mod scrolling_capture;
+mod settings_backup;
 mod settings_form;
 mod shell;
 #[cfg(windows)]
 mod shortcut;
 mod sound;
+mod system_tools;
 mod start_screen;
 mod startup;
 mod task_actions;
@@ -124,6 +127,8 @@ pub enum UserEvent {
     Wake,
     /// The auto capture window's tray icon.
     AutoCaptureTray(TrayEvent),
+    /// A settings export or import finished its archive.
+    SettingsBackup(Box<settings_backup::Done>),
 }
 
 fn main() {
@@ -319,6 +324,8 @@ enum DialogPurpose {
     /// A question a command line asked (importing a custom uploader or an
     /// image effect).
     CommandLine(cli::CliQuestion),
+    /// Application settings' "Would you like to reset ShareX settings?".
+    ResetSettings,
     /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
     /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
     Owned(winit::window::WindowId),
@@ -634,7 +641,11 @@ impl App {
             return;
         }
         if let MenuCommand::Tool(key) = command
-            && (self.open_image_tool(event_loop, key, None) || self.open_video_tool(event_loop, key, None, None) || self.open_screen_tool(event_loop, key))
+            && (self.open_image_tool(event_loop, key, None)
+                || self.open_video_tool(event_loop, key, None, None)
+                || self.open_screen_tool(event_loop, key)
+                || self.open_data_tool(event_loop, key)
+                || self.open_system_tool(event_loop, key))
         {
             return;
         }
@@ -1163,6 +1174,21 @@ impl App {
         self.update_tray_icon(progress);
     }
 
+    /// `MainForm.UpdateTrayIcon`: `ApplyIconSetting` (the white icon or not,
+    /// for the tray and the main window), then the tray's icon.
+    pub(crate) fn apply_tray_icon_setting(&mut self) {
+        tray::set_white_icon(self.settings.settings.UseWhiteShareXIcon);
+        if let Some(tray) = &mut self.tray {
+            tray.set_icon(&tray::current_icon(tray::Tray::icon_size()));
+        }
+        if let Some(w) = &self.main {
+            let icon = tray::current_icon(64);
+            w.window.set_window_icon(winit::window::Icon::from_rgba(icon.into_raw(), 64, 64).ok());
+        }
+        // `TaskManager.UpdateTrayIcon`'s `lastIconStatus` is the app's icon now.
+        self.tray_progress = -1;
+    }
+
     /// `TaskManager.UpdateTrayIcon`: the progress icon at `progress` %, or
     /// the app's icon at -1.
     fn update_tray_icon(&mut self, progress: i32) {
@@ -1172,7 +1198,7 @@ impl App {
         }
         if let Some(tray) = &mut self.tray {
             let size = tray::Tray::icon_size();
-            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::app_icon(size) };
+            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::current_icon(size) };
             tray.set_icon(&image);
         }
         self.tray_progress = progress;
@@ -1209,6 +1235,10 @@ impl App {
         match tray::Tray::new("ShareXrs", self.settings.settings.ShowTray, callback) {
             Ok(t) => self.tray = Some(t),
             Err(e) => eprintln!("couldn't add the tray icon: {e}"),
+        }
+        // `new DesktopTrayIconService(_hotkeyHost, ShareXResources.IconBytes, ...)`.
+        if self.settings.settings.UseWhiteShareXIcon {
+            self.apply_tray_icon_setting();
         }
         self.refresh_menus();
         // `ApplicationSettingsRuntime.InitializeAsync`: the update manager too.
@@ -1321,6 +1351,10 @@ impl App {
             if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == owner) {
                 d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
                 d.window.window.request_redraw();
+            }
+        } else if matches!(dialog.purpose, DialogPurpose::ResetSettings) {
+            if result == DialogResult::Yes {
+                self.reset_settings(event_loop);
             }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
             self.cli_answered(question, result);
@@ -1455,6 +1489,9 @@ impl App {
         }
         if let Some(key) = video_tools::open::tool_for_hotkey(&job) {
             self.open_video_tool(event_loop, key, Some(task), None);
+            return;
+        }
+        if self.run_data_job(event_loop, &job, &task, None) || self.run_system_job(event_loop, &job, &task) {
             return;
         }
         match job {
@@ -1712,6 +1749,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::ExtensionImage(result) => self.extension_image(*result),
             UserEvent::Wake => {}
             UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
+            UserEvent::SettingsBackup(done) => self.backup_finished(event_loop, *done),
         }
     }
 

@@ -334,11 +334,17 @@ impl<S, W> Form<'_, '_, S, W> {
     /// A `TextBox.form-control` after an optional label column; it
     /// stretches (`MinWidth="300"`). Returns whether the text changed.
     pub fn text_row(&mut self, label: Option<(&str, f32)>, value: &mut String, enabled: bool, password: bool) -> bool {
+        self.text_row_with_box(label, value, enabled, password).0
+    }
+
+    /// [`Form::text_row`], also returning the text box (its response, rect
+    /// and id) when it was drawn: for a variable menu attached to it.
+    pub fn text_row_with_box(&mut self, label: Option<(&str, f32)>, value: &mut String, enabled: bool, password: bool) -> (bool, Option<(egui::Response, Rect, Id)>) {
         if let Some((l, _)) = label {
             self.text(l);
         }
         if self.collecting() {
-            return false;
+            return (false, None);
         }
         let th = self.control_height(&TextBox::font());
         let lh = line_height(self.ui, &Self::label_font());
@@ -352,6 +358,27 @@ impl<S, W> Form<'_, '_, S, W> {
         let rect = Rect::from_min_max(pos2(x, center_y(r, th)), pos2(r.max.x.max(x + 300.0), center_y(r, th) + th));
         let tb = TextBox { padding: self.d.settings_control_padding, enabled: enabled && self.enabled, password, ..Default::default() };
         let id = self.id(&format!("text-{}", label.map_or("", |l| l.0)));
+        let before = value.clone();
+        let response = tb.show(self.ui, rect, id, value);
+        (*value != before, Some((response, rect, id)))
+    }
+
+    /// A label column, then a multiline `TextBox.form-control` that wraps
+    /// (`AcceptsReturn`, `TextWrapping="Wrap"`) at least `min_height` tall;
+    /// the label centred on it.
+    pub fn text_area_row(&mut self, label: (&str, f32), value: &mut String, enabled: bool, min_height: f32) -> bool {
+        self.text(label.0);
+        if self.collecting() {
+            return false;
+        }
+        let th = self.control_height(&TextBox::font());
+        let r = self.slot(min_height.max(th));
+        let p = palette(self.ui.ctx());
+        controls::label(self.ui, Rect::from_min_max(r.min, pos2(r.min.x + label.1, r.max.y)), label.0, Self::label_font(), p.text_secondary);
+        let x = r.min.x + label.1 + 8.0;
+        let rect = Rect::from_min_max(pos2(x, r.min.y), pos2(r.max.x.max(x + 300.0), r.max.y));
+        let tb = TextBox { padding: self.d.settings_control_padding, enabled: enabled && self.enabled, multiline: true, ..Default::default() };
+        let id = self.id(&format!("text-{}", label.0));
         let before = value.clone();
         tb.show(self.ui, rect, id, value);
         *value != before
@@ -536,7 +563,9 @@ impl<S, W> Form<'_, '_, S, W> {
         let button = Button::compact(self.d.settings_button_padding);
         let widths: Vec<f32> = buttons.iter().map(|b| button.width(self.ui, b)).collect();
         let total: f32 = widths.iter().map(|w| w + spacing).sum();
-        let tb_rect = Rect::from_min_size(pos2(r.min.x, center_y(r, th)), vec2((r.width() - total).max(300.0), th));
+        // The `TextBox` stretches to the row, which the button's margins make
+        // taller than the box would be.
+        let tb_rect = Rect::from_min_size(r.min, vec2((r.width() - total).max(300.0), r.height()));
         let tb = TextBox { padding: self.d.settings_control_padding, enabled: self.enabled, ..Default::default() };
         let before = value.clone();
         let id = self.id(key);

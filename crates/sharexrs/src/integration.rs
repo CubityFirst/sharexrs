@@ -318,6 +318,44 @@ pub const SWITCHES: [Switch; 6] = [
     Switch::FirefoxAddonSupport,
 ];
 
+/// What Application settings › Integration needs of the system: the
+/// check boxes' state and their changes. [`SystemIntegration`] is the real
+/// registry and Send To folder; tests and renders use their own, so they
+/// never touch either.
+pub trait IntegrationBackend {
+    /// `RefreshIntegration`'s check for one box.
+    fn check(&self, switch: Switch) -> bool;
+    /// `IntegrationHelpers.Create*(on)`; `Err` is the text to show.
+    fn set(&mut self, switch: Switch, on: bool) -> Result<(), String>;
+}
+
+/// This program's registration in `HKEY_CURRENT_USER` and its Send To
+/// shortcut ([`check`], [`set`]).
+pub struct SystemIntegration;
+
+impl IntegrationBackend for SystemIntegration {
+    fn check(&self, switch: Switch) -> bool {
+        check(switch)
+    }
+
+    fn set(&mut self, switch: Switch, on: bool) -> Result<(), String> {
+        set(switch, on)
+    }
+}
+
+/// Nothing registered and nothing changed: a fresh system (`--render`).
+pub struct NoIntegration;
+
+impl IntegrationBackend for NoIntegration {
+    fn check(&self, _switch: Switch) -> bool {
+        false
+    }
+
+    fn set(&mut self, _switch: Switch, _on: bool) -> Result<(), String> {
+        Ok(())
+    }
+}
+
 /// `ApplicationSettingsViewModel.RefreshIntegration`'s checks.
 pub fn check(switch: Switch) -> bool {
     match switch {
@@ -814,10 +852,16 @@ mod tests {
     }
 
     /// The same, on the real registry API, under `HKCU\Software\ShareXrsTest`
-    /// (deleted afterwards). Nothing outside it is touched.
+    /// (deleted afterwards). Nothing outside it is touched, and it runs only
+    /// when asked (`SHAREXRS_REGISTRY_TESTS=1`): `cargo test` never writes
+    /// the registry.
     #[cfg(windows)]
     #[test]
     fn real_registry_under_a_scratch_key() {
+        if std::env::var_os("SHAREXRS_REGISTRY_TESTS").is_none() {
+            eprintln!("skipped: set SHAREXRS_REGISTRY_TESTS=1 to write HKCU\\Software\\ShareXrsTest");
+            return;
+        }
         const SCRATCH: &str = r"Software\ShareXrsTest";
         let scratch = format!(r"{SCRATCH}\integration-{}", std::process::id());
         let mut root = windows_registry::CurrentUser::root();

@@ -4,9 +4,13 @@
 //! writer (fed from a staging copy), and the camera overlay.
 
 pub mod camera;
+pub mod camera_capture;
+pub mod capture;
 pub mod device;
+pub mod hdr;
 pub mod mf;
 pub mod processor;
+pub mod wasapi;
 
 use windows::Win32::Graphics::Direct3D11::ID3D11Texture2D;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -27,6 +31,46 @@ use crate::source::Canvas;
 pub(crate) fn err(e: windows::core::Error) -> String {
     let m = e.message();
     if m.is_empty() { format!("HRESULT 0x{:08X}", e.code().0) } else { format!("{} (0x{:08X})", m.trim_end(), e.code().0) }
+}
+
+/// `ShaderCompiler.Compile`: Windows' own HLSL compiler (`d3dcompiler_47`),
+/// strictness and optimisation level 3. `raw` is ShareX's C# raw string
+/// as written here (a leading newline, eight spaces of indentation), which
+/// C# strips.
+pub(crate) fn compile_shader(raw: &str, name: &str, entry: &str, target: &str) -> Result<Vec<u8>, String> {
+    use windows::Win32::Graphics::Direct3D::Fxc::D3DCompile;
+    use windows::Win32::Graphics::Direct3D::ID3DBlob;
+    use windows::core::PCSTR;
+    let source: String = raw.lines().skip(1).map(|l| l.strip_prefix("        ").unwrap_or(l)).collect::<Vec<_>>().join("\n");
+    let entry = std::ffi::CString::new(entry).expect("ascii");
+    let target = std::ffi::CString::new(target).expect("ascii");
+    let cname = std::ffi::CString::new(name).expect("ascii");
+    let (mut code, mut errors): (Option<ID3DBlob>, Option<ID3DBlob>) = (None, None);
+    // SAFETY: the source, names and out pointers are valid for the call.
+    let r = unsafe {
+        D3DCompile(
+            source.as_ptr().cast(),
+            source.len(),
+            PCSTR(cname.as_ptr().cast()),
+            None,
+            None,
+            PCSTR(entry.as_ptr().cast()),
+            PCSTR(target.as_ptr().cast()),
+            (1 << 11) | (1 << 15),
+            0,
+            &mut code,
+            Some(&mut errors),
+        )
+    };
+    let blob_bytes = |b: &ID3DBlob| {
+        // SAFETY: the blob's buffer is BufferSize bytes.
+        unsafe { std::slice::from_raw_parts(b.GetBufferPointer() as *const u8, b.GetBufferSize()).to_vec() }
+    };
+    if let Err(e) = r {
+        let message = errors.as_ref().map(|b| String::from_utf8_lossy(&blob_bytes(b)).trim_end_matches('\0').to_string()).unwrap_or_default();
+        return Err(format!("Could not compile the {name} shader. {message} ({e})"));
+    }
+    code.as_ref().map(blob_bytes).ok_or_else(|| format!("Windows did not return {name} shader bytecode."))
 }
 
 /// COM (MTA) and, when asked, Media Foundation, for the current thread until dropped.
@@ -72,12 +116,12 @@ pub struct GpuMedia {
     gif: Option<GifWriter>,
     staging: Option<ID3D11Texture2D>,
     frame: Vec<u8>,
-    processor: GpuVideoProcessor,
+    pub(crate) processor: GpuVideoProcessor,
     writer: Option<MediaFoundationWriter>,
     encoder: VideoEncoderInfo,
     /// The NV12 of the first frames written, while there's room (the harness).
     pub nv12_dump: Option<(usize, Vec<Vec<u8>>)>,
-    graphics: GraphicsDevice,
+    pub(crate) graphics: GraphicsDevice,
     _session: ComSession,
 }
 
@@ -150,6 +194,9 @@ impl Canvas for GpuMedia {
     }
     fn write_bgra(&mut self, x: i32, y: i32, width: i32, height: i32, data: &[u8], stride: usize) {
         self.graphics.upload(&self.processor.canvas, crate::options::Rect::new(x, y, width, height), data, stride);
+    }
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
     }
 }
 

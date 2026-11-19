@@ -360,11 +360,15 @@ pub struct ComboItem {
     /// The item `TextBlock`'s weight: ShareX's global SemiBold, or 400 for
     /// an `ItemTemplate` with `FontWeight="Normal"`.
     pub weight: u16,
+    /// A template's image cell (`Grid ColumnDefinitions="<cell>,*"
+    /// ColumnSpacing="8"`): this picture filling it, else [`ComboItem::icon`]
+    /// at the 13px font size, centred (the window lists' icons).
+    pub cell: Option<(f32, Option<egui::TextureId>)>,
 }
 
 impl ComboItem {
     pub fn text(text: impl Into<String>) -> Self {
-        Self { text: text.into(), icon: None, flag: None, weight: 600 }
+        Self { text: text.into(), icon: None, flag: None, weight: 600, cell: None }
     }
 
     /// An item whose template's `TextBlock` has `FontWeight="Normal"`.
@@ -378,6 +382,15 @@ impl ComboItem {
 
     fn has_image(&self) -> bool {
         self.icon.is_some() || self.flag.is_some()
+    }
+
+    /// The image column and its spacing.
+    fn image_width(&self) -> f32 {
+        match self.cell {
+            Some((c, _)) => c + 8.0,
+            None if self.has_image() => 24.0,
+            None => 0.0,
+        }
     }
 }
 
@@ -411,6 +424,31 @@ impl ComboBox {
 
     /// Draws the combo box in `rect`; returns a newly selected index.
     pub fn show(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>) -> Option<usize> {
+        self.show_inner(ui, rect, id, items, selected, true)
+    }
+
+    /// An `IsEditable="True"` combo box: its text in the template's
+    /// `TextBox` (transparent, no border, no padding: the text box font),
+    /// the dropdown's item at that text selected; picking one sets the
+    /// text. Returns whether the text changed.
+    pub fn show_editable(&self, ui: &mut Ui, rect: Rect, id: Id, items: &[ComboItem], text: &mut String) -> bool {
+        let selected = items.iter().position(|i| i.text == *text);
+        let before = text.clone();
+        if let Some(i) = self.show_inner(ui, rect, id, items, selected, false) {
+            *text = items[i].text.clone();
+        }
+        let inner = Rect::from_min_max(pos2(rect.min.x + self.padding.left, rect.min.y + self.padding.top), pos2(rect.max.x - 32.0, rect.max.y - self.padding.bottom));
+        TextBox { padding: Thickness::all(0.0), plain: true, enabled: self.enabled, ..TextBox::default() }.show(ui, inner, id.with("text"), text);
+        *text != before
+    }
+
+    /// An editable combo box's width when `HorizontalAlignment="Left"`: its
+    /// text in the text box font (at least Fluent's 64 for the text box).
+    pub fn editable_width(&self, ui: &Ui, text: &str) -> f32 {
+        text_width(ui, text, TextBox::font()).max(64.0) + self.padding.left + self.padding.right + 32.0
+    }
+
+    fn show_inner(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>, paint_content: bool) -> Option<usize> {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let r = interact(ui, rect, id, self.enabled);
@@ -441,7 +479,7 @@ impl ComboBox {
         // Items are `TextBlock`s, whose ShareX style keeps the text colour
         // when the combo box is disabled or focused.
         let fg = p.text;
-        if let Some(item) = selected.and_then(|i| items.get(i)) {
+        if paint_content && let Some(item) = selected.and_then(|i| items.get(i)) {
             paint_item(ui, inner, item, fg);
         }
         // `DropDownGlyph`: 12x12, `Margin="0,0,10,0"`, centred.
@@ -462,6 +500,33 @@ impl ComboBox {
         chosen.filter(|&c| Some(c) != selected)
     }
 
+    /// `PlaceholderTextBlock`'s font: ShareX's style sets it Normal.
+    pub fn placeholder_font() -> FontId {
+        font(13.0, 400)
+    }
+
+    /// A `HorizontalAlignment="Left"` combo box with nothing selected: as
+    /// wide as its `PlaceholderText` (the text block shares the content's
+    /// grid cell), at least 64.
+    pub fn placeholder_width(&self, ui: &Ui, placeholder: &str) -> f32 {
+        (text_width(ui, placeholder, Self::placeholder_font()) + self.padding.left + self.padding.right + 32.0).max(64.0)
+    }
+
+    /// [`ComboBox::show`] with a `PlaceholderText`, shown while nothing is
+    /// selected: `ComboBoxPlaceHolderForeground` (base high) at
+    /// `TextControlPlaceholderOpacity` (0.5), inside the padding.
+    pub fn show_with_placeholder(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>, placeholder: &str) -> Option<usize> {
+        if selected.is_none() && !placeholder.is_empty() {
+            // Painted under the dropdown, which is an area of its own.
+            let f = fluent(ui.ctx());
+            let inner = Rect::from_min_max(pos2(rect.min.x + self.padding.left, rect.min.y + self.padding.top), pos2(rect.max.x - 32.0, rect.max.y - self.padding.bottom));
+            let shown = self.show(ui, rect, id, items, selected);
+            text_at(ui, inner, inner.min.x, placeholder, Self::placeholder_font(), f.base_high.gamma_multiply(0.5));
+            return shown;
+        }
+        self.show(ui, rect, id, items, selected)
+    }
+
     /// Whether the dropdown of the combo box `id` is open.
     pub fn is_open(ctx: &egui::Context, id: Id) -> bool {
         ctx.data(|d| d.get_temp::<bool>(id.with("open"))).unwrap_or(false)
@@ -473,12 +538,30 @@ impl ComboBox {
 }
 
 fn item_width(ui: &Ui, i: &ComboItem) -> f32 {
-    text_width(ui, &i.text, i.font()) + if i.has_image() { 24.0 } else { 0.0 }
+    text_width(ui, &i.text, i.font()) + i.image_width()
 }
 
 /// One item: an optional 16px image cell and 8px spacing, then the text.
 fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
     let mut x = rect.min.x;
+    if let Some((c, image)) = item.cell {
+        let cell = Rect::from_min_size(pos2(x, center_y(rect, c)), Vec2::splat(c));
+        match (image, item.icon) {
+            (Some(tex), _) => {
+                ui.painter().image(tex, cell, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            }
+            (None, Some(icon)) => {
+                let s = 13.0;
+                let r = Rect::from_min_size(pos2(cell.min.x + ((c - s) / 2.0).round_ties_even(), cell.min.y + ((c - s) / 2.0).round_ties_even()), Vec2::splat(s));
+                icons::paint(ui.painter(), r, icon, palette(ui.ctx()).text_secondary);
+            }
+            _ => {}
+        }
+        let w = (rect.max.x - x - c - 8.0).max(0.0);
+        let text = elide(ui, &item.text, item.font(), w);
+        text_at(ui, rect, x + c + 8.0, &text, item.font(), color);
+        return;
+    }
     if item.has_image() {
         let cell = Rect::from_min_size(pos2(x, center_y(rect, 16.0)), Vec2::splat(16.0));
         if let Some(icon) = item.icon {
@@ -496,6 +579,19 @@ fn paint_item(ui: &Ui, rect: Rect, item: &ComboItem, color: Color32) {
         x += 24.0;
     }
     text_at(ui, rect, x, &item.text, item.font(), color);
+}
+
+/// `text` cut to `width` with an ellipsis (`TextTrimming="CharacterEllipsis"`).
+fn elide(ui: &Ui, text: &str, font: FontId, width: f32) -> String {
+    if text_width(ui, text, font.clone()) <= width {
+        return text.to_owned();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    (0..chars.len())
+        .rev()
+        .map(|n| chars[..n].iter().collect::<String>() + "…")
+        .find(|s| text_width(ui, s, font.clone()) <= width)
+        .unwrap_or_default()
 }
 
 /// Fluent's ComboBox `DropDownGlyph` path in a 12x12 `PathIcon`: its
@@ -613,6 +709,15 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
         ctx.data_mut(|d| d.remove::<f32>(scroll_id));
     }
     (picked, keep)
+}
+
+/// A combo box's dropdown on its own, at the top left of the screen, as a
+/// capture of ShareX's popup window shows it (the reference shots of open
+/// combo boxes): `combo_width` is the width of the combo box it drops from.
+pub fn dropdown_alone(ui: &Ui, id: Id, combo_width: f32, items: &[ComboItem], selected: Option<usize>) {
+    let origin = ui.ctx().content_rect().min;
+    let anchor = Rect::from_min_size(pos2(origin.x, origin.y - 40.0), vec2(combo_width, 40.0));
+    let _ = dropdown(ui, id, anchor, items, selected, true);
 }
 
 /// `TextBox`: control background (hover background), 1px border, 4px

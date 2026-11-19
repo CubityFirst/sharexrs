@@ -41,6 +41,9 @@ type Form<'u, 'a, 'b> = settings_form::Form<'u, 'a, TaskCtx<'b>, TaskSettingsWin
 /// What the window asks of the app.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
+    /// Capture › Select region...: `RegionCaptureTasks.GetRectangleRegionAsync`
+    /// with the task's region options, into `CaptureCustomRegion`.
+    SelectRegion,
     /// A feature that isn't ported yet was asked for.
     NotPorted(&'static str),
     /// Screen recording options... (`ShowScreenRecordingOptions`).
@@ -159,6 +162,8 @@ pub struct TaskSettingsWindow {
     pub action_editor: Option<crate::task_editors::ActionEditor>,
     /// `WatchFolderEditorOverlay`.
     pub watch_editor: Option<crate::task_editors::WatchFolderEditor>,
+    /// The notification buttons editor (`ShowNotificationButtonsEditor`).
+    pub notification_editor: Option<crate::task_editors::NotificationButtonsEditor>,
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
@@ -195,6 +200,7 @@ impl TaskSettingsWindow {
             watch_selected: None,
             action_editor: None,
             watch_editor: None,
+            notification_editor: None,
             toolbar_editor: None,
             color_open: false,
             effects: Vec::new(),
@@ -228,6 +234,11 @@ impl TaskSettingsWindow {
 
     fn page_shown(&self, i: usize) -> bool {
         i != 0 || !self.is_default
+    }
+
+    /// Scrolls page `page` to `y` (clamped when drawn; `f32::MAX` is the end).
+    pub fn set_scroll(&mut self, page: usize, y: f32) {
+        self.scroll[page] = y;
     }
 
     /// `SelectedNavigationItem`'s setter: in the default window General and
@@ -285,7 +296,7 @@ impl TaskSettingsWindow {
             child.set_clip_rect(column.intersect(ui.clip_rect()));
             let height = self.run_page(&mut child, ctx, page, Mode::Paint, column, &terms);
             let max = (height - column.height()).max(0.0);
-            let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some();
+            let editing = self.action_editor.is_some() || self.watch_editor.is_some() || self.toolbar_editor.is_some() || self.notification_editor.is_some();
             if ui.rect_contains_pointer(column) && self.menu.is_none() && !self.color_open && !editing && !any_combo_open(ui.ctx()) {
                 self.scroll[page] -= ui.input(|i| i.smooth_scroll_delta.y);
             }
@@ -337,6 +348,17 @@ impl TaskSettingsWindow {
                         }
                     }
                     self.toolbar_editor = None;
+                }
+            }
+        }
+        if let Some(ed) = self.notification_editor.as_mut() {
+            match ed.show(ui, full) {
+                Outcome::Open => {}
+                Outcome::Cancelled => self.notification_editor = None,
+                // `buttons => general.ToastWindowButtons = buttons`.
+                Outcome::Saved(buttons) => {
+                    ctx.task.GeneralSettings.get_or_insert_default().ToastWindowButtons = buttons;
+                    self.notification_editor = None;
                 }
             }
         }
@@ -840,7 +862,9 @@ fn page_task(f: &mut Form) {
         let text = format!("{}...", s::TaskSettingsWindow_Destinations());
         if let Some(anchor) = f.menu_button(None, "destinations", icon::Destinations, &text, 300.0, true, o) {
             let entries = crate::main_menu::destinations_menu(&crate::main_menu::MenuState::default());
-            let entries = map_entries(entries, &|_| MenuCmd::Destination);
+            // `CreateDestinationMenuItem` takes the entry's `Header` alone:
+            // no accent on the selected service's name, as the main menu has.
+            let entries = destination_items(map_entries(entries, &|_| MenuCmd::Destination));
             f.w.menu = Some(Flyout::menu(Id::new("destinations-flyout"), entries, anchor, Placement::BottomEdgeAlignedLeft));
         }
     });
@@ -871,6 +895,22 @@ fn page_task(f: &mut Form) {
 }
 
 /// Menu entries with their commands mapped.
+fn destination_items<C: Clone>(entries: Vec<MenuEntry<C>>) -> Vec<MenuEntry<C>> {
+    entries
+        .into_iter()
+        .map(|mut e| {
+            e.accent = None;
+            // `CreateAccentMenuIcon`: 16px in an 18-wide box, in Fluent's
+            // 16x16 icon `Viewbox`.
+            if let sharex_ui::menu::MenuIcon::Key(k) = e.icon {
+                e.icon = sharex_ui::menu::MenuIcon::Accent(k, 16.0 * 16.0 / 18.0);
+            }
+            e.children = e.children.map(destination_items);
+            e
+        })
+        .collect()
+}
+
 fn map_entries<A: Clone, B: Clone>(entries: Vec<MenuEntry<A>>, map: &dyn Fn(A) -> B) -> Vec<MenuEntry<B>> {
     entries
         .into_iter()
@@ -932,7 +972,8 @@ fn page_notifications(f: &mut Form) {
             enum_combo!(f, s::TaskSettingsWindow_MiddleClickAction(), true, GeneralSettings.ToastWindowMiddleClickAction);
             num!(f, s::TaskSettingsWindow_NotificationButtonSize(), 16, 128, true, GeneralSettings.ToastWindowButtonSize);
             if label_button_row(f, s::TaskSettingsWindow_NotificationButtonsLabel(), s::TaskSettingsWindow_ConfigureWithEllipsis()) {
-                f.effect(Effect::NotPorted("notification buttons editor"));
+                let buttons = sec!(f, GeneralSettings).ToastWindowButtons.clone();
+                f.w.notification_editor = Some(crate::task_editors::NotificationButtonsEditor::new(&buttons));
             }
             chk!(f, s::TaskSettingsWindow_AutomaticallyHideOnScreenCapture(), GeneralSettings.ToastWindowAutoHide);
             chk!(f, s::TaskSettingsWindow_DisableToastNotificationsOnFullscreen(), GeneralSettings.DisableNotificationsOnFullscreen);
@@ -1160,7 +1201,7 @@ fn page_capture(f: &mut Form) {
         f.title(s::TaskSettingsWindow_PreconfiguredRegion());
         region_grid(f);
         if f.button(s::TaskSettingsWindow_SelectRegionWithEllipsis(), true) {
-            f.effect(Effect::NotPorted("select region"));
+            f.effect(Effect::SelectRegion);
         }
     });
     f.enabled_card(Section::Capture, &mut |f| {
@@ -1262,9 +1303,9 @@ fn page_screen_recorder(f: &mut Form) {
         f.title(s::TaskSettingsWindow_NativeRecorder());
         let native = chk!(f, s::TaskSettingsWindow_NativeRecorderEnabled(), CaptureSettings.ScreenRecordUseNative);
         let sys = chk!(f, s::TaskSettingsWindow_NativeRecorderSystemAudio(), native, CaptureSettings.ScreenRecordSystemAudio);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), native && sys, 0);
+        device_row(f, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), None, native && sys, 0);
         let mic = chk!(f, s::TaskSettingsWindow_NativeRecorderMicrophone(), native, CaptureSettings.ScreenRecordMicrophone);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), native && mic, 1);
+        device_row(f, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), None, native && mic, 1);
         chk!(f, s::TaskSettingsWindow_NativeRecorderHardware(), native, CaptureSettings.ScreenRecordRequireHardwareEncoder);
         let mut v = sec!(f, CaptureSettings).ScreenRecordVideoBitrate as f64;
         if f.number_f64_w(s::TaskSettingsWindow_NativeRecorderBitrate(), LABEL_W, 160.0, 100.0, 200000.0, 100.0, 0, &mut v, native) {
@@ -1278,7 +1319,15 @@ fn page_screen_recorder(f: &mut Form) {
         f.enabled = saved && native;
         f.stack(4.0, &mut |f| {
             let cam = chk!(f, s::TaskSettingsWindow_NativeRecorderCamera_Enabled(), CaptureSettings.ScreenRecordCamera);
-            device_row(f, s::TaskSettingsWindow_NativeRecorderCamera_Device(), s::TaskSettingsWindow_NativeRecorderCamera_NoDevices(), s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(), cam, 2);
+            device_row(
+                f,
+                s::TaskSettingsWindow_NativeRecorderCamera_Device(),
+                s::TaskSettingsWindow_NativeRecorderCamera_DefaultDevice(),
+                s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(),
+                Some(s::TaskSettingsWindow_NativeRecorderCamera_NoDevices()),
+                cam,
+                2,
+            );
             let res = [(Res::Size640x480, "640 × 480"), (Res::Size1280x720, "1280 × 720"), (Res::Size1920x1080, "1920 × 1080")];
             let cur = res.iter().position(|(r, _)| *r == sec!(f, CaptureSettings).ScreenRecordCameraResolution).unwrap_or(1);
             let items: Vec<ComboItem> = res.iter().map(|(_, t)| ComboItem::text(*t)).collect();
@@ -1341,28 +1390,18 @@ fn page_screen_recorder(f: &mut Form) {
     });
 }
 
-/// `CaptureDeviceCombo`: the default device, then the devices; one that's
-/// saved but not connected stays selectable. Device listing isn't ported,
-/// so only the default and a saved device show.
-fn device_row(f: &mut Form, label: &str, default_label: &str, unavailable: &str, enabled: bool, k: usize) {
-    let c = sec!(f, CaptureSettings);
-    let saved = match k {
-        0 => c.ScreenRecordSystemAudioDeviceId.clone(),
-        1 => c.ScreenRecordMicrophoneDeviceId.clone(),
-        _ => c.ScreenRecordCameraDeviceId.clone(),
-    };
-    let mut items = vec![ComboItem::text(default_label)];
-    if !saved.is_empty() {
-        items.push(ComboItem::text(unavailable));
-    }
-    let cur = if saved.is_empty() { 0 } else { 1 };
-    if f.combo(label, LABEL_W, &items, Some(cur), ComboSize::default(), enabled) == Some(0) {
-        let c = sec!(f, CaptureSettings);
-        match k {
-            0 => c.ScreenRecordSystemAudioDeviceId.clear(),
-            1 => c.ScreenRecordMicrophoneDeviceId.clear(),
-            _ => c.ScreenRecordCameraDeviceId.clear(),
-        }
+/// `CaptureDeviceCombo`: the default device (or "No cameras detected"),
+/// then the devices by name; one that's saved but not connected stays
+/// selectable.
+fn device_row(f: &mut Form, label: &str, default_label: &str, unavailable: &str, empty_label: Option<&str>, enabled: bool, k: usize) {
+    use crate::recording::bar_sources::{SourceKind, cached_devices, form_choices};
+    let kind = [SourceKind::SystemAudio, SourceKind::Microphone, SourceKind::Camera][k.min(2)];
+    let saved = kind.selected(sec!(f, CaptureSettings)).to_owned();
+    let choices = form_choices(cached_devices(kind), &saved, default_label, unavailable, empty_label);
+    let items: Vec<ComboItem> = choices.iter().map(|d| ComboItem::text(d.name.clone())).collect();
+    let cur = choices.iter().position(|d| d.id == saved);
+    if let Some(n) = f.combo(label, LABEL_W, &items, cur, ComboSize::default(), enabled) {
+        kind.set_selected(sec!(f, CaptureSettings), &choices[n].id);
     }
 }
 
@@ -1897,7 +1936,11 @@ fn page_advanced(f: &mut Form) {
         f.title(s::TaskSettingsWindow_UploadText());
         text!(f, &format!("{}:", s::TaskSettingsWindow_TextFileExtension()), true, AdvancedSettings.TextFileExtension);
         text!(f, &format!("{}:", s::TaskSettingsWindow_TextFormat()), true, AdvancedSettings.TextFormat);
-        text!(f, &format!("{}:", s::TaskSettingsWindow_TextCustom()), true, AdvancedSettings.TextCustom);
+        // `TextCustom`: `AcceptsReturn`, `TextWrapping.Wrap`, `MinHeight="80"`.
+        let mut v = sec!(f, AdvancedSettings).TextCustom.clone();
+        if f.text_area_row((&format!("{}:", s::TaskSettingsWindow_TextCustom()), LABEL_W), &mut v, true, 80.0) {
+            sec!(f, AdvancedSettings).TextCustom = v;
+        }
         chk!(f, s::TaskSettingsWindow_TextCustomEncodeInput(), AdvancedSettings.TextCustomEncodeInput);
     });
     f.enabled_card(Section::Advanced, &mut |f| {

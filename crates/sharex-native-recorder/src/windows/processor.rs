@@ -98,7 +98,7 @@ pub struct GpuVideoProcessor {
     pub output_width: i32,
     pub output_height: i32,
     pub canvas: ID3D11Texture2D,
-    canvas_view: ID3D11RenderTargetView,
+    pub(crate) canvas_view: ID3D11RenderTargetView,
     video: Option<Video>,
     supports_camera_composition: bool,
     camera_input: Option<ID3D11VideoProcessorInputView>,

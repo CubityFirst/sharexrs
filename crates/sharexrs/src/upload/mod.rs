@@ -55,10 +55,8 @@ pub trait TaskUi: Send + Sync {
     /// scanning the image.
     fn scan_qr_code_file(&self, _path: &std::path::Path) {}
     /// `TaskHelpers.AnalyzeImage(filePath, taskSettings)`: the Analyze
-    /// image window, which isn't ported yet.
-    fn analyze_image(&self, path: &std::path::Path) {
-        eprintln!("Analyze image window not ported yet: {}", path.display());
-    }
+    /// image window on the file.
+    fn analyze_image(&self, _path: &std::path::Path, _task: &TaskSettings) {}
     /// `LargeFileUploadWarningWindowIntegration.Show()`: (continue, don't
     /// show again). The task's thread waits for the answer.
     fn large_file_warning(&self) -> (bool, bool) {
@@ -128,6 +126,8 @@ pub enum UiRequest {
     Beautify(Box<image::RgbaImage>, Box<TaskSettings>, mpsc::Sender<Option<image::RgbaImage>>),
     /// A capture pinned (the Pin to screen after capture task).
     PinToScreen(Box<image::RgbaImage>, Box<TaskSettings>),
+    /// The Analyze image window on a capture (the after capture task).
+    AnalyzeImage(std::path::PathBuf, Box<TaskSettings>),
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
     /// to write (`None`: cancelled).
     FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
@@ -154,6 +154,7 @@ impl std::fmt::Debug for UiRequest {
             Self::Annotate(..) => f.write_str("Annotate"),
             Self::Beautify(..) => f.write_str("Beautify"),
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
+            Self::AnalyzeImage(p, _) => write!(f, "AnalyzeImage({})", p.display()),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
             Self::Email(..) => f.write_str("Email"),
             Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
@@ -212,6 +213,12 @@ impl TaskUi for SystemUi {
     fn pin_to_screen(&self, image: &image::RgbaImage, task: &TaskSettings) {
         if let Some(r) = &self.requests {
             r(UiRequest::PinToScreen(Box::new(image.clone()), Box::new(task.clone())));
+        }
+    }
+
+    fn analyze_image(&self, path: &std::path::Path, task: &TaskSettings) {
+        if let Some(r) = &self.requests {
+            r(UiRequest::AnalyzeImage(path.to_path_buf(), Box::new(task.clone())));
         }
     }
 
