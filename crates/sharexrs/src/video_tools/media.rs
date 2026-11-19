@@ -6,6 +6,11 @@
 //! - `LoadAsync` probes the file (`ffmpeg -i`): its duration, the first
 //!   video stream's size, frame rate and aspect, and whether it has sound.
 //!   No video stream, or no finite duration, is `VideoTrimmer_InvalidVideo`.
+//!   A file FFmpeg can't read at all (`AVERROR_INVALIDDATA`, "Invalid data
+//!   found when processing input") is what Media Foundation reports for
+//!   the same file: `MF_E_END_OF_STREAM`, as .NET's `COMException` words it
+//!   (`<system message> (0xC00D3E84)`; checked live with a text file named
+//!   `invalid.mp4`, VID-04). See [`ffmpeg_failure_as_media_foundation`].
 //! - Playing runs two FFmpeg processes from the position: one writes the
 //!   video as RGBA frames to a pipe, the other the first audio stream as
 //!   32-bit float PCM, which cpal plays on the default output device at
@@ -40,8 +45,55 @@ pub struct MediaInfo {
     pub has_audio: bool,
 }
 
+/// `MF_E_END_OF_STREAM`.
+const MF_E_END_OF_STREAM: u32 = 0xC00D_3E84;
+
+/// English Windows' system message for `MF_E_END_OF_STREAM` (ShareX's
+/// VID-04 shot), for where the system has none (macOS, Linux).
+const END_OF_STREAM_MESSAGE: &str = "The media stream cannot process any more samples because there are no more samples in the stream.";
+
+/// The `ex.Message` ShareX's player shows for the Media Foundation error an
+/// FFmpeg failure corresponds to, or `None` when FFmpeg's output has none
+/// of them (then it's `VideoTrimmer_InvalidVideo`, as ShareX's checks of
+/// the loaded media).
+///
+/// | FFmpeg | Media Foundation (`IMFMediaEngine` error) |
+/// |---|---|
+/// | `Invalid data found when processing input` (`AVERROR_INVALIDDATA`) | `MF_E_END_OF_STREAM` `0xC00D3E84` |
+/// | no `Duration`, or no video stream | `VideoTrimmer_InvalidVideo` (`HasVideo()`, a finite duration) |
+pub fn ffmpeg_failure_as_media_foundation(output: &str) -> Option<String> {
+    output.contains("Invalid data found when processing input").then(|| com_exception_message(MF_E_END_OF_STREAM, END_OF_STREAM_MESSAGE))
+}
+
+/// `Marshal.GetExceptionForHR(hr).Message`: the system's message for the
+/// code (`FormatMessage`, trimmed), then the code as `(0xXXXXXXXX)`.
+fn com_exception_message(hr: u32, fallback: &str) -> String {
+    format!("{} (0x{hr:08X})", system_message(hr).unwrap_or_else(|| fallback.to_string()))
+}
+
+#[cfg(windows)]
+fn system_message(code: u32) -> Option<String> {
+    use windows_sys::Win32::System::Diagnostics::Debug::{FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, FormatMessageW};
+    let mut buf = [0u16; 1024];
+    // SAFETY: the buffer and its length are valid; no inserts are read.
+    let n = unsafe {
+        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, std::ptr::null(), code, 0, buf.as_mut_ptr(), buf.len() as u32, std::ptr::null())
+    };
+    let text = String::from_utf16_lossy(&buf[..n as usize]);
+    let text = text.trim_end();
+    (!text.is_empty()).then(|| text.to_string())
+}
+
+#[cfg(not(windows))]
+fn system_message(_code: u32) -> Option<String> {
+    None
+}
+
 /// Reads `ffmpeg -i`'s stream summary.
 pub fn parse_probe(output: &str) -> Result<MediaInfo, String> {
+    if let Some(message) = ffmpeg_failure_as_media_foundation(output) {
+        return Err(message);
+    }
     let invalid = || sharex_strings::tools::VideoTrimmer_InvalidVideo().to_string();
     let duration_re = regex::Regex::new(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)").expect("pattern");
     let video_re = regex::Regex::new(r"Stream #\d+:\d+[^:]*: Video: [^\n]*?, (\d+)x(\d+)([^\n]*)").expect("pattern");
@@ -584,6 +636,22 @@ mod tests {
         assert!((i.duration - 8.02).abs() < 1e-9);
         assert!((i.aspect - 16.0 / 9.0).abs() < 1e-9);
         assert_eq!(frame_size(&i), (320, 180));
+    }
+
+    #[test]
+    fn unreadable_input_is_media_foundations_end_of_stream() {
+        // VID-04: `ffmpeg -i invalid.mp4` on the bytes `not a video`.
+        let text = "[mov,mp4,m4a,3gp,3g2,mj2 @ 0000020c1f4f8c40] moov atom not found
+[in#0 @ 0000020c1f4f8a40] Error opening input: Invalid data found when processing input
+Error opening input file invalid.mp4.
+Error opening input files: Invalid data found when processing input
+";
+        let message = parse_probe(text).unwrap_err();
+        assert!(message.ends_with(" (0xC00D3E84)"), "{message}");
+        // English Windows' message is ShareX's shot's; elsewhere it's that text.
+        if cfg!(not(windows)) || message.starts_with("The media stream") {
+            assert_eq!(message, format!("{END_OF_STREAM_MESSAGE} (0xC00D3E84)"));
+        }
     }
 
     #[test]
