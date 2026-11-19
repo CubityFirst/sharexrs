@@ -185,6 +185,8 @@ pub enum TaskCommand {
     ShowErrors,
     Clear,
     SwitchView,
+    /// `DeleteSelectedItemRemotelyAsync`: the Amazon S3 object, after a question.
+    DeleteRemotely,
     /// An entry whose tool isn't ported yet (named for the log).
     NotPorted(&'static str),
     /// `ExternalProgram.RunAsync(filePath)`: the default task settings'
@@ -232,6 +234,10 @@ pub enum TaskAction {
     OpenImageViewer(PathBuf),
     /// Open a file (a thumbnail title's click, `ExecuteThumbnailClick`).
     OpenFile(PathBuf),
+    /// `URLHelpers.OpenURL`: a thumbnail title's click, `ExecuteThumbnailClick`'s Open URL.
+    OpenUrl(String),
+    /// `UploadManager.ClipboardUploadMainWindow` (Ctrl+V).
+    UploadClipboard,
     /// Escape: `Close()`.
     CloseWindow,
     /// The view settings changed; save them.
@@ -382,6 +388,9 @@ pub struct TaskView {
     combine: Option<CombineTarget>,
     /// The window's scale, as of the last frame.
     ppp: f32,
+    /// `UploadersConfigOrNull != null && UploadersConfigValidator.Validate(
+    /// FileDestination.AmazonS3, …)`: set by the app (none: never).
+    pub amazon_s3_valid: Option<std::sync::Arc<dyn Fn() -> bool + Send + Sync>>,
 }
 
 #[derive(Clone)]
@@ -447,6 +456,7 @@ impl TaskView {
             file_drag: None,
             combine: None,
             ppp: 1.0,
+            amazon_s3_valid: None,
         }
     }
 
@@ -1551,7 +1561,7 @@ impl TaskView {
                     // `OnThumbnailTitlePointerReleased`: the URL, else the file.
                     if let Some(task) = self.task(id) {
                         if !task.info.result.text().is_empty() {
-                            actions.push(TaskAction::Command(TaskCommand::NotPorted("Open URL"), vec![id]));
+                            actions.push(TaskAction::OpenUrl(task.info.result.text().to_owned()));
                         } else if let Some(p) = task.info.file_path.clone() {
                             actions.push(TaskAction::OpenFile(p));
                         }
@@ -1581,7 +1591,11 @@ impl TaskView {
     /// `ExecuteThumbnailClick`.
     fn execute_click(&mut self, id: u64, actions: &mut Vec<TaskAction>) {
         let Some(task) = self.task(id) else { return };
-        let Some(path) = task.info.file_path.clone() else { return };
+        if self.settings.click_action == ThumbnailViewClickAction::OpenURL {
+            actions.push(TaskAction::OpenUrl(task.info.result.text().to_owned()));
+            return;
+        }
+        let Some(path) = task.info.file_path.clone().filter(|p| !p.as_os_str().is_empty()) else { return };
         let p = path.to_string_lossy().into_owned();
         let exists = path.is_file();
         match self.settings.click_action {
@@ -1595,7 +1609,6 @@ impl TaskView {
             ThumbnailViewClickAction::OpenImageViewer if exists && is_image_file(&p) => actions.push(TaskAction::OpenImageViewer(path)),
             ThumbnailViewClickAction::OpenFile => actions.push(TaskAction::OpenFile(path)),
             ThumbnailViewClickAction::OpenFolder => actions.push(TaskAction::Command(TaskCommand::OpenFolder, vec![id])),
-            ThumbnailViewClickAction::OpenURL => actions.push(TaskAction::Command(TaskCommand::NotPorted("Open URL"), vec![id])),
             ThumbnailViewClickAction::EditImage if exists && is_image_file(&p) => {
                 actions.push(TaskAction::Command(TaskCommand::EditImage, vec![id]))
             }
@@ -1637,9 +1650,12 @@ impl TaskView {
                 Key::C if shift => TaskCommand::CopyFile,
                 Key::C if alt => TaskCommand::CopyImage,
                 Key::C if ctrl => TaskCommand::TryCopy,
-                Key::V if ctrl => TaskCommand::NotPorted("Upload from clipboard"),
-                Key::U if ctrl => TaskCommand::NotPorted("Upload"),
-                Key::D if ctrl => TaskCommand::NotPorted("Download"),
+                Key::V if ctrl => {
+                    actions.push(TaskAction::UploadClipboard);
+                    continue;
+                }
+                Key::U if ctrl => TaskCommand::Upload,
+                Key::D if ctrl => TaskCommand::Download,
                 Key::E if ctrl => TaskCommand::EditImage,
                 Key::P if ctrl => TaskCommand::PinToScreen,
                 Key::Delete if shift => TaskCommand::DeleteSelectedFiles,
@@ -1764,6 +1780,11 @@ impl TaskView {
         let sub = |h: &str, i: &'static str, c: Vec<MenuEntry<TaskCommand>>, v: bool| MenuEntry::parent(h, i, c).visible(v);
         let has_errors = first_task.is_some_and(|t| t.info.result.is_error());
         let has_response = first_task.is_some_and(|t| !t.info.result.response.is_empty());
+        // `CanDeleteAmazonS3Object`, for one selected task.
+        let can_delete_remotely = tasks.len() == 1
+            && !working
+            && first_task.is_some_and(|t| !t.info.result.url.is_empty() && t.info.amazon_s3_file)
+            && self.amazon_s3_valid.as_ref().is_some_and(|valid| valid());
         let entries = vec![
             item(s::MainWindow_ShowErrors(), icon::Warning, TaskCommand::ShowErrors, ok && has_errors),
             item(s::MainWindow_StopUpload(), icon::CircleStop, TaskCommand::StopUpload, working),
@@ -1784,8 +1805,7 @@ impl TaskView {
             item(s::MainWindow_DeleteSelectedItem(), icon::Trash, TaskCommand::RemoveSelected, ok).gesture("Delete"),
             item(s::MainWindow_DeleteSelectedFile(), icon::FileDelete, TaskCommand::DeleteSelectedFiles, ok && sel.is_file_exist)
                 .gesture("Shift+Delete"),
-            // Remote deletion needs an Amazon S3 upload.
-            item(s::MainWindow_DeleteItemRemotely(), icon::CloudOff, np("Delete remotely"), false),
+            item(s::MainWindow_DeleteItemRemotely(), icon::CloudOff, TaskCommand::DeleteRemotely, can_delete_remotely),
             sub(s::MainWindow_ShortenSelectedUrl(), icon::ShortLink, shortener_menu(), uploads && ok && sel.is_url_exist),
             sub(s::MainWindow_ShareSelectedUrl(), icon::Share, sharing_menu(), uploads && ok && sel.is_url_exist),
             item(s::MainWindow_AnalyzeImage(), icon::Robot, TaskCommand::AnalyzeImage, ok && sel.is_image_file),
@@ -2169,6 +2189,58 @@ mod tests {
         list.settings.mode = TaskViewMode::ListView;
         list.owned_image(1, Arc::new(image::RgbaImage::new(4, 4)));
         assert!(list.requests.is_empty());
+    }
+
+    fn delete_remotely_visible(v: &mut TaskView) -> bool {
+        v.task_menu().iter().any(|e| e.command == Some(TaskCommand::DeleteRemotely) && e.visible)
+    }
+
+    #[test]
+    fn delete_remotely_needs_one_amazon_s3_upload_and_a_valid_config() {
+        // `CanDeleteAmazonS3Object`.
+        let mut v = view_with(2);
+        for id in [1, 2] {
+            v.manager.complete(id, None, None, 10);
+            let t = v.manager.tasks.iter_mut().find(|t| t.id == id).unwrap();
+            t.info.result.url = format!("https://s3.example.com/b/{id}.png");
+            t.info.amazon_s3_file = true;
+        }
+        v.select_only(1);
+        // No config check (or a config without S3): hidden.
+        assert!(!delete_remotely_visible(&mut v));
+        v.amazon_s3_valid = Some(Arc::new(|| false));
+        assert!(!delete_remotely_visible(&mut v));
+        v.amazon_s3_valid = Some(Arc::new(|| true));
+        assert!(delete_remotely_visible(&mut v));
+        // Two selected: hidden.
+        v.add_to_selection(2);
+        assert!(!delete_remotely_visible(&mut v));
+        // Not an S3 file upload, or no URL: hidden.
+        v.select_only(1);
+        v.manager.tasks.iter_mut().find(|t| t.id == 1).unwrap().info.amazon_s3_file = false;
+        assert!(!delete_remotely_visible(&mut v));
+        v.select_only(2);
+        v.manager.tasks.iter_mut().find(|t| t.id == 2).unwrap().info.result.url.clear();
+        assert!(!delete_remotely_visible(&mut v));
+    }
+
+    #[test]
+    fn open_url_click_opens_the_result_without_a_file() {
+        // `ExecuteThumbnailClick(OpenURL)`: `Result.ToString()`, the shortened URL first.
+        let mut v = view_with(1);
+        v.manager.complete(1, None, None, 10);
+        let t = v.manager.tasks.iter_mut().find(|t| t.id == 1).unwrap();
+        t.info.result.url = "https://example.com/a".into();
+        t.info.result.shortened_url = "https://s.example/a".into();
+        v.settings.click_action = ThumbnailViewClickAction::OpenURL;
+        let mut actions = Vec::new();
+        v.execute_click(1, &mut actions);
+        assert_eq!(actions, [TaskAction::OpenUrl("https://s.example/a".into())]);
+        // Other actions need a file.
+        v.settings.click_action = ThumbnailViewClickAction::OpenFile;
+        actions.clear();
+        v.execute_click(1, &mut actions);
+        assert!(actions.is_empty());
     }
 
     #[test]

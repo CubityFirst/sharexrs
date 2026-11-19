@@ -3,12 +3,39 @@
 //! (`OpenFolderWithFile`) and deleting it to the recycle bin (`DeleteFile`).
 
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+/// Shows a message box with this text (the app's, set at startup).
+pub type MessageHook = Arc<dyn Fn(String) + Send + Sync>;
+
+static FILE_NOT_EXIST: Mutex<Option<MessageHook>> = Mutex::new(None);
+
+/// Where `OpenFile` and `OpenFolderWithFile` show their "File does not
+/// exist" message box (none: it's only logged).
+pub fn set_file_not_exist_hook(hook: Option<MessageHook>) {
+    *FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()) = hook;
+}
+
+/// `Helpers_OpenFile_File_not_exist_ + Environment.NewLine + filePath`.
+pub fn file_not_exist_text(path: &Path) -> String {
+    let newline = if cfg!(windows) { "\r\n" } else { "\n" };
+    format!("{}{newline}{}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display())
+}
+
+/// `MessageBox.Show(…File_not_exist_…, "ShareX", OK, Information)`.
+fn file_not_exist(path: &Path) {
+    let text = file_not_exist_text(path);
+    eprintln!("{text}");
+    let hook = FILE_NOT_EXIST.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some(hook) = hook {
+        hook(text);
+    }
+}
 
 /// `FileHelpers.OpenFile`: `Process.Start` with `UseShellExecute`.
 pub fn open_file(path: &Path) -> bool {
-    if !path.is_file() {
-        // ShareX says so in a message box (`Helpers_OpenFile_File_not_exist_`).
-        eprintln!("{} {}", sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_(), path.display());
+    if path.as_os_str().is_empty() || !path.is_file() {
+        file_not_exist(path);
         return false;
     }
     match shell_open(path) {
@@ -23,10 +50,20 @@ pub fn open_file(path: &Path) -> bool {
     }
 }
 
-/// `URLHelpers.OpenURL`'s `Process.Start(url)` with `UseShellExecute`:
-/// the default browser (a custom `BrowserPath` isn't supported yet).
+static BROWSER_PATH: Mutex<String> = Mutex::new(String::new());
+
+/// `HelpersOptions.BrowserPath` (`ApplicationSettingsRuntime.ApplyCore`).
+pub fn set_browser_path(path: &str) {
+    *BROWSER_PATH.lock().unwrap_or_else(|e| e.into_inner()) = path.to_owned();
+}
+
+/// `URLHelpers.OpenURL`'s `Process.Start` with `UseShellExecute`: the
+/// `BrowserPath` program with the URL as its arguments when one is set,
+/// else the URL itself (the default browser).
 pub fn open_url(url: &str) -> bool {
-    match shell_open(Path::new(url)) {
+    let browser = BROWSER_PATH.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let opened = if browser.is_empty() { shell_open(Path::new(url)) } else { sharex_update::install::shell_execute(Path::new(&browser), url, false) };
+    match opened {
         Ok(()) => true,
         Err(e) => {
             eprintln!("OpenURL({url}) failed: {e}");
@@ -38,7 +75,8 @@ pub fn open_url(url: &str) -> bool {
 /// `FileHelpers.OpenFolderWithFile`: the folder, with the file selected
 /// (`NativeMethods.OpenFolderAndSelectFile`).
 pub fn open_folder_with_file(path: &Path) -> bool {
-    if !path.is_file() {
+    if path.as_os_str().is_empty() || !path.is_file() {
+        file_not_exist(path);
         return false;
     }
     match select_in_folder(path) {
@@ -311,5 +349,26 @@ mod tests {
         assert_eq!(find_opener("/usr/bin:/bin", have(&["/bin/xdg-open", "/usr/bin/gnome-open"])), Some(Path::new("/bin").join("xdg-open")));
         assert_eq!(find_opener("/usr/bin::/opt", have(&["/opt/kfmclient", "/usr/bin/gnome-open"])), Some(Path::new("/usr/bin").join("gnome-open")));
         assert_eq!(find_opener("/usr/bin", have(&[])), None);
+    }
+}
+
+#[cfg(test)]
+mod not_exist_tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_file_shows_the_message_box() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s = seen.clone();
+        set_file_not_exist_hook(Some(Arc::new(move |t: String| s.lock().unwrap().push(t))));
+        let missing = std::env::temp_dir().join("sharexrs-no-such-file-4f2a.png");
+        assert!(!open_file(&missing));
+        assert!(!open_folder_with_file(&missing));
+        set_file_not_exist_hook(None);
+        let seen = seen.lock().unwrap();
+        let expected = file_not_exist_text(&missing);
+        assert!(expected.starts_with(sharex_strings::helpers_lib::Helpers_OpenFile_File_not_exist_()));
+        assert!(expected.ends_with(&missing.display().to_string()));
+        assert_eq!(seen.iter().filter(|t| **t == expected).count(), 2);
     }
 }

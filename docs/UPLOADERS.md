@@ -641,11 +641,10 @@ Differences and gaps:
 - A destination `sharex-uploaders` doesn't have fails the task with
   "<service> isn't ported to ShareXrs yet." (ShareX would upload).
 - `DoFileJobs` (actions, copy file/path/folder, show in Explorer, Scan QR
-  code) is ported and tested headlessly (`upload/tests.rs`, "File jobs");
-  the Analyze image window it would open isn't.
-- Not ported (logged when used): task notifications, OCR,
-  `ProcessImagesDuringFileUpload`, index folder, history, a custom browser
-  (`BrowserPath`), drag and drop onto the main window.
+  code) is ported and tested headlessly (`upload/tests.rs`, "File jobs").
+- `ProcessImagesDuringFileUpload` sends an image file through the after
+  capture tasks (`TaskJob.Job`, its path and name kept); opened URLs use
+  `BrowserPath` when it's set.
 - The windows (pickers, text/URL/shorten, clipboard viewer, drop window,
   confirmations, before/after upload, QR code, response, Custom uploader
   and Destination settings) and the task menu's upload entries are ported

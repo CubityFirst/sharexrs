@@ -18,11 +18,10 @@ use std::time::{Duration, Instant};
 use egui::{Id, Rect, Ui, pos2, vec2};
 use serde_json::Value;
 use sharex_strings::tools as t;
-use sharex_tools::mouse_highlighter::{Highlighter, Mode, MouseHighlighterOptions};
-use sharex_ui::controls::{self, ComboBox, ComboItem, DecimalUpDown};
+use sharex_tools::mouse_highlighter::{Highlighter, MouseHighlighterOptions};
+use sharex_ui::controls;
 use sharex_ui::keys::app_icons as icon;
-use sharex_ui::theme::{Thickness, palette};
-use sharex_ui::widgets::font;
+use sharex_ui::theme::palette;
 
 use crate::dialogs::{Cx, Dialog, Effect, Spec};
 
@@ -534,13 +533,14 @@ mod win {
 pub struct HighlighterWindow {
     options: MouseHighlighterOptions,
     scroll: f32,
+    settings: super::highlighter_settings::SettingsControl,
 }
 
 impl HighlighterWindow {
     pub fn new(options: MouseHighlighterOptions) -> Self {
         let mut options = options;
         options.validate();
-        Self { options, scroll: 0.0 }
+        Self { options, scroll: 0.0, settings: super::highlighter_settings::SettingsControl::new("mh") }
     }
 
     /// `RefreshState`.
@@ -554,39 +554,7 @@ impl HighlighterWindow {
     }
 }
 
-/// A wrapped `TextBlock` (Normal 13px): its lines a font line height apart
-/// (unrounded, as Avalonia's text layout places them).
-fn wrapped(ui: &Ui, at: egui::Pos2, width: f32, text: &str, color: egui::Color32) {
-    let f = font(13.0, 400);
-    let lh = ui.fonts_mut(|fo| fo.row_height(&f));
-    for (k, line) in controls::wrap_lines(ui, text, &f, width).iter().enumerate() {
-        let g = ui.painter().layout_no_wrap(line.clone(), f.clone(), color);
-        ui.painter().galley(pos2(at.x, (at.y + k as f32 * lh).round()), g, color);
-    }
-}
-
-/// A row (`ColumnDefinitions="*,180" ColumnSpacing="12"`): the control's cell.
-fn cell(r: Rect) -> Rect {
-    Rect::from_min_size(pos2(r.max.x - 180.0, r.min.y), vec2(180.0, r.height()))
-}
-
-fn check(ui: &Ui, r: Rect, id: &str, text: &str, value: &mut bool, enabled: bool) -> bool {
-    let cb = controls::CheckBox { min_height: 32.0, enabled, text_font: font(13.0, 400), text_color: Some(palette(ui.ctx()).text), ..controls::CheckBox::new(text) };
-    let w = cb.width(ui);
-    cb.show(ui, Rect::from_min_size(r.min, vec2(w, 32.0)), Id::new(("mh", id)), value).changed()
-}
-
-/// The colour button: a 28x20 swatch with a grey border.
-fn color_button(ui: &Ui, r: Rect, id: &str, c: &sharex_tools::color::Color, enabled: bool) -> bool {
-    let b = Rect::from_min_size(r.min, vec2(50.0, 40.0));
-    let resp = controls::Button::default().show(ui, b, Id::new(("mh-color", id)), "", enabled);
-    let sw = Rect::from_center_size(b.center(), vec2(28.0, 20.0));
-    let op = if enabled { 1.0 } else { 0.35 };
-    let fill = egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a).gamma_multiply(op);
-    ui.painter().rect_filled(sw, 0.0, fill);
-    ui.painter().rect_stroke(sw, 0.0, egui::Stroke::new(1.0, egui::Color32::GRAY.gamma_multiply(op)), egui::StrokeKind::Inside);
-    resp.clicked()
-}
+use super::highlighter_settings::wrapped;
 
 impl Dialog for HighlighterWindow {
     fn spec(&self) -> Spec {
@@ -604,9 +572,7 @@ impl Dialog for HighlighterWindow {
         ui.painter().rect_filled(full, 0.0, p.background_main);
         // The `ScrollViewer`: the wheel scrolls the content.
         let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-        let o = &mut self.options;
-        let ripple = o.mode == Mode::Ripple;
-        let content_h = 20.0 + 40.0 + 14.0 + 61.0 + 14.0 + 40.0 + 3.0 * (12.0 + 40.0) + if ripple { 3.0 * (12.0 + 32.0) + 12.0 + 3.0 * 40.0 + 2.0 * 10.0 + 10.0 + 32.0 } else { 12.0 + 40.0 + 10.0 + 18.0 + 3.0 * (10.0 + 40.0) } + 12.0 + 32.0 + 20.0;
+        let content_h = 20.0 + 40.0 + 14.0 + 61.0 + 14.0 + super::highlighter_settings::SettingsControl::height(ui, &self.options, full.width() - 40.0) + 20.0;
         self.scroll = (self.scroll - wheel).clamp(0.0, (content_h - full.height()).max(0.0));
         let x0 = full.min.x + 20.0;
         let w = full.width() - 40.0;
@@ -627,91 +593,7 @@ impl Dialog for HighlighterWindow {
         wrapped(ui, tip.min + vec2(13.0 + 18.0 + 10.0, 13.0), w - 26.0 - 28.0, t::MouseHighlighter_RecordingHelp(), p.text_secondary);
         y += 61.0 + 14.0;
         let o = &mut self.options;
-        // Mode.
-        let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
-        controls::label(ui, row, t::MouseHighlighter_Mode(), font(13.0, 400), p.text);
-        let items = [ComboItem::text(t::MouseHighlighter_Circle()), ComboItem::text(t::MouseHighlighter_Ripple())];
-        let combo = ComboBox { padding: Thickness::hv(8.0, 6.0), enabled: true };
-        if let Some(i) = combo.show(ui, cell(row), Id::new("mh-mode"), &items, Some(usize::from(ripple))) {
-            o.mode = if i == 0 { Mode::Circle } else { Mode::Ripple };
-            changed = true;
-        }
-        y += 40.0 + 12.0;
-        for k in 0..3 {
-            let (label, cross_label) = [
-                (t::MouseHighlighter_PrimaryColor(), t::MouseHighlighter_PrimaryReleaseCrosshairs()),
-                (t::MouseHighlighter_SecondaryColor(), t::MouseHighlighter_ReleaseCrosshairs()),
-                (t::MouseHighlighter_MiddleColor(), t::MouseHighlighter_MiddleReleaseCrosshairs()),
-            ][k];
-            let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
-            let (on, cross, color) = match k {
-                0 => (&mut o.highlight_primary_clicks, &mut o.show_primary_release_crosshairs, &o.primary_color),
-                1 => (&mut o.highlight_secondary_clicks, &mut o.show_secondary_release_crosshairs, &o.secondary_color),
-                _ => (&mut o.highlight_middle_clicks, &mut o.show_middle_release_crosshairs, &o.middle_color),
-            };
-            let color = color.clone();
-            changed |= check(ui, Rect::from_min_size(pos2(x0, row.min.y + 4.0), vec2(w - 192.0, 32.0)), &format!("on{k}"), label, on, true);
-            if color_button(ui, cell(row), &format!("c{k}"), &color, *on) {
-                effects.push(Effect::NotPorted("the mouse highlighter's colour flyout"));
-            }
-            y += 40.0 + 12.0;
-            if ripple {
-                let enabled = *on;
-                changed |= check(ui, Rect::from_min_size(pos2(x0, y), vec2(w, 32.0)), &format!("x{k}"), cross_label, cross, enabled);
-                y += 32.0 + 12.0;
-            }
-        }
-        let number = |ui: &mut Ui, y: f32, id: &str, label: &str, v: &mut f64, (min, max, step, dec): (f64, f64, f64, usize)| -> bool {
-            let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
-            controls::label(ui, row, label, font(13.0, 400), p.text);
-            DecimalUpDown { minimum: min, maximum: max, increment: step, decimals: dec, enabled: true }.show(ui, cell(row), Id::new(("mh-n", id)), v)
-        };
-        if ripple {
-            let mut size = o.ripple_size as f64;
-            if number(ui, y, "size", t::MouseHighlighter_RippleSize(), &mut size, (10.0, 300.0, 1.0, 0)) {
-                o.ripple_size = size as i32;
-                changed = true;
-            }
-            y += 50.0;
-            if number(ui, y, "intensity", t::MouseHighlighter_RippleIntensity(), &mut o.ripple_intensity, (0.15, 1.35, 0.05, 2)) {
-                changed = true;
-            }
-            y += 50.0;
-            let mut d = o.ripple_duration as f64;
-            if number(ui, y, "duration", t::MouseHighlighter_RippleDuration(), &mut d, (60.0, 2000.0, 10.0, 0)) {
-                o.ripple_duration = d as i32;
-                changed = true;
-            }
-            y += 50.0;
-            changed |= check(ui, Rect::from_min_size(pos2(x0, y), vec2(w, 32.0)), "follow", t::MouseHighlighter_FollowCursor(), &mut o.follow_cursor_while_held, true);
-            y += 32.0 + 12.0;
-        } else {
-            let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
-            controls::label(ui, row, t::MouseHighlighter_AlwaysColor(), font(13.0, 400), p.text);
-            if color_button(ui, cell(row), "always", &o.always_color.clone(), true) {
-                effects.push(Effect::NotPorted("the mouse highlighter's colour flyout"));
-            }
-            y += 40.0 + 10.0;
-            wrapped(ui, pos2(x0, y), w, t::MouseHighlighter_AlwaysColorHelp(), egui::Color32::GRAY);
-            y += 18.0 + 10.0;
-            for (k, (label, v, range)) in [
-                (t::MouseHighlighter_Radius(), &mut o.radius, (5.0, 500.0, 1.0, 0)),
-                (t::MouseHighlighter_FadeDelay(), &mut o.fade_delay, (0.0, 10000.0, 10.0, 0)),
-                (t::MouseHighlighter_FadeDuration(), &mut o.fade_duration, (0.0, 10000.0, 10.0, 0)),
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                let mut f = *v as f64;
-                if number(ui, y, &format!("c{k}"), label, &mut f, range) {
-                    *v = f as i32;
-                    changed = true;
-                }
-                y += 50.0;
-            }
-            y += 2.0;
-        }
-        changed |= check(ui, Rect::from_min_size(pos2(x0, y), vec2(w, 32.0)), "auto", t::MouseHighlighter_AutoActivate(), &mut o.auto_activate, true);
+        changed |= self.settings.ui(ui, x0, y, w, o);
         if changed {
             // `Changed()`: validated, the running highlighter refreshed, saved.
             o.validate();

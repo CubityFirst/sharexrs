@@ -370,13 +370,12 @@ encoding, a 32-bit Windows.
   Outside Windows, `ScreenRecordUseNative` records with FFmpeg ("ShareX's
   native screen recorder is Windows only: recording with FFmpeg
   instead.").
-- The bar's Mouse highlighter options panel (it opens with its title and
-  says so; Task settings › Mouse highlighter has the options).
-- The after capture window (a recording goes on as accepted, logged), the
-  file exists dialog (a unique name), the output box for FFmpeg errors (a
-  message box with FFmpeg's output), `DownloaderWindow`. (`DoFileJobs` now
-  runs on a recording's file job task: actions, copy file/path, show in
-  Explorer.)
+- The bar's Mouse highlighter panel (`BuildHighlighterPanel`, the shared
+  `screen_tools::highlighter_settings` control on the bar's draft options,
+  refreshing a running highlighter, committed with the bar) has no ShareX
+  shot to compare with (`--render recorder-bar --content
+  highlighter[-circle]`); ShareX's `PanelScroll.MaxHeight` (the panel
+  scrolling on a short work area) and the bar's `MaxWidth` aren't ported.
 - The FFmpeg options window isn't modal over Task settings, and its pages
   don't scroll (ShareX's do when the window is short).
 - The bar's window covers its screen's work area (cut to the bar and its
@@ -392,7 +391,7 @@ encoding, a 32-bit Windows.
 | `mod.rs` | `ScreenRecordManager`: the recorder jobs (`run_recording_job`: `StartStopRecording`, `StopRecording`, `PauseScreenRecording`, `AbortRecording`), Capture › Screen recording (GIF) in the main menu and tray, `StartRecording`'s checks and message boxes, the area (the region overlay with no annotations or pointer, `capture_job::prepare_selection`; active window, custom and last region), `ScreenRecorderBarSettings.Commit`, `ScreenRecordRegion`, the frame window and its tray icon and menu, the worker thread with `TaskHelpers`' file naming, the finished file as a file job task (`upload::manager::create_file_job_task`) |
 | `frame.rs` | `ScreenRecordWindow` and `RecordingRegionBorder`: `ConfigureGeometry`, the dashed border (backdrop and accent, corners three quarters covered), the toolbar (timer with countdown, Start/Stop, Pause/Resume, Restart, Abort, labels or not, the inline abort confirmation), `ChangeState`/`UpdateUI`, the tray icon's pictures and text |
 | `bar.rs` | `ScreenRecorderBarWindow` for the FFmpeg recorder: grip, Record, Start delay (1–5 s menu), Cursor, Mouse highlighter, Options (Recording and Bar tabs), Cancel, `PositionNearRegion`, `ClampToScreen` |
-| `ffmpeg_options.rs` | `FFmpegOptionsWindow` (Sources with the DirectShow lists, Video, Audio, Advanced with the command preview and custom commands, reset), FFmpeg's download |
+| `ffmpeg_options.rs` | `FFmpegOptionsWindow` (Sources with the DirectShow lists, Video, Audio, Advanced with the command preview and custom commands, reset), FFmpeg's download (`FFmpegGitHubDownloader`: the latest release's URL, then `DownloaderWindow` on `ffmpeg.zip` with `InstallType.Event`, whose `InstallRequested` extracts `ffmpeg.exe` where FFmpeg was looked for) |
 
 The frame, the bar and the region outline are transparent windows
 (`EguiWindow::transparent`: DirectComposition with premultiplied alpha)
@@ -609,6 +608,13 @@ Run ShareX's reference build and `sharexrs` side by side with the same
 10. **Bar screenshots**: the native bar (labels on/off, each source's
     panel, both camera tabs, the unavailable message) against ShareX's with
     `scripts/winshot.ps1` and `scripts/compare.py`, both themes.
+11. **The bar's Mouse highlighter panel**: open it from the highlighter's
+    arrow in both apps (Ripple and Circle), compare the panel with
+    `--render recorder-bar --content highlighter[-circle]` and ShareX's
+    shot in both themes; change a colour (the flyout stays inside the bar
+    window's region), a number and the mode with the highlighter running
+    by hand (it follows), cancel the bar: the changes are in the task's
+    `ToolsSettings.MouseHighlighterOptions` either way.
 
 ### Untested
 

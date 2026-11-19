@@ -185,6 +185,7 @@ impl App {
     pub(crate) fn apply_settings(&mut self) {
         let s = &self.settings.settings;
         self.hotkeys.repeat_limit = std::time::Duration::from_millis(s.hotkey_repeat_limit() as u64);
+        crate::shell::set_browser_path(&s.BrowserPath);
         if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }

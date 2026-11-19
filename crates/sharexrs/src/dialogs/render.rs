@@ -434,14 +434,30 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             use sharex_update::downloader::DownloadProgress;
             use sharex_update::downloader_window::{DownloaderWindowStatus, progress_text};
             use sharex_strings::helpers_lib as hs;
-            let checker = update_checker("installed");
-            let mut d = super::update::DownloaderDialog::new(&checker, std::sync::Arc::new(crate::update::AppHost), super::update::UpdateOrigin::User);
+            // `ffmpeg-<state>`: FFmpeg's downloader (`ffmpeg.zip`).
+            let content = o.content.as_deref().unwrap_or("downloading");
+            let (ffmpeg, state) = match content.strip_prefix("ffmpeg-") {
+                Some(state) => (true, state),
+                None => (false, content),
+            };
+            let mut d = if ffmpeg {
+                let w = crate::recording::ffmpeg_options::ffmpeg_downloader_window(
+                    "https://github.com/ShareX/FFmpeg/releases/download/v7.1/ffmpeg-7.1-win64.zip".into(),
+                    std::sync::Arc::new(crate::update::AppHost),
+                    std::path::PathBuf::from("ffmpeg.exe"),
+                    |_| {},
+                );
+                super::update::DownloaderDialog::ffmpeg(w)
+            } else {
+                let checker = update_checker("installed");
+                super::update::DownloaderDialog::new(&checker, std::sync::Arc::new(crate::update::AppHost), super::update::UpdateOrigin::User)
+            };
             let w = &mut d.window;
             // Drawn as it is, never started.
             w.auto_start_download = false;
             let status = |t: &str| hs::DownloaderForm_ChangeStatus_Status___0_().replace("{0}", t);
             let progress = DownloadProgress { file_size: 52_428_800, downloaded_size: 13_107_200, download_speed: 3_276_800.0 };
-            match o.content.as_deref().unwrap_or("downloading") {
+            match state {
                 "waiting" => {}
                 "getting-size" => {
                     w.status = DownloaderWindowStatus::DownloadStarted;
