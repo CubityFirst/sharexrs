@@ -44,6 +44,14 @@ impl Drop for EguiWindow {
     }
 }
 
+/// A window painted since [`take_painted`] was last asked.
+static PAINTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether any window painted a frame since the last call.
+pub fn take_painted() -> bool {
+    PAINTED.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// `Window.Activate()` for any ShareXrs window: [`crate::activation::activate_window`]
 /// (Avalonia's bare `SetForegroundWindow` on Windows, not winit's
 /// `focus_window`, which fakes an Alt press to steal the foreground).
@@ -337,6 +345,7 @@ impl EguiWindow {
         );
         sharex_capture::trace::mark("frame: textures uploaded, drawn, presented");
         output.textures_delta.clear();
+        PAINTED.store(true, std::sync::atomic::Ordering::Relaxed);
         self.popups.paint(&self.window, &mut self.painter, &ctx, output.pixels_per_point, clear, moved_out);
         self.repaint_at = None;
         if let Some(vp) = output.viewport_output.get(&egui::ViewportId::ROOT) {
