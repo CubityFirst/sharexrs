@@ -169,3 +169,35 @@ Allow **16–26.5 hours** across several desktop sessions. This covers the safe,
 Tracker items such as JSON round trips, uploader protocol behavior, OS-specific capture backends, window transparency processing, file associations, startup registration and re-encoding parity are behavior checks. Their visual entry points are in the tables where applicable. System installer/integration dialogs, the deferred editors, and any frame with unrelated desktop content are outside the capture inventory. Existing references in the shot root and legacy subdirectories can support earlier comparisons without moving those files.
 
 Phase 1 ends with this manifest commit. Phase 2 starts only after explicit desktop handoff.
+
+## Phase 2 capture results
+
+### App windows · app
+
+12 of 21 rows have new references. 37 PNGs and 37 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/app/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `workflows` | `workflows-sidebar-default-light.png` | Light sidebar default. Custom, filtered and tray variants remain. |
+| `tray-recent` | — | No capture of the native tray entry. Existing tasks were synthetic. |
+| `tools-edit` | `tools-edit-all-visible-dark.png`, `tools-edit-all-visible-light.png` | Both theme edit-mode bases. Visibility and pressed variants remain. |
+| `quick-task` | `quick-task-default-dark.png`, `quick-task-default-light.png` | Both defaults over a verified test pattern. Configured, hover and edge variants remain. |
+| `quick-task-editor` | `quick-task-editor-add-overlay-dark.png`, `quick-task-editor-add-overlay-light.png`, `quick-task-editor-default-dark.png`, `quick-task-editor-default-light.png`, `quick-task-editor-edit-overlay-dark.png`, `quick-task-editor-edit-overlay-light.png`, `quick-task-editor-reset-confirm-dark.png`, `quick-task-editor-reset-confirm-light.png` | Both default, add, edit and reset states. Empty and scrolled variants remain. |
+| `actions-toolbar` | `actions-toolbar-default-dark.png`, `actions-toolbar-default-light.png`, `actions-toolbar-title-menu-dark.png`, `actions-toolbar-title-menu-light.png` | Both default and title menu. Locked and transient pointer variants remain. |
+| `actions-toolbar-editor` | `actions-toolbar-editor-add-menu-dark.png`, `actions-toolbar-editor-add-menu-light.png`, `actions-toolbar-editor-default-dark.png`, `actions-toolbar-editor-default-light.png` | Both default and Add menu. Empty, selected and customized variants remain. |
+| `task-toast` | `task-toast-image-saved-dark.png`, `task-toast-image-saved-light.png` | Both saved-image toasts verified by UIA content and source pattern. Clipboard-only and transient variants remain. Live upload states are excluded. |
+| `tray-minimized` | `tray-minimized-first-close-dark.png`, `tray-minimized-first-close-light.png` | Both first-close notifications over the verified pattern. Hover remains. |
+| `after-capture` | `after-capture-image-dark.png`, `after-capture-image-light.png` | Both local image views. File, dropdown and alternate-goal variants remain. |
+| `after-upload` | — | Skipped. The stock route requires an upload completion or failure. |
+| `about` | `about-top-dark.png`, `about-top-light.png` | Both top views captured with a temporary, session-scoped update-disable policy. Remote panel, footer and hover variants remain. |
+| `debug-log` | `debug-log-log-dark.png`, `debug-log-log-light.png` | Both logs from the generated portable profile. Assembly and confirmation variants remain. |
+| `display-diagnostics` | — | Skipped the live hardware and foreground-window report. |
+| `file-exists` | `file-exists-default-dark.png`, `file-exists-default-light.png`, `file-exists-empty-name-dark.png`, `file-exists-empty-name-light.png`, `file-exists-new-name-dark.png`, `file-exists-new-name-light.png` | Both default, empty-name and new-name states. Hover and pressed variants remain. |
+| `task-missing-file` | — | Skipped. An eligible stale file action did not have a verified stock route. |
+| `icon-pack-prompt` | — | Not captured. The prompt did not appear with the fixture flag, and the focused window list did not expose it. |
+| `recorder-native` | — | No native device or recording-frame capture in this batch. Synthetic source and native backend availability still need verification. |
+| `ffmpeg-output` | — | No forced failure capture in this batch. |
+| `update-message` | — | Skipped. Requires a release lookup or a separately scoped synthetic view fixture. |
+| `update-downloader` | — | Skipped. Requires download state or a separately scoped synthetic view fixture. |
