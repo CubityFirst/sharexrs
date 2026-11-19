@@ -54,7 +54,7 @@ Checks from [TOOLS.md](TOOLS.md#the-video-windows-in-sharexrs) and the Video row
 
 | ID | Area | DPI (scaling) | Check | ShareX result | ShareXrs result | PASS/FAIL/BLOCKED | Evidence |
 |---|---|---|---|---|---|---|---|
-| VID-01 | Video tools | 120 (125%) | Open the same generated silent 8 s, 320×180 H.264 MP4 in Video converter. Choose local output and x264 constant quality 23. Start encoding. | Wrote a 224,247-byte MP4 and displayed result properties. | Same file bytes and result properties. | PASS | `video-converter-result-repeat-dark.png` under `SX` and `RS`. Output SHA-256 `fe855a7e213b5a005032219749974b099d007c09aa67f9c9c9b7f4ca6e146871`. Input generated locally with FFmpeg `testsrc2=size=320x180:rate=24`, `-t 8 -c:v libx264 -pix_fmt yuv420p -an`. |
+| VID-01 | Video tools | 120 (125%) | Open the same generated silent 8 s, 320×180 H.264 MP4 in Video converter. Choose local output and x264 constant quality 23. Start encoding. | Wrote a 224,247-byte MP4 and displayed result properties. | Same file bytes and result properties. | PASS | `video-converter-result-repeat-dark.png` under `SX` and `RS`. Output SHA-256 `fe855a7e213b5a005032219749974b099d007c09aa67f9c9c9b7f4ca6e146871`. The generated 24 fps timecode input had SHA-256 `1a24d11610a9e03f78b5de85ebe21deac2ea8ec69d2345986d34c36f098e98c8`. |
 | VID-02 | Video tools | 120 (125%) | At 125% DPI open the encoder list in Video converter without resizing its 850×550 logical client. | Separate popup from y=694 to y=1324, 196 px beyond the client bottom. The initial viewport shows MPEG-4 / Xvid, GIF and WebP. | Popup stops at the client bottom, y=1128. The initial viewport ends at VP9. Scroll is needed for the entries ShareX shows immediately. | FAIL | `video-converter-ready-repeat-dark.png` and `video-converter-codecs-popup-repeat-dark.png` under `SX` and `RS`. |
 | VID-03 | Video tools | 120 (125%) | Start `-AnimatedGifTrimmer` on the generated three-frame `sequence.gif`, then on a text file named `invalid.gif`. | Loads at frame 1 of 3 with duration 840 ms. The invalid file shows “Select an animated GIF with at least two frames.” | Same initial frame, duration and invalid-file message. | PASS | `video-gif-loaded-repeat-dark.png` and `video-gif-invalid-repeat-dark.png` under `SX` and `RS`. |
 | VID-04 | Video tools | 120 (125%) | Start `-VideoTrimmer invalid.mp4` with a file containing the ASCII bytes `not a video`. Wait for the error. | Shows a modal and an inline error. In the repeat, the Media Foundation detail reports that the stream has no more samples, with code `0xC00D3E84`. | Shows a modal and an inline error with the generic detail “Select a video with a known, finite duration.” | FAIL | `video-trimmer-invalid-repeat-dark.png` and `video-trimmer-invalid-underlying-repeat-dark.png` under `SX` and `RS`. The earlier claim that only ShareXrs opened a modal is superseded. |
@@ -171,3 +171,27 @@ and the live upload work referenced by commit `79b3bcc`.
 | UPL-03 | Uploaders | — | OAuth authorization, token refresh, loopback listener, account and device retrieval, 2FA and connected album or folder browsing. | Skipped. Requires accounts and network. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#the-destination-settings-windows-services) |
 | UPL-04 | Uploaders | — | Connected remote-storage listing, refresh, filtering, folder navigation, download, rename, deletion, upload and remote image preview. | Skipped. Requires a live provider. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#remote-storage-browser) |
 | UPL-05 | Uploaders | — | Live custom uploader tests, Email, YouTube options from upload, upload progress, errors, URL shortening and sharing. | Skipped. Requires sending data or reaching a provider. | Skipped for the same reason. | BLOCKED | [UPLOADERS.md](UPLOADERS.md#upload-tasks) |
+
+## Run coverage and teardown
+
+The table records 43 PASS, 16 FAIL and 22 BLOCKED. Outstanding offline
+cases include the debug-log actions, tray workflows and recent items,
+the missing-file message, toast hover and click actions, the remaining
+settings menu interactions, stopping scrolling capture by activation or
+close, native Windows Graphics Capture, and the recorder bar's Mouse
+highlighter panel. The new clipboard shortcut and date-flyout findings
+apply to `72045af`. The corresponding changes on `master` were outside
+the executable tested here.
+
+All 18 resumed toast source crops passed `scripts/pattern-check.py` at
+1.0000. Scroll pattern startup probes that failed were deleted before
+viewing. The verified Down Arrow shots supersede the first pair. No
+additional desktop takeover was observed after the session resumed.
+
+The final test ShareX and ShareXrs exited normally after their dialogs
+were closed. The reference portable profile matched all 13 SHA-256
+hashes before restart. ShareX restarted as PID 49164 with `-NoHotkeys`.
+The startup used `AutoCheckUpdate=false`, then the exact original
+`ApplicationConfig.json` bytes were restored and reverified. The test
+pattern stopped and the backup and temporary portable profiles were
+removed.
