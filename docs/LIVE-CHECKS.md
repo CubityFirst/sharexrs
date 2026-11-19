@@ -545,3 +545,74 @@ with a baseline binary that has master's `controls.rs` and `color_view.rs`
 and with this branch's: 240 compared states, none changed (the dropdown
 change alone against the pre-merge controls: also 240 unchanged). The
 mouse highlighter flyout stays at 0.09% against ShareX's 125% shot.
+
+## Pass 4 · Windows desktop checks
+
+ShareX reference `c4f1e6f7780f5e1a2f04aadd6703557806e9f868` and ShareXrs
+built offline from master `8723def1d238150b078cc33e8af47a0466a73e98`.
+Both executables ran from generated portable copies with automatic updates
+off. The reference copy matched the original executable's SHA-256. The
+single 2560×1600 display had a 2560×1540 work area at 120 DPI (125%).
+Display settings were left as found. Evidence uses the same SX and RS
+directories as the earlier passes. The new PrintWindow images and their
+SHA-256 sidecars start with `pass4-`.
+
+| ID | DPI (scaling) | Repro | ShareX result | ShareXrs result | Status | Evidence |
+|---|---|---|---|---|---|---|
+| APP2-02b | 120 (125%) | Seed the generated `recent-local.txt` recent task with `DisableUpload=true`, select its file card and press Ctrl+U. | The task opens the DisableUpload information box. | Same wording and 600×189 client. The task remains in Preparing while the box is open and the toast appears after OK. | PASS | `pass4-ctrl-u-dark.png` in SX and RS. |
+| APP2-02c | 120 (125%) | With uploads disabled, select the URL-only card for the generated `file:///…/download-source.txt` and press Ctrl+D. | The modal begins with “Download failed:” and “System.NotSupportedException: The 'file' scheme is not supported.” and continues with the .NET stack trace. | The modal has the same error and type. It contains the two-line error only, as documented in the fix. | PASS | `pass4-ctrl-d-dark.png` in SX and RS. Only the local `file:` URL was used. |
+| APP2-02e | 120 (125%) | Start with recent tasks saved and shown in the main window, thumbnail titles on, and two URL-only items for `file:///…/download-source.txt` and `https://example.invalid/fixture-open.txt`. | Titles are `download-source.txt` and `fixture-open.txt`. The file card is titled `recent-local.txt`. | All three titles match. | PASS | `pass4-seeded-repeat-dark.png` in SX and RS. The external URL was displayed as fixture text. |
+| SWP4-01 | 120 (125%) | Use a temp portable profile with a custom screenshots path, remove its empty directory after startup, and invoke `-OpenScreenshotsFolder`. | An information box says “Folder does not exist:” and shows the configured scratch path. | Same text, path, icon, OK action and 600×199 client. The path wraps at a different character. | PASS | `pass4-missing-folder-dark.png` in SX and RS. |
+| REC2-03a | 120 (125%) | Leave the fixture main window exposed. Click and verify the foreground HWND/PID of `--test-pattern --window 320,260,801,601`. Forward `-ScreenRecorderActiveWindow` twice, with `CaptureClientArea=false`, native H.264 at 30 fps for 3 s, and cursor, audio and camera off. | 800×600, 30 fps, 3.000 s, 90 frames, 942,006 bytes. | Same stream properties and frame count. 942,005 bytes. | PASS | The launch helper used no console window. The alternate pattern matched at 1.0000 on every decoded frame in both apps, including the exposed-main-window repeat. First and last decoded RGB frames were identical across apps. |
+| ACT4-01 | 120 (125%) | Bind global Hash Checker hotkeys to Ctrl+Shift+F10 in ShareXrs and Ctrl+Shift+F11 in ShareX. Send each chord with the other app in the foreground. | Hash Checker opens and is the foreground HWND. | Same result. | PASS | `pass4-hotkey-hash-dark.png` in SX and RS. |
+| DROP3-03 | 120 (125%) | With `DisableUpload=true`, use an owned OLE source to hold and release the generated `alpha.txt` and the Unicode text `Pass 3 generated drop text` on the main client. | Both OLE drops return Copy and each release opens the DisableUpload modal. | Same modal after each release, with the file toast after dismissal. | PASS | `pass4-drop-{file,text}-{hover,modal}-dark.png` in SX and RS. The drop targets were 120 DPI. The WinForms source reported 96 DPI and was scaled by Windows on the 125% display. |
+| HIL2-02 | 120 (125%) | Task settings › Tools › Mouse highlighter › Primary button color. With the fixture at A=166 and RGB 54,169,225, open Spectrum, Palette and Components. On Spectrum click the vertical alpha midpoint at screen y=845, then inspect Components and close settings. | All tabs render. Components has 40 logical px inputs. Before the edit blue reads 225. After the edit the fields read A=128 and RGB 54,169,225, and the same value saves. | All three tabs are present with the matching layout and nominal Components input heights. The Components blue value reads 224 before and after the edit. A=128 is shown and saved, but the saved RGB is 54,169,223. | FAIL | Original re-check still fails on RGB preservation. `SX/pass4-color-{spectrum,palette,components,alpha}-dark.png` and RS's corresponding `-owner-dark.png` images. Saved `DefaultTaskSettings.ToolsSettings.MouseHighlighterOptions.PrimaryColor` was checked in each portable config. |
+| TOAST2-02 | 120 (125%) | On a 15 s MiddleCenter toast for a local `900,540,640,480` pattern crop, hover the image to reveal actions. Move to Copy image at screen `1192,920` and dwell for 600 ms. | Shows a 108×39 Copy image tooltip above the button. | Shows the same label in a 109×40 tooltip above the button. | PASS | `SX/pass4-toast-tip-dark.png`, `RS/pass4-toast-extra-tip-dark.png`. Both source crops passed at 1.0000. |
+| TOAST2-03 | 120 (125%) | Click the Copy image action on the same toast with an empty clipboard. The fixture's left, right and middle image-body actions were Close notification. | Copies a 640×480 bitmap identical to the saved source. | Copies a 640×480 bitmap with identical decoded RGB to the source and ShareX. | PASS | Decoded RGB SHA-256 `62235e3f9ece771f005a22d4d8abf2c97945dc1f9ca2eb685b5038bdf285e75f` in both. This checks the Copy image action. |
+| SET2-03 | 120 (125%) | In the centered unresized Task settings › File naming window, open the Time zone dropdown from UTC. | A 370×630 popup starts at y=271, 63 px above the client, and displays 15 rows from Araguaina through UTC, including Asuncion. | The same size and 15 rows. The popup starts at y=273, 61 px above the client. The top strip is darker in the PrintWindow image. | PASS | `pass4-time-zone-popup-dark.png` in SX and RS. |
+| SET2-04 | 120 (125%) | In the same unresized window, click the first `native-%i` field and press Escape with the menu open. | The variable menu opens right of the field at `1823,473`. Escape closes the menu and leaves settings open. | Same opening side, categories and dismissal at `1822,472`. The popup is 230 px tall versus 226 px as previously documented. | PASS | `pass4-naming-popup-dark.png` in SX and RS. |
+| HOT3-02 | 120 (125%) | Seed two unbound Hash checker rows with the first set to `UseDefaultAfterCaptureJob=false` and `AfterCaptureJob=None`. In the 850×750 physical client, dwell 1.1 s at the original coordinates `594,139` and `801,139`, the blue pencil's interior at `511,139`, and measured stroke pixels. | No tooltip at the original coordinates or the blue pencil interior. The pencil stroke at `504,142` shows This task has custom settings. The status stroke at `802,149` shows Not configured. | Same no-tooltip results on the centers. Stroke hits at `506,144` and `801,149` show the same labels. | PASS | `pass4-hotkey-*-centre-dark.png` in both. SX `pass4-hotkey-*-stroke-tip-dark.png` and RS `pass4-hotkey-*-stroke-repeat-dark.png`. Stroke spots were measured separately from each app's pixels. |
+| REG4-01 | 120 (125%) | Open each hotkey-launched Hash Checker's Hash type dropdown and press Escape. | Opens a 126×270 owned popup that extends below the client. Escape dismisses the popup. | Same position, size, and Escape behavior. | PASS | `pass4-hash-dropdown-dark.png` in SX and RS. |
+| ACT4-02 | 120 (125%) | With the test pattern in front, invoke `-ToggleTrayMenu` and choose Application settings from the tray menu. | The settings window becomes the foreground HWND. | Same result. | PASS | `pass4-tray-menu-dark.png` and `pass4-tray-application-settings-dark.png` in SX and RS. The shell reported both notification-area icons at its hidden-icons overflow anchor, which was covered by the host, so the menu was opened with its command-line job. |
+| SWP4-02 | 120 (125%) | Start an unfixed-duration native recording over the verified `900,540,640,480` test pattern using `-ScreenRecorderCustomRegion` twice. While recording, invoke `-ExitShareX` and choose Yes. Cursor, audio and camera are off. | The warning asks whether to abort the active screen recording, with Yes and No. Yes closes the recording frame, leaves ShareX running, and produces no completed MP4. | Same wording, actions and outcome. | PASS | `pass4-recording-exit-dark.png` in SX and RS. Both rectangle preflights passed at 1.0000. The dialogs were moved beyond the recording region before clicking Yes. |
+| REG4-02 | 120 (125%) | Launch `-ImageEditor` on the generated 640×400 `pattern-01.png`. Leave Rectangle selected, open the Solid stroke-style dropdown, and inspect the selected row. Press Escape. | Image Editor takes the foreground. The dropdown lists Solid, Dash, Dot, Dash Dot and Dash Dot Dot. Solid has black text on the blue selection. Escape closes the editor. | Same activation, options and Escape behavior. Solid has light text on the blue selection. | FAIL | New visual mismatch observed in the sweep. `pass4-editor-stroke-style-dark.png` in SX and RS. |
+
+### Pass 4 coverage and teardown
+
+Pass 4 recorded **15 PASS, 2 FAIL and 0 BLOCKED**. HIL2-02 is the
+remaining failure from the requested re-checks. REG4-02 is a newly
+observed failure from the optional editor sweep.
+
+The first disposable profile had recent-task saving off and reused one
+global hotkey across both apps. The corrected profiles enabled saving,
+used distinct shortcuts and loaded all three fixture cards. A plain
+click opened the generated `recent-local.txt` in Notepad. The generated
+tab was closed and modifier-click was used to select the cards for the
+shortcut checks.
+
+An early active-window recording launched through a shell start that
+changed the foreground. The 1124×878 MP4 was rejected on dimensions
+and deleted unviewed. Another setup was aborted when the window
+geometry showed the console had taken the foreground. The successful
+repeats used a no-console launcher and verified the pattern HWND and
+PID immediately before each forward. Several toast grab preflights and
+two saved crops were rejected and deleted unviewed. The mismatching
+area was under the automation cursor overlay. Moving the overlay clear
+of the crop yielded 1.0000 preflights, source images and clipboard
+images. The scratch captures and recordings were removed after checking.
+
+The original ShareX PID 53424 and all disposable ShareX instances
+honored `-ExitShareX`. All 13 original profile files matched their
+backup SHA-256 hashes before restart. The original reference restarted
+without arguments as **PID 19224**. Startup used a temporary
+`AutoCheckUpdate=false` value and the original config bytes were copied
+back afterward. The hotkey warning was dismissed. The main window was
+the only remaining ShareX window. Twelve hashes still matched, and the
+monthly log retained its exact original bytes followed by 2,663 bytes
+from normal startup.
+
+The disposable apps, test patterns and OLE source exited. The backup
+and all test profiles and fixtures were deleted. The clipboard
+reported zero formats. Display settings were unchanged. All 63 new
+PrintWindow PNGs and DPI sidecars passed hash verification. The offline
+build and macOS Clippy check completed.
