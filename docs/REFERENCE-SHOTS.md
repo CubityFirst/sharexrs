@@ -16,6 +16,30 @@ Phase 1 inventory for ShareX 22.4, source commit `c4f1e6f7780f5e1a2f04aadd670355
 - Keep external network, loopback requests, uploads, browsers, sign-ins, keys, system integration/installers, UAC, Photo editor, Pixel editor and the system print dialog out of the session. Use native file pickers only if their initial folder and visible contents are known to be synthetic, with the shell's recent/pinned locations out of view. Capture only verified ShareX-owned client/popup HWNDs. Shell or picker UI with personal paths, enumerated third-party windows, logs with personal paths and unsafe overlay frames are excluded. Use full-monitor T coverage before opening screen or transparency tools. Run the existing pattern guard where applicable and delete uncertain frames unviewed. Pattern coverage alone cannot certify that a foreground window or overlay list contains safe data.
 - **Conditional** means a local fixture, sanitized session, or capability must be verified before trying the route. **Blocked** means the target state has no safe route through the specified stock executable under the current rules. Where useful, the table identifies what a future in-process view fixture could supply without a network or writes to system state. Such a fixture would require separate scope and separate provenance from a shot of the portable executable.
 
+## Shared controls (`shared-controls`)
+
+The shared-control pass added **62 PrintWindow PNGs and 62 UIA sidecars**, 31
+pairs each in Dark and Light, under
+`G:/scripts/sharexrs-ref/shots/sharex/shared-controls/`. Append
+`-dark` or `-light` and `.png` or `.json` to each stem below. The portable
+fixture used English, the default accent and spacing, and 96 DPI. The
+desktop backdrop passed `scripts/pattern-check.py` on every monitor. The
+PNG for each owner and popup comes from its own ShareX HWND. The sidecars
+include the window geometry, popup offsets, z-order and relevant UIA state.
+
+| State | File stems, both themes | How to reach it |
+|---|---|---|
+| Navigation item, combo box and check box focus | `focus-navigation`, `focus-combo`, `focus-checkbox` | Tab through Application settings › General to the General nav item, Language combo and Show tray icon. |
+| Slider and numeric editor focus | `focus-slider`, `focus-numeric` | Tab to Sidebar spacing in Application settings › Theme and Duration in Task settings › Notifications. |
+| Text box and button focus | `focus-textbox`, `focus-button`, `focus-message-button` | Tab to File and Browse in Hash checker, and OK in the FFmpeg is missing message box. |
+| Toggle and tab focus | `focus-toggle`, `focus-tab` | Tab to Random frame in Video thumbnailer and the Recording tab in the built-in recorder's Options panel. The recorder stayed in setup with all audio and camera inputs off. |
+| List and menu item focus | `focus-list-item-popup0`, `focus-menu-item-popup0` | Open the Hash checker algorithm list or the Capture menu, then press Down. The list draws a rectangle around the focused item. The menu shades the focused row. |
+| Fluent scrollbar on a long settings page | `scroll-settings-rest`, `scroll-settings-hover`, `scroll-settings-drag`, `scroll-settings-arrow` | Application settings › Theme. Move from the page to the track, drag the thumb down and hover Line down. The resting thumb measures 2 px in UIA and expands to 16 px on hover. |
+| Fluent scrollbar on a long list | `scroll-language-list-rest`, `scroll-language-list-hover`, `scroll-language-list-drag`, `scroll-language-list-arrow` | Application settings › General › Language. The list scrolls from Automatic to English at the top during the held drag. |
+| Combo popup past the window bottom | `edge-video-codecs-owner`, `edge-video-codecs-popup0`, `edge-small-combo-owner`, `edge-small-combo-popup0` | Open Codec in Video converter with a generated silent H.264 clip, and Algorithm in Hash checker. The popups extend 54 px and 31 px below their owners' client areas. |
+| Submenu flips at the screen edge | `edge-submenu-owner`, `edge-submenu-popup0`, `edge-submenu-popup1` | Place the main window at x=459 on the 1024 px-wide display. Hover Screenshot delay in Capture. Its popup starts at x=439, to the left of the Capture popup at x=673. |
+| Toolbar and settings tooltips | `tooltip-toolbar-owner`, `tooltip-toolbar-popup0`, `tooltip-settings-owner`, `tooltip-settings-popup0` | Hover Capture region on the Actions toolbar and the Mouse wheel combo in Task settings › Region capture. |
+
 ## App windows (`app`)
 
 | Shot ID | Reach and source | Missing states | UIA and geometry | Input and risk |
@@ -335,7 +359,7 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/theme-scroll/`. Each
 | `destination-light` | `destination-light-hastebin-light.png`, `destination-light-pomf-light.png`, `destination-light-zero-width-light.png` | Local light bases over generated configuration. |
 | `editor-light` | — | Not covered. Existing light editor variants remain usable. |
 | `history-gaps` | — | Not covered. Existing synthetic History/Image history/Stats references remain usable. |
-| `shared-controls` | — | No separate capture of generic control states. Specialised popup or scroll shots record the controls in context. |
+| `shared-controls` | [Shared controls](#shared-controls-shared-controls) | Follow-up capture of shared control states in both themes. |
 
 ### Capture audit and teardown
 
