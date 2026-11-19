@@ -20,15 +20,20 @@
 //! holds the frozen screen and its annotations, the toolbar's tools switch
 //! to it (`ActivateAnnotationTool`), Tab or the region button back
 //! (`ActivateRegionTool`), and the capture includes the annotations
-//! (`GetSnapshot(Rect)`). Not yet: ellipse and freehand regions (hidden
-//! toolbar items), multi region mode, the screen crosshair option, custom
-//! info text, tooltips, the options' dropdowns.
+//! (`GetSnapshot(Rect)`). The region tool selects rectangles, ellipses or
+//! freehand regions ([`shape`], `CaptureRegion`; the ellipse and freehand
+//! items are hidden toolbar items by default), several of them in multi
+//! region mode (`MultiRegionMode` on a request that allows it), captured
+//! with everything outside them transparent (`ApplyRegionMask`).
 
+pub mod chrome;
 pub mod cursors;
 pub mod magnifier;
 pub mod options_row;
 pub mod paint;
+pub mod shape;
 pub mod toolbar;
+pub mod tooltip;
 
 use std::time::{Duration, Instant};
 
@@ -44,6 +49,7 @@ use sharex_image_editor::editor::{self as ed, Workspace};
 use sharex_image_editor::model::EditorTool;
 
 pub use paint::OverlayView;
+pub use shape::{CaptureRegion, RegionShape};
 
 /// `AvaloniaRegionCaptureRequest`: what the overlay shows and how.
 pub struct Request {
@@ -68,7 +74,17 @@ pub struct Request {
     /// The pointer (`ShowCursor`, `CursorData.ToBitmap`), inserted as an
     /// image annotation over the frozen screen.
     pub cursor_image: Option<crate::CursorImage>,
+    /// `AllowMultipleRegions`: `MultiRegionMode` may select several regions
+    /// (Capture › Region; not the screen recorder's or the tools' selection).
+    pub allow_multiple_regions: bool,
+    /// `CodeMenuEntryPixelInfo.Parse(text, colour, position)`, for the
+    /// custom info text (`UseCustomInfoText`); the app's, from the tools.
+    pub pixel_info: Option<PixelInfoParser>,
 }
+
+/// `CodeMenuEntryPixelInfo.Parse`: the text, the pixel's RGBA, its
+/// desktop position.
+pub type PixelInfoParser = fn(&str, [u8; 4], (i32, i32)) -> String;
 
 /// `AvaloniaRegionCaptureResult`.
 #[derive(Clone, Debug)]
@@ -278,9 +294,19 @@ pub struct RegionCapture {
     press_point: PointF,
     pub(crate) last_pointer: PointF,
     last_creation_point: PointF,
-    interaction_start: RectF,
-    /// `_regionOverlay.Selection` (rectangles only).
-    pub(crate) selection: RectF,
+    interaction_start: CaptureRegion,
+    /// `_regionOverlay.Selection`: the region being drawn or edited.
+    pub(crate) selection: CaptureRegion,
+    /// `_regions`: the regions already added in multi region mode.
+    pub(crate) regions: Vec<CaptureRegion>,
+    /// `_regionShape`: what the region tool selects.
+    pub(crate) region_shape: RegionShape,
+    /// The freehand region being drawn (`_freehandPoints`).
+    freehand_points: Option<Vec<PointF>>,
+    /// Shift draws a straight edge (`_isFreehandStraightLine`).
+    freehand_straight: bool,
+    allow_multiple_regions: bool,
+    pixel_info: Option<PixelInfoParser>,
     pub(crate) hover: RectF,
     hover_candidate: Option<usize>,
     selected_candidate: Option<usize>,
@@ -313,6 +339,10 @@ pub struct RegionCapture {
 
     /// Escape went to the text box, so its release doesn't cancel.
     escape_to_text: bool,
+    /// The toolbar's tooltip (`ToolTipService`).
+    pub(crate) tip: tooltip::TipState,
+    /// Where the pointer is, desktop pixels (the tooltip opens there).
+    tip_pointer: (f64, f64),
 }
 
 /// `Distance(...) >= 4` before a press on a hovered window starts a new
@@ -335,6 +365,8 @@ impl RegionCapture {
             enable_annotations,
             editor_options,
             cursor_image,
+            allow_multiple_regions,
+            pixel_info,
         } = request;
         let editor = enable_annotations.then(|| {
             let pm = sharex_skia::Pixmap::from_rgba(screenshot.width(), screenshot.height(), screenshot.as_raw());
@@ -368,8 +400,14 @@ impl RegionCapture {
             press_point: PointF::default(),
             last_pointer: PointF::default(),
             last_creation_point: PointF::default(),
-            interaction_start: RectF::default(),
-            selection: RectF::default(),
+            interaction_start: CaptureRegion::default(),
+            selection: CaptureRegion::default(),
+            regions: Vec::new(),
+            region_shape: RegionShape::Rectangle,
+            freehand_points: None,
+            freehand_straight: false,
+            allow_multiple_regions,
+            pixel_info,
             hover: RectF::default(),
             hover_candidate: None,
             selected_candidate: None,
@@ -396,6 +434,8 @@ impl RegionCapture {
             slider_drag: None,
             popups: Default::default(),
             escape_to_text: false,
+            tip: tooltip::TipState::default(),
+            tip_pointer: (0.0, 0.0),
         };
         // `OnOpened`: the pointer, the toolbar on its monitor, the hover.
         let desktop = cursor.or_else(|| me.screens.iter().find(|s| s.primary).map(|s| (s.bounds.x, s.bounds.y)));
@@ -434,11 +474,27 @@ impl RegionCapture {
         if now >= at {
             self.keyboard_enabled = true;
         }
+        let tip = if self.toolbar.hidden || self.toolbar.drag.is_some() { None } else { self.tip.tick(now, self.tip_pointer) };
         let animating = self.toolbar.hidden_changed.is_some_and(|t| now < t + Duration::from_millis(200));
-        if animating {
-            return Some(now + Duration::from_millis(16));
+        let next = if animating { Some(now + Duration::from_millis(16)) } else { (!self.keyboard_enabled).then_some(at) };
+        match (next, tip) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
         }
-        (!self.keyboard_enabled).then_some(at)
+    }
+
+    /// The text of a toolbar part's tooltip (`ToolTip.Tip`).
+    pub(crate) fn tooltip_text(&self, part: toolbar::Part) -> Option<String> {
+        match part {
+            toolbar::Part::Option(item) => {
+                let tool = self.editor.as_ref().map(|e| e.active_tool());
+                let name = tool
+                    .and_then(|t| toolbar::TOOLS.iter().find(|i| i.tool == t).map(|i| (i.name)().to_string()))
+                    .unwrap_or_default();
+                Some(item.tooltip(&name))
+            }
+            other => toolbar::tooltip(other, &self.bar),
+        }
     }
 
     fn clamp(&self, p: PointF) -> PointF {
@@ -449,33 +505,129 @@ impl RegionCapture {
         RectF::new(0.0, 0.0, self.width, self.height)
     }
 
-    /// `HasValidSelection`.
-    pub(crate) fn has_valid_selection(&self) -> bool {
-        self.selection.w >= limits::MINIMUM_SIZE as f64 && self.selection.h >= limits::MINIMUM_SIZE as f64
+    /// `GetPointerInfoText` for the image pixel (`ix`, `iy`): its desktop
+    /// position, or with `UseCustomInfoText` the custom text (or colour,
+    /// hex and position) of the screenshot's pixel there.
+    pub(crate) fn pointer_info_text(&self, ix: i32, iy: i32) -> String {
+        let (x, y) = (self.screen_bounds.x + ix, self.screen_bounds.y + iy);
+        if !self.options.UseCustomInfoText {
+            return format!("X: {x} Y: {y}");
+        }
+        // `GetWorkspacePixel`: the source image's pixel, unpremultiplied.
+        let c = if ix >= 0 && iy >= 0 && (ix as u32) < self.screenshot.width() && (iy as u32) < self.screenshot.height() {
+            self.screenshot.get_pixel(ix as u32, iy as u32).0
+        } else {
+            [0, 0, 0, 0]
+        };
+        if !self.options.CustomInfoText.is_empty()
+            && let Some(parse) = self.pixel_info
+        {
+            return parse(&self.options.CustomInfoText, c, (x, y));
+        }
+        // `ColorHelpers.ColorToHex(color)`: RGB, upper case.
+        format!("RGB: {}, {}, {}\r\nHex: {:02X}{:02X}{:02X}\r\nX: {x} Y: {y}", c[0], c[1], c[2], c[0], c[1], c[2])
     }
 
-    /// `IsQuickCapture` (multi region mode isn't ported, so it's the option).
-    fn quick_capture(&self) -> bool {
-        self.options.QuickCapture
+    /// `HasValidSelection`: big enough, and a freehand region of 3 points.
+    pub(crate) fn has_valid_selection(&self) -> bool {
+        let b = self.selection.bounds;
+        b.w >= limits::MINIMUM_SIZE as f64
+            && b.h >= limits::MINIMUM_SIZE as f64
+            && (self.selection.shape != RegionShape::Freehand
+                || self.selection.points.as_ref().is_some_and(|p| p.len() >= 3))
+    }
+
+    /// `CanResizeSelection`: a freehand region moves but has no nodes.
+    fn can_resize_selection(&self) -> bool {
+        self.has_valid_selection() && self.selection.shape != RegionShape::Freehand
+    }
+
+    /// `IsMultiRegionMode`.
+    pub(crate) fn multi_region_mode(&self) -> bool {
+        self.allow_multiple_regions && self.options.MultiRegionMode
+    }
+
+    /// `IsQuickCapture`.
+    pub(crate) fn quick_capture(&self) -> bool {
+        self.options.QuickCapture && !self.multi_region_mode()
+    }
+
+    /// `HasAnyRegion`.
+    pub(crate) fn has_any_region(&self) -> bool {
+        self.has_valid_selection() || !self.regions.is_empty()
+    }
+
+    /// `GetSelectedRegions`: the added regions, then the selection.
+    fn selected_regions(&self) -> Vec<CaptureRegion> {
+        let mut regions = self.regions.clone();
+        if self.has_valid_selection() {
+            regions.push(self.selection.clone());
+        }
+        regions
+    }
+
+    /// `FindRegionAt`: the topmost added region containing `p`.
+    fn find_region_at(&self, p: PointF) -> Option<usize> {
+        (0..self.regions.len()).rev().find(|&i| self.regions[i].contains(p))
+    }
+
+    /// `IsPointInAnyRegion`.
+    fn point_in_any_region(&self, p: PointF) -> bool {
+        (self.has_valid_selection() && self.selection.contains(p)) || self.find_region_at(p).is_some()
+    }
+
+    /// `AddSelectionToRegions`: in multi region mode the selection is kept
+    /// before another one starts.
+    fn add_selection_to_regions(&mut self) {
+        if self.multi_region_mode() && self.has_valid_selection() {
+            self.regions.push(self.selection.clone());
+        }
+    }
+
+    /// `RemoveRegion`.
+    fn remove_region(&mut self, index: usize) {
+        if index < self.regions.len() {
+            self.regions.remove(index);
+            self.update_hover(self.last_pointer);
+        }
+    }
+
+    /// `_regionOverlay.HoverShape`: an ellipse with the ellipse region,
+    /// else a rectangle.
+    pub(crate) fn hover_shape(&self) -> RegionShape {
+        if self.region_shape == RegionShape::Ellipse { RegionShape::Ellipse } else { RegionShape::Rectangle }
+    }
+
+    /// `ShowHoverWithSelection`: in multi region mode a window can be
+    /// hovered while a region is selected.
+    pub(crate) fn show_hover_with_selection(&self) -> bool {
+        self.interaction == Interaction::None && self.multi_region_mode()
     }
 
     /// Whether the resize nodes show (`SetRegionResizeNodesVisible`).
     pub(crate) fn resize_nodes_visible(&self) -> bool {
-        !self.quick_capture() && self.interaction == Interaction::None && self.has_valid_selection()
+        !self.quick_capture() && self.interaction == Interaction::None && self.can_resize_selection()
     }
 
     /// `ActiveRectangle`: the selection, else the hovered window.
     pub(crate) fn active_rectangle(&self) -> RectF {
-        if self.selection.is_valid() { self.selection } else { self.hover }
+        if self.selection.bounds.is_valid() { self.selection.bounds } else { self.hover }
     }
 
     pub(crate) fn magnifier_shown(&self) -> bool {
         self.options.ShowMagnifier && !self.magnifier_hidden_by_wheel
     }
 
-    fn set_selection(&mut self, r: RectF, candidate: Option<usize>) {
-        self.selection = r.intersect(&self.bounds());
+    /// `SetSelection(CaptureRegion, candidate)`: kept on the screenshot.
+    fn set_selection(&mut self, region: CaptureRegion, candidate: Option<usize>) {
+        let bounds = region.bounds.intersect(&self.bounds());
+        self.selection = CaptureRegion { bounds, ..region };
         self.selected_candidate = candidate;
+    }
+
+    /// `SetSelection(Rect, candidate)`: the selection's bounds.
+    fn set_selection_rect(&mut self, r: RectF, candidate: Option<usize>) {
+        self.set_selection(self.selection.with_bounds(r), candidate);
     }
 
     fn set_interaction(&mut self, i: Interaction) {
@@ -492,13 +644,15 @@ impl RegionCapture {
         self.set_interaction(Interaction::None);
         self.reset_creation_modifiers();
         self.selected_candidate = None;
-        self.selection = RectF::default();
+        self.freehand_points = None;
+        self.selection = CaptureRegion::default();
         self.update_hover(self.last_pointer);
     }
 
     /// `UpdateHoverRectangle`: the window or control under the pointer.
     fn update_hover(&mut self, p: PointF) {
-        if self.has_valid_selection() || self.interaction != Interaction::None {
+        let blocked = if self.multi_region_mode() { self.point_in_any_region(p) } else { self.has_valid_selection() };
+        if blocked || self.interaction != Interaction::None || self.region_shape == RegionShape::Freehand {
             self.hover = RectF::default();
             self.hover_candidate = None;
             return;
@@ -531,14 +685,17 @@ impl RegionCapture {
     /// `UpdateSelectionDuringCreation`: Shift makes a square, Ctrl moves the
     /// region being drawn.
     fn update_selection_during_creation(&mut self, p: PointF, m: Modifiers) {
+        if self.freehand_points.is_some() {
+            return;
+        }
         if !m.ctrl {
             self.moving_during_creation = false;
-        } else if self.selection.is_valid() && (self.moving_during_creation || !self.ctrl_held_during_creation) {
+        } else if self.selection.bounds.is_valid() && (self.moving_during_creation || !self.ctrl_held_during_creation) {
             // `MoveSelectionDuringCreation`
-            let before = self.selection;
+            let before = self.selection.bounds;
             let (dx, dy) = (p.x - self.last_creation_point.x, p.y - self.last_creation_point.y);
-            self.move_selection(dx, dy, before);
-            let after = self.selection;
+            self.move_selection(dx, dy, self.selection.clone());
+            let after = self.selection.bounds;
             self.press_point =
                 self.clamp(PointF::new(self.press_point.x + after.x - before.x, self.press_point.y + after.y - before.y));
             self.moving_during_creation = true;
@@ -547,24 +704,43 @@ impl RegionCapture {
             return;
         }
         let r = create_selection_rectangle(self.press_point, p, (self.width, self.height), m.shift);
-        self.set_selection(r, None);
+        self.set_selection_rect(r, None);
         self.last_creation_point = p;
         self.ctrl_held_during_creation = m.ctrl;
     }
 
+    /// `AddFreehandPoint`: while Shift is held the region draws one
+    /// straight edge from its last point to the pointer.
+    fn add_freehand_point(&mut self, p: PointF, straight: bool) {
+        let Some(points) = self.freehand_points.as_mut() else { return };
+        if points.last() == Some(&p) {
+            return;
+        }
+        if straight && self.freehand_straight {
+            *points.last_mut().expect("a freehand region starts with a point") = p;
+        } else {
+            points.push(p);
+        }
+        self.freehand_straight = straight;
+        let bounds = CaptureRegion::points_bounds(points);
+        let region = CaptureRegion { shape: RegionShape::Freehand, bounds, points: Some(points.clone()) };
+        self.set_selection(region, None);
+    }
+
     /// `MoveSelection`: kept inside the screenshot.
-    fn move_selection(&mut self, dx: f64, dy: f64, source: RectF) {
-        let x = (source.x + dx).clamp(0.0, (self.width - source.w).max(0.0));
-        let y = (source.y + dy).clamp(0.0, (self.height - source.h).max(0.0));
-        self.set_selection(source.translate(x - source.x, y - source.y), None);
+    fn move_selection(&mut self, dx: f64, dy: f64, source: CaptureRegion) {
+        let r = source.bounds;
+        let x = (r.x + dx).clamp(0.0, (self.width - r.w).max(0.0));
+        let y = (r.y + dy).clamp(0.0, (self.height - r.h).max(0.0));
+        self.set_selection(source.offset(x - r.x, y - r.y), None);
     }
 
     fn resize_selection(&mut self, p: PointF) {
         let Some(node) = self.resize_node else { return };
-        let start = self.interaction_start;
+        let start = self.interaction_start.bounds;
         let at = node.position(start);
         let r = node.resize(start, p.x - at.x, p.y - at.y);
-        self.set_selection(r, None);
+        self.set_selection_rect(r, None);
     }
 
     /// Which resize node is under `p` (image pixels), when they show.
@@ -574,7 +750,7 @@ impl RegionCapture {
         }
         let half = RESIZE_NODE_SIZE * scale / 2.0;
         ResizeNode::ALL.into_iter().find(|n| {
-            let c = n.position(self.selection);
+            let c = n.position(self.selection.bounds);
             (p.x - c.x).abs() <= half && (p.y - c.y).abs() <= half
         })
     }
@@ -591,6 +767,7 @@ impl RegionCapture {
             return Outcome::Continue;
         }
         self.pointer_known = true;
+        self.tip_pointer = (self.screen_bounds.x as f64 + p.x, self.screen_bounds.y as f64 + p.y);
         // `FollowPointerWithCaptureToolbar`
         let desktop = (self.screen_bounds.x + p.x.round() as i32, self.screen_bounds.y + p.y.round() as i32);
         if let Some((ox, oy)) = self.toolbar.drag {
@@ -629,13 +806,14 @@ impl RegionCapture {
                 if self.press_point.distance(p) >= DRAG_THRESHOLD {
                     self.set_interaction(Interaction::Creating);
                     self.selected_candidate = None;
-                    self.selection = RectF::default();
+                    self.set_selection(CaptureRegion::new(self.hover_shape(), RectF::default()), None);
                     self.update_selection_during_creation(p, m);
                 }
             }
+            Interaction::Creating if self.freehand_points.is_some() => self.add_freehand_point(p, m.shift),
             Interaction::Creating => self.update_selection_during_creation(p, m),
             Interaction::Moving => {
-                let start = self.interaction_start;
+                let start = self.interaction_start.clone();
                 self.move_selection(p.x - self.press_point.x, p.y - self.press_point.y, start);
             }
             Interaction::Resizing => self.resize_selection(p),
@@ -651,6 +829,8 @@ impl RegionCapture {
         }
         // `OnCaptureHostPointerPressed`
         self.toolbar.follows_pointer = false;
+        // A press closes the tooltip.
+        self.tip.press(Instant::now());
         // An open popup has the press; one elsewhere dismisses it (its own
         // button's press toggles it below).
         if let Some(open) = self.popups.open {
@@ -702,23 +882,40 @@ impl RegionCapture {
             .last_left_press
             .is_some_and(|(t, at)| now.duration_since(t) <= DOUBLE_CLICK && at.distance(p) <= DOUBLE_CLICK_DISTANCE);
         self.last_left_press = Some((now, p));
-        if double && self.has_valid_selection() && self.selection.contains(p) {
+        if double && self.point_in_any_region(p) {
             return self.complete_selection();
         }
         self.press_point = p;
-        self.interaction_start = self.selection;
+        self.interaction_start = self.selection.clone();
         self.resize_node = self.resize_node_at(p, scale);
         if self.resize_node.is_some() {
             self.set_interaction(Interaction::Resizing);
             self.resize_selection(p);
         } else if self.has_valid_selection() && self.selection.contains(p) {
             self.set_interaction(Interaction::Moving);
+        } else if let Some(i) = self.find_region_at(p) {
+            // Multi region mode: pressing an added region makes it the one
+            // being edited.
+            let region = self.regions.remove(i);
+            self.add_selection_to_regions();
+            self.set_selection(region.clone(), None);
+            self.interaction_start = region;
+            self.set_interaction(Interaction::Moving);
         } else if self.hover.is_valid() {
-            self.set_selection(self.hover, self.hover_candidate);
-            self.interaction_start = self.selection;
+            self.add_selection_to_regions();
+            self.set_selection(CaptureRegion::new(self.hover_shape(), self.hover), self.hover_candidate);
+            self.interaction_start = self.selection.clone();
             self.set_interaction(Interaction::PendingHover);
         } else {
-            self.set_selection(RectF::default(), None);
+            self.add_selection_to_regions();
+            if self.region_shape == RegionShape::Freehand {
+                self.freehand_points = Some(vec![p]);
+                self.freehand_straight = false;
+                let region = CaptureRegion { shape: RegionShape::Freehand, bounds: RectF::default(), points: Some(vec![p]) };
+                self.set_selection(region, None);
+            } else {
+                self.set_selection(CaptureRegion::new(self.region_shape, RectF::default()), None);
+            }
             self.set_interaction(Interaction::Creating);
         }
         if matches!(self.interaction, Interaction::Creating | Interaction::PendingHover) {
@@ -776,15 +973,19 @@ impl RegionCapture {
         self.set_interaction(Interaction::None);
         self.resize_node = None;
         self.reset_creation_modifiers();
+        if let Some(points) = self.freehand_points.take() {
+            let region = CaptureRegion { points: Some(points), ..self.selection.clone() };
+            self.set_selection(region, None);
+        }
         if !self.has_valid_selection() {
             if self.hover.is_valid() {
-                self.set_selection(self.hover, self.hover_candidate);
+                self.set_selection(CaptureRegion::new(self.hover_shape(), self.hover), self.hover_candidate);
             } else {
                 self.clear_selection();
             }
         }
         if self.has_valid_selection() && self.quick_capture() {
-            return self.complete(vec![self.selection], true);
+            return self.complete(vec![self.selection.clone()], true);
         }
         self.update_hover(self.last_pointer);
         Outcome::Continue
@@ -896,7 +1097,7 @@ impl RegionCapture {
         }
         let none = m == Modifiers::default();
         if self.keyboard_enabled && none && matches!(key, Key::Tab | Key::NumPad0) {
-            self.activate_region_tool();
+            self.activate_region_tool(None);
             return Outcome::Continue;
         }
         if self.keyboard_enabled && key == Key::H && m.ctrl && !m.shift && !m.alt {
@@ -925,14 +1126,14 @@ impl RegionCapture {
         let region = self.region_tool_active;
         match key {
             Key::Enter => {
-                if region && !self.has_valid_selection() && self.hover.is_valid() {
-                    self.set_selection(self.hover, self.hover_candidate);
+                if region && !self.has_any_region() && self.hover.is_valid() {
+                    self.set_selection(CaptureRegion::new(self.hover_shape(), self.hover), self.hover_candidate);
                 }
-                if self.has_valid_selection() {
+                if self.has_any_region() {
                     return self.complete_selection();
                 }
             }
-            Key::Space if region => return self.complete(vec![self.bounds()], false),
+            Key::Space if region => return self.complete_rects(vec![self.bounds()], false),
             Key::Tilde if region => return self.complete_active_monitor(),
             Key::Left | Key::Right | Key::Up | Key::Down if region => {
                 let d = if m.shift { limits::MOVE_SPEED_MAXIMUM } else { limits::MOVE_SPEED_MINIMUM };
@@ -953,8 +1154,12 @@ impl RegionCapture {
                 set_cursor(x + dx, y + dy);
                 return Outcome::Continue;
             }
-            Key::Delete if region && self.has_valid_selection() => {
-                self.clear_selection();
+            Key::Delete if region && self.has_any_region() => {
+                if self.has_valid_selection() {
+                    self.clear_selection();
+                } else {
+                    self.remove_region(self.regions.len() - 1);
+                }
                 return Outcome::Continue;
             }
             _ => {}
@@ -1026,8 +1231,15 @@ impl RegionCapture {
         self.hover_candidate = None;
     }
 
-    /// `ActivateRegionTool`.
-    pub(crate) fn activate_region_tool(&mut self) {
+    /// `ActivateRegionTool`: the region tool, selecting `shape` or else
+    /// the last used shape.
+    pub(crate) fn activate_region_tool(&mut self, shape: Option<RegionShape>) {
+        if shape.is_some_and(|s| s != self.region_shape)
+            && matches!(self.interaction, Interaction::Creating | Interaction::PendingHover)
+        {
+            self.clear_selection();
+        }
+        self.region_shape = shape.unwrap_or(self.region_shape);
         self.region_tool_active = true;
         if let Some(e) = self.editor.as_mut() {
             e.commit_text();
@@ -1177,19 +1389,24 @@ impl RegionCapture {
                 if self.region_tool_active {
                     self.activate_annotation_tool();
                 } else {
-                    self.activate_region_tool();
+                    self.activate_region_tool(None);
                 }
                 Outcome::Continue
             }
-            RegionCaptureAction::CaptureFullscreen => self.complete(vec![self.bounds()], false),
+            RegionCaptureAction::CaptureFullscreen => self.complete_rects(vec![self.bounds()], false),
             RegionCaptureAction::CaptureActiveMonitor => self.complete_active_monitor(),
             RegionCaptureAction::CaptureLastRegion => self.complete_last_region(),
         }
     }
 
+    /// `TryRemoveRegionAt`: the selection, else an added region.
     fn try_remove_region_at(&mut self, p: PointF) -> bool {
         if self.has_valid_selection() && self.selection.contains(p) {
             self.clear_selection();
+            return true;
+        }
+        if let Some(i) = self.find_region_at(p) {
+            self.remove_region(i);
             return true;
         }
         false
@@ -1206,7 +1423,7 @@ impl RegionCapture {
         if regions.is_empty() {
             return Outcome::Continue;
         }
-        self.complete(regions, false)
+        self.complete_rects(regions, false)
     }
 
     fn complete_active_monitor(&mut self) -> Outcome {
@@ -1218,51 +1435,86 @@ impl RegionCapture {
         let b = screen.bounds;
         let relative = RectF::new((b.x - self.screen_bounds.x) as f64, (b.y - self.screen_bounds.y) as f64, b.w as f64, b.h as f64);
         let r = relative.intersect(&self.bounds());
-        self.complete(vec![r], false)
+        self.complete_rects(vec![r], false)
     }
 
     fn complete_selection(&mut self) -> Outcome {
-        let mut regions = Vec::new();
-        if self.has_valid_selection() {
-            regions.push(self.selection);
-        }
+        let regions = self.selected_regions();
         self.complete(regions, true)
     }
 
-    /// `Complete`: crops the screenshot to the regions' bounds.
-    fn complete(&mut self, selections: Vec<RectF>, include_window_info: bool) -> Outcome {
+    /// `Complete(IReadOnlyList<Rect>, includeWindowInfo)`.
+    fn complete_rects(&mut self, selections: Vec<RectF>, include_window_info: bool) -> Outcome {
+        self.complete(selections.into_iter().map(CaptureRegion::rectangle).collect(), include_window_info)
+    }
+
+    /// `Complete`: crops the screenshot to the regions' bounds. With more
+    /// than one region, or an ellipse or freehand region, the pixels
+    /// outside every region are transparent.
+    fn complete(&mut self, selections: Vec<CaptureRegion>, include_window_info: bool) -> Outcome {
         if self.closing {
             return Outcome::Continue;
         }
         let (iw, ih) = (self.width as i32, self.height as i32);
-        let regions: Vec<Rect> = selections
-            .iter()
-            .filter(|s| s.is_valid())
-            .map(|s| {
-                let left = (s.x.floor() as i32).clamp(0, iw - 1);
-                let top = (s.y.floor() as i32).clamp(0, ih - 1);
-                let right = (s.right().ceil() as i32).clamp(left + 1, iw);
-                let bottom = (s.bottom().ceil() as i32).clamp(top + 1, ih);
-                Rect::new(left, top, right - left, bottom - top)
-            })
-            .collect();
-        let Some(bounds) = regions.iter().copied().reduce(|a, b| a.union(&b)) else { return Outcome::Continue };
-        // `EditorView.GetSnapshot(Rect)`: with annotations, rendered with them.
-        let annotated = self.editor.as_mut().filter(|e| !e.annotations().is_empty() || e.text_edit().is_some());
-        let image = match annotated {
-            Some(e) => {
-                let pm = e.snapshot(bounds.x as u32, bounds.y as u32, bounds.w as u32, bounds.h as u32);
-                RgbaImage::from_raw(pm.width(), pm.height(), pm.to_rgba()).unwrap_or_default()
+        let mut regions: Vec<Rect> = Vec::new();
+        let mut shapes: Vec<CaptureRegion> = Vec::new();
+        for region in selections {
+            let s = region.bounds;
+            if !s.is_valid() {
+                continue;
             }
-            None => image::imageops::crop_imm(&self.screenshot, bounds.x as u32, bounds.y as u32, bounds.w as u32, bounds.h as u32)
-                .to_image(),
+            let left = (s.x.floor() as i32).clamp(0, iw - 1);
+            let top = (s.y.floor() as i32).clamp(0, ih - 1);
+            let right = (s.right().ceil() as i32).clamp(left + 1, iw);
+            let bottom = (s.bottom().ceil() as i32).clamp(top + 1, ih);
+            regions.push(Rect::new(left, top, right - left, bottom - top));
+            shapes.push(region);
+        }
+        let Some(bounds) = regions.iter().copied().reduce(|a, b| a.union(&b)) else { return Outcome::Continue };
+        // `EditorView.GetSnapshot(Rect)`: with annotations, rendered with
+        // them; premultiplied, as the mask works on it.
+        let annotated = self.editor.as_mut().filter(|e| !e.annotations().is_empty() || e.text_edit().is_some());
+        let non_rect = shapes.iter().any(|s| !s.is_rectangle());
+        let (bw, bh) = (bounds.w as u32, bounds.h as u32);
+        let image = if non_rect {
+            let premul = match annotated {
+                Some(e) => e.snapshot(bounds.x as u32, bounds.y as u32, bw, bh).to_premul_rgba(),
+                None => {
+                    let crop = image::imageops::crop_imm(&self.screenshot, bounds.x as u32, bounds.y as u32, bw, bh).to_image();
+                    sharex_skia::raster::Bitmap::from_straight(bw, bh, crop.as_raw()).into_data()
+                }
+            };
+            let paths: Vec<_> = shapes.iter().map(|s| s.create_path(-bounds.x as f64, -bounds.y as f64)).collect();
+            premul_to_image(bw, bh, &shape::apply_path_mask(bw, bh, &premul, &paths))
+        } else {
+            let image = match annotated {
+                Some(e) => {
+                    let pm = e.snapshot(bounds.x as u32, bounds.y as u32, bw, bh);
+                    RgbaImage::from_raw(pm.width(), pm.height(), pm.to_rgba()).unwrap_or_default()
+                }
+                None => image::imageops::crop_imm(&self.screenshot, bounds.x as u32, bounds.y as u32, bw, bh).to_image(),
+            };
+            if regions.len() > 1 {
+                let local: Vec<Rect> = regions.iter().map(|r| r.offset(-bounds.x, -bounds.y)).collect();
+                shape::apply_rect_mask(&image, &local)
+            } else {
+                image
+            }
         };
         let image_modified = self.editor.as_ref().is_some_and(|e| e.is_dirty());
         let to_screen = |r: Rect| r.offset(self.screen_bounds.x, self.screen_bounds.y);
         let screen_rectangle = to_screen(bounds);
         let window_info = if include_window_info { self.find_top_level_window_info(screen_rectangle) } else { None };
         let window_handle = match self.selected_candidate.and_then(|i| self.windows.get(i)) {
-            Some(w) if include_window_info && regions.len() == 1 && w.is_window && w.rect == screen_rectangle => w.handle,
+            Some(w)
+                if include_window_info
+                    && shapes.len() == 1
+                    && shapes[0].is_rectangle()
+                    && w.is_window
+                    && w.rect == screen_rectangle =>
+            {
+                w.handle
+            }
             _ => 0,
         };
         self.closing = true;
@@ -1333,7 +1585,7 @@ impl RegionCapture {
                     self.toolbar.drag = Some((px - ax, py - ay));
                 }
             }
-            toolbar::Part::RegionButton => self.activate_region_tool(),
+            toolbar::Part::RegionButton => self.activate_region_tool(Some(RegionShape::Rectangle)),
             toolbar::Part::Tool(i) => {
                 // `SelectToolCommand`, then `ActivateAnnotationTool`.
                 match self.bar.get(i).map(|t| (t.def.tool.clone(), t.def.id)) {
@@ -1344,8 +1596,12 @@ impl RegionCapture {
                         }
                     }
                     // `HostToolbarItemRequested`: the ellipse and freehand
-                    // regions (`ActivateRegionShape`) aren't ported.
-                    Some((None, id)) => eprintln!("Region capture: the {id} region isn't ported yet"),
+                    // regions (`RegionCaptureToolbar.GetRegionShape`).
+                    Some((None, id)) => {
+                        if let Some(shape) = toolbar::region_shape(id) {
+                            self.activate_region_tool(Some(shape));
+                        }
+                    }
                     None => {}
                 }
             }
@@ -1388,6 +1644,7 @@ impl RegionCapture {
     /// window that has the pointer laid it out.
     pub fn set_toolbar_hover(&mut self, part: Option<toolbar::Part>) {
         self.toolbar_hover = if self.toolbar.hidden { None } else { part };
+        self.tip.hover(self.toolbar_hover, Instant::now());
     }
 
     /// The toolbar part under the pointer, as last told.
@@ -1442,6 +1699,30 @@ impl RegionCapture {
         self.options
     }
 }
+
+/// A premultiplied RGBA buffer as straight RGBA, unpremultiplied as
+/// Skia's PNG encoder does when ShareX saves it (the float pipeline's
+/// `unpremul`, stored `v * 255 + 0.5` truncated: `sharex_tools::imaging::
+/// unpremul_encode`, which matched ShareX's ellipse captures where
+/// `Pixmap::to_rgba` was a level off on ties).
+fn premul_to_image(width: u32, height: u32, premul: &[u8]) -> RgbaImage {
+    use sharex_skia::raster::{load, unpremul_f};
+    let mut out = premul.to_vec();
+    for p in out.chunks_exact_mut(4) {
+        match p[3] {
+            255 => {}
+            0 => p.copy_from_slice(&[0, 0, 0, 0]),
+            _ => {
+                let c = unpremul_f(load([p[0], p[1], p[2], p[3]]));
+                for i in 0..3 {
+                    p[i] = (c[i].clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+                }
+            }
+        }
+    }
+    RgbaImage::from_raw(width, height, out).unwrap_or_default()
+}
+
 
 fn editor_mods(m: Modifiers) -> ed::Mods {
     ed::Mods { shift: m.shift, ctrl: m.ctrl, alt: m.alt }

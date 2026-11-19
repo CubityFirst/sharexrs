@@ -87,7 +87,84 @@ internal static class Program
     };
 
     [STAThread]
+    static int DumpToolTipTheme()
+    {
+        string[] keys =
+        [
+            "ToolTipBackground", "ToolTipForeground", "ToolTipBorderBrush", "ToolTipBorderThemeThickness",
+            "ToolTipBorderThemePadding", "ToolTipContentThemeFontSize", "ToolTipContentMaxWidth", "OverlayCornerRadius",
+            "ControlCornerRadius", "ToolTipBackgroundOpacity"
+        ];
+        foreach (Avalonia.Styling.ThemeVariant variant in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
+        {
+            foreach (string key in keys)
+            {
+                bool found = Application.Current!.TryGetResource(key, variant, out object? value);
+                Console.WriteLine($"{variant} {key} = {(found ? Describe(value) : "(none)")}");
+            }
+        }
+        if (Application.Current!.TryGetResource(typeof(ToolTip), null, out object? theme) && theme is Avalonia.Styling.ControlTheme ct)
+        {
+            foreach (var setter in ct.Setters.OfType<Avalonia.Styling.Setter>())
+            {
+                Console.WriteLine($"setter {setter.Property?.Name} = {Describe(setter.Value)}");
+            }
+            foreach (var child in ct.Children.OfType<Avalonia.Styling.Style>())
+            {
+                foreach (var setter in child.Setters.OfType<Avalonia.Styling.Setter>())
+                {
+                    Console.WriteLine($"style {child.Selector} {setter.Property?.Name} = {Describe(setter.Value)}");
+                }
+            }
+        }
+        Console.WriteLine($"default Placement {ToolTip.PlacementProperty.GetDefaultValue(typeof(Control))}");
+        Console.WriteLine($"default HorizontalOffset {ToolTip.HorizontalOffsetProperty.GetDefaultValue(typeof(Control))}");
+        Console.WriteLine($"default VerticalOffset {ToolTip.VerticalOffsetProperty.GetDefaultValue(typeof(Control))}");
+        Console.WriteLine($"default ShowDelay {ToolTip.ShowDelayProperty.GetDefaultValue(typeof(Control))}");
+        Console.WriteLine($"default BetweenShowDelay {ToolTip.BetweenShowDelayProperty.GetDefaultValue(typeof(Control))}");
+        foreach (Avalonia.Styling.ThemeVariant variant in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
+        {
+            foreach (string text in new[] { "Rectangle (R, NumPad1)", "Rectangle region (Tab, NumPad0)" })
+            {
+                // A ToolTip laid out in a window, as its popup lays it out.
+                ToolTip tip = new() { Content = text };
+                Window window = new() { Content = tip, RequestedThemeVariant = variant, SizeToContent = SizeToContent.WidthAndHeight };
+                window.Show();
+                tip.Opacity = 1;
+                window.UpdateLayout();
+                Console.WriteLine($"{variant} tooltip '{text}' size {tip.Bounds.Size} desired {tip.DesiredSize}");
+                foreach (Visual v in tip.GetVisualDescendants())
+                {
+                    if (v is TextBlock tb)
+                    {
+                        Console.WriteLine($"  TextBlock family {tb.FontFamily} size {tb.FontSize} weight {tb.FontWeight} fg {Describe(tb.Foreground)} bounds {tb.Bounds}");
+                    }
+                    else if (v is Avalonia.Controls.Presenters.ContentPresenter cp)
+                    {
+                        Console.WriteLine($"  ContentPresenter family {cp.FontFamily} size {cp.FontSize} weight {cp.FontWeight} bounds {cp.Bounds}");
+                    }
+                    else if (v is Border b)
+                    {
+                        Console.WriteLine($"  Border bounds {b.Bounds} padding {b.Padding} radius {b.CornerRadius} bg {Describe(b.Background)}");
+                    }
+                }
+                window.Close();
+            }
+        }
+        return 0;
+
+    }
+
+    static string Describe(object? value) => value switch
+    {
+        Avalonia.Media.ISolidColorBrush b => $"brush {b.Color} opacity {b.Opacity}",
+        Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension d => $"dynamic {d.ResourceKey}",
+        null => "null",
+        _ => $"{value.GetType().Name} {value}"
+    };
+
     public static int Main(string[] args)
+
     {
         if (args.Length < 2)
         {
@@ -139,6 +216,18 @@ internal static class Program
             return args[0] == "--cursors"
                 ? DumpCursors(args[1])
                 : DumpEmoji(args[1], int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);
+        }
+
+        if (args[0] == "--tooltip-theme")
+        {
+            // The resources and ControlTheme setters ShareX's tooltips get from
+            // FluentTheme (ShareX's theme doesn't restyle ToolTip), per theme.
+            AppBuilder.Configure<HarnessApp>()
+                .UseSkia()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+                .WithInterFont()
+                .SetupWithoutStarting();
+            return DumpToolTipTheme();
         }
 
         if (args[0] == "--fonts")

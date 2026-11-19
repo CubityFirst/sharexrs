@@ -44,7 +44,10 @@ Other modes: `--cursors <dir>` dumps every `CursorType`'s bitmap
 <size> <file>` an emoji sticker (`RenderStickerBitmap`), `--emoji-raw
 <sequence> <canvas> <font size> <file>` Direct2D's raw emoji
 (`RenderWithDirect2D`), `--probe-picture <dir>` the same draws directly
-and through an `SKPicture` shader; `--text` and `--fonts` as before.
+and through an `SKPicture` shader; `--text` and `--fonts` as before;
+`--tooltip-theme x` prints what FluentTheme gives ShareX's `ToolTip`
+(resources, control theme setters, default delays and offsets, a laid-out
+tooltip's size) for the region capture's toolbar tooltips.
 `cargo run -p sharex-image-editor --example image_editor_emoji_dump` dumps
 ShareXrs's emoji the same way.
 

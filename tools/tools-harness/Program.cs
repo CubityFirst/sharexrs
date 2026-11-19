@@ -32,6 +32,8 @@ static partial class Program
         // Analyze image's providers against the mock server (AnalyzeCases.cs).
         if (args.Length == 5 && args[0] == "--analyze") return AnalyzeCases.Run(args[1..]);
         if (args.Length == 6 && args[0] == "--print-page") return PrintCases.Run(args[1..]);
+        // The pointer drawn as ShareX draws it into captures (CursorCases.cs).
+        if (args.Length == 2 && args[0] == "--cursors") return CursorCases.Run(args[1]);
         if (args.Length < 2)
         {
             Console.Error.WriteLine("usage: ToolsHarness <cases.json> <work dir> [case prefix]");

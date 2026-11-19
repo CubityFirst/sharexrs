@@ -251,6 +251,7 @@ fn main() {
         screen_tools: Default::default(),
         scrolling: Default::default(),
         auto_capture: Default::default(),
+        desktop_icons: None,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -373,6 +374,9 @@ struct App {
     scrolling: scrolling_capture::ScrollingCapture,
     /// Capture › Auto capture's window and timer.
     auto_capture: auto_capture::AutoCapture,
+    /// `CaptureAutoHideDesktopIcons`: the icons hidden for the capture
+    /// running, shown again when it ends (or when this is dropped).
+    desktop_icons: Option<sharex_capture::screenshot::DesktopIconsHidden>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -384,6 +388,9 @@ struct PendingCapture {
     auto_hide: bool,
     /// The main window was hidden for it (`showMainForm`).
     hidden: bool,
+    /// The desktop icons and the main window were hidden (if asked) and
+    /// waited for.
+    prepared: bool,
 }
 
 /// An open Capture › Region (Transparent) and the task it runs for.
@@ -655,7 +662,7 @@ impl App {
             self.refresh_menus();
         }
         let at = Instant::now() + Duration::from_secs_f64(delay);
-        self.pending_capture = Some(PendingCapture { at, job, task, auto_hide, hidden: false });
+        self.pending_capture = Some(PendingCapture { at, job, task, auto_hide, hidden: false, prepared: false });
     }
 
     /// Moves a pending capture on when it's due.
@@ -669,21 +676,35 @@ impl App {
         }
         let Some(pending) = self.pending_capture.as_ref().filter(|p| p.at <= Instant::now()) else { return };
         let main_handle = self.main.as_ref().and_then(|w| sharex_capture::platform::window_handle(&w.window));
-        if pending.auto_hide
-            && !pending.hidden
-            && pending.job.allow_auto_hide(main_handle)
-            && self.main.as_ref().is_some_and(|w| w.window.is_visible() != Some(false))
-        {
-            // `MainWindowIntegration.Hide`.
-            self.save_window_bounds();
-            if let Some(w) = &self.main {
-                w.window.set_visible(false);
+        if !pending.prepared {
+            // `CaptureInternalAsync`: the desktop icons, then the main window,
+            // hidden, and 250 ms for either.
+            let mut wait = false;
+            if pending.task.CaptureSettings.as_ref().is_some_and(|c| c.CaptureAutoHideDesktopIcons)
+                && let Some(icons) = sharex_capture::screenshot::DesktopIconsHidden::hide(&sharex_capture::screenshot::screens())
+            {
+                self.desktop_icons = Some(icons);
+                wait = true;
+            }
+            let hide_main = pending.auto_hide
+                && pending.job.allow_auto_hide(main_handle)
+                && self.main.as_ref().is_some_and(|w| w.window.is_visible() != Some(false));
+            if hide_main {
+                // `MainWindowIntegration.Hide`.
+                self.save_window_bounds();
+                if let Some(w) = &self.main {
+                    w.window.set_visible(false);
+                }
+                wait = true;
             }
             if let Some(pending) = self.pending_capture.as_mut() {
-                pending.hidden = true;
-                pending.at = Instant::now() + Duration::from_millis(250);
+                pending.prepared = true;
+                pending.hidden = hide_main;
+                if wait {
+                    pending.at = Instant::now() + Duration::from_millis(250);
+                    return;
+                }
             }
-            return;
         }
         let Some(PendingCapture { job, task, hidden, .. }) = self.pending_capture.take() else { return };
         match job {
@@ -695,6 +716,8 @@ impl App {
             CaptureJob::RegionTransparent => self.start_transparent_capture(event_loop, task, hidden),
             job => {
                 let result = capture::execute(&job, &task, &self.last_regions);
+                // `finally`: the desktop icons come back, then the main window.
+                self.desktop_icons = None;
                 if hidden {
                     self.show_main_window(event_loop);
                 }
@@ -732,11 +755,12 @@ impl App {
             Some(g) => Ok(g),
             None => Gpu::new().map(|g| &*self.gpu.insert(g)),
         }
-        .and_then(|gpu| TransparentRegion::open(event_loop, gpu, &screens, bounds));
+        .and_then(|gpu| TransparentRegion::open(event_loop, gpu, &screens, bounds, options.ActiveMonitorMode));
         match opened {
             Ok(region) => self.transparent = Some(Transparent { region, task, hidden }),
             Err(e) => {
                 eprintln!("transparent region capture: {e}");
+                self.desktop_icons = None;
                 if hidden {
                     self.show_main_window(event_loop);
                 }
@@ -753,8 +777,12 @@ impl App {
                 self.last_regions = vec![rect];
                 self.transparent_grab = Some((Instant::now() + Duration::from_millis(50), rect, task, hidden));
             }
-            None if hidden => self.show_main_window(event_loop),
-            None => {}
+            None => {
+                self.desktop_icons = None;
+                if hidden {
+                    self.show_main_window(event_loop);
+                }
+            }
         }
     }
 
@@ -766,9 +794,9 @@ impl App {
         hidden: bool,
     ) {
         let screens = sharex_capture::screenshot::screens();
-        let capture = task.CaptureSettings.clone().unwrap_or_default();
-        let shot = sharex_capture::screenshot::Screenshot { capture_cursor: capture.ShowCursor, ..Default::default() };
-        let image = shot.capture_rectangle(&screens, rect);
+        // `TaskHelpers.GetScreenshot(taskSettings).CaptureRectangle(rect)`.
+        let image = capture::task_screenshot(&task).capture_rectangle(&screens, rect);
+        self.desktop_icons = None;
         if hidden {
             self.show_main_window(event_loop);
         }
@@ -796,6 +824,7 @@ impl App {
             Ok(session) => self.region = Some(Region { session, task, hidden }),
             Err(e) => {
                 eprintln!("region capture: {e}");
+                self.desktop_icons = None;
                 if hidden {
                     self.show_main_window(event_loop);
                 }
@@ -874,7 +903,7 @@ impl App {
     /// The overlay closed: the main window comes back if it was hidden, and
     /// a capture goes through the after capture tasks
     /// (`CaptureBase.AfterCapture`, `UploadManager.RunImageTask`).
-    fn finish_region_capture(&mut self, event_loop: &ActiveEventLoop, outcome: Outcome) {
+    fn finish_region_capture(&mut self, event_loop: &ActiveEventLoop, mut outcome: Outcome) {
         let Some(Region { session, task, hidden }) = self.region.take() else { return };
         // The overlay changes its options as ShareX's does (magnifier size,
         // toolbar place), on the settings the task takes them from.
@@ -886,12 +915,26 @@ impl App {
         {
             t.ImageEditorOptions = o.to_value();
         }
-        let options = session.capture.into_options();
+        let options = session.capture.options().clone();
         if task.UseDefaultCaptureSettings
             && let Some(c) = self.settings.settings.DefaultTaskSettings.CaptureSettings.as_mut()
         {
             c.RegionCaptureOptions = options;
         }
+        // `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync`: a window picked
+        // whole gets its transparency (`CaptureTransparent`), the overlay
+        // gone and before the main window comes back.
+        if self.screen_tools.pin_region.is_none()
+            && self.ocr_region.is_none()
+            && let Outcome::Captured(result) = &mut outcome
+        {
+            drop(session);
+            if let Some(image) = capture::region_window_transparent(&task, result.window_handle, &result.image, result.screen_rectangle) {
+                result.image = image;
+            }
+        }
+        // `CaptureBase`'s `finally`: the desktop icons come back.
+        self.desktop_icons = None;
         if hidden {
             self.show_main_window(event_loop);
         }

@@ -227,7 +227,7 @@ impl App {
                 let rect = sharex_capture::Rect::new(region.x, region.y, region.width, region.height);
                 let screens = sharex_capture::screenshot::screens();
                 let capture = task.CaptureSettings.clone().unwrap_or_default();
-                let shot = sharex_capture::screenshot::Screenshot { capture_cursor: capture.ShowCursor, remove_outside_screen_area: true };
+                let shot = sharex_capture::screenshot::Screenshot { capture_cursor: capture.ShowCursor, ..Default::default() };
                 if let Some(image) = shot.capture_rectangle(&screens, rect) {
                     task.AfterCaptureJob.remove(AfterCaptureTasks::AnnotateImage);
                     task.AfterCaptureJob.remove(AfterCaptureTasks::OpenInPhotoEditor);

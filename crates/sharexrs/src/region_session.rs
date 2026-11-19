@@ -39,6 +39,9 @@ pub struct RegionSession {
     /// The emoji picker over the overlay (`ShowEmojiPickerDialog` in the
     /// region capture's `EditorView`), on the overlay it opened on.
     emoji: Option<(usize, Box<crate::image_editor::emoji_picker::EmojiPicker>)>,
+    /// Active monitor mode keeps the pointer on the overlay while it's
+    /// active (freed when the session ends).
+    cursor_lock: Option<sharex_capture::CursorLock>,
 }
 
 /// A borderless, topmost window covering `screen`, still hidden.
@@ -149,9 +152,13 @@ impl RegionSession {
     pub fn open(event_loop: &ActiveEventLoop, gpu: &Gpu, request: Request, dark: bool) -> Result<Self, String> {
         let screens = request.screens.clone();
         let cursor = request.cursor;
+        let screen_bounds = request.screen_bounds;
+        let active_monitor = request.options.ActiveMonitorMode;
         let capture = RegionCapture::new(request);
         let mut overlays = Vec::new();
-        for screen in &screens {
+        // The monitors the screenshot covers (only the active one in
+        // active monitor mode, as ShareX's window spans `ScreenBounds`).
+        for screen in screens.iter().filter(|s| s.bounds.intersect(&screen_bounds).is_valid()) {
             let window = open_window(event_loop, screen)?;
             let w = EguiWindow::new(window, gpu, None)?;
             w.ctx().set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
@@ -165,7 +172,12 @@ impl RegionSession {
             cursors: HashMap::new(),
             cursor_shown: None,
             emoji: None,
+            cursor_lock: None,
         };
+        // `Helpers.LockCursorToWindow` in active monitor mode.
+        if active_monitor {
+            me.cursor_lock = me.overlays.first().map(|o| sharex_capture::CursorLock::new(platform::window_handle(&o.window.window)));
+        }
         let now = Instant::now();
         for o in &mut me.overlays {
             let capture = &mut me.capture;
@@ -467,6 +479,13 @@ impl RegionSession {
             }
 
             WindowEvent::CloseRequested => self.capture.cancel(),
+            WindowEvent::Focused(focused) => {
+                self.overlays[i].window.on_event(&WindowEvent::Focused(focused));
+                if let Some(lock) = self.cursor_lock.as_mut() {
+                    lock.focused(focused);
+                }
+                Outcome::Continue
+            }
             other => {
                 self.overlays[i].window.on_event(&other);
                 return Outcome::Continue;

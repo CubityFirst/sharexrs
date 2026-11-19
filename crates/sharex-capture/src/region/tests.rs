@@ -17,6 +17,8 @@ fn session(windows: Vec<SimpleWindowInfo>) -> RegionCapture {
         enable_annotations: true,
         editor_options: Default::default(),
         cursor_image: None,
+        allow_multiple_regions: true,
+        pixel_info: None,
     })
 }
 
@@ -73,7 +75,7 @@ fn dragging_from_a_window_draws_a_new_region() {
 fn tiny_drags_capture_nothing_and_right_click_cancels() {
     let mut s = session(Vec::new());
     assert!(matches!(drag(&mut s, (10.0, 10.0), (12.0, 12.0)), Outcome::Continue));
-    assert!(!s.selection.is_valid());
+    assert!(!s.selection.bounds.is_valid());
     s.pointer_pressed(PointF::new(10.0, 10.0), Button::Right, none(), 1.0);
     assert!(matches!(s.pointer_released(PointF::new(10.0, 10.0), Button::Right, none()), Outcome::Cancelled));
 }
@@ -84,7 +86,7 @@ fn right_click_while_drawing_only_drops_the_region() {
     s.pointer_pressed(PointF::new(10.0, 10.0), Button::Left, none(), 1.0);
     s.pointer_moved(PointF::new(100.0, 100.0), none());
     s.pointer_pressed(PointF::new(100.0, 100.0), Button::Right, none(), 1.0);
-    assert!(!s.selection.is_valid());
+    assert!(!s.selection.bounds.is_valid());
     assert!(matches!(s.pointer_released(PointF::new(100.0, 100.0), Button::Right, none()), Outcome::Continue));
 }
 
@@ -93,7 +95,7 @@ fn shift_draws_squares_and_keys_wait_for_the_input_delay() {
     let mut s = session(Vec::new());
     s.pointer_pressed(PointF::new(100.0, 100.0), Button::Left, none(), 1.0);
     s.pointer_moved(PointF::new(160.0, 130.0), Modifiers { shift: true, ..none() });
-    assert_eq!(s.selection, RectF::new(100.0, 100.0, 61.0, 61.0));
+    assert_eq!(s.selection.bounds, RectF::new(100.0, 100.0, 61.0, 61.0));
     s.pointer_released(PointF::new(160.0, 130.0), Button::Left, none());
     let mut s = session(Vec::new());
     let mut moved = None;
@@ -122,14 +124,14 @@ fn moving_a_region_without_quick_capture() {
     let mut s = session(Vec::new());
     s.options.QuickCapture = false;
     assert!(matches!(drag(&mut s, (100.0, 100.0), (199.0, 149.0)), Outcome::Continue));
-    assert_eq!(s.selection, RectF::new(100.0, 100.0, 100.0, 50.0));
+    assert_eq!(s.selection.bounds, RectF::new(100.0, 100.0, 100.0, 50.0));
     assert!(s.resize_nodes_visible());
     // Drag the bottom-right node out by 10.
     assert!(matches!(drag(&mut s, (200.0, 150.0), (210.0, 160.0)), Outcome::Continue));
-    assert_eq!(s.selection, RectF::new(100.0, 100.0, 110.0, 60.0));
+    assert_eq!(s.selection.bounds, RectF::new(100.0, 100.0, 110.0, 60.0));
     // Move it.
     drag(&mut s, (150.0, 120.0), (160.0, 130.0));
-    assert_eq!(s.selection, RectF::new(110.0, 110.0, 110.0, 60.0));
+    assert_eq!(s.selection.bounds, RectF::new(110.0, 110.0, 110.0, 60.0));
     let Outcome::Captured(r) = s.key_down(Key::Enter, none(), &mut |_, _| {}) else {
         // Keys wait for the input delay.
         s.tick(Instant::now() + Duration::from_secs(1));
@@ -245,4 +247,164 @@ fn hidden_and_reordered_items_change_the_capture_toolbar() {
     assert_eq!(items[0].def.id, "RegionEllipse");
     assert!(!items.iter().any(|i| i.def.id == "Rectangle"));
     assert!(!items.iter().any(|i| i.def.id == "RegionFreehand"));
+}
+
+fn session_with(options: RegionCaptureOptions) -> RegionCapture {
+    let mut s = session(Vec::new());
+    s.options = options;
+    s.bar = toolbar::items(&s.options.ToolbarItems);
+    s
+}
+
+fn shapes_visible() -> RegionCaptureOptions {
+    RegionCaptureOptions {
+        ToolbarItems: vec![
+            serde_json::json!({"Id": "RegionEllipse", "IsVisible": true}),
+            serde_json::json!({"Id": "RegionFreehand", "IsVisible": true}),
+        ],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn the_ellipse_region_captures_its_bounds_with_the_corners_transparent() {
+    let mut s = session_with(shapes_visible());
+    click_tool(&mut s, "RegionEllipse");
+    assert!(s.region_tool_active);
+    assert_eq!(s.region_shape, RegionShape::Ellipse);
+    let Outcome::Captured(r) = drag(&mut s, (100.0, 100.0), (299.0, 199.0)) else { panic!("not captured") };
+    assert_eq!(r.screen_rectangle, Rect::new(100, 100, 200, 100));
+    assert_eq!(r.image.get_pixel(0, 0)[3], 0);
+    assert_eq!(r.image.get_pixel(100, 50), &image::Rgba([200, 150, 70, 255]));
+    assert_eq!(r.window_handle, 0);
+}
+
+#[test]
+fn the_freehand_region_follows_the_pointer_and_shift_draws_a_straight_edge() {
+    let mut s = session_with(shapes_visible());
+    click_tool(&mut s, "RegionFreehand");
+    s.options.QuickCapture = false;
+    s.pointer_pressed(PointF::new(100.0, 100.0), Button::Left, none(), 1.0);
+    s.pointer_moved(PointF::new(200.0, 100.0), none());
+    let shift = Modifiers { shift: true, ..none() };
+    s.pointer_moved(PointF::new(200.0, 150.0), shift);
+    s.pointer_moved(PointF::new(200.0, 200.0), shift);
+    s.pointer_moved(PointF::new(100.0, 200.0), none());
+    s.pointer_released(PointF::new(100.0, 200.0), Button::Left, none());
+    let pts = s.selection.points.clone().unwrap();
+    assert_eq!(pts, vec![
+        PointF::new(100.0, 100.0),
+        PointF::new(200.0, 100.0),
+        PointF::new(200.0, 200.0),
+        PointF::new(100.0, 200.0)
+    ]);
+    // A freehand region moves but isn't resized.
+    assert!(!s.resize_nodes_visible());
+    s.tick(Instant::now() + Duration::from_secs(1));
+    let Outcome::Captured(r) = s.key_down(Key::Enter, none(), &mut |_, _| {}) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(100, 100, 100, 100));
+}
+
+#[test]
+fn multi_region_mode_keeps_regions_and_captures_them_masked() {
+    let mut s = session_with(RegionCaptureOptions { MultiRegionMode: true, ..Default::default() });
+    assert!(!s.quick_capture());
+    drag(&mut s, (10.0, 10.0), (59.0, 59.0));
+    drag(&mut s, (100.0, 100.0), (149.0, 149.0));
+    assert_eq!(s.regions.len(), 1);
+    assert!(s.has_valid_selection());
+    // Pressing the first region makes it the selection again.
+    s.pointer_moved(PointF::new(20.0, 20.0), none());
+    s.pointer_pressed(PointF::new(20.0, 20.0), Button::Left, none(), 1.0);
+    s.pointer_released(PointF::new(20.0, 20.0), Button::Left, none());
+    assert_eq!(s.selection.bounds, RectF::new(10.0, 10.0, 50.0, 50.0));
+    assert_eq!(s.regions[0].bounds, RectF::new(100.0, 100.0, 50.0, 50.0));
+    s.tick(Instant::now() + Duration::from_secs(1));
+    let Outcome::Captured(r) = s.key_down(Key::Enter, none(), &mut |_, _| {}) else { panic!() };
+    assert_eq!(r.screen_rectangle, Rect::new(10, 10, 140, 140));
+    assert_eq!(r.regions.len(), 2);
+    assert_eq!(r.image.get_pixel(70, 10)[3], 0);
+    assert_eq!(r.image.get_pixel(5, 5)[3], 255);
+}
+
+#[test]
+fn delete_removes_the_selection_then_the_last_region() {
+    let mut s = session_with(RegionCaptureOptions { MultiRegionMode: true, ..Default::default() });
+    s.tick(Instant::now() + Duration::from_secs(1));
+    drag(&mut s, (10.0, 10.0), (59.0, 59.0));
+    drag(&mut s, (100.0, 100.0), (149.0, 149.0));
+    s.key_down(Key::Delete, none(), &mut |_, _| {});
+    assert!(!s.has_valid_selection());
+    assert_eq!(s.regions.len(), 1);
+    s.key_down(Key::Delete, none(), &mut |_, _| {});
+    assert!(!s.has_any_region());
+}
+
+#[test]
+fn custom_info_text_shows_the_pixel() {
+    let mut s = session(Vec::new());
+    assert_eq!(s.pointer_info_text(3, 4), "X: 3 Y: 4");
+    s.options.UseCustomInfoText = true;
+    s.options.CustomInfoText.clear();
+    assert_eq!(s.pointer_info_text(3, 4), "RGB: 3, 4, 70\r\nHex: 030446\r\nX: 3 Y: 4");
+}
+
+/// Writes the overlay's capture of a drag over the test pattern to
+/// `SHAREXRS_REGION_OUT` (for comparing with ShareX's file).
+#[test]
+fn region_capture_over_the_pattern_to_a_file() {
+    let Ok(out) = std::env::var("SHAREXRS_REGION_OUT") else { return };
+    let spec = std::env::var("SHAREXRS_REGION_SPEC").unwrap_or_default();
+    let mut shot = RgbaImage::new(1024, 768);
+    for (x, y, p) in shot.enumerate_pixels_mut() {
+        let (x, y) = (x as i32, y as i32);
+        let c = if x % 64 == 0 || y % 64 == 0 {
+            [255, 255, 255]
+        } else {
+            [(x % 256) as u8, (y % 256) as u8, if ((x / 16) + (y / 16)) % 2 == 0 { 200 } else { 70 }]
+        };
+        *p = image::Rgba([c[0], c[1], c[2], 255]);
+    }
+    let screen = Screen { bounds: Rect::new(0, 0, 1024, 768), work_area: Rect::new(0, 0, 1024, 720), scale: 1.0, primary: true };
+    let mut s = RegionCapture::new(Request {
+        screenshot: shot,
+        screen_bounds: screen.bounds,
+        screens: vec![screen],
+        options: shapes_visible(),
+        windows: Vec::new(),
+        cursor: Some((600, 600)),
+        last_regions: Vec::new(),
+        enable_annotations: true,
+        editor_options: Default::default(),
+        cursor_image: None,
+        allow_multiple_regions: true,
+        pixel_info: None,
+    });
+    s.bar = toolbar::items(&s.options.ToolbarItems);
+    if spec.contains("freehand") {
+        click_tool(&mut s, "RegionFreehand");
+    } else {
+        click_tool(&mut s, "RegionEllipse");
+    }
+    let mut at = PointF::new(200.0, 200.0);
+    s.pointer_moved(at, none());
+    s.pointer_pressed(at, Button::Left, none(), 1.0);
+    let mut result = None;
+    let path: Vec<(f64, f64, bool)> = if spec.contains("freehand") {
+        vec![(450.0, 200.0, false), (450.0, 400.0, false), (300.0, 450.0, true), (200.0, 400.0, false)]
+    } else {
+        vec![(450.0, 400.0, false)]
+    };
+    for (tx, ty, shift) in path {
+        let from = at;
+        for i in 1..=12 {
+            let t = i as f64 / 12.0;
+            at = PointF::new((from.x + (tx - from.x) * t).round_ties_even(), (from.y + (ty - from.y) * t).round_ties_even());
+            s.pointer_moved(at, Modifiers { shift, ..none() });
+        }
+    }
+    if let Outcome::Captured(r) = s.pointer_released(at, Button::Left, none()) {
+        result = Some(r);
+    }
+    result.expect("captured").image.save(out).unwrap();
 }
