@@ -534,13 +534,21 @@ mod win {
 pub struct HighlighterWindow {
     options: MouseHighlighterOptions,
     scroll: f32,
+    /// The open colour flyout: primary, secondary, middle (0-2), always (3).
+    color_open: Option<usize>,
 }
 
 impl HighlighterWindow {
     pub fn new(options: MouseHighlighterOptions) -> Self {
         let mut options = options;
         options.validate();
-        Self { options, scroll: 0.0 }
+        Self { options, scroll: 0.0, color_open: None }
+    }
+
+    /// With a colour flyout open (`--render mouse-highlighter --state flyout`).
+    pub fn with_color_open(mut self, key: usize) -> Self {
+        self.color_open = Some(key);
+        self
     }
 
     /// `RefreshState`.
@@ -576,16 +584,37 @@ fn check(ui: &Ui, r: Rect, id: &str, text: &str, value: &mut bool, enabled: bool
     cb.show(ui, Rect::from_min_size(r.min, vec2(w, 32.0)), Id::new(("mh", id)), value).changed()
 }
 
-/// The colour button: a 28x20 swatch with a grey border.
-fn color_button(ui: &Ui, r: Rect, id: &str, c: &sharex_tools::color::Color, enabled: bool) -> bool {
+/// `ColorRow` / `EnabledColorRow`'s button: a 28x20 swatch with a grey
+/// border, whose `Flyout` is a `ColorView` with alpha (the shared colour
+/// popup stands in for it, as in Task settings). `open` is the window's open
+/// flyout, `key` this button's; returns whether the colour changed
+/// (`DrawingColor.FromArgb(...)` written back).
+fn color_button(ui: &Ui, r: Rect, key: usize, c: &mut sharex_tools::color::Color, enabled: bool, open: &mut Option<usize>) -> bool {
     let b = Rect::from_min_size(r.min, vec2(50.0, 40.0));
-    let resp = controls::Button::default().show(ui, b, Id::new(("mh-color", id)), "", enabled);
+    let resp = controls::Button::default().show(ui, b, Id::new(("mh-color", key)), "", enabled);
     let sw = Rect::from_center_size(b.center(), vec2(28.0, 20.0));
     let op = if enabled { 1.0 } else { 0.35 };
     let fill = egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a).gamma_multiply(op);
     ui.painter().rect_filled(sw, 0.0, fill);
     ui.painter().rect_stroke(sw, 0.0, egui::Stroke::new(1.0, egui::Color32::GRAY.gamma_multiply(op)), egui::StrokeKind::Inside);
-    resp.clicked()
+    let just_opened = resp.clicked() && *open != Some(key);
+    if resp.clicked() {
+        *open = if *open == Some(key) { None } else { Some(key) };
+    }
+    let mut changed = false;
+    if *open == Some(key) {
+        let mut color = egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
+        let (picked, keep) = controls::color_popup_with_alpha(ui, Id::new(("mh-flyout", key)), b, &mut color, just_opened, true);
+        if picked {
+            let [r, g, bl, a] = color.to_srgba_unmultiplied();
+            *c = sharex_tools::color::Color::argb(a, r, g, bl);
+            changed = true;
+        }
+        if !keep || !enabled {
+            *open = None;
+        }
+    }
+    changed
 }
 
 impl Dialog for HighlighterWindow {
@@ -603,7 +632,8 @@ impl Dialog for HighlighterWindow {
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, p.background_main);
         // The `ScrollViewer`: the wheel scrolls the content.
-        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
+        // Not while a colour flyout is open (the wheel is the popup's).
+        let wheel = if self.color_open.is_some() { 0.0 } else { ui.input(|i| i.smooth_scroll_delta.y) };
         let o = &mut self.options;
         let ripple = o.mode == Mode::Ripple;
         let content_h = 20.0 + 40.0 + 14.0 + 61.0 + 14.0 + 40.0 + 3.0 * (12.0 + 40.0) + if ripple { 3.0 * (12.0 + 32.0) + 12.0 + 3.0 * 40.0 + 2.0 * 10.0 + 10.0 + 32.0 } else { 12.0 + 40.0 + 10.0 + 18.0 + 3.0 * (10.0 + 40.0) } + 12.0 + 32.0 + 20.0;
@@ -645,15 +675,12 @@ impl Dialog for HighlighterWindow {
             ][k];
             let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
             let (on, cross, color) = match k {
-                0 => (&mut o.highlight_primary_clicks, &mut o.show_primary_release_crosshairs, &o.primary_color),
-                1 => (&mut o.highlight_secondary_clicks, &mut o.show_secondary_release_crosshairs, &o.secondary_color),
-                _ => (&mut o.highlight_middle_clicks, &mut o.show_middle_release_crosshairs, &o.middle_color),
+                0 => (&mut o.highlight_primary_clicks, &mut o.show_primary_release_crosshairs, &mut o.primary_color),
+                1 => (&mut o.highlight_secondary_clicks, &mut o.show_secondary_release_crosshairs, &mut o.secondary_color),
+                _ => (&mut o.highlight_middle_clicks, &mut o.show_middle_release_crosshairs, &mut o.middle_color),
             };
-            let color = color.clone();
             changed |= check(ui, Rect::from_min_size(pos2(x0, row.min.y + 4.0), vec2(w - 192.0, 32.0)), &format!("on{k}"), label, on, true);
-            if color_button(ui, cell(row), &format!("c{k}"), &color, *on) {
-                effects.push(Effect::NotPorted("the mouse highlighter's colour flyout"));
-            }
+            changed |= color_button(ui, cell(row), k, color, *on, &mut self.color_open);
             y += 40.0 + 12.0;
             if ripple {
                 let enabled = *on;
@@ -688,9 +715,7 @@ impl Dialog for HighlighterWindow {
         } else {
             let row = Rect::from_min_size(pos2(x0, y), vec2(w, 40.0));
             controls::label(ui, row, t::MouseHighlighter_AlwaysColor(), font(13.0, 400), p.text);
-            if color_button(ui, cell(row), "always", &o.always_color.clone(), true) {
-                effects.push(Effect::NotPorted("the mouse highlighter's colour flyout"));
-            }
+            changed |= color_button(ui, cell(row), 3, &mut o.always_color, true, &mut self.color_open);
             y += 40.0 + 10.0;
             wrapped(ui, pos2(x0, y), w, t::MouseHighlighter_AlwaysColorHelp(), egui::Color32::GRAY);
             y += 18.0 + 10.0;

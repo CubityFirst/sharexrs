@@ -5,7 +5,8 @@
 //!   `--state swatch`: then its seventh swatch clicked, red the previous),
 //! - `pin-startup` (`--state error`: the clipboard had no image),
 //! - `pin-options` (the default options),
-//! - `mouse-highlighter` (`--state circle`: Circle highlight).
+//! - `mouse-highlighter` (`--state circle`: Circle highlight; `--state
+//!   flyout` / `circle-flyout`: the primary / always colour's flyout open).
 
 use super::color_picker::ColorPickerWindow;
 use crate::dialogs::Dialog;
@@ -36,10 +37,15 @@ pub fn render_dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String>
         "pin-options" => Box::new(super::pin::PinOptionsWindow::new(winit::window::WindowId::dummy(), Default::default())),
         "mouse-highlighter" => {
             let mut o = sharex_tools::mouse_highlighter::MouseHighlighterOptions::default();
-            if state == "circle" {
+            if state.starts_with("circle") {
                 o.mode = sharex_tools::mouse_highlighter::Mode::Circle;
             }
-            Box::new(super::highlighter::HighlighterWindow::new(o))
+            let w = super::highlighter::HighlighterWindow::new(o);
+            Box::new(match state {
+                "flyout" => w.with_color_open(0),
+                "circle-flyout" => w.with_color_open(3),
+                _ => w,
+            })
         }
         _ => return Err(format!("unknown screen {name}")),
     })
