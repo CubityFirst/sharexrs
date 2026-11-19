@@ -1044,3 +1044,28 @@ fn analyze_image_saves_the_image_first() {
     assert!(path.is_file());
     assert!(out.ui.contains(&Ui::Analyze(path)), "{:?}", out.ui);
 }
+
+/// A custom uploader's `{inputbox}`, `{outputbox}` and `{select}`: the
+/// parsing thread asks the event loop and waits; the event loop's own
+/// thread gets nothing rather than waiting for itself.
+#[test]
+fn parser_dialogs_ask_the_event_loop() {
+    use sharex_uploaders::custom::ParserUi;
+    let requests: super::RequestSink = Arc::new(|r| match r {
+        super::UiRequest::InputBox(title, default, tx) => tx.send(Some(format!("{title}:{default}"))).unwrap(),
+        super::UiRequest::OutputBox(_, _, tx) => tx.send(()).unwrap(),
+        super::UiRequest::ParserSelect(values, tx) => tx.send(values.last().cloned()).unwrap(),
+        other => panic!("{other:?}"),
+    });
+    let dialogs = Arc::new(super::ParserDialogs { requests, ui_thread: std::thread::current().id() });
+    assert_eq!(dialogs.input_box("Title", "x"), None);
+    assert_eq!(dialogs.select(&["a".into()]), None);
+    let d = dialogs.clone();
+    let answers = std::thread::spawn(move || {
+        d.output_box("text", "Output");
+        (d.input_box("Title", "x"), d.select(&["a".into(), "b".into()]))
+    })
+    .join()
+    .unwrap();
+    assert_eq!(answers, (Some("Title:x".into()), Some("b".into())));
+}

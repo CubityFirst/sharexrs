@@ -140,6 +140,14 @@ pub enum UiRequest {
     AnalyzeImage(std::path::PathBuf, Box<TaskSettings>),
     /// `TaskHelpers.PrintImage(image)`.
     PrintImage(Box<image::RgbaImage>),
+    /// A custom uploader's `{inputbox:title|default}`
+    /// (`InputBoxWindowIntegration.Show`): the text, or `None`.
+    InputBox(String, String, mpsc::Sender<Option<String>>),
+    /// `{outputbox:title|text}` (`OutputBoxWindowIntegration.Show`):
+    /// answered when it closes.
+    OutputBox(String, String, mpsc::Sender<()>),
+    /// `{select:a|b}` (`ParserSelectWindowIntegration.Show`): the value.
+    ParserSelect(Vec<String>, mpsc::Sender<Option<String>>),
     /// `FileExistWindowIntegration.Show(filePath)`: answered with the path
     /// to write (`None`: cancelled).
     FileExists(std::path::PathBuf, mpsc::Sender<Option<std::path::PathBuf>>),
@@ -168,6 +176,9 @@ impl std::fmt::Debug for UiRequest {
             Self::PinToScreen(..) => f.write_str("PinToScreen"),
             Self::AnalyzeImage(p, _) => write!(f, "AnalyzeImage({})", p.display()),
             Self::PrintImage(_) => f.write_str("PrintImage"),
+            Self::InputBox(t, ..) => write!(f, "InputBox({t})"),
+            Self::OutputBox(_, t, _) => write!(f, "OutputBox({t})"),
+            Self::ParserSelect(v, _) => write!(f, "ParserSelect({v:?})"),
             Self::FileExists(p, _) => write!(f, "FileExists({})", p.display()),
             Self::Email(..) => f.write_str("Email"),
             Self::YouTubeOptions(..) => f.write_str("YouTubeOptions"),
@@ -177,6 +188,41 @@ impl std::fmt::Debug for UiRequest {
 
 /// Where a task's thread sends what it asks the UI.
 pub type RequestSink = Arc<dyn Fn(UiRequest) + Send + Sync>;
+
+/// The windows a custom uploader's `{inputbox}`, `{outputbox}` and
+/// `{select}` open, asked of the event loop by the thread parsing the
+/// request, which waits for the answer as ShareX's does. On the event
+/// loop's own thread (which can't wait for itself) `{inputbox}` and
+/// `{select}` give nothing and `{outputbox}` shows nothing.
+pub struct ParserDialogs {
+    pub requests: RequestSink,
+    pub ui_thread: std::thread::ThreadId,
+}
+
+impl ParserDialogs {
+    fn ask<T>(&self, make: impl FnOnce(mpsc::Sender<T>) -> UiRequest) -> Option<T> {
+        if std::thread::current().id() == self.ui_thread {
+            return None;
+        }
+        let (tx, rx) = mpsc::channel();
+        (self.requests)(make(tx));
+        rx.recv().ok()
+    }
+}
+
+impl sharex_uploaders::custom::ParserUi for ParserDialogs {
+    fn input_box(&self, title: &str, default_text: &str) -> Option<String> {
+        self.ask(|tx| UiRequest::InputBox(title.to_owned(), default_text.to_owned(), tx)).flatten()
+    }
+
+    fn output_box(&self, text: &str, title: &str) {
+        self.ask(|tx| UiRequest::OutputBox(text.to_owned(), title.to_owned(), tx));
+    }
+
+    fn select(&self, values: &[String]) -> Option<String> {
+        self.ask(|tx| UiRequest::ParserSelect(values.to_vec(), tx)).flatten()
+    }
+}
 
 /// The desktop's clipboard (owned by the main window, which Windows needs)
 /// and browser.

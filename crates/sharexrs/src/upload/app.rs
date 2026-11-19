@@ -55,6 +55,14 @@ pub fn set_dialog_hooks(proxy: winit::event_loop::EventLoopProxy<UserEvent>) {
         email_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(super::UiRequest::Email(fields, tx))).ok()?;
         rx.recv().ok().flatten()
     })));
+    // A custom uploader's `{inputbox}`, `{outputbox}` and `{select}`.
+    let parser_proxy = Mutex::new(proxy.clone());
+    sharex_uploaders::custom::set_parser_ui(Some(Arc::new(super::ParserDialogs {
+        requests: Arc::new(move |r| {
+            let _ = parser_proxy.lock().expect("event proxy").send_event(UserEvent::Ui(r));
+        }),
+        ui_thread: std::thread::current().id(),
+    })));
     let youtube_proxy = Mutex::new(proxy);
     oauth_services::set_youtube_options_ui(Some(Arc::new(move |title: &str, description: &str, privacy: &sharex_uploaders::enums::YouTubeVideoPrivacy| {
         let (tx, rx) = std::sync::mpsc::channel();
@@ -200,6 +208,11 @@ impl App {
                 self.print_image(event_loop, *image);
                 return;
             }
+            super::UiRequest::InputBox(title, default, reply) => {
+                Box::new(dialogs::input_box::InputBoxWindow::new(&title, Some(&default), None, None, Some(reply)))
+            }
+            super::UiRequest::OutputBox(text, title, reply) => Box::new(dialogs::output_box::OutputBoxWindow::new(&text, &title, false).with_reply(reply)),
+            super::UiRequest::ParserSelect(values, reply) => Box::new(dialogs::parser_select::ParserSelectWindow::new(&values, Some(reply))),
             super::UiRequest::Email(fields, reply) => {
                 let (to, subject, body) = *fields;
                 Box::new(dialogs::email_window::EmailWindow::new(&to, &subject, &body, Some(reply)))

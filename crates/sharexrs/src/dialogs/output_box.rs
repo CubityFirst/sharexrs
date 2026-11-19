@@ -18,11 +18,19 @@ pub struct OutputBoxWindow {
     /// `scrollToEnd`: the caret at the end, else at the start.
     scroll_to_end: bool,
     scrolled: bool,
+    /// Told when the window closes (`OutputBoxWindowIntegration.Show` waits).
+    reply: Option<std::sync::mpsc::Sender<()>>,
 }
 
 impl OutputBoxWindow {
     pub fn new(text: &str, title: &str, scroll_to_end: bool) -> Self {
-        Self { text: text.replace("\r\n", "\n"), title: title.to_owned(), scroll_to_end, scrolled: false }
+        Self { text: text.replace("\r\n", "\n"), title: title.to_owned(), scroll_to_end, scrolled: false, reply: None }
+    }
+
+    /// The same, telling `reply` when it closes.
+    pub fn with_reply(mut self, reply: std::sync::mpsc::Sender<()>) -> Self {
+        self.reply = Some(reply);
+        self
     }
 }
 
@@ -76,5 +84,12 @@ impl Dialog for OutputBoxWindow {
         });
         super::debug_log::overlay_scroll_bars(ui, view, content, shown.state.offset);
         out
+    }
+
+    fn closed(&mut self, _cx: &mut Cx) -> Vec<Effect> {
+        if let Some(r) = self.reply.take() {
+            let _ = r.send(());
+        }
+        Vec::new()
     }
 }
