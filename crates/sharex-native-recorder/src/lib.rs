@@ -18,6 +18,7 @@
 pub mod audio;
 pub mod camera;
 pub mod clock;
+pub mod devices;
 pub mod ffmpeg_source;
 pub mod gif;
 pub mod media;

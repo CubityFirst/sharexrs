@@ -392,7 +392,10 @@ fn record(handle: &RecorderHandle, backends: &Backends, owns_output: &mut bool) 
     let mixer = Arc::new(AudioMixer::new(clock.clone()));
     let mut audio: Option<Box<dyn AudioCapture>> = if options.has_audio() {
         let devices = backends.audio.as_ref().ok_or("Windows audio capture is unavailable.")?;
-        Some(Box::new(EndpointCapture::open(devices.as_ref(), options, mixer.clone(), backends.time.clone(), backends.virtual_time.is_none())?))
+        Some(match devices.capture(options, mixer.clone(), backends.time.clone()) {
+            Some(capture) => capture?,
+            None => Box::new(EndpointCapture::open(devices.as_ref(), options, mixer.clone(), backends.time.clone(), backends.virtual_time.is_none())?),
+        })
     } else {
         None
     };
