@@ -381,6 +381,31 @@ impl ComboBox {
 
     /// Draws the combo box in `rect`; returns a newly selected index.
     pub fn show(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>) -> Option<usize> {
+        self.show_inner(ui, rect, id, items, selected, true)
+    }
+
+    /// An `IsEditable="True"` combo box: its text in the template's
+    /// `TextBox` (transparent, no border, no padding: the text box font),
+    /// the dropdown's item at that text selected; picking one sets the
+    /// text. Returns whether the text changed.
+    pub fn show_editable(&self, ui: &mut Ui, rect: Rect, id: Id, items: &[ComboItem], text: &mut String) -> bool {
+        let selected = items.iter().position(|i| i.text == *text);
+        let before = text.clone();
+        if let Some(i) = self.show_inner(ui, rect, id, items, selected, false) {
+            *text = items[i].text.clone();
+        }
+        let inner = Rect::from_min_max(pos2(rect.min.x + self.padding.left, rect.min.y + self.padding.top), pos2(rect.max.x - 32.0, rect.max.y - self.padding.bottom));
+        TextBox { padding: Thickness::all(0.0), plain: true, enabled: self.enabled, ..TextBox::default() }.show(ui, inner, id.with("text"), text);
+        *text != before
+    }
+
+    /// An editable combo box's width when `HorizontalAlignment="Left"`: its
+    /// text in the text box font (at least Fluent's 64 for the text box).
+    pub fn editable_width(&self, ui: &Ui, text: &str) -> f32 {
+        text_width(ui, text, TextBox::font()).max(64.0) + self.padding.left + self.padding.right + 32.0
+    }
+
+    fn show_inner(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>, paint_content: bool) -> Option<usize> {
         let p = palette(ui.ctx());
         let f = fluent(ui.ctx());
         let r = interact(ui, rect, id, self.enabled);
@@ -411,7 +436,7 @@ impl ComboBox {
         // Items are `TextBlock`s, whose ShareX style keeps the text colour
         // when the combo box is disabled or focused.
         let fg = p.text;
-        if let Some(item) = selected.and_then(|i| items.get(i)) {
+        if paint_content && let Some(item) = selected.and_then(|i| items.get(i)) {
             paint_item(ui, inner, item, fg);
         }
         // `DropDownGlyph`: 12x12, `Margin="0,0,10,0"`, centred.
@@ -430,6 +455,33 @@ impl ComboBox {
         }
         ui.ctx().data_mut(|d| d.insert_temp(open_id, open));
         chosen.filter(|&c| Some(c) != selected)
+    }
+
+    /// `PlaceholderTextBlock`'s font: ShareX's style sets it Normal.
+    pub fn placeholder_font() -> FontId {
+        font(13.0, 400)
+    }
+
+    /// A `HorizontalAlignment="Left"` combo box with nothing selected: as
+    /// wide as its `PlaceholderText` (the text block shares the content's
+    /// grid cell), at least 64.
+    pub fn placeholder_width(&self, ui: &Ui, placeholder: &str) -> f32 {
+        (text_width(ui, placeholder, Self::placeholder_font()) + self.padding.left + self.padding.right + 32.0).max(64.0)
+    }
+
+    /// [`ComboBox::show`] with a `PlaceholderText`, shown while nothing is
+    /// selected: `ComboBoxPlaceHolderForeground` (base high) at
+    /// `TextControlPlaceholderOpacity` (0.5), inside the padding.
+    pub fn show_with_placeholder(&self, ui: &Ui, rect: Rect, id: Id, items: &[ComboItem], selected: Option<usize>, placeholder: &str) -> Option<usize> {
+        if selected.is_none() && !placeholder.is_empty() {
+            // Painted under the dropdown, which is an area of its own.
+            let f = fluent(ui.ctx());
+            let inner = Rect::from_min_max(pos2(rect.min.x + self.padding.left, rect.min.y + self.padding.top), pos2(rect.max.x - 32.0, rect.max.y - self.padding.bottom));
+            let shown = self.show(ui, rect, id, items, selected);
+            text_at(ui, inner, inner.min.x, placeholder, Self::placeholder_font(), f.base_high.gamma_multiply(0.5));
+            return shown;
+        }
+        self.show(ui, rect, id, items, selected)
     }
 
     /// Whether the dropdown of the combo box `id` is open.
@@ -580,6 +632,15 @@ fn dropdown(ui: &Ui, id: Id, anchor: Rect, items: &[ComboItem], selected: Option
         ctx.data_mut(|d| d.remove::<f32>(scroll_id));
     }
     (picked, keep)
+}
+
+/// A combo box's dropdown on its own, at the top left of the screen, as a
+/// capture of ShareX's popup window shows it (the reference shots of open
+/// combo boxes): `combo_width` is the width of the combo box it drops from.
+pub fn dropdown_alone(ui: &Ui, id: Id, combo_width: f32, items: &[ComboItem], selected: Option<usize>) {
+    let origin = ui.ctx().content_rect().min;
+    let anchor = Rect::from_min_size(pos2(origin.x, origin.y - 40.0), vec2(combo_width, 40.0));
+    let _ = dropdown(ui, id, anchor, items, selected, true);
 }
 
 /// `TextBox`: control background (hover background), 1px border, 4px
