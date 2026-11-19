@@ -1781,7 +1781,7 @@ impl RegionCapture {
     }
 
     /// The picked colour (`SelectedColorValue`, a recent colour).
-    pub fn set_picked_color(&mut self, item: options_row::OptionItem, c: egui::Color32) {
+    pub fn set_picked_color(&mut self, item: options_row::OptionItem, c: sharex_ui::color_view::Rgba8) {
         crate::editor_popups::add_recent_color(c);
         let hex = sharex_ui::accent::to_hex(c);
         if let Some(e) = self.editor.as_mut() {

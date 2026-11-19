@@ -49,10 +49,15 @@ pub fn apply(settings: &ApplicationConfig, system: Option<winit::window::Theme>)
 /// `ApplicationThemeOptions.AccentColor`: the hex colour, or the default
 /// when it doesn't parse or is transparent.
 pub fn accent_color(o: &ApplicationThemeOptions) -> egui::Color32 {
-    sharex_ui::accent::parse_hex(&o.AccentColorHex)
-        .filter(|c| c.a() > 0)
-        .or_else(|| sharex_ui::accent::parse_hex(ApplicationThemeOptions::DEFAULT_ACCENT_COLOR_HEX))
-        .unwrap_or(egui::Color32::from_rgb(0x09, 0xAA, 0xFF))
+    sharex_ui::color_view::to_color32(accent_rgba(o))
+}
+
+/// [`accent_color`] as unmultiplied `[R, G, B, A]`, the exact value.
+pub fn accent_rgba(o: &ApplicationThemeOptions) -> [u8; 4] {
+    sharex_ui::accent::parse_hex_rgba(&o.AccentColorHex)
+        .filter(|c| c[3] > 0)
+        .or_else(|| sharex_ui::accent::parse_hex_rgba(ApplicationThemeOptions::DEFAULT_ACCENT_COLOR_HEX))
+        .unwrap_or([0x09, 0xAA, 0xFF, 0xFF])
 }
 
 /// `ApplicationThemeOptions.GetSpacing` for each area: a per-area value, or

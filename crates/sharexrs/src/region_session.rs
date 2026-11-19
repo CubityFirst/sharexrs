@@ -236,7 +236,7 @@ impl RegionSession {
     }
 
     /// The colour picked for `item` (none: cancelled).
-    pub fn picked_color(&mut self, item: sharex_capture::region::options_row::OptionItem, color: Option<egui::Color32>) {
+    pub fn picked_color(&mut self, item: sharex_capture::region::options_row::OptionItem, color: Option<sharex_ui::color_view::Rgba8>) {
         if let Some(c) = color {
             self.capture.set_picked_color(item, c);
         }

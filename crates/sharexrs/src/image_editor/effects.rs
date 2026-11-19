@@ -164,9 +164,9 @@ impl EffectDialog {
     }
 
     /// The screen colour picker's colour for parameter `i`.
-    pub fn set_color(&mut self, i: usize, c: Color32) {
+    pub fn set_color(&mut self, i: usize, c: [u8; 4]) {
         if let Some(p) = self.def.parameters.get(i) {
-            let [r, g, b, a] = c.to_srgba_unmultiplied();
+            let [r, g, b, a] = c;
             self.set(p.key, ParamValue::Color(SkColor::rgba(r, g, b, a)));
         }
     }
@@ -180,7 +180,7 @@ impl EffectDialog {
     pub fn open_color(&mut self, i: usize) {
         let mut d = ColorDropdown::default();
         let c = match self.def.parameters.get(i).and_then(|p| self.values.get(p.key)) {
-            Some(ParamValue::Color(c)) => color32(*c),
+            Some(ParamValue::Color(c)) => c.rgba_array(),
             _ => return,
         };
         d.toggle(c);
@@ -311,7 +311,10 @@ impl EffectDialog {
                                     self.color = None;
                                 } else {
                                     let mut d = ColorDropdown::default();
-                                    d.toggle(c);
+                                    d.toggle(match value {
+                                        ParamValue::Color(c) => c.rgba_array(),
+                                        _ => [0; 4],
+                                    });
                                     self.color = Some((i, d, br));
                                 }
                             }
@@ -372,12 +375,15 @@ impl EffectDialog {
     pub fn show_popup(&mut self, ui: &Ui, p: &Palette, bounds: Rect) -> Option<Action> {
         let (i, mut d, anchor) = self.color.take()?;
         let param = &self.def.parameters[i];
-        let mut c = match self.values.get(param.key) {
-            Some(ParamValue::Color(c)) => color32(*c),
-            _ => Color32::TRANSPARENT,
+        let before = match self.values.get(param.key) {
+            Some(ParamValue::Color(c)) => c.rgba_array(),
+            _ => [0; 4],
         };
+        let mut c = before;
         let r: PopupResult = d.show(ui, p, anchor, bounds, &format!("fx-color-{i}"), &mut c);
-        self.set_color(i, c);
+        if c != before {
+            self.set_color(i, c);
+        }
         let out = r.pick_screen_color.then_some(Action::PickScreenColor(i));
         if d.open {
             self.color = Some((i, d, anchor));

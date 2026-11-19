@@ -233,7 +233,7 @@ fn the_emoji_tool_asks_the_host_for_its_picker_and_a_picked_colour_sets_the_opti
     let reqs = s.take_editor_requests();
     assert!(reqs.is_empty(), "{reqs:?}");
     assert_eq!(s.active_annotation_tool(), Some(EditorTool::Rectangle));
-    s.set_picked_color(super::options_row::OptionItem::BorderColor, egui::Color32::from_rgb(1, 2, 3));
+    s.set_picked_color(super::options_row::OptionItem::BorderColor, [1, 2, 3, 255]);
     assert_eq!(s.editor.as_ref().unwrap().tools.options.BorderColorHex.to_ascii_uppercase(), "#FF010203");
 }
 

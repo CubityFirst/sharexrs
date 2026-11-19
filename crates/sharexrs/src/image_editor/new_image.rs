@@ -2,7 +2,7 @@
 //! height (1 to 10000, 800x600 at first) and a transparent or solid colour
 //! background (white at first).
 
-use egui::{Color32, Id, Rect, Ui, Vec2, pos2, vec2};
+use egui::{Id, Rect, Ui, Vec2, pos2, vec2};
 use sharex_capture::editor_popups::{ColorDropdown, PopupResult};
 use sharex_strings::image_editor as ie;
 use sharex_ui::controls::{NumericUpDown, RadioButton};
@@ -16,7 +16,8 @@ pub struct NewImage {
     pub width: i64,
     pub height: i64,
     pub transparent: bool,
-    pub color: Color32,
+    /// Unmultiplied `[R, G, B, A]`.
+    pub color: [u8; 4],
     pub dropdown: ColorDropdown,
     /// The dropdown button, as last drawn.
     pub button: Rect,
@@ -24,7 +25,7 @@ pub struct NewImage {
 
 impl Default for NewImage {
     fn default() -> Self {
-        Self { width: 800, height: 600, transparent: true, color: Color32::WHITE, dropdown: ColorDropdown::default(), button: Rect::NOTHING }
+        Self { width: 800, height: 600, transparent: true, color: [255; 4], dropdown: ColorDropdown::default(), button: Rect::NOTHING }
     }
 }
 
@@ -93,10 +94,10 @@ impl NewImage {
         if !enabled {
             painter.set_opacity(0.35);
             painter.rect_filled(br, 4.0, p.control_background);
-            sharex_capture::region::options_row::color_dropdown_content(ui, &painter, p, br, self.color, false);
+            sharex_capture::region::options_row::color_dropdown_content(ui, &painter, p, br, sharex_ui::color_view::to_color32(self.color), false);
         } else {
             let hovered = resp.hovered();
-            sharex_capture::region::options_row::color_dropdown_button(ui, &painter, p, br, self.color, hovered, self.dropdown.open);
+            sharex_capture::region::options_row::color_dropdown_button(ui, &painter, p, br, sharex_ui::color_view::to_color32(self.color), hovered, self.dropdown.open);
         }
         if enabled && resp.clicked() {
             self.dropdown.toggle(self.color);

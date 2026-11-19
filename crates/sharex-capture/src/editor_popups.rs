@@ -27,7 +27,7 @@ use sharex_ui::{Palette, color_view, icons, widgets};
 use crate::region::options_row::{self, OptionItem};
 
 /// `EditorRecentColors.Add` (shared with every `ColorPickerPanel`).
-pub use sharex_ui::color_view::add_recent_color;
+pub use sharex_ui::color_view::{Rgba8, add_recent_color};
 
 /// `MainViewModel.StrokeWidths`... `WidthPickerDropdown.GetDefaultWidthOptions`.
 const WIDTHS: [i32; 10] = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
@@ -80,7 +80,7 @@ pub struct Popups {
     pub open: Option<OptionItem>,
     /// Opened this frame: the press that opened it isn't a light dismiss.
     just_opened: bool,
-    color_when_opened: Option<Color32>,
+    color_when_opened: Option<Rgba8>,
     font_size_text: String,
     font_search: String,
     font_scroll: f32,
@@ -100,15 +100,15 @@ pub struct PopupResult {
     pub pick_screen_color: bool,
 }
 
-/// `Color.Parse` of an option's hex.
-fn color_of(hex: &str) -> Color32 {
+/// `Color.Parse` of an option's hex, unmultiplied.
+fn color_of(hex: &str) -> Rgba8 {
     let c = sharex_image_editor::render::parse_color(hex);
-    Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a)
+    [c.r, c.g, c.b, c.a]
 }
 
 /// `#AARRGGBB` of a colour (the options' format).
-fn hex_of(c: Color32) -> String {
-    let [r, g, b, a] = c.to_srgba_unmultiplied();
+fn hex_of(c: Rgba8) -> String {
+    let [r, g, b, a] = c;
     format!("#{a:02X}{r:02X}{g:02X}{b:02X}")
 }
 
@@ -160,7 +160,7 @@ impl Popups {
         )
     }
 
-    fn current_color(&self, item: OptionItem, s: &ToolState) -> Option<Color32> {
+    fn current_color(&self, item: OptionItem, s: &ToolState) -> Option<Rgba8> {
         match item {
             OptionItem::BorderColor => Some(color_of(&s.selected_color)),
             OptionItem::FillColor => Some(color_of(&s.fill_color)),
@@ -209,7 +209,7 @@ impl Popups {
             let inner = r.shrink(1.0);
             match item {
                 OptionItem::BorderColor | OptionItem::FillColor | OptionItem::TextColor => {
-                    let mut c = self.current_color(item, &ws.tools).unwrap_or(Color32::TRANSPARENT);
+                    let mut c = self.current_color(item, &ws.tools).unwrap_or([0; 4]);
                     let (changed, pick) = self.color_panel(ui, p, inner.shrink(4.0), id, &mut c);
                     if changed {
                         let hex = hex_of(c);
@@ -249,7 +249,7 @@ impl Popups {
                     if let Some(v) = list(ui, p, inner.shrink(8.0), id, &BORDER_STYLES, |v| *v == cur, |painter, r, v, fg| {
                         text_left(ui, painter, r, options_row::border_style_name(v), 14.0, fg);
                         let right = r.max.x - 8.0;
-                        options_row::dashed_preview(painter, right - 36.0 + 2.0, right - 2.0, r.center().y, v, fg, 1.0);
+                        options_row::dashed_preview(painter, right - 36.0 + 2.0, right - 2.0, r.center().y, v, p.text, 1.0);
                     }) {
                         ws.set_option(|s, t| s.set_border_style(v, t));
                         close = true;
@@ -259,7 +259,7 @@ impl Popups {
                     let cur = ws.tools.arrow_style.clone();
                     if let Some(v) = list(ui, p, inner.shrink(8.0), id, &ARROW_STYLES, |v| *v == cur, |painter, r, v, fg| {
                         text_left(ui, painter, r, options_row::arrow_style_name(v), 14.0, fg);
-                        options_row::arrow_style_preview(ui, painter, r.max.x - 8.0 - 36.0, r.center().y, v, fg, 1.0);
+                        options_row::arrow_style_preview(ui, painter, r.max.x - 8.0 - 36.0, r.center().y, v, p.text, 1.0);
                     }) {
                         ws.set_option(|s, t| s.set_arrow_style(v, t));
                         close = true;
@@ -416,7 +416,7 @@ impl Popups {
     /// on its palette tab, then the screen colour picker button and the
     /// recent colours. Returns whether the colour changed and whether the
     /// screen picker was asked for.
-    fn color_panel(&mut self, ui: &mut egui::Ui, _p: &Palette, r: Rect, id: Id, c: &mut Color32) -> (bool, bool) {
+    fn color_panel(&mut self, ui: &mut egui::Ui, _p: &Palette, r: Rect, id: Id, c: &mut Rgba8) -> (bool, bool) {
         color_view::color_picker_panel(ui, r.min, id, c)
     }
 
@@ -542,7 +542,7 @@ impl Popups {
         bordered(ui, btn, 4.0, if resp.hovered() { p.control_background_hover } else { p.control_background }, p.border);
         let sw = Rect::from_min_size(pos2(btn.min.x + 11.0, btn.center().y - 12.0), vec2(24.0, 24.0));
         checkered(painter, sw, 4.0, p);
-        painter.rect_filled(sw, CornerRadius::same(4), color_of(&ws.tools.shadow_color));
+        painter.rect_filled(sw, CornerRadius::same(4), color_view::to_color32(color_of(&ws.tools.shadow_color)));
         icons::paint(painter, Rect::from_min_size(pos2(btn.max.x - 21.0, btn.center().y - 5.0), vec2(10.0, 10.0)), app_icons::ChevronDown, p.text_secondary);
         if resp.clicked() {
             self.shadow_color_open = !self.shadow_color_open;
@@ -601,7 +601,7 @@ pub struct ColorDropdown {
 
 impl ColorDropdown {
     /// The dropdown button's click.
-    pub fn toggle(&mut self, color: Color32) {
+    pub fn toggle(&mut self, color: Rgba8) {
         if self.open {
             self.open = false;
             return;
@@ -623,7 +623,7 @@ impl ColorDropdown {
 
     /// Draws the open popup under `anchor` within `bounds`, editing
     /// `color`; closes it on Escape or a press outside it and `anchor`.
-    pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, key: &str, color: &mut Color32) -> PopupResult {
+    pub fn show(&mut self, ui: &egui::Ui, p: &Palette, anchor: Rect, bounds: Rect, key: &str, color: &mut Rgba8) -> PopupResult {
         let mut result = PopupResult::default();
         if !self.open {
             return result;
@@ -719,6 +719,7 @@ fn grid<T: Clone>(
 }
 
 /// A vertical `StackPanel` of 32px picker buttons; returns the one clicked.
+/// `paint` gets the colour of the item's text and icons.
 fn list<T: Clone>(
     ui: &egui::Ui,
     p: &Palette,
@@ -735,8 +736,13 @@ fn list<T: Clone>(
         let resp = ui.interact(ir, id.with(("item", i)), Sense::click());
         let on = active(v);
         picker_background(painter, p, ir, resp.hovered(), on);
-        // `TextBlock`s keep `ShareX.Brush.Text` (a local value).
-        paint(painter, ir, v, p.text);
+        // The item template's `Foreground="{DynamicResource
+        // ShareX.Brush.Text}"` is set at Template priority, so on the active
+        // row `Button.active /template/ ContentPresenter TextBlock` (and
+        // `IconPresenter`) win with the accent foreground; the previews'
+        // `Path` strokes keep `ShareX.Brush.Text` (`--control-dump
+        // borderstyle`).
+        paint(painter, ir, v, if on { p.accent_foreground } else { p.text });
         if resp.clicked() {
             chosen = Some(v.clone());
         }
@@ -802,4 +808,23 @@ pub fn alignment_name(a: &TextHorizontalAlignment) -> &'static str {
 /// A `Border` with a background and a 1px border.
 fn bordered(ui: &egui::Ui, r: Rect, radius: f32, bg: Color32, border: Color32) {
     sharex_ui::border::border(ui.painter(), r, radius, 1.0, Some(sharex_ui::border::Brush::Solid(bg)), Some(border));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The options' `#AARRGGBB` round-trips colours with partial alpha
+    /// exactly (`Color32` premultiplied them).
+    #[test]
+    fn option_colours_keep_partial_alpha() {
+        for a in [0u8, 1, 64, 128, 166, 254, 255] {
+            for v in 0..=255u8 {
+                for c in [[v, 169, 225, a], [54, v, 225, a], [54, 169, v, a]] {
+                    assert_eq!(color_of(&hex_of(c)), c, "{c:?}");
+                }
+            }
+        }
+        assert_eq!(hex_of([54, 169, 225, 166]), "#A636A9E1");
+    }
 }

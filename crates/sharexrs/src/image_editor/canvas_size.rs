@@ -220,8 +220,8 @@ impl EditorWindow {
         let o = self.image_origin(self.room, self.scroll);
         let z = self.effective_zoom() as f32;
         let target = pos2(o.x + l as f32 * z, o.y + t as f32 * z);
-        let fill = sharex_ui::accent::parse_hex(&self.ws.tools.options.CanvasFillColorHex).unwrap_or(Color32::TRANSPARENT);
-        let resized = self.ws.resize_canvas(add_t, add_r, add_b, add_l, fill.to_srgba_unmultiplied());
+        let fill = sharex_ui::accent::parse_hex_rgba(&self.ws.tools.options.CanvasFillColorHex).unwrap_or([0; 4]);
+        let resized = self.ws.resize_canvas(add_t, add_r, add_b, add_l, fill);
         let keep = (resized && cr.saved_zoom.is_none()).then_some(target);
         self.set_room(Vec2::ZERO, keep);
         if let Some(z) = cr.saved_zoom {
@@ -405,13 +405,14 @@ impl EditorWindow {
         painter.galley(pos2(ar.min.x + 15.0 + ((ar.width() - 30.0 - atw) / 2.0).round_ties_even(), widgets::center_y(ar, widgets::line_height(ui, &bf))), g, fg);
         bx += aw + 8.0;
         let c_resp = b.show(ui, Rect::from_min_size(pos2(bx, row.min.y), vec2(cw, 40.0)), Id::new("canvas-size-cancel"), cancel, true);
-        let mut c = fill;
+        let fill_rgba = sharex_ui::accent::parse_hex_rgba(&self.ws.tools.options.CanvasFillColorHex).unwrap_or([0; 4]);
+        let mut c = fill_rgba;
         let mut picked = None;
         if let Some(cr) = self.canvas_resize.as_mut() {
             cr.panel = panel;
             cr.button = button;
             if resp.clicked() {
-                cr.dropdown.toggle(fill);
+                cr.dropdown.toggle(fill_rgba);
             }
             let bounds = self.layout.view;
             let r = cr.dropdown.show(ui, p, button, bounds, "canvas-size-fill", &mut c);

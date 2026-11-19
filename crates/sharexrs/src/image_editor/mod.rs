@@ -2030,7 +2030,7 @@ impl EditorWindow {
     /// that size cleared to transparent or the colour, loaded with no file.
     fn create_new_image(&mut self, d: &new_image::NewImage) {
         let (w, h) = (d.width.clamp(1, 10000) as u32, d.height.clamp(1, 10000) as u32);
-        let px = if d.transparent { [0, 0, 0, 0] } else { d.color.to_srgba_unmultiplied() };
+        let px = if d.transparent { [0, 0, 0, 0] } else { d.color };
         let img = RgbaImage::from_pixel(w, h, image::Rgba(px));
         self.load_bitmap(img, None);
         self.notify(Self::size_message(ie::MainViewModel_NewImageCreated(), w, h), app_icons::FileAdd);
@@ -2543,9 +2543,9 @@ impl Dialog for EditorWindow {
     /// set and added to the recent colours).
     fn screen_color(&mut self, color: Option<sharex_tools::color::Color>, _cx: &mut Cx) {
         let (Some(c), Some(target)) = (color, self.pick_target.take()) else { return };
-        let c32 = Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a);
-        sharex_capture::editor_popups::add_recent_color(c32);
-        let hex = sharex_ui::accent::to_hex(c32);
+        let rgba = [c.r, c.g, c.b, c.a];
+        sharex_capture::editor_popups::add_recent_color(rgba);
+        let hex = sharex_ui::accent::to_hex(rgba);
         match target {
             PickTarget::Option(item) => self.ws.set_option(|s, t| match item {
                 OptionItem::BorderColor => s.set_selected_color(&hex, t),
@@ -2556,13 +2556,13 @@ impl Dialog for EditorWindow {
             }),
             PickTarget::NewImage => {
                 if let Some(Modal::NewImage(d)) = &mut self.modal {
-                    d.color = c32;
+                    d.color = rgba;
                 }
             }
             PickTarget::CanvasFill => self.ws.tools.options.CanvasFillColorHex = hex,
             PickTarget::Effect(i) => {
                 if let Some(d) = self.fx.dialog.as_mut() {
-                    d.set_color(i, c32);
+                    d.set_color(i, rgba);
                 }
             }
             PickTarget::Background(t) => {

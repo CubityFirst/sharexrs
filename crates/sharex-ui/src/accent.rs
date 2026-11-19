@@ -157,8 +157,13 @@ fn blend(from: Color32, to: Color32, amount: f64) -> Color32 {
 }
 
 /// Parses `#RGB`, `#RRGGBB` or `#AARRGGBB` as Avalonia's `Color.TryParse`
-/// does for hex.
+/// does for hex, to paint with ([`parse_hex_rgba`] keeps the exact colour).
 pub fn parse_hex(s: &str) -> Option<Color32> {
+    parse_hex_rgba(s).map(crate::color_view::to_color32)
+}
+
+/// [`parse_hex`] as unmultiplied `[R, G, B, A]` (lossless).
+pub fn parse_hex_rgba(s: &str) -> Option<[u8; 4]> {
     let h = s.trim().strip_prefix('#')?;
     let v = u32::from_str_radix(h, 16).ok()?;
     let (a, r, g, b) = match h.len() {
@@ -168,12 +173,13 @@ pub fn parse_hex(s: &str) -> Option<Color32> {
         8 => (v >> 24, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF),
         _ => return None,
     };
-    Some(Color32::from_rgba_unmultiplied(r as u8, g as u8, b as u8, a as u8))
+    Some([r as u8, g as u8, b as u8, a as u8])
 }
 
-/// `ApplicationThemeOptions.AccentColor`'s setter: `#AARRGGBB`.
-pub fn to_hex(c: Color32) -> String {
-    let [r, g, b, a] = c.to_srgba_unmultiplied();
+/// `ApplicationThemeOptions.AccentColor`'s setter: `#AARRGGBB` of an
+/// unmultiplied `[R, G, B, A]`.
+pub fn to_hex(c: [u8; 4]) -> String {
+    let [r, g, b, a] = c;
     format!("#{a:02X}{r:02X}{g:02X}{b:02X}")
 }
 
@@ -199,8 +205,20 @@ mod tests {
 
     #[test]
     fn hex_round_trip() {
-        let c = parse_hex("#6366F1").unwrap();
+        let c = parse_hex_rgba("#6366F1").unwrap();
         assert_eq!(to_hex(c), "#FF6366F1");
-        assert_eq!(parse_hex(&to_hex(c)), Some(c));
+        assert_eq!(parse_hex_rgba(&to_hex(c)), Some(c));
+    }
+
+    /// Partial alpha survives: `Color32` would premultiply it away.
+    #[test]
+    fn hex_round_trip_keeps_partial_alpha() {
+        for a in [0u8, 1, 64, 128, 166, 254] {
+            for v in 0..=255u8 {
+                let c = [v, 255 - v, v / 2, a];
+                assert_eq!(parse_hex_rgba(&to_hex(c)), Some(c));
+            }
+        }
+        assert_eq!(parse_hex_rgba("#A636A9E1"), Some([54, 169, 225, 166]));
     }
 }

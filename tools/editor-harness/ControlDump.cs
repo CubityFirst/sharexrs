@@ -4,7 +4,7 @@
 // bounds (relative to its root), padding, margin, corner radius, brushes and
 // fonts, so ShareXrs can port the values instead of guessing them.
 //
-//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter[-hover]
+//     EditorHarness --control-dump autocomplete|datepicker|datepicker-presenter[-hover]|borderstyle|colorpanel
 //
 // autocomplete: the History window's search box (an AutoCompleteBox 250 wide
 // with FilterMode ContainsOrdinal and Padding 12,7,38,7) over a few process
@@ -13,6 +13,14 @@
 // datepicker-presenter: the DatePicker's flyout (DatePickerPresenter) as it
 // opens for that date; -hover: with each column's host under the pointer
 // (its up/down RepeatButtons shown).
+// borderstyle: the image editor's stroke-style dropdown
+// (BorderStylePickerDropdown) open on Solid: the popup's tree and, for each
+// TextBlock, which value of Foreground wins and at what priority.
+// colorpanel: the editor's ColorPickerPanel (its ColorView on the palette
+// tab, with ShareX's three palette replacements made on Loaded) shown with
+// colours that are in Fluent's palette, in ShareX's replacements, and in
+// neither, then each set again while it's shown: the palette ListBox's
+// selection after each.
 
 using Avalonia;
 using Avalonia.Controls;
@@ -48,6 +56,12 @@ internal static class ControlDump
                     break;
                 case "datepicker-presenter-hover":
                     Presenter(variant, true);
+                    break;
+                case "borderstyle":
+                    BorderStyleDropdown(variant);
+                    break;
+                case "colorpanel":
+                    ColorPanel(variant);
                     break;
                 default:
                     Console.Error.WriteLine($"unknown control {kind}");
@@ -97,6 +111,64 @@ internal static class ControlDump
             }
             Console.WriteLine($"popup root {root?.GetType().Name} bounds {root?.Bounds}");
             Dump(child, child, 0);
+        }
+        window.Close();
+    }
+
+    static void ColorPanel(Avalonia.Styling.ThemeVariant variant)
+    {
+        // Fluent's first colour, ShareX's three replacements, the colour one
+        // of them replaced (#7E735F, the last), the fill colour's default.
+        Color[] colors = [Color.Parse("#FFFF4343"), Color.Parse("#FFEBEBEB"), Color.Parse("#FF141414"), Colors.Transparent, Color.Parse("#FF7E735F"), Color.Parse("#FFF23C3C")];
+        foreach (Color color in colors)
+        {
+            var panel = new ShareX.ImageEditor.Presentation.Controls.ColorPickerPanel { SelectedColorValue = color };
+            Window window = new() { Content = panel, Width = 600, Height = 600, RequestedThemeVariant = variant };
+            window.Show();
+            Pump();
+            window.UpdateLayout();
+            ListBox? list = panel.GetVisualDescendants().OfType<ListBox>().FirstOrDefault(l => l.Name == "PART_PaletteListBox") ?? panel.GetVisualDescendants().OfType<ListBox>().FirstOrDefault();
+            Console.WriteLine($"{color}: shown, palette index {list?.SelectedIndex} item {list?.SelectedItem} count {list?.ItemCount}");
+            panel.SelectedColorValue = Colors.Red;
+            Pump();
+            panel.SelectedColorValue = color;
+            Pump();
+            Console.WriteLine($"{color}: set again, palette index {list?.SelectedIndex} item {list?.SelectedItem}");
+            window.Close();
+        }
+    }
+
+    static void BorderStyleDropdown(Avalonia.Styling.ThemeVariant variant)
+    {
+        var dropdown = new ShareX.ImageEditor.Presentation.Controls.BorderStylePickerDropdown
+        {
+            BorderStyleOptions = Enum.GetValues<ShareX.ImageEditor.Core.Annotations.BorderStyle>(),
+            SelectedBorderStyle = ShareX.ImageEditor.Core.Annotations.BorderStyle.Solid,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        Window window = new() { Content = dropdown, Width = 600, Height = 500, RequestedThemeVariant = variant };
+        window.Show();
+        window.UpdateLayout();
+        Popup popup = dropdown.FindControl<Popup>("BorderStylePopup")!;
+        popup.IsOpen = true;
+        Pump();
+        window.UpdateLayout();
+        if (popup.Child is Control child)
+        {
+            (TopLevel.GetTopLevel(child) as Layoutable)?.UpdateLayout();
+            Dump(child, child, 0);
+            foreach (TextBlock t in child.GetVisualDescendants().OfType<TextBlock>())
+            {
+                var d = Avalonia.Diagnostics.AvaloniaObjectExtensions.GetDiagnostic(t, TextBlock.ForegroundProperty);
+                Button? owner = t.FindAncestorOfType<Button>();
+                Console.WriteLine($"'{t.Text}' button .{string.Join(".", owner?.Classes ?? [])} fg {B(t.Foreground)} priority {d.Priority} diagnostic {d.Diagnostic}");
+            }
+            foreach (Avalonia.Controls.Shapes.Path path in child.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Take(2))
+            {
+                var d = Avalonia.Diagnostics.AvaloniaObjectExtensions.GetDiagnostic(path, Avalonia.Controls.Shapes.Shape.StrokeProperty);
+                Console.WriteLine($"path stroke {B(path.Stroke)} priority {d.Priority}");
+            }
         }
         window.Close();
     }

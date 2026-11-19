@@ -12,7 +12,7 @@ use serde_json::Value;
 use sharex_settings::{AfterCaptureTasks, AfterUploadTasks, Described, HotkeyType, TaskSettings};
 use sharex_strings::sharex as s;
 use sharex_ui::controls::{self, Button, ColorButton, ComboItem, TextBox};
-use sharex_ui::icons;
+use sharex_ui::{color_view, icons};
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::menu::{Flyout, MenuEntry, MenuStyle, Placement, Toggle};
 use sharex_ui::theme::{density, palette};
@@ -1766,9 +1766,9 @@ fn canvas_fill_row(f: &mut Form, o: &mut Value) {
     controls::label(f.ui, Rect::from_min_max(r.min, pos2(r.min.x + LABEL_W, r.max.y)), label, Form::label_font(), p.text_secondary);
     let rect = Rect::from_min_size(pos2(r.min.x + LABEL_W + 8.0, center_y(r, 40.0)), vec2(130.0, 40.0));
     let hex = jstr(o, "CanvasFillColorHex");
-    let color = parse_argb(&hex).unwrap_or(egui::Color32::TRANSPARENT);
+    let color = parse_argb(&hex).unwrap_or([0; 4]);
     let enabled = f.enabled;
-    let resp = ColorButton { enabled }.show(f.ui, rect, f.id("canvas-fill"), color);
+    let resp = ColorButton { enabled }.show(f.ui, rect, f.id("canvas-fill"), color_view::to_color32(color));
     let just_opened = resp.clicked() && !f.w.color_open;
     if resp.clicked() {
         f.w.color_open = !f.w.color_open;
@@ -1777,18 +1777,23 @@ fn canvas_fill_row(f: &mut Form, o: &mut Value) {
         let mut c = color;
         let (changed, keep) = controls::color_popup(f.ui, f.id("canvas-fill-popup"), rect, &mut c, just_opened);
         if changed {
-            jset(o, "CanvasFillColorHex", Value::String(format!("#{:02X}{:02X}{:02X}{:02X}", c.a(), c.r(), c.g(), c.b())));
+            jset(o, "CanvasFillColorHex", Value::String(argb_hex(c)));
         }
         f.w.color_open = keep;
     }
 }
 
-/// "#AARRGGBB".
-fn parse_argb(hex: &str) -> Option<egui::Color32> {
+/// "#AARRGGBB", as unmultiplied `[R, G, B, A]`.
+fn parse_argb(hex: &str) -> Option<color_view::Rgba8> {
     let h = hex.trim_start_matches('#');
     let v = u32::from_str_radix(h, 16).ok()?;
     let (a, r, g, b) = if h.len() == 8 { ((v >> 24) as u8, (v >> 16) as u8, (v >> 8) as u8, v as u8) } else { (255, (v >> 16) as u8, (v >> 8) as u8, v as u8) };
-    Some(egui::Color32::from_rgba_unmultiplied(r, g, b, a))
+    Some([r, g, b, a])
+}
+
+/// [`parse_argb`]'s inverse.
+fn argb_hex([r, g, b, a]: color_view::Rgba8) -> String {
+    format!("#{a:02X}{r:02X}{g:02X}{b:02X}")
 }
 
 /// `MouseHighlighterSettingsControl` (ShareX.Tools): a `StackPanel
@@ -1895,8 +1900,15 @@ fn mh_combo(f: &mut Form, label: &str, items: &[ComboItem], selected: usize) -> 
 
 /// A `System.Drawing.Color` as Newtonsoft writes it (`ColorConverter`:
 /// "A, R, G, B", "R, G, B" or a name).
-fn parse_drawing_color(v: &str) -> egui::Color32 {
-    sharex_image_effects::dotnet::Color::parse(v).map_or(egui::Color32::TRANSPARENT, |c| egui::Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a))
+/// A `System.Drawing.Color` as `ColorConverter` writes it, as unmultiplied
+/// `[R, G, B, A]` (`Color32` would premultiply it: HIL2-02).
+fn parse_drawing_color(v: &str) -> color_view::Rgba8 {
+    sharex_image_effects::dotnet::Color::parse(v).map_or([0; 4], |c| [c.r, c.g, c.b, c.a])
+}
+
+/// `DrawingColor.FromArgb(...)` as `ColorConverter` writes it.
+fn drawing_color_string([r, g, b, a]: color_view::Rgba8) -> String {
+    sharex_image_effects::dotnet::Color::argb(a, r, g, b).to_string()
 }
 
 /// `EnabledColorRow` / `ColorRow`: a check box (or label) and a button
@@ -1937,14 +1949,13 @@ fn mh_color_row(f: &mut Form, label: &str, on: Option<&mut bool>, o: &mut Value,
     }
     let swatch = Rect::from_center_size(b.center(), vec2(28.0, 20.0));
     let opacity = if enabled { 1.0 } else { 0.35 };
-    f.ui.painter().rect_filled(swatch, 0.0, parse_drawing_color(&color).gamma_multiply(opacity));
+    f.ui.painter().rect_filled(swatch, 0.0, color_view::to_color32(parse_drawing_color(&color)).gamma_multiply(opacity));
     f.ui.painter().rect_stroke(swatch, 0.0, Stroke::new(1.0, egui::Color32::GRAY.gamma_multiply(opacity)), StrokeKind::Inside);
     if f.w.mh_color_open == Some(key) {
         let mut c = parse_drawing_color(&color);
         let (picked, keep) = controls::color_popup_with_alpha(f.ui, f.id(&format!("{key}-flyout")), b, &mut c, just_opened, true);
         if picked {
-            let [r, g, b, a] = c.to_srgba_unmultiplied();
-            jset(o, key, Value::String(sharex_image_effects::dotnet::Color::argb(a, r, g, b).to_string()));
+            jset(o, key, Value::String(drawing_color_string(c)));
         }
         if !keep || !enabled {
             f.w.mh_color_open = None;
@@ -2254,12 +2265,26 @@ mod tests {
 
     #[test]
     fn highlighter_colours_as_color_converter_writes_them() {
-        // egui keeps colours premultiplied: the channels come back within 1.
-        let c = parse_drawing_color("166, 54, 169, 225").to_srgba_unmultiplied();
-        assert!(c.iter().zip([54u8, 169, 225, 166]).all(|(a, b)| a.abs_diff(b) <= 1), "{c:?}");
-        assert_eq!(parse_drawing_color("Transparent").a(), 0);
+        assert_eq!(parse_drawing_color("166, 54, 169, 225"), [54, 169, 225, 166]);
+        assert_eq!(drawing_color_string([54, 169, 225, 166]), "166, 54, 169, 225");
+        assert_eq!(parse_drawing_color("Transparent")[3], 0);
         assert_eq!(sharex_image_effects::dotnet::Color::argb(255, 1, 2, 3).to_string(), "1, 2, 3");
         assert_eq!(sharex_image_effects::dotnet::Color::argb(166, 54, 169, 225).to_string(), "166, 54, 169, 225");
+    }
+
+    /// HIL2-02: colours with partial alpha survive the settings formats
+    /// (`ColorConverter`'s `A, R, G, B` and `#AARRGGBB`) exactly, every
+    /// value of every channel at several alphas.
+    #[test]
+    fn partial_alpha_colours_round_trip_the_settings() {
+        for a in [0u8, 1, 64, 128, 166, 200, 254, 255] {
+            for v in 0..=255u8 {
+                for c in [[v, 169, 225, a], [54, v, 225, a], [54, 169, v, a]] {
+                    assert_eq!(parse_drawing_color(&drawing_color_string(c)), c, "{c:?}");
+                    assert_eq!(parse_argb(&argb_hex(c)), Some(c), "{c:?}");
+                }
+            }
+        }
     }
 
     #[test]

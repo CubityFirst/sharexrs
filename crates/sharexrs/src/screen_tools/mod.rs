@@ -252,7 +252,7 @@ impl App {
             }
             PickPurpose::Region(item) => {
                 if let Some(region) = self.region.as_mut() {
-                    let c = result.map(|r| egui::Color32::from_rgba_unmultiplied(r.color.r, r.color.g, r.color.b, r.color.a));
+                    let c = result.map(|r| [r.color.r, r.color.g, r.color.b, r.color.a]);
                     region.session.picked_color(item, c);
                 }
             }
