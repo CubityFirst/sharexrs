@@ -3,6 +3,10 @@
 # against ShareX; regenerate rather than commit.
 /shots
 
+# Python's bytecode caches (scripts/, tools/*-harness/).
+__pycache__/
+*.pyc
+
 # Every .NET harness's build output (tools/<harness>/bin, obj, and nested
 # projects such as tools/uploaders-harness/dotnet).
 /tools/**/bin/
