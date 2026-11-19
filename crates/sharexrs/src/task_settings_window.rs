@@ -181,6 +181,8 @@ pub struct TaskSettingsWindow {
     last_after_capture: Option<&'static str>,
     last_after_upload: Option<&'static str>,
     filter_selected: Option<usize>,
+    /// The Uploader combo's service (an index into `filter_services`).
+    filter_service: usize,
     filter_extensions: String,
     pub action_selected: Option<usize>,
     pub watch_selected: Option<usize>,
@@ -226,6 +228,7 @@ impl TaskSettingsWindow {
             last_after_capture: last(&AFTER_CAPTURE_TASKS, &|n| AfterCaptureTasks::parse(n).is_some_and(|f| ac.contains(f))),
             last_after_upload: last(&AFTER_UPLOAD_TASKS, &|n| AfterUploadTasks::parse(n).is_some_and(|f| au.contains(f))),
             filter_selected: None,
+            filter_service: 0,
             filter_extensions: String::new(),
             action_selected: None,
             watch_selected: None,
@@ -1126,10 +1129,14 @@ fn sound_path(f: &mut Form, k: usize, title: &str) {
         let changed_on = f.check(title, &mut on, true);
         let saved = f.enabled;
         f.enabled = saved && on;
-        let (changed, clicked) = f.text_with_buttons_spaced(&format!("sound-{k}"), &mut path, &["..."], 6.0);
+        let (mut changed, clicked) = f.text_with_buttons_spaced(&format!("sound-{k}"), &mut path, &["..."], 6.0);
         f.enabled = saved;
-        if clicked.is_some() {
-            f.effect(Effect::NotPorted("sound file picker"));
+        // `PickFileAsync(ChooseAudioFile, WaveAudio, "*.wav")`.
+        if clicked.is_some()
+            && let Some(file) = pick_sound_file()
+        {
+            path = file.display().to_string();
+            changed = true;
         }
         if changed_on || changed {
             let g = sec!(f, GeneralSettings);
@@ -1141,6 +1148,12 @@ fn sound_path(f: &mut Form, k: usize, title: &str) {
             }
         }
     });
+}
+
+/// The custom sounds' "..." (`PickFileAsync`): one file, filtered to
+/// "Wave audio" `*.wav` only.
+fn pick_sound_file() -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new().set_title(s::TaskSettingsWindow_ChooseAudioFile()).add_filter(s::TaskSettingsWindow_WaveAudio(), &["wav"]).pick_file()
 }
 
 fn page_image(f: &mut Form) {
@@ -1551,38 +1564,76 @@ fn page_clipboard_upload(f: &mut Form) {
     });
 }
 
+/// `UploaderFactory.AllGenericUploaderServices.OrderBy(x => x.ServiceName)`
+/// (a stable sort, culture-aware).
+fn filter_services() -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = crate::upload::filters::Service::all().map(|s| (s.name(), s.identifier().to_string())).collect();
+    v.sort_by(|a, b| sharex_helpers::culture::current_culture_cmp(&a.0, &b.0));
+    v
+}
+
+/// `UploaderFilter.SetExtensions`: comma separated, trimmed, empty ones left out.
+fn split_extensions(text: &str) -> Vec<String> {
+    text.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()
+}
+
+/// `UploaderFilter` as ShareX writes it.
+fn filter_json(uploader: &str, extensions: Vec<String>) -> Value {
+    serde_json::json!({ "Uploader": uploader, "Extensions": extensions })
+}
+
 fn page_uploader_filters(f: &mut Form) {
     f.enabled_card(Section::Upload, &mut |f| {
         f.title(s::TaskSettingsWindow_Filters());
         // `FilterTitle`: "uploader — extensions".
-        let rows: Vec<String> = sec!(f, UploadSettings)
-            .UploaderFilters
-            .iter()
-            .map(|v| {
-                let ext = v.get("Extensions").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
-                format!("{} — {}", jstr(v, "Uploader"), ext)
-            })
-            .collect();
+        let filters: Vec<crate::upload::filters::UploaderFilter> = sec!(f, UploadSettings).UploaderFilters.iter().map(crate::upload::filters::UploaderFilter::from_json).collect();
+        let rows: Vec<String> = filters.iter().map(|v| format!("{} — {}", v.uploader, v.extensions.join(", "))).collect();
+        let services = filter_services();
         let selected = f.w.filter_selected;
         if let Some(i) = f.list_box("filters", &rows, selected, 180.0) {
             f.w.filter_selected = Some(i);
+            // `LoadSelection`: the filter's service (if there's one by that
+            // identifier) and its extensions.
+            if let Some(filter) = filters.get(i) {
+                if let Some(k) = services.iter().position(|(_, id)| id.eq_ignore_ascii_case(&filter.uploader)) {
+                    f.w.filter_service = k;
+                }
+                f.w.filter_extensions = filter.extensions.join(", ");
+            }
         }
-        // `UploaderFactory.AllGenericUploaderServices` isn't ported: no uploaders to pick.
-        f.combo(s::TaskSettingsWindow_Uploader(), LABEL_W, &[], None, ComboSize::default(), false);
+        let items: Vec<ComboItem> = services.iter().map(|(n, _)| ComboItem::text(n.clone())).collect();
+        let cur = (!services.is_empty()).then_some(f.w.filter_service.min(services.len().saturating_sub(1)));
+        if let Some(i) = f.combo(s::TaskSettingsWindow_Uploader(), LABEL_W, &items, cur, ComboSize::default(), !services.is_empty()) {
+            f.w.filter_service = i;
+        }
         let mut ext = f.w.filter_extensions.clone();
         if f.text_row(Some((s::TaskSettingsWindow_Extensions(), LABEL_W)), &mut ext, true, false) {
             f.w.filter_extensions = ext;
         }
         f.hint(s::TaskSettingsWindow_SeparateExtensionsWithCommasForExamplePngJpgJpeg());
-        let has = f.w.filter_selected.is_some_and(|i| i < rows.len());
+        // `CreateFilter`.
+        let created = services.get(f.w.filter_service).map(|(_, id)| filter_json(id, split_extensions(&f.w.filter_extensions)));
+        let has = f.w.filter_selected.filter(|&i| i < rows.len());
         match f.buttons(&[(s::TaskSettingsWindow_Add(), true), (s::TaskSettingsWindow_Update(), true), (s::TaskSettingsWindow_Remove(), true)], 6.0) {
-            Some(2) if has => {
-                let i = f.w.filter_selected.unwrap_or(0);
-                sec!(f, UploadSettings).UploaderFilters.remove(i);
-                f.w.filter_selected = None;
+            Some(0) => {
+                if let Some(filter) = created {
+                    let list = &mut sec!(f, UploadSettings).UploaderFilters;
+                    list.push(filter);
+                    f.w.filter_selected = Some(list.len() - 1);
+                }
             }
-            Some(_) => f.effect(Effect::NotPorted("uploader filters")),
-            None => {}
+            Some(1) => {
+                if let (Some(i), Some(filter)) = (has, created) {
+                    sec!(f, UploadSettings).UploaderFilters[i] = filter;
+                }
+            }
+            Some(2) => {
+                if let Some(i) = has {
+                    sec!(f, UploadSettings).UploaderFilters.remove(i);
+                    f.w.filter_selected = None;
+                }
+            }
+            _ => {}
         }
     });
 }
@@ -2110,6 +2161,18 @@ mod tests {
         assert_eq!(account_index(3, 2), 0);
         assert_eq!(account_index(-1, 2), 0);
         assert_eq!(account_index(1, 2), 1);
+    }
+
+    #[test]
+    fn uploader_filter_services_by_name() {
+        let services = filter_services();
+        let names: Vec<&str> = services.iter().map(|(n, _)| n.as_str()).collect();
+        let mut sorted = names.clone();
+        sorted.sort_by(|a, b| sharex_helpers::culture::current_culture_cmp(a, b));
+        assert_eq!(names, sorted);
+        assert!(services.iter().any(|(_, id)| id == "CustomFileUploader"));
+        assert_eq!(split_extensions(" png, ,jpg ,"), ["png", "jpg"]);
+        assert_eq!(filter_json("Imgur", vec!["png".into()]).to_string(), r#"{"Uploader":"Imgur","Extensions":["png"]}"#);
     }
 
     #[test]
