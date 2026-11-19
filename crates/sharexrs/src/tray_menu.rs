@@ -124,6 +124,21 @@ impl<C: Clone> TrayMenu<C> {
         Ok(me)
     }
 
+    /// A `ContextMenu` opened at the pointer (`Placement::Pointer`), in
+    /// the plain `ContextMenu MenuItem` style: the Actions toolbar's title menu.
+    pub fn open_context(event_loop: &ActiveEventLoop, gpu: &Gpu, screens: &[Screen], cursor: (i32, i32), entries: Vec<MenuEntry<C>>, theme: egui::Theme) -> Result<Self, String> {
+        let mut me = Self::open(event_loop, gpu, screens, cursor, entries, theme, &[])?;
+        let scale = me.window.window.scale_factor() as f32;
+        let screen = sharex_capture::screenshot::screen_from_point(screens, cursor).ok_or("no monitors found")?;
+        let at = egui::pos2((cursor.0 - screen.work_area.x) as f32 / scale, (cursor.1 - screen.work_area.y) as f32 / scale);
+        me.flyout.style = sharex_ui::menu::MenuStyle::Standard;
+        me.flyout.set_placement(Placement::Pointer(at));
+        me.paint();
+        me.paint();
+        me.window.window.request_redraw();
+        Ok(me)
+    }
+
     pub fn owns(&self, id: WindowId) -> bool {
         self.window.window.id() == id
     }

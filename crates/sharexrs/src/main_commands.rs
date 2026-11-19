@@ -126,3 +126,84 @@ impl App {
         }
     }
 }
+
+/// The Actions toolbar's title menu, while it's open.
+pub type ToolbarMenu = crate::tray_menu::TrayMenu<crate::dialogs::actions_toolbar::ToolbarCmd>;
+
+impl App {
+    /// `TaskHelpers.ExecuteJob(job)`.
+    pub(crate) fn run_job_now(&mut self, event_loop: &ActiveEventLoop, job: sharex_settings::HotkeyType, task: sharex_settings::TaskSettings) {
+        self.run_job(event_loop, job, task, None);
+    }
+
+    /// `ActionsToolbarWindowIntegration.Toggle`.
+    pub(crate) fn toggle_actions_toolbar(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(i) = self.dialogs.iter().position(|d| d.dialog.single() == Some("actions-toolbar")) {
+            let id = self.dialogs[i].window.window.id();
+            self.dialog_effects(event_loop, id, vec![crate::dialogs::Effect::Close]);
+        } else {
+            self.open_actions_toolbar(event_loop);
+        }
+    }
+
+    /// `ActionsToolbarWindowIntegration.Show`.
+    pub(crate) fn open_actions_toolbar(&mut self, event_loop: &ActiveEventLoop) {
+        let w = crate::dialogs::actions_toolbar::ActionsToolbarWindow::new(&self.settings.settings);
+        self.open_dialog_window(event_loop, Box::new(w));
+    }
+
+    /// The title's context menu (`CreateToolbarMenu`) at the pointer.
+    pub(crate) fn open_actions_toolbar_menu(&mut self, event_loop: &ActiveEventLoop) {
+        self.toolbar_menu = None;
+        let gpu = match &self.gpu {
+            Some(g) => g,
+            None => return,
+        };
+        let screens = sharex_capture::screenshot::screens();
+        let cursor = sharex_capture::screenshot::cursor_position().unwrap_or((0, 0));
+        let entries = crate::dialogs::actions_toolbar::toolbar_menu(&self.settings.settings);
+        match crate::tray_menu::TrayMenu::open_context(event_loop, gpu, &screens, cursor, entries, self.current_theme) {
+            Ok(m) => self.toolbar_menu = Some(m),
+            Err(e) => eprintln!("couldn't open the menu: {e}"),
+        }
+    }
+
+    /// Routes an event to the toolbar's menu; false when it's not its.
+    pub(crate) fn toolbar_menu_event(&mut self, event_loop: &ActiveEventLoop, id: winit::window::WindowId, event: winit::event::WindowEvent) -> bool {
+        use crate::dialogs::actions_toolbar::ToolbarCmd;
+        let Some(m) = self.toolbar_menu.as_mut().filter(|m| m.owns(id)) else { return false };
+        let out = m.window_event(event);
+        if out.closed || out.command.is_some() {
+            self.toolbar_menu = None;
+        }
+        let Some(command) = out.command else { return true };
+        let toolbar = self.dialogs.iter().position(|d| d.dialog.single() == Some("actions-toolbar"));
+        let s = &mut self.settings.settings;
+        match command {
+            ToolbarCmd::Close => {
+                if let Some(i) = toolbar {
+                    let id = self.dialogs[i].window.window.id();
+                    self.dialog_effects(event_loop, id, vec![crate::dialogs::Effect::Close]);
+                }
+                return true;
+            }
+            ToolbarCmd::LockPosition => s.ActionsToolbarLockPosition = !s.ActionsToolbarLockPosition,
+            ToolbarCmd::StayOnTop => {
+                s.ActionsToolbarStayTopMost = !s.ActionsToolbarStayTopMost;
+                let level = if s.ActionsToolbarStayTopMost { winit::window::WindowLevel::AlwaysOnTop } else { winit::window::WindowLevel::Normal };
+                if let Some(i) = toolbar {
+                    self.dialogs[i].window.window.set_window_level(level);
+                }
+            }
+            ToolbarCmd::OpenAtStartup => s.ActionsToolbarRunAtStartup = !s.ActionsToolbarRunAtStartup,
+            ToolbarCmd::Edit => {
+                self.open_dialog_window(event_loop, Box::new(crate::dialogs::actions_toolbar::ActionsToolbarEditorWindow::new()));
+                return true;
+            }
+        }
+        if let Err(e) = self.settings.save_application_config(false) {
+            eprintln!("couldn't save the settings: {e}");
+        }
+        true
+    }
+}

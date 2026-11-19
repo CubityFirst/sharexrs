@@ -271,6 +271,7 @@ fn main() {
         pending_notification: None,
         quick_task: None,
         pending_quick_task: None,
+        toolbar_menu: None,
     };
     event_loop.run_app(&mut app).expect("run");
     drop(instance);
@@ -408,6 +409,8 @@ struct App {
     quick_task: Option<quick_task::QuickTaskMenu>,
     /// A capture for the quick task menu, once the event loop is at hand.
     pending_quick_task: Option<capture_job::ImageTask>,
+    /// The Actions toolbar's title menu, while it's open.
+    toolbar_menu: Option<main_commands::ToolbarMenu>,
 }
 
 /// `CaptureBase.CaptureAsync` between the request and the capture: the
@@ -663,6 +666,8 @@ impl App {
             MenuCommand::ImageHistory => self.show_image_history(event_loop),
             MenuCommand::Exit => self.exit(event_loop),
             MenuCommand::ScreenshotsFolder => self.open_screenshots_folder(),
+            // `TaskHelpers.ToggleActionsToolbar`.
+            MenuCommand::ActionsToolbar => self.toggle_actions_toolbar(event_loop),
             MenuCommand::RunWorkflow(i) => {
                 // `TaskHelpers.ExecuteJob(workflow.TaskSettings)`.
                 if let Some(h) = self.settings.hotkeys.Hotkeys.get(i) {
@@ -1386,6 +1391,10 @@ impl App {
         if self.run_screen_job(event_loop, &job, &task, None) {
             return;
         }
+        if job == HotkeyType::ToggleActionsToolbar {
+            self.toggle_actions_toolbar(event_loop);
+            return;
+        }
         if job == HotkeyType::ImageViewer {
             self.open_image_viewer(event_loop);
             return;
@@ -1728,6 +1737,9 @@ impl ApplicationHandler<UserEvent> for App {
         if self.quick_task.as_ref().is_some() && self.quick_task_event(event_loop, id, event.clone()) {
             return;
         }
+        if self.toolbar_menu.as_ref().is_some() && self.toolbar_menu_event(event_loop, id, event.clone()) {
+            return;
+        }
         if let Some(menu) = self.tray_menu.as_mut().filter(|m| m.owns(id)) {
             let out = menu.window_event(event);
             if out.closed {
@@ -1858,6 +1870,10 @@ impl ApplicationHandler<UserEvent> for App {
             self.main.as_ref().and_then(|w| w.repaint_at),
             self.tray_menu.as_ref().and_then(|m| m.repaint_at()),
             self.quick_task_due(now),
+            self.toolbar_menu.as_mut().and_then(|m| {
+                m.redraw_if_due(now);
+                m.repaint_at()
+            }),
             region,
             pending,
             self.transparent_grab.as_ref().map(|g| g.0),

@@ -11,6 +11,7 @@
 //! task's thread waits on.
 
 pub mod about;
+pub mod actions_toolbar;
 pub mod after_capture;
 pub mod after_upload;
 pub mod before_upload;
@@ -221,6 +222,14 @@ pub enum Effect {
     ShowImage(RgbaImage),
     /// `ImageViewerWindowIntegration.ShowImage(imageData, displayName)`.
     ShowImageNamed(RgbaImage, String),
+    /// The window's client size (points), where it is.
+    SetInnerSize(f32, f32),
+    /// The Actions toolbar's title context menu, at the pointer.
+    ActionsToolbarMenu,
+    /// `TaskHelpers.ExecuteJob(job)` with the default task settings.
+    RunJob(sharex_settings::HotkeyType),
+    /// The Actions toolbar shows the list as it is now.
+    RefreshActionsToolbar,
     /// Delete a file to the recycle bin after `TaskHelpers.ConfirmFileDelete`
     /// (the notification's Delete file).
     DeleteFile(PathBuf),
@@ -298,6 +307,16 @@ pub struct Cx<'a> {
 /// One of ShareX's upload windows.
 pub trait Dialog {
     fn spec(&self) -> Spec;
+
+    /// The width of the content (`SizeToContent="WidthAndHeight"`), when
+    /// it has one.
+    fn content_width(&mut self, ui: &mut egui::Ui) -> Option<f32> {
+        let _ = ui;
+        None
+    }
+
+    /// The window moved (`PositionChanged`), to this outer position.
+    fn moved(&mut self, _x: i32, _y: i32, _cx: &mut Cx) {}
 
     /// The height of the content for [`Spec::size_to_content`].
     fn content_height(&mut self, ui: &mut egui::Ui) -> f32 {
@@ -459,8 +478,8 @@ impl App {
             w.clear_color = Some([0.0; 4]);
         }
         if spec.size_to_content {
-            let height = w.paint(|ui| dialog.content_height(ui));
-            let _ = w.window.request_inner_size(LogicalSize::new(spec.width, height));
+            let (width, height) = w.paint(|ui| (dialog.content_width(ui), dialog.content_height(ui)));
+            let _ = w.window.request_inner_size(LogicalSize::new(width.unwrap_or(spec.width), height));
         }
         clamp_to_max_track_size(&w.window, &spec);
         let size = w.window.outer_size();
@@ -504,6 +523,10 @@ impl App {
             WindowEvent::Focused(false) => {
                 d.window.on_event(event);
                 d.dialog.deactivated()
+            }
+            WindowEvent::Moved(p) => {
+                d.dialog.moved(p.x, p.y, &mut cx);
+                Vec::new()
             }
             WindowEvent::RedrawRequested => {
                 let dialog = &mut d.dialog;
@@ -692,6 +715,21 @@ impl App {
                 }
                 Effect::ApplyAppearance => self.apply_appearance(),
                 Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
+                Effect::SetInnerSize(w, h) => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
+                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                    }
+                }
+                Effect::ActionsToolbarMenu => self.open_actions_toolbar_menu(event_loop),
+                Effect::RunJob(job) => {
+                    let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+                    self.run_job_now(event_loop, job, task);
+                }
+                Effect::RefreshActionsToolbar => {
+                    if let Some(d) = self.dialogs.iter().find(|d| d.dialog.single() == Some("actions-toolbar")) {
+                        d.window.window.request_redraw();
+                    }
+                }
                 Effect::AfterCaptureAccepted(accepted) => self.after_capture_accepted(*accepted),
                 Effect::ShowImage(image) => self.show_image(event_loop, image, None),
                 Effect::ShowImageNamed(image, name) => self.show_image(event_loop, image, Some(name)),

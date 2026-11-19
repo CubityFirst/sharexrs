@@ -261,6 +261,21 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             }
             Box::new(w)
         }
+        // `--text`: the title (ShareX's to compare); `--content hover:<n>`.
+        "actions-toolbar" => {
+            let mut w = super::actions_toolbar::ActionsToolbarWindow::new(&ApplicationConfig::default());
+            if let Some(t) = &o.text {
+                w.title = t.clone();
+            }
+            w.hover = o.content.as_deref().and_then(|c| c.strip_prefix("hover:")).and_then(|n| n.parse().ok());
+            Box::new(w)
+        }
+        // `--state add-menu`.
+        "actions-toolbar-editor" => {
+            let mut w = super::actions_toolbar::ActionsToolbarEditorWindow::new();
+            w.open_add_menu = o.state.as_deref() == Some("add-menu");
+            Box::new(w)
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -435,6 +450,8 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "after-capture"
             | "image-viewer"
             | "quick-task-editor"
+            | "actions-toolbar"
+            | "actions-toolbar-editor"
             | "before-upload"
             | "after-upload"
             | "qr-code"
@@ -473,11 +490,17 @@ pub fn render(name: &str, o: &Options) -> Result<image::RgbaImage, String> {
     let spec = d.spec();
     let store = UploadersConfigStore::loaded(mock_config());
     let mut height = spec.height;
+    let mut width = spec.width;
     if spec.size_to_content {
-        let mut probe = Offscreen::new([spec.width as u32, 400], o.scale, o.dark)?;
-        probe.run(Vec::new(), &mut |ui: &mut egui::Ui| height = d.content_height(ui));
+        let mut probe = Offscreen::new([spec.width.max(1.0) as u32, 400], o.scale, o.dark)?;
+        probe.run(Vec::new(), &mut |ui: &mut egui::Ui| {
+            height = d.content_height(ui);
+            if let Some(w) = d.content_width(ui) {
+                width = w;
+            }
+        });
     }
-    let w = o.width.unwrap_or((spec.width * o.scale).round() as u32);
+    let w = o.width.unwrap_or((width * o.scale).round() as u32);
     let h = o.height.unwrap_or((height * o.scale).round() as u32);
     let mut screen = Offscreen::new([w, h], o.scale, o.dark)?;
     if spec.borderless {

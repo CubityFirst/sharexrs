@@ -135,6 +135,38 @@ pub(crate) fn render_frames(screen: &mut Offscreen, hover: Option<egui::Pos2>, c
 }
 
 /// ShareX's default hotkeys, registered except those at `failed`.
+/// A context menu on its own, cropped to its popup and put on black as a
+/// popup window's transparent corners come out.
+fn render_popup<C: Clone>(entries: Vec<sharex_ui::menu::MenuEntry<C>>, style: sharex_ui::menu::MenuStyle, select_first: bool, hover: Option<egui::Pos2>, scale: f32, dark: bool) -> Result<image::RgbaImage, String> {
+    let mut screen = Offscreen::new([600, 700], scale, dark)?;
+    screen.transparent = true;
+    let at = egui::pos2(0.0, 0.0);
+    let mut flyout = sharex_ui::menu::Flyout::menu(egui::Id::new("popup"), entries, egui::Rect::from_min_size(at, egui::Vec2::ZERO), sharex_ui::menu::Placement::Slide(at));
+    flyout.style = style;
+    if select_first {
+        flyout.select_first();
+    }
+    let events: Vec<egui::Event> = hover.map(egui::Event::PointerMoved).into_iter().collect();
+    for frame in 0..8 {
+        let ev = if frame >= 1 { events.clone() } else { Vec::new() };
+        screen.run(ev, &mut |ui: &mut egui::Ui| {
+            let bounds = ui.max_rect();
+            flyout.show(ui, bounds);
+        });
+    }
+    let full = screen.draw();
+    let r = *flyout.rects().first().ok_or("no menu")?;
+    let (x, y) = ((r.min.x * scale).round() as u32, (r.min.y * scale).round() as u32);
+    let (cw, ch) = ((r.width() * scale).round() as u32, (r.height() * scale).round() as u32);
+    let mut crop = image::imageops::crop_imm(&full, x, y, cw, ch).to_image();
+    for p in crop.pixels_mut() {
+        let a = p[3] as u32;
+        let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+        *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
+    }
+    Ok(crop)
+}
+
 fn default_hotkeys(failed: &[usize]) -> Vec<HotkeySettings> {
     let mut hotkeys = HotkeysConfig::new(&TaskSettings::default()).Hotkeys;
     for (i, h) in hotkeys.iter_mut().enumerate() {
@@ -463,32 +495,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
         // focused (`continueItem.Focus()`), cropped to the popup (`--hover`
         // for the pointer).
         "quick-task" => {
-            let mut screen = Offscreen::new([600, 600], scale, dark)?;
-            screen.transparent = true;
             let entries = crate::quick_task::entries(&sharex_settings::QuickTaskInfo::default_presets());
-            let at = egui::pos2(0.0, 0.0);
-            let mut flyout = sharex_ui::menu::Flyout::menu(egui::Id::new("quick-task"), entries, egui::Rect::from_min_size(at, egui::Vec2::ZERO), sharex_ui::menu::Placement::Slide(at));
-            flyout.style = sharex_ui::menu::MenuStyle::CompactPlainSeparators;
-            flyout.select_first();
-            let events: Vec<egui::Event> = hover.map(egui::Event::PointerMoved).into_iter().collect();
-            for frame in 0..8 {
-                let ev = if frame >= 1 { events.clone() } else { Vec::new() };
-                screen.run(ev, &mut |ui: &mut egui::Ui| {
-                    let bounds = ui.max_rect();
-                    flyout.show(ui, bounds);
-                });
-            }
-            let full = screen.draw();
-            let r = *flyout.rects().first().ok_or("no menu")?;
-            let (x, y) = ((r.min.x * scale).round() as u32, (r.min.y * scale).round() as u32);
-            let (cw, ch) = ((r.width() * scale).round() as u32, (r.height() * scale).round() as u32);
-            let mut crop = image::imageops::crop_imm(&full, x, y, cw, ch).to_image();
-            for p in crop.pixels_mut() {
-                let a = p[3] as u32;
-                let c = |v: u8| ((v as u32 * a + 127) / 255) as u8;
-                *p = image::Rgba([c(p[0]), c(p[1]), c(p[2]), 255]);
-            }
-            crop
+            render_popup(entries, sharex_ui::menu::MenuStyle::CompactPlainSeparators, true, hover, scale, dark)?
+        }
+        // The Actions toolbar's title menu (`CreateToolbarMenu`).
+        "actions-toolbar-menu" => {
+            let entries = crate::dialogs::actions_toolbar::toolbar_menu(&sharex_settings::ApplicationConfig::default());
+            render_popup(entries, sharex_ui::menu::MenuStyle::Standard, false, hover, scale, dark)?
         }
         "hotkey-failed" => {
             // The message box ShareX shows when hotkeys fail to register
