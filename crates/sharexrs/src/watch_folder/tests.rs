@@ -20,7 +20,10 @@ fn fast() -> Timing {
     Timing {
         wait_start: Duration::from_millis(100),
         interval: Duration::from_millis(25),
-        timeout: Duration::from_millis(500),
+        // Room for a loaded CI runner, where a 25 ms sleep can overshoot
+        // many times over (macOS failed at 500 ms); only the cases meant to
+        // time out wait it out.
+        timeout: Duration::from_millis(2000),
         duplicate_expire: Duration::from_millis(1000),
     }
 }
