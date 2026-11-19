@@ -310,3 +310,26 @@ Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/settings/`. Each PNG
 | `task-option-menus` | `task-option-menus-time-zone-dark.png`, `task-option-menus-time-zone-light.png` | Not covered. The optional device/sound and variable branches were left unopened. |
 | `custom-uploader-dialogs` | — | Not covered. No custom uploader test request was started. |
 | `custom-uploader-import` | `custom-uploader-import-cli-prompt-dark.png`, `custom-uploader-import-cli-prompt-light.png` | Not covered. No custom uploader was activated. |
+
+### Theme and scroll gaps · theme-scroll
+
+8 of 14 rows have new references. 61 PNGs and 61 matching UIA sidecars.
+
+Paths are relative to `G:/scripts/sharexrs-ref/shots/sharex/theme-scroll/`. Each PNG has a JSON sidecar with the same stem.
+
+| Manifest row | New PNG paths | Phase 2 notes |
+|---|---|---|
+| `app-scroll` | `app-scroll-advanced-bottom-dark.png`, `app-scroll-advanced-bottom-light.png`, `app-scroll-advanced-mid01-dark.png`, `app-scroll-advanced-mid01-light.png`, `app-scroll-theme-bottom-dark.png`, `app-scroll-theme-bottom-light.png`, `app-scroll-theme-mid01-dark.png`, `app-scroll-theme-mid01-light.png` | Settled viewports that visibly moved. Pages without scroll extent reuse their top views. |
+| `task-scroll` | `task-scroll-advanced-bottom-dark.png`, `task-scroll-advanced-bottom-light.png`, `task-scroll-advanced-mid01-dark.png`, `task-scroll-advanced-mid01-light.png`, `task-scroll-capture-bottom-dark.png`, `task-scroll-capture-bottom-light.png`, `task-scroll-capture-mid01-dark.png`, `task-scroll-capture-mid01-light.png`, `task-scroll-mouse-highlighter-bottom-dark.png`, `task-scroll-mouse-highlighter-bottom-light.png`, `task-scroll-mouse-highlighter-mid01-dark.png`, `task-scroll-mouse-highlighter-mid01-light.png`, `task-scroll-notifications-bottom-dark.png`, `task-scroll-notifications-bottom-light.png`, `task-scroll-notifications-mid01-dark.png`, `task-scroll-notifications-mid01-light.png`, `task-scroll-region-capture-bottom-dark.png`, `task-scroll-region-capture-bottom-light.png`, `task-scroll-region-capture-mid01-dark.png`, `task-scroll-region-capture-mid01-light.png`, `task-scroll-screen-recorder-bottom-dark.png`, `task-scroll-screen-recorder-bottom-light.png`, `task-scroll-screen-recorder-mid01-dark.png`, `task-scroll-screen-recorder-mid01-light.png` | Settled viewports that visibly moved. Pages without scroll extent reuse their top views. |
+| `hotkey-task-scroll` | `hotkey-task-scroll-advanced-bottom-dark.png`, `hotkey-task-scroll-advanced-bottom-light.png`, `hotkey-task-scroll-advanced-top-light.png`, `hotkey-task-scroll-capture-bottom-dark.png`, `hotkey-task-scroll-capture-bottom-light.png`, `hotkey-task-scroll-capture-top-light.png`, `hotkey-task-scroll-notifications-bottom-dark.png`, `hotkey-task-scroll-notifications-bottom-light.png`, `hotkey-task-scroll-notifications-top-light.png`, `hotkey-task-scroll-region-capture-bottom-dark.png`, `hotkey-task-scroll-region-capture-bottom-light.png`, `hotkey-task-scroll-region-capture-top-light.png`, `hotkey-task-scroll-task-override-off-dark.png`, `hotkey-task-scroll-task-override-off-light.png` | Not covered. Default task settings are recorded independently. |
+| `settings-light` | `settings-light-rest-light.png`, `settings-light-task-tools-light.png` | Static missing light top views. Dynamic hotkey and popup variants remain. |
+| `app-menu-light` | `app-menu-light-main-after-upload-tasks-menu-light.png`, `app-menu-light-main-debug-menu-light.png`, `app-menu-light-main-upload-menu-light.png` | Static missing light menus where listed. Tray popups and out-of-client variants remain. |
+| `main-tasks-light` | `main-tasks-light-thumb-hover-light.png`, `main-tasks-light-thumb-menu-light.png`, `main-tasks-light-thumb-selected-light.png`, `main-tasks-light-thumb-several-light.png` | Not covered. Existing dark references apply to the same fixture layouts. |
+| `capture-gaps` | `capture-gaps-region-drag-light.png`, `capture-gaps-region-hover-light.png`, `capture-gaps-region-rest-light.png` | Only guarded test-pattern captures are eligible. Other overlay interaction states remain. |
+| `screen-tools-light` | — | Opaque tool windows where listed. Live overlays need individual pattern checks. |
+| `recording-light` | — | Not covered. Recording interaction and source states remain. |
+| `upload-light` | — | Static views only where listed. Live upload, response and test requests were excluded. |
+| `destination-light` | `destination-light-hastebin-light.png`, `destination-light-pomf-light.png`, `destination-light-zero-width-light.png` | Local light bases over generated configuration. |
+| `editor-light` | — | Not covered. Existing light editor variants remain usable. |
+| `history-gaps` | — | Not covered. Existing synthetic History/Image history/Stats references remain usable. |
+| `shared-controls` | — | No separate capture of generic control states. Specialised popup or scroll shots record the controls in context. |
