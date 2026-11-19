@@ -4,6 +4,7 @@
 //! or other apps' windows. The monitor test is [`crate::monitor_test`].
 
 pub mod borderless_window;
+pub mod clipboard_formats;
 pub mod clipboard_viewer;
 pub mod inspect_window;
 pub mod network_monitor;
