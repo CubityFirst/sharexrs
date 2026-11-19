@@ -75,8 +75,8 @@ pub struct MainWindow {
     pub work_area: Option<Rect>,
     /// Each visible sidebar entry's rect last frame, by section index.
     pub nav_rects: Vec<(usize, Rect)>,
-    /// Files are being dragged over the window (`DropOverlay`).
-    pub drop_overlay: bool,
+    /// Files or text are being dragged over the window (`DropOverlay`).
+    pub drop_overlay: Option<crate::drop_target::DropKind>,
     /// The task area (`ThumbnailPanel`) and the tasks behind it.
     pub tasks: TaskView,
 }
@@ -146,7 +146,7 @@ impl MainWindow {
             flyout: None,
             work_area: None,
             nav_rects: Vec::new(),
-            drop_overlay: false,
+            drop_overlay: None,
             tasks: TaskView::new(),
         }
     }
@@ -210,8 +210,8 @@ impl MainWindow {
             self.hotkey_panel(ui, content);
         }
 
-        if self.drop_overlay {
-            drop_overlay(ui, body);
+        if let Some(kind) = self.drop_overlay {
+            drop_overlay(ui, body, kind);
         }
         if frame > 0.0 {
             ui.painter().rect_stroke(full, 0.0, Stroke::new(frame, p.border), egui::StrokeKind::Inside);
@@ -557,9 +557,13 @@ fn theme_toggle_icons(ui: &Ui, button: Rect, dark: bool, color: egui::Color32) {
 }
 
 /// `DropOverlay`: a modal tint over everything below the title bar, and a
-/// panel saying files will be uploaded. (ShareX also shows it for dragged
-/// text; winit only reports dragged files.)
-fn drop_overlay(ui: &Ui, area: Rect) {
+/// panel saying the dragged files or text will be uploaded
+/// (`UpdateDropOverlay` sets its texts).
+fn drop_overlay(ui: &Ui, area: Rect, kind: crate::drop_target::DropKind) {
+    let (title_text, desc_text) = match kind {
+        crate::drop_target::DropKind::Files => (s::MainWindow_ReleaseToUploadFiles(), s::MainWindow_FilesDroppedUploadDescription()),
+        crate::drop_target::DropKind::Text => (s::MainWindow_ReleaseToUploadText(), s::MainWindow_TextDroppedUploadDescription()),
+    };
     let p = palette(ui.ctx());
     ui.painter().rect_filled(area, 0.0, p.overlay_modal);
     let title_font = font(22.0, 600);
@@ -567,7 +571,7 @@ fn drop_overlay(ui: &Ui, area: Rect) {
     let inner_w = 440.0 - 2.0 * (32.0 + 2.0);
     let desc = {
         let mut job = egui::text::LayoutJob::single_section(
-            s::MainWindow_FilesDroppedUploadDescription().to_owned(),
+            desc_text.to_owned(),
             egui::TextFormat::simple(desc_font.clone(), p.text_secondary),
         );
         job.wrap.max_width = inner_w;
@@ -593,7 +597,7 @@ fn drop_overlay(ui: &Ui, area: Rect) {
     let cx = inner.center().x;
     icons::paint(ui.painter(), Rect::from_min_size(pos2(cx - 24.0, inner.min.y), Vec2::splat(48.0)), icon::Upload, p.accent_icon);
     let ty = inner.min.y + 48.0 + 12.0;
-    let title = widgets::galley(ui, s::MainWindow_ReleaseToUploadFiles(), title_font, p.text, f32::INFINITY);
+    let title = widgets::galley(ui, title_text, title_font, p.text, f32::INFINITY);
     ui.painter().galley(pos2(cx - (title.size().x / 2.0).round(), ty), title, p.text);
     ui.painter().galley(pos2(cx, ty + title_h + 12.0), desc, p.text_secondary);
 }

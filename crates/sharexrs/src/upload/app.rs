@@ -404,6 +404,30 @@ impl App {
         }
     }
 
+    /// `MainWindow`'s drop handlers: the overlay while something it takes
+    /// is dragged over (`UpdateDropOverlay`), and on the drop
+    /// `UploadManager.DragDropUpload` with the default task settings
+    /// (`OnDrop`). The main window's own drag (a task's file dragged out)
+    /// is ignored, as ShareX does while `_thumbnailDragSource` is set.
+    pub(crate) fn drop_event(&mut self, event_loop: &ActiveEventLoop, event: crate::drop_target::DropEvent) {
+        use crate::drop_target::{DropUpload, handle};
+        let own_drag = self.own_drag_until.is_some_and(|t| std::time::Instant::now() < t);
+        let (overlay, upload) = handle(event, own_drag);
+        if self.state.drop_overlay != overlay {
+            self.state.drop_overlay = overlay;
+            if let Some(w) = &self.main {
+                w.window.request_redraw();
+            }
+        }
+        let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
+        match upload {
+            Some(DropUpload::Files(files)) => self.upload_request(event_loop, UploadRequest::Files { files, task, confirmed: false }),
+            Some(DropUpload::Image(image)) => self.run_image_task_for(image, task),
+            Some(DropUpload::Text(text)) => self.upload_request(event_loop, UploadRequest::Text { text, task, allow_custom_text: true }),
+            None => {}
+        }
+    }
+
     /// What an upload window asked `UploadManager` to start.
     pub(crate) fn upload_request(&mut self, event_loop: &ActiveEventLoop, request: UploadRequest) {
         let defaults = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
