@@ -526,7 +526,7 @@ impl App {
                 open.window.window.request_redraw();
             }
             open.window.window.set_minimized(false);
-            open.window.window.focus_window();
+            crate::window::activate(&open.window.window);
             return;
         }
         if let Err(e) = self.try_open_dialog_window(event_loop, dialog) {
@@ -575,7 +575,7 @@ impl App {
             w.window.set_maximized(true);
         }
         if spec.activate {
-            w.window.focus_window();
+            crate::window::activate(&w.window);
         }
         dialog.opened(sharex_capture::platform::window_handle(&w.window));
         w.window.request_redraw();
@@ -760,7 +760,7 @@ impl App {
                     let screens = sharex_capture::screenshot::screens();
                     let grab = sharex_capture::screenshot::Screenshot::default().capture_fullscreen(&screens);
                     d.window.window.set_visible(true);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                     d.dialog.scanned(grab.map(|g| qr_code::scan(&g)));
                     d.window.window.request_redraw();
                 }
@@ -948,7 +948,7 @@ impl App {
         if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("response")) {
             d.dialog.show_response(data);
             d.window.window.set_minimized(false);
-            d.window.window.focus_window();
+            crate::window::activate(&d.window.window);
             d.window.window.request_redraw();
         } else {
             self.open_dialog_window(event_loop, Box::new(response::ResponseWindow::new(data)));

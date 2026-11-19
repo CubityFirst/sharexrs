@@ -946,7 +946,7 @@ impl App {
     /// (`ShowScreenRecordingOptions`): one at a time.
     pub(crate) fn show_ffmpeg_options(&mut self, event_loop: &ActiveEventLoop, target: TaskTarget) {
         if let Some(h) = &self.ffmpeg_options {
-            h.window.window.focus_window();
+            crate::window::activate(&h.window.window);
             return;
         }
         let capture = match target {
@@ -1002,7 +1002,7 @@ impl App {
             crate::center(&w.window, event_loop);
         }
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         self.ffmpeg_options = Some(FFmpegOptionsHost { window: w, state: FFmpegOptionsWindow::new(&capture), target });
     }

@@ -1012,7 +1012,7 @@ impl FrameWindow {
         me.paint();
         me.window.window.set_visible(true);
         if activate {
-            me.window.window.focus_window();
+            crate::window::activate(&me.window.window);
         }
         me.window.window.request_redraw();
         Ok(me)
@@ -1181,7 +1181,7 @@ impl BarWindow {
         me.paint();
         me.paint();
         me.window.window.set_visible(true);
-        me.window.window.focus_window();
+        crate::window::activate(&me.window.window);
         me.window.window.request_redraw();
         Ok(me)
     }

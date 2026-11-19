@@ -44,6 +44,24 @@ impl Drop for EguiWindow {
     }
 }
 
+/// Avalonia's `Window.Activate`: on Windows `WindowImpl.Activate` is a bare
+/// `SetForegroundWindow`, which Windows refuses (the taskbar button
+/// flashes) unless this process may take the foreground: it got the last
+/// input, or the copy that forwarded a command line passed its right on.
+/// Not winit's `focus_window`, which fakes an Alt press first to steal the
+/// foreground: a command forwarded to a visible main window would then take
+/// the foreground from the window an active-window job is about to capture
+/// (`ApplicationCommandLine.ExecuteReceivedAsync` activates the main window
+/// before the command runs; LIVE-CHECKS REC2-03a).
+pub fn activate(window: &Window) {
+    #[cfg(windows)]
+    if let Some(handle) = sharex_capture::platform::window_handle(window) {
+        sharex_capture::platform::activate_window(handle);
+        return;
+    }
+    window.focus_window();
+}
+
 /// Where a window dragged from `press` (the pointer on the screen) while
 /// at `origin` goes with the pointer at `cursor`: by the pointer's whole
 /// movement since the press, so it ends exactly where the pointer does.

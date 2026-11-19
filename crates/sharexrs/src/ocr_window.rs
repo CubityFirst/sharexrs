@@ -916,7 +916,7 @@ impl crate::App {
             let screens = sharex_capture::screenshot::screens();
             let grab = crate::capture::task_screenshot(&task).capture_fullscreen(&screens);
             d.window.window.set_visible(true);
-            d.window.window.focus_window();
+            crate::window::activate(&d.window.window);
             if let Some(image) = grab {
                 let ctx = d.window.ctx().clone();
                 d.dialog.replace_image(image, &ctx);
@@ -943,7 +943,7 @@ impl crate::App {
                 let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == id) else { return };
                 d.window.window.set_minimized(false);
                 d.window.window.set_visible(true);
-                d.window.window.focus_window();
+                crate::window::activate(&d.window.window);
                 if let Some(image) = image {
                     let ctx = d.window.ctx().clone();
                     d.dialog.replace_image(image, &ctx);

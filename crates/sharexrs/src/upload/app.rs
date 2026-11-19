@@ -407,7 +407,7 @@ impl App {
             HotkeyType::DragDropUpload => {
                 if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("drop-window")) {
                     d.dialog.set_task(task);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                 } else {
                     let w = dialogs::drop_window::DropWindow::new(&self.settings.settings, task);
                     self.open_dialog_window(event_loop, Box::new(w));

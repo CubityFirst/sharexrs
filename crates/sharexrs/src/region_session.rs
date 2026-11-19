@@ -189,7 +189,7 @@ impl RegionSession {
             .and_then(|(x, y)| me.overlays.iter().position(|o| o.view.monitor.contains(x, y)))
             .unwrap_or(0);
         if let Some(o) = me.overlays.get(focus) {
-            o.window.window.focus_window();
+            crate::window::activate(&o.window.window);
         }
         for o in &me.overlays {
             platform::overlay_presented(&o.window.window);
@@ -241,7 +241,7 @@ impl RegionSession {
             self.capture.set_picked_color(item, c);
         }
         if let Some(o) = self.overlays.first() {
-            o.window.window.focus_window();
+            crate::window::activate(&o.window.window);
         }
         self.redraw();
     }

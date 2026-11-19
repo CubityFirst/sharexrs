@@ -103,7 +103,7 @@ impl App {
         };
         if let Some(d) = self.dialogs.iter_mut().find(|d| d.window.window.id() == owner) {
             d.window.window.set_visible(true);
-            d.window.window.focus_window();
+            crate::window::activate(&d.window.window);
             if picked {
                 d.dialog.window_picked(handle, top_level);
             }

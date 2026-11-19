@@ -1048,7 +1048,7 @@ impl App {
         if w.window.is_minimized() == Some(true) {
             w.window.set_minimized(false);
         }
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         #[cfg(target_os = "macos")]
         tray::set_dock_icon(true);
@@ -1372,7 +1372,7 @@ impl App {
         let _ = w.window.request_inner_size(LogicalSize::new(message_box::WIDTH, height));
         center(&w.window, event_loop);
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         self.dialog = Some(Dialog { window: w, message, purpose });
         Ok(())

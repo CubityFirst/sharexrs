@@ -553,7 +553,7 @@ impl App {
                 if let Some(d) = self.dialogs.iter_mut().find(|d| d.dialog.single() == Some("response")) {
                     d.dialog.show_response(data);
                     d.window.window.set_minimized(false);
-                    d.window.window.focus_window();
+                    crate::window::activate(&d.window.window);
                     d.window.window.request_redraw();
                 } else {
                     self.open_dialog_window(event_loop, Box::new(crate::dialogs::response::ResponseWindow::new(data)));

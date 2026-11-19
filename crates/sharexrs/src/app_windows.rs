@@ -114,7 +114,7 @@ impl App {
         let _ = w.window.request_inner_size(LogicalSize::new(crate::start_screen::WIDTH, height));
         center(&w.window, event_loop);
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         self.start_window = Some(StartWindow { window: w, state });
         Ok(())
@@ -138,7 +138,7 @@ impl App {
     pub(crate) fn show_application_settings(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(s) = &self.settings_window {
             s.window.window.set_minimized(false);
-            s.window.window.focus_window();
+            crate::window::activate(&s.window.window);
             return;
         }
         if let Err(e) = self.open_application_settings(event_loop) {
@@ -161,7 +161,7 @@ impl App {
         set_theme(&w, self.current_theme);
         center(&w.window, event_loop);
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let state = ApplicationSettings::new(&self.settings.settings, self.settings.paths.portable, parent);
@@ -348,7 +348,7 @@ impl App {
     pub(crate) fn show_hotkey_settings(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(h) = &self.hotkey_window {
             h.window.window.set_minimized(false);
-            h.window.window.focus_window();
+            crate::window::activate(&h.window.window);
             return;
         }
         if let Err(e) = self.open_hotkey_settings(event_loop) {
@@ -376,7 +376,7 @@ impl App {
         }
         center(&w.window, event_loop);
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         let mut svc = hotkey_settings::Service {
             hotkeys: &mut self.settings.hotkeys.Hotkeys,
@@ -499,7 +499,7 @@ impl App {
     pub(crate) fn show_task_settings(&mut self, event_loop: &ActiveEventLoop, target: TaskTarget) {
         if let Some(t) = &self.task_window {
             t.window.window.set_minimized(false);
-            t.window.window.focus_window();
+            crate::window::activate(&t.window.window);
             return;
         }
         if let Err(e) = self.open_task_settings(event_loop, target) {
@@ -541,7 +541,7 @@ impl App {
         set_theme(&w, self.current_theme);
         center(&w.window, event_loop);
         w.window.set_visible(true);
-        w.window.focus_window();
+        crate::window::activate(&w.window);
         w.window.request_redraw();
         self.task_window = Some(TaskWindow { window: w, state, target });
         Ok(())
