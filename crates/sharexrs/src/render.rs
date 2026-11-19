@@ -1,5 +1,5 @@
 //! `sharexrs --render <screen> --out <png> [--theme dark|light]
-//! [--width W] [--height H] [--scale S] [--popup-host L,T,R,B] [--hover X,Y] [--unregistered 0,3]
+//! [--width W] [--height H] [--scale S] [--popup-host L,T,R,B [--client-origin X,Y]] [--hover X,Y] [--unregistered 0,3]
 //! [--open 12,0] [--work-area L,T,R,B] [--monitors 1024x768,...]`: draws one screen offscreen, for
 //! comparing with a screenshot of ShareX.
 //!
@@ -273,6 +273,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut maximized = false;
     let mut open: Vec<usize> = Vec::new();
     let mut work_area = None;
+    let mut popup_host: Option<egui::Rect> = None;
+    let mut client_origin: Option<(i32, i32)> = None;
     let mut monitors: Vec<(i32, i32, u32, u32)> = Vec::new();
     let mut rest_args: Vec<(String, String)> = Vec::new();
     let mut at = egui::pos2(682.0, 563.0);
@@ -311,7 +313,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--popup-host" => {
                 let v: Vec<f32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
                 let [l, t, r, b] = v[..] else { return Err("--popup-host L,T,R,B".into()) };
-                sharex_ui::offscreen::set_popup_host(Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b))));
+                popup_host = Some(egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b)));
+                sharex_ui::offscreen::set_popup_host(popup_host);
+            }
+            // With `--popup-host`: where the window's client area is on the
+            // screen (physical pixels), so popups are placed on a screen
+            // whose work area is the host's, in whole device pixels as
+            // Avalonia's positioner does, and printed in screen pixels too.
+            "--client-origin" => {
+                let v: Vec<i32> = val()?.split(',').filter_map(|i| i.trim().parse().ok()).collect();
+                let [x, y] = v[..] else { return Err("--client-origin X,Y".into()) };
+                client_origin = Some((x, y));
             }
             "--hover" => {
                 let v = val()?;
@@ -399,6 +411,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     let screen = screen.ok_or("which screen? (main)")?;
     let out = out.ok_or("--out <png> is required")?;
+    if let (Some(host), Some((x, y))) = (popup_host, client_origin) {
+        // One screen whose work area is the host's, the client at `x,y`.
+        let s = scale as f64;
+        let area = sharex_ui::popup::PxRect::new(x as f64 + host.min.x as f64 * s, y as f64 + host.min.y as f64 * s, host.width() as f64 * s, host.height() as f64 * s);
+        sharex_ui::offscreen::set_popup_screens(Some(sharex_ui::popup::Geometry {
+            screens: vec![sharex_ui::popup::ScreenInfo { bounds: area, working_area: area }],
+            parent: sharex_ui::popup::PxRect::new(x as f64, y as f64, width.unwrap_or(0) as f64, height.unwrap_or(0) as f64),
+            scaling: s,
+        }));
+    }
 
     let menu = screen.strip_prefix("main-").and_then(|m| m.strip_suffix("-menu"));
     let image = match screen.as_str() {
@@ -888,9 +910,25 @@ pub fn run(args: &[String]) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     image.save(&out).map_err(|e| e.to_string())?;
+    // Where each popup went: inside the window, or (past its edge) in a
+    // popup window of its own, as `EguiWindow::paint` decides.
+    let client = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(image.width() as f32, image.height() as f32) / scale);
     for p in sharex_ui::offscreen::last_popups() {
         let (o, size) = crate::popup_window::physical_rect(p.rect, scale);
-        println!("popup {:?}: points {},{} {}x{}; pixels {},{} {}x{}", p.layer.id, p.rect.min.x, p.rect.min.y, p.rect.width(), p.rect.height(), o.0, o.1, size.0, size.1);
+        let on_screen = client_origin.map(|(x, y)| format!("; screen {},{}", x + o.0, y + o.1)).unwrap_or_default();
+        let place = if crate::popup_window::fits(client, p.rect) { "in the window" } else { "popup window" };
+        println!(
+            "popup {:?}: points {},{} {}x{}; pixels {},{} {}x{}{on_screen}; {place}",
+            p.layer.id,
+            p.rect.min.x,
+            p.rect.min.y,
+            p.rect.width(),
+            p.rect.height(),
+            o.0,
+            o.1,
+            size.0,
+            size.1
+        );
     }
     println!("{screen}: {}x{} -> {out}", image.width(), image.height());
     Ok(())
