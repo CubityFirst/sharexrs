@@ -2124,6 +2124,9 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
         self.tray_click_timer(event_loop);
+        if self.region.is_none() {
+            region_session::slim_pool_if_due(Instant::now());
+        }
         self.poll_gpu();
         // A due repaint is asked for once: a hidden window gets no redraw,
         // and waiting on it would stall every timer below.
@@ -2160,6 +2163,7 @@ impl ApplicationHandler<UserEvent> for App {
             self.transparent_grab.as_ref().map(|g| g.0),
             self.region_warm_up_at,
             self.gpu_poll_at,
+            self.region.is_none().then(region_session::slim_at).flatten(),
             self.tray_click_at,
             app_windows,
             dialogs,

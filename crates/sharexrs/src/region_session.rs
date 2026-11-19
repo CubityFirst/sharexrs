@@ -5,14 +5,18 @@
 //! it never flashes empty.
 //!
 //! On Windows the windows outlive the session: hidden when it ends, they
-//! wait in a pool for the next capture with their swap chain, renderer,
-//! fonts and frozen screen texture (as ShareX warms its window up), and
-//! are got ready while the screen is grabbed. The rest of a window's state
-//! starts over each time ([`EguiWindow::reset_for_reuse`]).
+//! wait in a pool for the next capture with their swap chain, renderer and
+//! fonts (as ShareX warms its window up), and are got ready while the
+//! screen is grabbed. The rest of a window's state starts over each time
+//! ([`EguiWindow::reset_for_reuse`]). While they wait they're slimmed
+//! ([`Pooled::slim`]): what's the monitor's size (the swap chain's two
+//! buffers and the frozen screen's texture, ~48 MB of video memory on a
+//! 2560x1600 monitor, all mapped into the process) is made again during
+//! the next grab.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sharex_capture::region::{
     Button, CursorKind, Key, Modifiers, Outcome, OverlayView, RegionCapture, Request, cursors::CustomCursor,
@@ -42,6 +46,8 @@ struct Pooled {
     scale: f64,
     /// The frozen screen's texture, the monitor's size.
     frozen: Option<egui::TextureHandle>,
+    /// The swap chain is 1x1 and there's no frozen texture ([`Self::slim`]).
+    slim: bool,
 }
 
 impl Pooled {
@@ -54,10 +60,69 @@ impl Pooled {
             && w.inner_size() == PhysicalSize::new(b.w as u32, b.h as u32)
             && w.inner_position().is_ok_and(|p| (p.x, p.y) == (b.x, b.y))
     }
+
+    /// Lets go of what's the monitor's size while the window waits: the
+    /// frozen screen's texture, and the swap chain's buffers (down to 1x1;
+    /// the window stays the monitor's size, hidden). The texture is freed
+    /// by the context's next frame, painted here.
+    fn slim(&mut self) {
+        if self.slim {
+            return;
+        }
+        self.frozen = None;
+        self.window.set_surface_size(1, 1);
+        self.window.paint(|_| ());
+        self.slim = true;
+    }
+
+    /// Ready to show again: the swap chain back to the monitor's size and,
+    /// with `frozen`, a frozen screen texture to upload into, painted once
+    /// (hidden) so the capture's first frame only draws.
+    fn restore(&mut self, frozen: bool) {
+        let mut paint = false;
+        if self.slim {
+            self.window.set_surface_size(self.monitor.w.max(1) as u32, self.monitor.h.max(1) as u32);
+            self.slim = false;
+            paint = true;
+        }
+        if frozen && self.frozen.is_none() {
+            let size = [self.monitor.w.max(1) as usize, self.monitor.h.max(1) as usize];
+            let image = egui::ColorImage::filled(size, egui::Color32::BLACK);
+            self.frozen = Some(self.window.ctx().load_texture("frozen screen", image, egui::TextureOptions::NEAREST));
+            paint = true;
+        }
+        if paint {
+            self.window.paint(|_| ());
+        }
+    }
 }
+
+/// How long a hidden overlay waits before it's slimmed: past the end of
+/// the capture's work (the file saved, the next capture of a quick series).
+const SLIM_AFTER: Duration = Duration::from_secs(1);
 
 thread_local! {
     static POOL: RefCell<Vec<Pooled>> = const { RefCell::new(Vec::new()) };
+    /// When the pool is slimmed next.
+    static SLIM_AT: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+}
+
+/// When [`slim_pool_if_due`] wants to run.
+pub fn slim_at() -> Option<Instant> {
+    SLIM_AT.with(|s| s.get())
+}
+
+/// Slims the kept windows once they've waited [`SLIM_AFTER`].
+pub fn slim_pool_if_due(now: Instant) {
+    if slim_at().is_none_or(|at| at > now) {
+        return;
+    }
+    SLIM_AT.with(|s| s.set(None));
+    POOL.with(|p| p.borrow_mut().iter_mut().for_each(Pooled::slim));
+}
+
+fn slim_later() {
+    SLIM_AT.with(|s| s.set(Some(Instant::now() + SLIM_AFTER)));
 }
 
 /// A new overlay window for `screen`, hidden.
@@ -66,7 +131,7 @@ fn new_overlay(event_loop: &ActiveEventLoop, gpu: &Gpu, screen: &Screen) -> Resu
     trace::mark("window created");
     let window = EguiWindow::new(window, gpu, None)?;
     trace::mark("egui window (surface, renderer)");
-    Ok(Pooled { window, monitor: screen.bounds, scale: screen.scale, frozen: None })
+    Ok(Pooled { window, monitor: screen.bounds, scale: screen.scale, frozen: None, slim: false })
 }
 
 /// The kept window for `screen`, else a new one.
@@ -78,6 +143,9 @@ fn take_overlay(event_loop: &ActiveEventLoop, gpu: &Gpu, screen: &Screen) -> Res
     });
     match kept {
         Some(mut o) => {
+            // Restored while the screen was grabbed, unless the caller
+            // didn't ready the overlays.
+            o.restore(false);
             o.window.reset_for_reuse();
             trace::mark("kept window");
             Ok(o)
@@ -95,7 +163,12 @@ pub fn ready_overlays(event_loop: &ActiveEventLoop, gpu: &Gpu, screens: &[Screen
     }
     POOL.with(|p| p.borrow_mut().retain(|o| screens.iter().any(|s| o.fits(s))));
     for screen in screens {
-        if POOL.with(|p| p.borrow().iter().any(|o| o.fits(screen))) {
+        let kept = POOL.with(|p| {
+            let mut pool = p.borrow_mut();
+            pool.iter_mut().find(|o| o.fits(screen)).map(|o| o.restore(true))
+        });
+        if kept.is_some() {
+            trace::mark("kept window restored");
             continue;
         }
         match new_overlay(event_loop, gpu, screen) {
@@ -146,6 +219,7 @@ pub fn warm_up(event_loop: &ActiveEventLoop, gpu: &Gpu, dark: bool) {
             o.window.paint(|_| ());
         }
     });
+    slim_later();
 }
 
 /// Closes the kept windows (before the event loop ends).
@@ -355,7 +429,8 @@ impl RegionSession {
             if reuse() {
                 o.window.window.set_visible(false);
                 let frozen = o.view.take_frozen_texture();
-                POOL.with(|p| p.borrow_mut().push(Pooled { window: o.window, monitor: o.view.monitor, scale: o.scale, frozen }));
+                POOL.with(|p| p.borrow_mut().push(Pooled { window: o.window, monitor: o.view.monitor, scale: o.scale, frozen, slim: false }));
+                slim_later();
             }
         }
         self.cursor_lock = None;

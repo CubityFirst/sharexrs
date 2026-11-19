@@ -153,6 +153,14 @@ impl EguiWindow {
         self.move_drag = None;
     }
 
+    /// Resizes the swap chain, not the window (a hidden window keeping less
+    /// video memory); the next `Resized` puts it back to the window's size.
+    pub fn set_surface_size(&mut self, width: u32, height: u32) {
+        if let (Some(w), Some(h)) = (std::num::NonZeroU32::new(width), std::num::NonZeroU32::new(height)) {
+            self.painter.on_window_resized(egui::ViewportId::ROOT, w, h);
+        }
+    }
+
     /// Whether the pointer is over one of the window's popup windows: a
     /// `CursorLeft` then isn't the pointer leaving (a menu level past the
     /// window's edge is still the window's).

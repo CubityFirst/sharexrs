@@ -168,12 +168,15 @@ impl App {
         task.CaptureSettings = Some(capture);
         task.UseDefaultCaptureSettings = false;
         let dark = self.theme() == egui::Theme::Dark;
-        let opened = crate::capture_job::prepare_selection(&task, Vec::new()).and_then(|request| {
-            let gpu = match &self.gpu {
-                Some(g) => g,
-                None => self.gpu.insert(Gpu::new()?),
-            };
-            RegionSession::open(event_loop, gpu, request, dark)
+        let gpu = match &self.gpu {
+            Some(g) => Ok(g),
+            None => Gpu::new().map(|g| &*self.gpu.insert(g)),
+        };
+        let opened = gpu.and_then(|gpu| {
+            crate::capture_job::prepare_selection_with(&task, Vec::new(), |screens| {
+                crate::region_session::ready_overlays(event_loop, gpu, screens)
+            })
+            .and_then(|request| RegionSession::open(event_loop, gpu, request, dark))
         });
         match opened {
             Ok(session) => self.scrolling.phase = Phase::Selecting(Box::new(session)),

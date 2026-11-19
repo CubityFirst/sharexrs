@@ -18,12 +18,8 @@ use sharex_settings::{AfterCaptureTasks, ApplicationConfig, FileExistAction, Tas
 
 /// `CaptureRegion.ExecuteRegionCaptureAvaloniaAsync` up to the overlay:
 /// the frozen screen (every monitor, or the active one), the pointer drawn
-/// in (`ShowCursor`), the windows to snap to.
-pub fn prepare(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
-    prepare_with(task, last_regions, |_| {})
-}
-
-/// [`prepare`], running `while_grabbing` (given the monitors) on this
+/// in (`ShowCursor`), the windows to snap to; running `while_grabbing`
+/// (given the monitors) on this
 /// thread while another grabs the screen: most of the grab is waiting on
 /// the compositor, time the overlay windows can be got ready in. The
 /// window list is made meanwhile too (hidden windows, such as overlays
@@ -121,11 +117,16 @@ pub(crate) fn pixel_info(text: &str, c: [u8; 4], position: (i32, i32)) -> String
 
 /// `RegionCaptureTasks.CaptureAsync` for `GetRectangleRegionAsync` (screen
 /// recording's region): the frozen screen without the pointer, and no
-/// annotations (`EnableAnnotations = false`).
-pub fn prepare_selection(task: &TaskSettings, last_regions: Vec<Rect>) -> Result<Request, String> {
+/// annotations (`EnableAnnotations = false`); `while_grabbing` as
+/// [`prepare_with`] runs it.
+pub fn prepare_selection_with(
+    task: &TaskSettings,
+    last_regions: Vec<Rect>,
+    while_grabbing: impl FnOnce(&[sharex_capture::Screen]),
+) -> Result<Request, String> {
     let mut task = task.clone();
     task.CaptureSettings.get_or_insert_default().ShowCursor = false;
-    let mut request = prepare(&task, last_regions)?;
+    let mut request = prepare_with(&task, last_regions, while_grabbing)?;
     request.enable_annotations = false;
     request.allow_multiple_regions = false;
     request.editor_options = sharex_image_editor::ImageEditorOptions::default();
