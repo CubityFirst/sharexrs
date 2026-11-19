@@ -150,8 +150,6 @@ enum Bottom {
     Pin,
     Print,
     Upload,
-    CaptureRegion,
-    CaptureFullscreen,
 }
 
 impl Bottom {
@@ -166,8 +164,6 @@ impl Bottom {
             Bottom::Pin => app_icons::Pin,
             Bottom::Print => app_icons::Printer,
             Bottom::Upload => app_icons::CloudUpload,
-            Bottom::CaptureRegion => app_icons::Region,
-            Bottom::CaptureFullscreen => app_icons::Fullscreen,
         }
     }
 }
@@ -1294,9 +1290,10 @@ impl EditorWindow {
         // chevron (`Margin="8,0,4,0"`), in the button's 10px padding.
         let zoom_w = (2.0 + 20.0 + 20.0 + 6.0 + widgets::text_width(ui, &zoom_text, font.clone()).ceil() + 8.0 + 10.0 + 4.0).max(80.0);
         // Items: zoom, separator, task grid (90 + margins 4/10), six
-        // buttons, separator, two capture buttons.
+        // buttons (ShareX 45fe7f2 took the New from screenshot buttons
+        // after them out).
         let sep = 1.0 + 8.0;
-        let content = zoom_w + SPACING + sep + SPACING + 4.0 + 90.0 + 10.0 + SPACING + 6.0 * BUTTON + 5.0 * SPACING + SPACING + sep + SPACING + 2.0 * BUTTON + SPACING;
+        let content = zoom_w + SPACING + sep + SPACING + 4.0 + 90.0 + 10.0 + SPACING + 6.0 * BUTTON + 5.0 * SPACING;
         let width = content + 2.0 * (PADDING + 1.0);
         let height = BUTTON + 2.0 * (PADDING + 1.0);
         let rect = Rect::from_min_size(pos2((full.center().x - width / 2.0).round_ties_even(), full.max.y - height), vec2(width, height));
@@ -1351,15 +1348,6 @@ impl EditorWindow {
             } else {
                 disabled_button(ui, painter, p, r, b.icon());
             }
-            x += BUTTON + SPACING;
-        }
-        x += 4.0;
-        painter.rect_filled(Rect::from_min_size(pos2(x, top + 1.0), vec2(1.0, 38.0)), 0.0, p.separator);
-        x += 1.0 + 4.0 + SPACING;
-        for b in [Bottom::CaptureRegion, Bottom::CaptureFullscreen] {
-            let r = Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON));
-            captb::button(painter, p, r, b.icon(), false, hover(r), 1.0);
-            items.push((b, r));
             x += BUTTON + SPACING;
         }
         self.layout.bottom = Some(rect);
@@ -1803,8 +1791,6 @@ impl EditorWindow {
                     Bottom::Pin => self.run(Command::PinToScreen),
                     Bottom::Print => self.run(Command::Print),
                     Bottom::Upload => self.run(Command::Upload),
-                    Bottom::CaptureRegion => self.menu_command(MenuCmd::NewRegion),
-                    Bottom::CaptureFullscreen => self.menu_command(MenuCmd::NewFullscreen),
                 }
             }
         }
