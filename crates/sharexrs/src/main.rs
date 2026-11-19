@@ -6,6 +6,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod animation;
 mod app_icon;
 mod app_settings;
 mod app_windows;

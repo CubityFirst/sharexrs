@@ -204,6 +204,11 @@ impl App {
     /// A task's thread or a picture decoder reported back.
     pub(super) fn task_event(&mut self, event: TaskEvent) {
         match event {
+            TaskEvent::ImageReady { id, image } => {
+                self.state.tasks.owned_image(id, image);
+                self.redraw_main();
+                self.decode_task_images();
+            }
             TaskEvent::Image { id, version, kind, image } => {
                 if let Some(w) = &self.main {
                     self.state.tasks.image_ready(w.ctx(), id, version, kind, image);

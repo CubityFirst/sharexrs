@@ -162,7 +162,7 @@ impl App {
                 self.task_completed(*id, report);
                 self.start_queued_tasks();
             }
-            TaskEvent::Image { .. } => return false,
+            TaskEvent::Image { .. } | TaskEvent::ImageReady { .. } => return false,
         }
         if let Some(w) = &self.main {
             w.window.request_redraw();

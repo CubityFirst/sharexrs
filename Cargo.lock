@@ -5120,6 +5120,7 @@ dependencies = [
  "egui-winit",
  "embed-resource",
  "fancy-regex",
+ "gif",
  "image",
  "ksni",
  "libc",

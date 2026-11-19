@@ -186,6 +186,25 @@ pub fn decode_to_fit(img: &RgbaImage, width: u32, height: u32) -> RgbaImage {
     resize(img, dw.max(1) as u32, dh.max(1) as u32)
 }
 
+/// `BitmapConversionHelpers.CreatePreview(source, maximumSize)`: the image
+/// no larger than the box (`Math.Round`ed sides, never enlarged), resized
+/// with Skia's Mitchell cubic (`SKBitmap.Resize`).
+pub fn create_preview(img: &RgbaImage, max_w: u32, max_h: u32) -> RgbaImage {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 || max_w == 0 || max_h == 0 {
+        return img.clone();
+    }
+    let scale = (max_w as f64 / w as f64).min(max_h as f64 / h as f64).min(1.0);
+    let dw = ((w as f64 * scale).round_ties_even() as u32).max(1);
+    let dh = ((h as f64 * scale).round_ties_even() as u32).max(1);
+    if (dw, dh) == (w, h) {
+        return img.clone();
+    }
+    let bmp = sharex_tools::imaging::Bitmap::from_straight(w, h, img.as_raw());
+    let out = sharex_tools::imaging::resize_image(bmp, dw as i32, dh as i32, sharex_tools::imaging::SamplingMode::HighQualityBicubic);
+    crate::animation::straight(out)
+}
+
 /// How an `Image` with `Stretch="Uniform"` scales its bitmap in a box.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Stretch {
@@ -280,6 +299,16 @@ pub fn load(path: &std::path::Path) -> Option<RgbaImage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn previews_are_never_enlarged_and_round_to_even() {
+        // `CreatePreview`: the box's scale, Math.Round'ed sides.
+        let img = RgbaImage::from_pixel(300, 101, image::Rgba([5, 6, 7, 255]));
+        assert_eq!(create_preview(&img, 150, 150).dimensions(), (150, 50));
+        assert_eq!(create_preview(&img, 600, 600).dimensions(), (300, 101));
+        let opaque = create_preview(&RgbaImage::from_pixel(64, 64, image::Rgba([200, 100, 50, 255])), 16, 16);
+        assert_eq!(opaque.get_pixel(8, 8).0, [200, 100, 50, 255]);
+    }
 
     #[test]
     fn decoding_to_fit_truncates_the_other_side() {
