@@ -894,12 +894,9 @@ impl Active {
             return;
         }
         if self.tray_shown.as_ref().is_none_or(|s| s.0 != t.icon) {
-            let size = tray::Tray::icon_size();
+            let size = tray::glyph_icon_size();
             let image = match t.icon {
-                TrayIcon::Glyph(key, color) => {
-                    let theme = if sharex_capture::platform::light_taskbar() { egui::Color32::BLACK } else { egui::Color32::WHITE };
-                    sharex_ui::icons::image(key, size, color.unwrap_or(theme))
-                }
+                TrayIcon::Glyph(key, color) => sharex_ui::icons::image(key, size, color.unwrap_or_else(tray::glyph_color)),
                 // `Helpers.GetProgressIconBytes(progress, Color.FromArgb(140, 0, 36))`.
                 TrayIcon::Progress(p) => Some(tray::progress_icon_in(size, p, [140, 0, 36])),
             };

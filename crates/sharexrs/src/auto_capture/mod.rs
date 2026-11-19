@@ -181,9 +181,7 @@ impl App {
                     #[allow(unused_mut)]
                     Ok(mut t) => {
                         // `TrayIconImage.Bind(_trayIcon, AppIcons.Clock)`.
-                        let size = tray::Tray::icon_size();
-                        let color = if sharex_capture::platform::light_taskbar() { egui::Color32::BLACK } else { egui::Color32::WHITE };
-                        if let Some(image) = sharex_ui::icons::image(sharex_ui::keys::app_icons::Clock, size, color) {
+                        if let Some(image) = sharex_ui::icons::image(sharex_ui::keys::app_icons::Clock, tray::glyph_icon_size(), tray::glyph_color()) {
                             t.set_icon(&image);
                         }
                         self.auto_capture.tray = Some(t);

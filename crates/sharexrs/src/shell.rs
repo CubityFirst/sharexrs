@@ -204,21 +204,45 @@ fn select_in_folder(path: &Path) -> Result<(), String> {
     std::process::Command::new("open").arg("-R").arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// The programs .NET's `Process.Start` hands a file or URL to on Linux
+/// when `UseShellExecute` is set (`s_allowedProgramsToRun`), in order.
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
+pub const LINUX_OPENERS: [&str; 3] = ["xdg-open", "gnome-open", "kfmclient"];
+
+/// The first of [`LINUX_OPENERS`] in a folder of `path_var` (`PATH`), as
+/// `exists` finds them.
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
+pub fn find_opener(path_var: &str, exists: impl Fn(&Path) -> bool) -> Option<std::path::PathBuf> {
+    LINUX_OPENERS.iter().find_map(|program| {
+        path_var.split(':').filter(|d| !d.is_empty()).map(|d| Path::new(d).join(program)).find(|p| exists(p))
+    })
+}
+
+/// `Process.Start(path)` with `UseShellExecute` on Linux.
+#[cfg(not(any(windows, target_os = "macos")))]
+pub fn linux_open(path: &Path) -> Result<(), String> {
+    let path_var = std::env::var("PATH").unwrap_or_default();
+    let opener = find_opener(&path_var, |p| p.is_file()).ok_or("none of xdg-open, gnome-open or kfmclient was found")?;
+    std::process::Command::new(opener).arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[cfg(not(any(windows, target_os = "macos")))]
 fn shell_open(path: &Path) -> Result<(), String> {
-    std::process::Command::new("xdg-open").arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
+    linux_open(path)
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
 fn select_in_folder(path: &Path) -> Result<(), String> {
     let folder = path.parent().ok_or("no folder")?;
-    std::process::Command::new("xdg-open").arg(folder).spawn().map(|_| ()).map_err(|e| e.to_string())
+    linux_open(folder)
 }
 
-/// No recycle bin API outside Windows yet: deleted outright.
+/// `FileSystem.DeleteFile(..., RecycleOption.SendToRecycleBin)` is the
+/// Windows shell's (`SHFileOperation`): outside Windows it throws, and
+/// ShareX logs it and keeps the file. So does ShareXrs.
 #[cfg(not(windows))]
-fn recycle(path: &Path) -> Result<(), String> {
-    std::fs::remove_file(path).map_err(|e| e.to_string())
+fn recycle(_path: &Path) -> Result<(), String> {
+    Err("sending a file to the recycle bin requires Windows".into())
 }
 
 /// `NativeMethods.GetFileThumbnail`: the shell's thumbnail of a file
@@ -275,4 +299,17 @@ pub fn file_thumbnail(path: &Path, width: u32, height: u32) -> Option<image::Rgb
 #[cfg(not(windows))]
 pub fn file_thumbnail(_path: &Path, _width: u32, _height: u32) -> Option<image::RgbaImage> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn openers_in_dotnet_order() {
+        let have = |names: &'static [&'static str]| move |p: &Path| names.iter().any(|n| p == Path::new(n));
+        assert_eq!(find_opener("/usr/bin:/bin", have(&["/bin/xdg-open", "/usr/bin/gnome-open"])), Some(Path::new("/bin").join("xdg-open")));
+        assert_eq!(find_opener("/usr/bin::/opt", have(&["/opt/kfmclient", "/usr/bin/gnome-open"])), Some(Path::new("/usr/bin").join("gnome-open")));
+        assert_eq!(find_opener("/usr/bin", have(&[])), None);
+    }
 }

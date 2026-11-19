@@ -626,7 +626,7 @@ pub fn open_path(path: &std::path::Path) {
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg(path).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
-    let r = std::process::Command::new("xdg-open").arg(path).spawn();
+    let r = crate::shell::linux_open(path);
     if let Err(e) = r {
         eprintln!("couldn't open {}: {e}", path.display());
     }

@@ -144,7 +144,9 @@ pub struct Panel {
 /// `IDesktopWallpaperService` for ShareXrs: Windows' wallpaper
 /// (`SPI_GETDESKWALLPAPER`, then the registry's `TranscodedImageCache`),
 /// always laid out as Fill, as ShareX's `WindowsDesktopWallpaperService`
-/// reports it. `SHAREXRS_TEST_WALLPAPER` (a file, optionally
+/// reports it; on macOS and Linux ShareX's own services
+/// (`sharex_image_editor::integration::wallpaper`), `None` when their
+/// `IsSupported` is false. `SHAREXRS_TEST_WALLPAPER` (a file, optionally
 /// `;Fit|Stretch|Center|Tile|Span`) stands in for it in tests.
 pub fn desktop_wallpaper() -> Option<Option<(PathBuf, Layout)>> {
     if let Ok(v) = std::env::var("SHAREXRS_TEST_WALLPAPER") {
@@ -166,9 +168,20 @@ pub fn desktop_wallpaper() -> Option<Option<(PathBuf, Layout)>> {
     }
     #[cfg(not(windows))]
     {
-        // ShareX's macOS and Linux services (System Events, the desktop
-        // environments' settings) aren't ported: no Wallpaper option.
-        None
+        let service = sharex_image_editor::integration::wallpaper::default_service()?;
+        if !service.is_supported() {
+            return None;
+        }
+        Some(service.try_get().map(|w| (w.path, w.layout)))
+    }
+}
+
+/// `EditorServices.StartDesktopWallpaperPrewarm`, as the editor's
+/// `MainViewModel` starts it: Linux converts a JPEG XL wallpaper ahead of
+/// the panel's first look.
+pub fn start_wallpaper_prewarm() {
+    if std::env::var_os("SHAREXRS_TEST_WALLPAPER").is_none() {
+        sharex_image_editor::integration::wallpaper::start_prewarm(sharex_image_editor::integration::wallpaper::default_service);
     }
 }
 
