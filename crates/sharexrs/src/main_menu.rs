@@ -982,7 +982,7 @@ mod tests {
         let tools = tool_categories();
         assert_eq!(tools[0].entries[0].header, "Color picker...");
         assert_eq!(workflows_menu(&state, false)[0].header, "Capture region    Ctrl + Print Screen");
-        assert_eq!(workflows_menu(&state, false).last().unwrap().header, "Add workflows from hotkey settings...");
+        assert_eq!(workflows_menu(&state, false).last().unwrap().header, s::MainMenuBuilder_AddWorkflowsFromHotkeySettings());
         assert_eq!(workflows_menu(&state, true).len(), 5);
     }
 
