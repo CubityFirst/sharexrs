@@ -226,7 +226,7 @@ impl RemoteStorageBrowserWindow {
         !self.is_busy() && self.selected.is_some() && self.has(Capabilities::DELETE)
     }
     fn can_view(&self) -> bool {
-        self.can_download() && self.selected_item().is_some_and(|i| is_image(i))
+        self.can_download() && self.selected_item().is_some_and(is_image)
     }
     fn can_use_url(&self) -> bool {
         !self.is_busy()
