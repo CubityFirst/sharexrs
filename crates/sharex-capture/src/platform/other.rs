@@ -242,3 +242,54 @@ pub fn search_window(title: &str) -> isize {
 /// ShareX locks the pointer to the overlay on Windows only
 /// (`Helpers.LockCursorToWindow`).
 pub fn clip_cursor_to_window(_handle: Option<isize>) {}
+
+pub fn is_zoomed(_handle: isize) -> bool {
+    false
+}
+
+pub fn is_windows_11() -> bool {
+    false
+}
+
+/// Transparent window capture's helper window is Win32's (ShareX's
+/// `WindowsNativeWindow`); elsewhere window captures stay opaque.
+pub struct BackgroundWindow;
+
+impl BackgroundWindow {
+    pub fn new(_bounds: Rect) -> Option<Self> {
+        None
+    }
+
+    pub fn set_color(&mut self, _rgb: [u8; 3]) {}
+
+    pub fn show_behind(&self, _target: isize) -> bool {
+        false
+    }
+
+    pub fn flush() {}
+}
+
+/// The taskbar and desktop icons are Windows'; elsewhere nothing changes.
+pub fn set_taskbar_visibility_if_intersect(_visible: bool, _rect: Rect) -> bool {
+    false
+}
+
+pub fn set_taskbar_visibility(_visible: bool) -> bool {
+    false
+}
+
+pub fn is_taskbar_visible() -> Option<bool> {
+    None
+}
+
+pub fn are_desktop_icons_visible() -> bool {
+    false
+}
+
+pub fn set_desktop_icons_visibility(_show: bool) -> bool {
+    false
+}
+
+pub fn is_active_window_fullscreen(_screens: &[Screen]) -> bool {
+    false
+}

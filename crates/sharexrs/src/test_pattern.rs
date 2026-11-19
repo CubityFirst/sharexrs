@@ -1,8 +1,11 @@
-//! `sharexrs --test-pattern [--window X,Y,W,H] [--scroll X,Y,W,H] [--seconds N]`:
+//! `sharexrs --test-pattern [--window X,Y,W,H] [--framed X,Y,W,H] [--scroll X,Y,W,H] [--seconds N]`:
 //! covers every monitor with a fixed, recognisable picture (a borderless,
 //! topmost window per monitor), so a capture overlay opened on top of it
 //! freezes only the pattern and never the desktop behind it. `--window` adds
 //! a smaller window on top (another pattern), for checking window snapping.
+//! `--framed` adds a normal window with a title bar, rounded corners and a
+//! shadow (the other pattern in its client area, placed by screen pixel),
+//! for window captures: client area only, transparency and shadow.
 //! `--scroll` adds a scrollable window on top: a tall generated page
 //! ([`page_pixel`]) that the mouse wheel (40 px a notch), Down/Up (20 px),
 //! Page Down/Up (the height less 40) and Home/End scroll, for scrolling
@@ -103,6 +106,8 @@ enum Kind {
     Pattern,
     /// `--window`: the alternative pattern.
     Window,
+    /// `--framed`: the alternative pattern in a decorated window.
+    Framed,
     /// `--scroll`: the page at this offset.
     Scroll(i32),
 }
@@ -127,6 +132,7 @@ impl Pane {
 
 struct App {
     extra: Option<(i32, i32, u32, u32)>,
+    framed: Option<(i32, i32, u32, u32)>,
     scroll: Option<(i32, i32, u32, u32)>,
     until: Instant,
     gpu: Option<Gpu>,
@@ -141,19 +147,21 @@ fn parse_rect(v: Option<&String>, name: &str) -> Result<(i32, i32, u32, u32), St
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let mut extra = None;
+    let mut framed = None;
     let mut scroll = None;
     let mut seconds = 300u64;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--window" => extra = Some(parse_rect(it.next(), "--window")?),
+            "--framed" => framed = Some(parse_rect(it.next(), "--framed")?),
             "--scroll" => scroll = Some(parse_rect(it.next(), "--scroll")?),
             "--seconds" => seconds = it.next().and_then(|s| s.parse().ok()).ok_or("--seconds N")?,
             other => return Err(format!("unknown argument {other}")),
         }
     }
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
-    let mut app = App { extra, scroll, until: Instant::now() + Duration::from_secs(seconds), gpu: None, panes: Vec::new() };
+    let mut app = App { extra, framed, scroll, until: Instant::now() + Duration::from_secs(seconds), gpu: None, panes: Vec::new() };
     event_loop.run_app(&mut app).map_err(|e| e.to_string())
 }
 
@@ -167,11 +175,12 @@ impl App {
         let title = match kind {
             Kind::Pattern => "ShareXrs test pattern",
             Kind::Window => "ShareXrs test window",
+            Kind::Framed => "ShareXrs framed test window",
             Kind::Scroll(_) => "ShareXrs scroll test",
         };
         let attrs = WindowAttributes::default()
             .with_title(title)
-            .with_decorations(false)
+            .with_decorations(kind == Kind::Framed)
             .with_resizable(false)
             .with_visible(false)
             .with_window_level(WindowLevel::AlwaysOnTop)
@@ -204,6 +213,11 @@ impl ApplicationHandler for App {
             && let Err(e) = self.open(event_loop, r, Kind::Window)
         {
             eprintln!("test window: {e}");
+        }
+        if let Some(r) = self.framed
+            && let Err(e) = self.open(event_loop, r, Kind::Framed)
+        {
+            eprintln!("framed test window: {e}");
         }
         if let Some(r) = self.scroll
             && let Err(e) = self.open(event_loop, r, Kind::Scroll(0))
@@ -243,7 +257,13 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 let size = pane.window.window.inner_size();
-                let (origin, kind) = (pane.origin, pane.kind);
+                let (mut origin, kind) = (pane.origin, pane.kind);
+                // A framed window's client area, where its pattern starts.
+                if kind == Kind::Framed
+                    && let Ok(p) = pane.window.window.inner_position()
+                {
+                    origin = (p.x, p.y);
+                }
                 let texture = &mut pane.texture;
                 pane.window.paint(|ui| {
                     let rect = ui.ctx().content_rect();
@@ -262,7 +282,7 @@ impl ApplicationHandler for App {
                             let tex = texture.get_or_insert_with(|| {
                                 ui.ctx().load_texture(
                                     "pattern",
-                                    image(origin.0, origin.1, size.width, size.height, kind == Kind::Window),
+                                    image(origin.0, origin.1, size.width, size.height, matches!(kind, Kind::Window | Kind::Framed)),
                                     egui::TextureOptions::NEAREST,
                                 )
                             });

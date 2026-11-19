@@ -18,6 +18,7 @@ pub mod geometry;
 pub mod platform;
 pub mod region;
 pub mod screenshot;
+pub mod transparent;
 pub mod scrolling;
 pub mod toolbar_items;
 pub mod windows_list;

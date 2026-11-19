@@ -1,6 +1,6 @@
 """Checks how much of a screen grab is `sharexrs --test-pattern`'s picture.
 
-    python scripts/pattern-check.py shot.png [--origin X,Y] [--min 0.5] [--delete] [--opaque]
+    python scripts/pattern-check.py shot.png [--origin X,Y] [--min 0.5] [--delete] [--opaque] [--search R]
 
 Prints the share of pixels that match the pattern exactly. With --delete,
 removes the file when fewer than --min of them match: a grab that isn't
@@ -47,27 +47,39 @@ def main():
     # --opaque: a capture masked to its regions (ellipse, freehand, several
     # regions) is judged by its opaque pixels; transparent ones show nothing.
     opaque = "--opaque" in args
+    # --search R: the capture's place is only known to within R pixels up
+    # and left of --origin (a window's shadow, cropped to its opaque part).
+    search = int(args[args.index("--search") + 1]) if "--search" in args else 0
     rgba = Image.open(path).convert("RGBA")
     img = rgba.convert("RGB")
     w, h = img.size
     px = img.load()
     alpha = rgba.getchannel("A").load()
-    match = 0
-    total = 0
-    for y in range(0, h, 3):
-        for x in range(0, w, 3):
-            if opaque and alpha[x, y] < 255:
-                continue
-            total += 1
-            c = px[x, y]
-            p = pattern(x + ox, y + oy)
-            q = pattern(x + ox, y + oy, True)
-            ok = close(c, p) or close(c, dim(p)) or close(c, q) or close(c, dim(q))
-            if not ok and dark is not None:
-                ok = close(c, dim(p, dark)) or close(c, dim(q, dark))
-            if ok:
-                match += 1
-    share = match / total if total else 0.0
+
+    def share_at(ox, oy, step):
+        match = 0
+        total = 0
+        for y in range(0, h, step):
+            for x in range(0, w, step):
+                if opaque and alpha[x, y] < 255:
+                    continue
+                total += 1
+                c = px[x, y]
+                p = pattern(x + ox, y + oy)
+                q = pattern(x + ox, y + oy, True)
+                ok = close(c, p) or close(c, dim(p)) or close(c, q) or close(c, dim(q))
+                if not ok and dark is not None:
+                    ok = close(c, dim(p, dark)) or close(c, dim(q, dark))
+                if ok:
+                    match += 1
+        return match / total if total else 0.0
+
+    if search:
+        # A coarse look at every offset, then the best one in full.
+        dx, dy = max(((dx, dy) for dx in range(search + 1) for dy in range(search + 1)),
+                     key=lambda d: share_at(ox - d[0], oy - d[1], 11))
+        ox, oy = ox - dx, oy - dy
+    share = share_at(ox, oy, 3)
     print(f"{path}: {share:.4f} of sampled pixels are the test pattern")
     if delete and share < minimum:
         os.remove(path)

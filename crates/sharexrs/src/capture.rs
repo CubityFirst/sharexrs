@@ -75,18 +75,32 @@ pub enum CaptureError {
     Failed(String),
 }
 
-/// `TaskHelpers.GetScreenshot`, with what's ported of it: the pointer
-/// drawn in (`ShowCursor`), clipped to the monitors. Client area only,
-/// window shadows, hiding the taskbar and HDR correction aren't ported
-/// (all off by default).
-/// `TaskHelpers.GetScreenshot(taskSettings)`.
+/// `TaskHelpers.GetScreenshot(taskSettings)`: the pointer drawn in
+/// (`ShowCursor`), a window's client area only, clipped to the monitors,
+/// the shadow and its offset for transparent window captures, hiding the
+/// taskbar over a window. (`HDRScreenshotColorCorrection` is carried but
+/// not applied: see `Screenshot::hdr_color_correction`.)
 pub(crate) fn task_screenshot(task: &TaskSettings) -> Screenshot {
     screenshot(task)
 }
 
 fn screenshot(task: &TaskSettings) -> Screenshot {
     let capture = task.CaptureSettings.clone().unwrap_or_default();
-    Screenshot { capture_cursor: capture.ShowCursor, remove_outside_screen_area: true }
+    Screenshot {
+        capture_cursor: capture.ShowCursor,
+        capture_client_area: capture.CaptureClientArea,
+        remove_outside_screen_area: true,
+        capture_shadow: capture.CaptureShadow,
+        shadow_offset: capture.CaptureShadowOffset,
+        auto_hide_taskbar: capture.CaptureAutoHideTaskbar,
+        hdr_color_correction: capture.HDRScreenshotColorCorrection,
+    }
+}
+
+/// `CaptureTransparent && !CaptureClientArea`: window captures keep their
+/// transparency (`CaptureWindowTransparent`).
+fn transparent_window(task: &TaskSettings) -> bool {
+    task.CaptureSettings.as_ref().is_some_and(|c| c.CaptureTransparent && !c.CaptureClientArea)
 }
 
 /// `CaptureBase.CreateMetadata(insideRect, ignoreProcess)`: the foreground
@@ -114,15 +128,28 @@ fn screen_working_area(screens: &[sharex_capture::Screen]) -> Rect {
     sharex_capture::geometry::combine(screens.iter().map(|s| s.work_area))
 }
 
-/// `Screenshot.CaptureWindow`: the window's frame (DWM's, without the
-/// invisible resize borders), or its client area with `CaptureClientArea`.
+/// `CaptureWindowTransparent(handle)` with `CaptureTransparent` (and not
+/// the client area), else `CaptureWindow(handle)`: the window's frame
+/// (DWM's, without the invisible resize borders) or its client area.
 fn capture_window(task: &TaskSettings, screens: &[sharex_capture::Screen], handle: isize) -> Option<RgbaImage> {
-    if handle == 0 {
+    let shot = screenshot(task);
+    if transparent_window(task) { shot.capture_window_transparent(screens, handle) } else { shot.capture_window(screens, handle) }
+}
+
+/// `CaptureRegion.CaptureWindowTransparentAsync`: a detected window
+/// captured whole by the region overlay, with `CaptureTransparent`, gets
+/// its rounded corners and (with `CaptureShadow`) shadow from the live
+/// screen 300 ms after the overlay closed; the pixels inside stay the
+/// region capture's (annotations included). `None` keeps the region
+/// capture as it is.
+pub fn region_window_transparent(task: &TaskSettings, window_handle: isize, image: &RgbaImage, rect: Rect) -> Option<RgbaImage> {
+    if window_handle == 0 || !task.CaptureSettings.as_ref().is_some_and(|c| c.CaptureTransparent) {
         return None;
     }
-    let client = task.CaptureSettings.as_ref().is_some_and(|c| c.CaptureClientArea);
-    let rect = if client { platform::client_rect(handle) } else { platform::window_rect(handle) };
-    screenshot(task).capture_rectangle(screens, rect)
+    std::thread::sleep(Duration::from_millis(300));
+    let mut shot = screenshot(task);
+    shot.capture_cursor = false;
+    shot.capture_window_transparent_with(&screenshot::screens(), window_handle, image, rect)
 }
 
 /// `RegionCaptureTasks.ApplyRegionMask`: only the pixels inside `regions`

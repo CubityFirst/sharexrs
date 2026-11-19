@@ -960,3 +960,265 @@ pub fn cursor_clip() -> Rect {
     unsafe { GetClipCursor(&mut r) };
     Rect::new(r.left, r.top, r.right - r.left, r.bottom - r.top)
 }
+
+/// `NativeMethods.IsZoomed`.
+pub fn is_zoomed(handle: isize) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsZoomed;
+    // SAFETY: no pointers.
+    unsafe { IsZoomed(handle as HWND) != 0 }
+}
+
+/// `Helpers.IsWindows11OrGreater`: build 22000 or later.
+pub fn is_windows_11() -> bool {
+    let key: Vec<u16> = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion".encode_utf16().chain([0]).collect();
+    let name: Vec<u16> = "CurrentBuildNumber\0".encode_utf16().collect();
+    let mut buf = [0u16; 32];
+    let mut size = (buf.len() * 2) as u32;
+    // SAFETY: the buffer and its size in bytes are passed.
+    let ok = unsafe {
+        RegGetValueW(
+            windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE,
+            key.as_ptr(),
+            name.as_ptr(),
+            windows_sys::Win32::System::Registry::RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buf.as_mut_ptr().cast(),
+            &mut size,
+        )
+    } == 0;
+    let n = buf.iter().position(|&c| c == 0).unwrap_or(0);
+    ok && String::from_utf16_lossy(&buf[..n]).parse::<u32>().is_ok_and(|b| b >= 22000)
+}
+
+/// `WindowsNativeWindow("ShareX - Transparent capture background", rect,
+/// WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)`: a popup filled with
+/// one colour (`SetBackground`: `UpdateLayeredWindow` of an opaque bitmap),
+/// destroyed when dropped.
+pub struct BackgroundWindow {
+    hwnd: HWND,
+    bounds: Rect,
+}
+
+impl BackgroundWindow {
+    pub fn new(bounds: Rect) -> Option<Self> {
+        use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DefWindowProcW, RegisterClassExW, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+        };
+        if bounds.w <= 0 || bounds.h <= 0 {
+            return None;
+        }
+        let class: Vec<u16> = "ShareXrs.NativeOverlay\0".encode_utf16().collect();
+        let title: Vec<u16> = "ShareX - Transparent capture background\0".encode_utf16().collect();
+        // SAFETY: the class and title strings outlive the calls; a second
+        // registration of the class fails harmlessly.
+        unsafe {
+            let instance = GetModuleHandleW(std::ptr::null());
+            let info = WNDCLASSEXW {
+                cbSize: size_of::<WNDCLASSEXW>() as u32,
+                lpfnWndProc: Some(DefWindowProcW),
+                hInstance: instance,
+                lpszClassName: class.as_ptr(),
+                ..std::mem::zeroed()
+            };
+            RegisterClassExW(&info);
+            let hwnd = CreateWindowExW(
+                WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                class.as_ptr(),
+                title.as_ptr(),
+                WS_POPUP,
+                bounds.x,
+                bounds.y,
+                bounds.w,
+                bounds.h,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                instance,
+                std::ptr::null(),
+            );
+            (!hwnd.is_null()).then_some(Self { hwnd, bounds })
+        }
+    }
+
+    /// `SetBackground(color, bounds)`.
+    pub fn set_color(&mut self, rgb: [u8; 3]) {
+        use windows_sys::Win32::Foundation::SIZE;
+        use windows_sys::Win32::Graphics::Gdi::{
+            AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION, CreateCompatibleDC, CreateDIBSection,
+            DIB_RGB_COLORS, DeleteDC, DeleteObject, GdiFlush, SelectObject,
+        };
+        use windows_sys::Win32::UI::WindowsAndMessaging::{ULW_ALPHA, UpdateLayeredWindow};
+        let (w, h) = (self.bounds.w, self.bounds.h);
+        // SAFETY: a DIB section of w*h BGRA pixels, filled, given to the
+        // layered window and freed.
+        unsafe {
+            let dc = CreateCompatibleDC(std::ptr::null_mut());
+            let mut bi: BITMAPINFO = std::mem::zeroed();
+            bi.bmiHeader = BITMAPINFOHEADER {
+                biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB,
+                ..std::mem::zeroed()
+            };
+            let mut bits: *mut c_void = std::ptr::null_mut();
+            let bitmap = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &mut bits, std::ptr::null_mut(), 0);
+            if bitmap.is_null() || bits.is_null() {
+                DeleteDC(dc);
+                return;
+            }
+            let previous = SelectObject(dc, bitmap);
+            let pixels = std::slice::from_raw_parts_mut(bits.cast::<u8>(), (w * h * 4) as usize);
+            for px in pixels.chunks_exact_mut(4) {
+                px.copy_from_slice(&[rgb[2], rgb[1], rgb[0], 255]);
+            }
+            GdiFlush();
+            let blend = BLENDFUNCTION { BlendOp: AC_SRC_OVER as u8, BlendFlags: 0, SourceConstantAlpha: 255, AlphaFormat: AC_SRC_ALPHA as u8 };
+            let at = POINT { x: self.bounds.x, y: self.bounds.y };
+            let size = SIZE { cx: w, cy: h };
+            let origin = POINT { x: 0, y: 0 };
+            UpdateLayeredWindow(self.hwnd, std::ptr::null_mut(), &at, &size, dc, &origin, 0, &blend, ULW_ALPHA);
+            SelectObject(dc, previous);
+            DeleteObject(bitmap);
+            DeleteDC(dc);
+        }
+    }
+
+    /// `ShowWindow(ShowNoActivate)`, then `SetWindowPos` right under
+    /// `target` (false when that fails).
+    pub fn show_behind(&self, target: isize) -> bool {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos, ShowWindow,
+        };
+        // SAFETY: our window and the target's handle.
+        unsafe {
+            ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
+            SetWindowPos(self.hwnd, target as HWND, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE) != 0
+        }
+    }
+
+    /// `FlushCaptureBackground`: `DwmFlush`, then 10 ms.
+    pub fn flush() {
+        // SAFETY: no arguments.
+        unsafe { windows_sys::Win32::Graphics::Dwm::DwmFlush() };
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+impl Drop for BackgroundWindow {
+    fn drop(&mut self) {
+        // SAFETY: our window, no longer used.
+        unsafe { windows_sys::Win32::UI::WindowsAndMessaging::DestroyWindow(self.hwnd) };
+    }
+}
+
+fn find_window(class: &str, parent: HWND, after: HWND, title: Option<&str>) -> HWND {
+    use windows_sys::Win32::UI::WindowsAndMessaging::FindWindowExW;
+    let class: Vec<u16> = class.encode_utf16().chain([0]).collect();
+    let title: Option<Vec<u16>> = title.map(|t| t.encode_utf16().chain([0]).collect());
+    // SAFETY: NUL-terminated strings that outlive the call.
+    unsafe { FindWindowExW(parent, after, class.as_ptr(), title.as_ref().map_or(std::ptr::null(), |t| t.as_ptr())) }
+}
+
+/// The taskbar (`FindWindow("Shell_TrayWnd", null)`).
+fn taskbar() -> HWND {
+    find_window("Shell_TrayWnd", std::ptr::null_mut(), std::ptr::null_mut(), None)
+}
+
+fn show_window(hwnd: HWND, visible: bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOW, ShowWindow};
+    // SAFETY: a window handle; no pointers.
+    unsafe { ShowWindow(hwnd, if visible { SW_SHOW } else { SW_HIDE }) };
+}
+
+/// `NativeMethods.SetTaskbarVisibilityIfIntersect(visible, rect)`: the
+/// taskbar is shown or hidden when it overlaps `rect`; true if it was.
+/// (ShareX's Vista/7 Start button branch doesn't apply on Windows 10+.)
+pub fn set_taskbar_visibility_if_intersect(visible: bool, rect: Rect) -> bool {
+    let h = taskbar();
+    if h.is_null() {
+        return false;
+    }
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    // SAFETY: a RECT to fill.
+    unsafe { GetWindowRect(h, &mut r) };
+    let bar = Rect::new(r.left, r.top, r.right - r.left, r.bottom - r.top);
+    // `Rectangle.IntersectsWith`.
+    let intersects = rect.x < bar.right() && bar.x < rect.right() && rect.y < bar.bottom() && bar.y < rect.bottom();
+    if intersects {
+        show_window(h, visible);
+    }
+    intersects
+}
+
+/// `NativeMethods.SetTaskbarVisibility(visible)`.
+pub fn set_taskbar_visibility(visible: bool) -> bool {
+    let h = taskbar();
+    if h.is_null() {
+        return false;
+    }
+    show_window(h, visible);
+    true
+}
+
+/// Whether the taskbar window is visible (`IsWindowVisible`), for checks.
+pub fn is_taskbar_visible() -> Option<bool> {
+    let h = taskbar();
+    (!h.is_null()).then(|| is_window_visible(h as isize))
+}
+
+/// `DesktopIconManager.GetDesktopListViewHandle`: the desktop's
+/// `SysListView32` "FolderView" under Progman's or a WorkerW's
+/// `SHELLDLL_DefView`.
+fn desktop_list_view() -> HWND {
+    let null = std::ptr::null_mut();
+    let progman = find_window("Progman", null, null, None);
+    let mut def_view = find_window("SHELLDLL_DefView", progman, null, None);
+    if def_view.is_null() {
+        let mut worker = null;
+        loop {
+            worker = find_window("WorkerW", null, worker, None);
+            if worker.is_null() {
+                break;
+            }
+            def_view = find_window("SHELLDLL_DefView", worker, null, None);
+            if !def_view.is_null() {
+                break;
+            }
+        }
+    }
+    if def_view.is_null() { null } else { find_window("SysListView32", def_view, null, Some("FolderView")) }
+}
+
+/// `DesktopIconManager.AreDesktopIconsVisible`.
+pub fn are_desktop_icons_visible() -> bool {
+    let h = desktop_list_view();
+    !h.is_null() && is_window_visible(h as isize)
+}
+
+/// `DesktopIconManager.SetDesktopIconsVisibility(show)`.
+pub fn set_desktop_icons_visibility(show: bool) -> bool {
+    let h = desktop_list_view();
+    if h.is_null() {
+        return false;
+    }
+    show_window(h, show);
+    true
+}
+
+/// `CaptureHelpers.IsActiveWindowFullscreen`: the foreground window (not
+/// the desktop's Progman or WorkerW) covers its whole monitor.
+pub fn is_active_window_fullscreen(screens: &[Screen]) -> bool {
+    let h = foreground_window();
+    if h == 0 {
+        return false;
+    }
+    let class = class_name(h as HWND);
+    if ["Progman", "WorkerW"].iter().any(|c| class.eq_ignore_ascii_case(c)) {
+        return false;
+    }
+    let r = window_rect(h);
+    crate::screenshot::screen_from_rectangle(screens, r).is_some_and(|s| r.contains_rect(&s.bounds))
+}
