@@ -749,6 +749,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
             };
             state.page = page;
             state.set_scroll(page, scroll);
+            // `--text "ftp:A|B;custom:C|D"`: uploader accounts (FTP and custom
+            // uploaders' names) for the Task page.
+            if let Some(spec) = dialog.text.as_deref() {
+                for part in spec.split(';') {
+                    let (kind, names) = part.split_once(':').unwrap_or((part, ""));
+                    let names: Vec<String> = names.split('|').filter(|n| !n.is_empty()).map(str::to_string).collect();
+                    match kind {
+                        "ftp" => state.accounts.ftp = names,
+                        "custom" => state.accounts.custom = names,
+                        _ => {}
+                    }
+                }
+            }
             {
                 let task = if for_hotkey { &mut hotkeys[0].TaskSettings } else { &mut settings.DefaultTaskSettings };
                 // `--state no-actions`: a session where no image editor is

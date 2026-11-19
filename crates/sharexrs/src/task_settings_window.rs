@@ -128,6 +128,32 @@ pub(crate) fn paint_tree_chevron(ui: &Ui, rect: Rect, expanded: bool, color: egu
     ui.painter().add(egui::Shape::line(points.to_vec(), stroke));
 }
 
+/// The uploader accounts the Task page lists, as each account's
+/// `ToString()`: `ApplicationState.UploadersConfigOrNull`'s `FTPAccountList`
+/// and `CustomUploadersList`, read when the window's pages are built (none
+/// while the config is still loading).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UploaderAccounts {
+    pub ftp: Vec<String>,
+    pub custom: Vec<String>,
+}
+
+impl UploaderAccounts {
+    pub fn from_config(c: &sharex_uploaders::UploadersConfig) -> Self {
+        use sharex_uploaders::destinations::ftp::FTPAccount;
+        Self {
+            ftp: FTPAccount::list_from_value(&c.FTPAccountList).unwrap_or_default().iter().map(FTPAccount::display_name).collect(),
+            custom: c.CustomUploadersList.0.iter().map(|u| u.display_name()).collect(),
+        }
+    }
+}
+
+/// `BetweenOrDefault(0, count - 1)`: the saved index if it's in the list,
+/// else the first.
+fn account_index(index: i32, count: usize) -> usize {
+    usize::try_from(index).ok().filter(|&i| i < count).unwrap_or(0)
+}
+
 /// What the window's popup menus choose.
 #[derive(Clone, Debug, PartialEq)]
 enum MenuCmd {
@@ -167,6 +193,8 @@ pub struct TaskSettingsWindow {
     /// `ToolbarEditorOverlay` (`ShowToolbarEditor`).
     pub toolbar_editor: Option<crate::toolbar_editor::ToolbarEditor>,
     color_open: bool,
+    /// The Task page's uploader accounts.
+    pub accounts: UploaderAccounts,
     /// The variable menus of the name pattern, pixel info and upload info
     /// boxes (`_activeCodeMenu`).
     pub variables: crate::variable_menu::VariableMenus,
@@ -206,6 +234,7 @@ impl TaskSettingsWindow {
             notification_editor: None,
             toolbar_editor: None,
             color_open: false,
+            accounts: UploaderAccounts::default(),
             variables: Default::default(),
             effects: Vec::new(),
         }
@@ -881,10 +910,35 @@ fn page_task(f: &mut Form) {
             f.w.menu = Some(Flyout::menu(Id::new("destinations-flyout"), entries, anchor, Placement::BottomEdgeAlignedLeft));
         }
     });
-    // Uploader accounts: FTP accounts and custom uploaders aren't loaded yet
-    // (`UploadersConfig`), so the card has only its title, as ShareX's
-    // does without any.
-    f.card(4.0, &mut |f| f.title(s::TaskSettingsWindow_UploaderAccounts()));
+    // Uploader accounts: an override check box and the account per list
+    // that has any (the card has only its title without accounts).
+    f.card(4.0, &mut |f| {
+        f.title(s::TaskSettingsWindow_UploaderAccounts());
+        let ftp = f.w.accounts.ftp.clone();
+        if !ftp.is_empty() {
+            let mut o = f.s.task.OverrideFTP;
+            if f.check(s::TaskSettingsWindow_OverrideDefaultFTPAccount(), &mut o, true) {
+                f.s.task.OverrideFTP = o;
+            }
+            let items: Vec<ComboItem> = ftp.iter().map(|n| ComboItem::text(n.clone())).collect();
+            let cur = account_index(f.s.task.FTPIndex, ftp.len());
+            if let Some(i) = f.combo(s::TaskSettingsWindow_FTPAccount(), LABEL_W, &items, Some(cur), ComboSize::default(), o) {
+                f.s.task.FTPIndex = i as i32;
+            }
+        }
+        let custom = f.w.accounts.custom.clone();
+        if !custom.is_empty() {
+            let mut o = f.s.task.OverrideCustomUploader;
+            if f.check(s::TaskSettingsWindow_OverrideDefaultCustomUploader(), &mut o, true) {
+                f.s.task.OverrideCustomUploader = o;
+            }
+            let items: Vec<ComboItem> = custom.iter().map(|n| ComboItem::text(n.clone())).collect();
+            let cur = account_index(f.s.task.CustomUploaderIndex, custom.len());
+            if let Some(i) = f.combo(s::TaskSettingsWindow_CustomUploader(), LABEL_W, &items, Some(cur), ComboSize::default(), o) {
+                f.s.task.CustomUploaderIndex = i as i32;
+            }
+        }
+    });
     f.card(4.0, &mut |f| {
         f.title(s::TaskSettingsWindow_ScreenshotsFolder());
         let mut o = f.s.task.OverrideScreenshotsFolder;
@@ -2043,6 +2097,19 @@ mod tests {
         assert_eq!(w.page, 11);
         w.select_page(6);
         assert_eq!(w.page, 6);
+    }
+
+    #[test]
+    fn uploader_accounts_as_their_to_string() {
+        let mut c = sharex_uploaders::UploadersConfig::default();
+        c.FTPAccountList = serde_json::json!([{ "Name": "Home", "Host": "example.com", "Port": 2121 }]);
+        c.CustomUploadersList.0.push(sharex_uploaders::custom::CustomUploaderItem { request_url: Some("https://up.example.org/x".into()), ..Default::default() });
+        let a = UploaderAccounts::from_config(&c);
+        assert_eq!(a.ftp, ["Home (example.com:2121)"]);
+        assert_eq!(a.custom, ["up.example.org"]);
+        assert_eq!(account_index(3, 2), 0);
+        assert_eq!(account_index(-1, 2), 0);
+        assert_eq!(account_index(1, 2), 1);
     }
 
     #[test]
