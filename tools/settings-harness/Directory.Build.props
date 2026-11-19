@@ -1,0 +1,6 @@
+<Project>
+  <!-- Keep build intermediates out of the source tree (under the repo's ignored target/). -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\target\settings-harness-obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

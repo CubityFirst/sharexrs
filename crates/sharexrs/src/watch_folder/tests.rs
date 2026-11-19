@@ -45,6 +45,26 @@ fn collect(rx: &mpsc::Receiver<PathBuf>, wait: Duration) -> Vec<PathBuf> {
     out
 }
 
+/// The triggers until `expected` have come (or 10 s pass), then any more
+/// within 500 ms. macOS's FSEvents can deliver an event seconds late on a
+/// loaded CI runner, past a fixed quiet period; extras still show up.
+fn collect_expecting(rx: &mpsc::Receiver<PathBuf>, expected: usize) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while out.len() < expected {
+        let Some(left) = deadline.checked_duration_since(Instant::now()) else { break };
+        match rx.recv_timeout(left) {
+            Ok(p) => out.push(p),
+            Err(_) => break,
+        }
+    }
+    while let Ok(p) = rx.recv_timeout(Duration::from_millis(500)) {
+        out.push(p);
+    }
+    out.sort();
+    out
+}
+
 #[test]
 fn ready_after_the_size_holds_four_checks() {
     let dir = scratch("ready");
@@ -138,13 +158,13 @@ fn new_files_pass_the_filter_and_subfolders_setting() {
     }
     std::fs::write(dir.join("empty.png"), b"").unwrap();
     std::fs::create_dir(dir.join("folder.png")).unwrap();
-    let got = collect(&rx, Duration::from_millis(1500));
-    drop(watch);
     let mut want = vec![dir.join("a.png")];
     // FileSystemWatcher ignores case outside Linux.
     if !cfg!(target_os = "linux") {
         want.insert(0, dir.join("B.PNG"));
     }
+    let got = collect_expecting(&rx, want.len());
+    drop(watch);
     assert_eq!(got, want);
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -158,7 +178,7 @@ fn subfolders_when_asked() {
     std::thread::sleep(Duration::from_millis(100));
     std::fs::write(dir.join("top.txt"), b"x").unwrap();
     std::fs::write(dir.join("sub").join("deeper").join("low.jpg"), b"x").unwrap();
-    let got = collect(&rx, Duration::from_millis(1500));
+    let got = collect_expecting(&rx, 2);
     drop(watch);
     assert_eq!(got, vec![dir.join("sub").join("deeper").join("low.jpg"), dir.join("top.txt")]);
     let _ = std::fs::remove_dir_all(dir);

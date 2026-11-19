@@ -142,6 +142,39 @@ pub fn app_icon(size: u32) -> RgbaImage {
     image::imageops::resize(&image, size, size, image::imageops::FilterType::Triangle)
 }
 
+/// Whether the app's icon is the white one (`ShareXResources.UseWhiteIcon`,
+/// from `UseWhiteShareXIcon`).
+static WHITE_ICON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `MainForm.ApplyIconSetting`: `ShareXResources.UseWhiteIcon`.
+pub fn set_white_icon(white: bool) {
+    WHITE_ICON.store(white, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// `ShareXResources.IconBytes`: the white icon with `UseWhiteShareXIcon`,
+/// else the app's, at `size` pixels square.
+pub fn current_icon(size: u32) -> RgbaImage {
+    let icon = app_icon(size);
+    if WHITE_ICON.load(std::sync::atomic::Ordering::Relaxed) { white_icon(&icon) } else { icon }
+}
+
+/// ShareX's white icon (`ShareX_Icon_White.ico`) is its logo's silhouette in
+/// white. ShareXrs's logo is a blue square with a white "S": its white icon
+/// is the square in white with the "S" cut out. Each pixel of the colour
+/// icon is a blend of the blue (#2563EB) and white; the white icon keeps the
+/// blue part's share as its alpha.
+pub fn white_icon(icon: &RgbaImage) -> RgbaImage {
+    const BLUE_R: f32 = 0x25 as f32;
+    let mut out = icon.clone();
+    for p in out.pixels_mut() {
+        // How much of the pixel is blue (0 for the white "S").
+        let blue = ((255.0 - p[0] as f32) / (255.0 - BLUE_R)).clamp(0.0, 1.0);
+        let a = (p[3] as f32 * blue).round() as u8;
+        *p = image::Rgba([255, 255, 255, a]);
+    }
+    out
+}
+
 /// `TaskManager.UpdateTrayIcon`'s colour for the progress.
 const PROGRESS_COLOR: [u8; 3] = [16, 116, 193];
 
@@ -275,6 +308,19 @@ mod tests {
         assert_eq!(app_icon(16).dimensions(), (16, 16));
         assert_eq!(app_icon(20).dimensions(), (20, 20));
         assert_eq!(app_icon(24).dimensions(), (24, 24));
+    }
+
+    #[test]
+    fn the_white_icon_is_the_square_without_the_s() {
+        let icon = app_icon(64);
+        let white = white_icon(&icon);
+        // The corner stays transparent, the blue becomes opaque white, the
+        // middle of the "S" stroke goes.
+        assert_eq!(white.get_pixel(0, 0)[3], icon.get_pixel(0, 0)[3]);
+        let blue = (0..64).flat_map(|y| (0..64).map(move |x| (x, y))).find(|&(x, y)| icon.get_pixel(x, y)[0] < 0x40 && icon.get_pixel(x, y)[3] == 255).unwrap();
+        assert_eq!(white.get_pixel(blue.0, blue.1), &image::Rgba([255, 255, 255, 255]));
+        let s = (0..64).flat_map(|y| (0..64).map(move |x| (x, y))).find(|&(x, y)| icon.get_pixel(x, y)[0] > 0xF0 && icon.get_pixel(x, y)[3] == 255).unwrap();
+        assert!(white.get_pixel(s.0, s.1)[3] < 16);
     }
 
     #[test]

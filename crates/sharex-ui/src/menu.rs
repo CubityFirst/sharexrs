@@ -53,6 +53,11 @@ pub enum MenuIcon {
     None,
     /// A ShareX icon key, drawn in the accent colour (`accent-menu-icon`).
     Key(&'static str),
+    /// A ShareX icon key in the accent colour at this size, centred in the
+    /// icon column: an `accent-menu-icon` wider than Fluent's 16x16
+    /// `PART_IconPresenter` `Viewbox`, which scales it down (the Task
+    /// settings page's 18-wide, 16px `CreateAccentMenuIcon`: 16 * 16/18).
+    Accent(&'static str, f32),
     /// A ShareX icon key in the item's foreground at this size, centred in
     /// the icon column: a plain `MenuItem.Icon` `IconPresenter` (the
     /// history windows' context menus).
@@ -1102,6 +1107,10 @@ fn paint_item<C>(ui: &Ui, rect: Rect, entry: &MenuEntry<C>, m: &MenuMetrics, sta
             MenuIcon::Plain(key, size) => {
                 let r = Rect::from_center_size(b.center(), Vec2::splat(size));
                 icons::paint(painter, r, key, header_color);
+            }
+            MenuIcon::Accent(key, size) => {
+                let r = Rect::from_center_size(b.center(), Vec2::splat(size));
+                icons::paint(painter, r, key, if accent_hover { p.accent_foreground } else { p.accent_icon });
             }
             MenuIcon::Texture(tex) => {
                 painter.image(tex, b, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);

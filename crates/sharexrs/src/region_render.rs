@@ -29,6 +29,9 @@ pub fn render(
     let mut work_area = None;
     // `--options JSON`: `RegionCaptureOptions` members over the defaults.
     let mut options = RegionCaptureOptions::default();
+    // `--select-only`: `capture_job::prepare_selection`'s request (no
+    // annotations, one region): Select region... and the auto capture's.
+    let mut select_only = false;
 
     for (k, v) in args {
         match k.as_str() {
@@ -37,6 +40,7 @@ pub fn render(
                 pointer = (p[0], p[1]);
             }
             "--drag" => drag = Some(numbers(v, 4, k)?),
+            "--select-only" => select_only = true,
             "--window" => window = Some(numbers(v, 4, k)?),
             "--steps" => steps = Some(v.clone()),
             "--work-area" => work_area = Some(numbers(v, 4, k)?),
@@ -78,10 +82,10 @@ pub fn render(
         windows,
         cursor: Some(pointer),
         last_regions: Vec::new(),
-        enable_annotations: true,
+        enable_annotations: !select_only,
         editor_options: Default::default(),
         cursor_image: None,
-        allow_multiple_regions: true,
+        allow_multiple_regions: !select_only,
         pixel_info: Some(crate::capture_job::pixel_info),
     });
     let none = Modifiers::default();

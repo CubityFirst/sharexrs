@@ -17,6 +17,8 @@ use sharex_ui::controls::{self, Button, ColorButton, ComboItem, NumericUpDown, T
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{density, fluent, palette};
 use sharex_ui::widgets::{center_y, font, galley, line_height, text_width};
+use sharex_helpers::code_menu;
+use sharex_ui::menu::{Flyout, MenuEntry, MenuStyle, Placement};
 use sharex_ui::{icons, menu::paint_accent_gradient};
 
 use crate::appearance;
@@ -31,6 +33,8 @@ pub const HEIGHT: f32 = 720.0;
 pub const MIN_HEIGHT: f32 = 600.0;
 /// The navigation column (`ColumnDefinitions="220,*"`).
 const NAV_WIDTH: f32 = 220.0;
+/// Fluent's horizontal `ProgressBar` `MinWidth`.
+const PROGRESS_MIN_WIDTH: f32 = 200.0;
 
 /// What the window asks of the app.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +55,13 @@ pub enum Effect {
     PrintSettings,
     /// `QuickTaskMenuEditorIntegration.Show`.
     QuickTaskMenuEditor,
+    /// `OnExportClick`: the picker, then `ExportAsync` with the Settings and
+    /// History check boxes.
+    ExportSettings { settings: bool, history: bool },
+    /// `OnImportClick`: the picker, then `ImportAsync`.
+    ImportSettings,
+    /// `ResetAsync`: the question, then the reset.
+    ResetSettings,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -83,6 +94,89 @@ struct FormatEditor {
     focus: bool,
 }
 
+/// The text box a variable menu inserts into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodeTarget {
+    /// Paths › Sub folder pattern (`SaveImageSubFolderPatternTextBox`).
+    SubFolder,
+    /// Paths › Sub folder pattern for window captures.
+    SubFolderWindow,
+    /// The clipboard format editor's Format box (`ClipboardFormatTextBox`).
+    ClipboardFormat,
+}
+
+/// An open variable menu (`AttachFilenamePatternMenu`, `AttachClipboardFormatMenu`).
+pub struct CodeMenu {
+    pub target: CodeTarget,
+    pub flyout: Flyout<String>,
+    /// The text box's id (its caret is where the variable goes).
+    field: Id,
+}
+
+/// `CodeMenuEntryFilename`s each sub folder pattern box leaves out.
+fn ignored_variables(target: CodeTarget) -> &'static [&'static str] {
+    match target {
+        CodeTarget::SubFolder => &["t", "pn", "i", "width", "height", "n"],
+        CodeTarget::SubFolderWindow => &["i", "n"],
+        CodeTarget::ClipboardFormat => &[],
+    }
+}
+
+/// `ClipboardResultTokens`.
+pub const CLIPBOARD_RESULT_TOKENS: [&str; 13] =
+    ["$result", "$url", "$shorturl", "$thumbnailurl", "$deletionurl", "$filepath", "$filename", "$filenamenoext", "$thumbnailfilename", "$thumbnailfilenamenoext", "$folderpath", "$foldername", "$uploadtime"];
+
+/// `AttachFilenamePatternMenu`'s items: "`%y` - Current year" by category
+/// (a submenu each; `%n` has none), without the box's ignored entries.
+pub fn filename_pattern_menu(target: CodeTarget) -> Vec<MenuEntry<String>> {
+    let ignored = ignored_variables(target);
+    let entries = code_menu::ALL.into_iter().filter(|e| !ignored.contains(&e.value));
+    let item = |e: &code_menu::CodeMenuEntryFilename| MenuEntry::item(format!("{} - {}", e.to_prefix_string(), e.description()), "", e.to_prefix_string());
+    let mut out = Vec::new();
+    for (category, group) in code_menu::group_by_category(entries) {
+        let items: Vec<_> = group.iter().map(item).collect();
+        match category {
+            Some(c) if !c.trim().is_empty() => out.push(MenuEntry::parent(c, "", items)),
+            _ => out.extend(items),
+        }
+    }
+    out
+}
+
+/// `AttachClipboardFormatMenu`'s items: Upload result's tokens, then every
+/// name pattern variable by category, each item its token alone (the
+/// description is its tooltip).
+pub fn clipboard_format_menu() -> Vec<MenuEntry<String>> {
+    let mut out = vec![MenuEntry::parent(s::ApplicationSettingsWindow_UploadResult(), "", CLIPBOARD_RESULT_TOKENS.iter().map(|t| MenuEntry::item(*t, "", t.to_string())).collect())];
+    for (category, group) in code_menu::group_by_category(code_menu::ALL) {
+        let items: Vec<_> = group.iter().map(|e| MenuEntry::item(e.to_prefix_string(), "", e.to_prefix_string())).collect();
+        match category {
+            Some(c) if !c.trim().is_empty() => out.push(MenuEntry::parent(c, "", items)),
+            _ => out.extend(items),
+        }
+    }
+    out
+}
+
+/// Puts `token` into `text` at the caret of the text box `id`, the caret
+/// after it, and focuses the box: `InsertText` (at the selection's start,
+/// keeping it) or, with `replace_selection`, `InsertClipboardToken`.
+pub fn insert_at_caret(ctx: &egui::Context, id: Id, text: &mut String, token: &str, replace_selection: bool) {
+    let chars: Vec<char> = text.chars().collect();
+    let mut state = egui::text_edit::TextEditState::load(ctx, id).unwrap_or_default();
+    let (a, b) = state.cursor.char_range().map_or((chars.len(), chars.len()), |r| (r.primary.index.into(), r.secondary.index.into()));
+    let start = a.min(b).min(chars.len());
+    let end = if replace_selection { a.max(b).clamp(start, chars.len()) } else { start };
+    let mut out: String = chars[..start].iter().collect();
+    out.push_str(token);
+    out.extend(&chars[end..]);
+    *text = out;
+    let caret = egui::text::CCursor::new(start + token.chars().count());
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(caret)));
+    state.store(ctx, id);
+    ctx.memory_mut(|m| m.request_focus(id));
+}
+
 /// The window's own state (the view model's fields that aren't settings).
 pub struct ApplicationSettings {
     pub page: usize,
@@ -97,8 +191,8 @@ pub struct ApplicationSettings {
     /// it's portable, for the previews.
     portable: bool,
     screenshots_parent: PathBuf,
-    export_settings: bool,
-    export_history: bool,
+    pub export_settings: bool,
+    pub export_history: bool,
     /// `SelectedSpacingPreview`: 0 sidebar, 1 menus, 2 tool menus.
     spacing_preview: usize,
     clipboard_selected: Option<usize>,
@@ -107,6 +201,19 @@ pub struct ApplicationSettings {
     /// The Explorer and browser integrations' check boxes
     /// (`RefreshIntegration`), in `integration::SWITCHES`' order.
     integrations: [bool; 6],
+    /// Where they're read and changed (the system, or a test's).
+    integration: Box<dyn crate::integration::IntegrationBackend>,
+    /// `IsBusy`: an export, import or reset is running.
+    pub busy: bool,
+    /// When `busy` started (egui's clock), for the progress bar's animation;
+    /// renders set the phase instead.
+    busy_since: Option<f64>,
+    pub busy_phase: Option<f64>,
+    /// The open variable menu (`_activeCodeMenu`).
+    pub code_menu: Option<CodeMenu>,
+    /// A box focused again after an insertion: it doesn't open its menu
+    /// (ShareX's menu never takes the focus, so `GotFocus` doesn't fire).
+    refocused: Option<Id>,
     effects: Vec<Effect>,
 }
 
@@ -130,8 +237,59 @@ impl ApplicationSettings {
             editor: None,
             color_open: false,
             integrations: crate::integration::SWITCHES.map(crate::integration::check),
+            integration: Box::new(crate::integration::SystemIntegration),
+            busy: false,
+            busy_since: None,
+            busy_phase: None,
+            code_menu: None,
+            refocused: None,
             effects: Vec::new(),
         }
+    }
+
+    /// `Reload()` after an import or a reset: the personal folder read
+    /// again, the integrations and startup state refreshed, the clipboard
+    /// formats with the first selected, and the first page.
+    pub fn reload(&mut self, settings: &ApplicationConfig) {
+        self.personal_folder = sharex_settings::paths::read_personal_path_config();
+        self.personal_dirty = false;
+        self.refresh_integrations();
+        self.startup = None;
+        self.clipboard_selected = (!settings.ClipboardContentFormats.is_empty()).then_some(0);
+        self.editor = None;
+        self.page = 0;
+    }
+
+    /// Opens the clipboard format editor: Add, or Edit on format `index`.
+    pub fn open_format_editor(&mut self, settings: &ApplicationConfig, index: Option<usize>) {
+        let g = |i: usize, k: &str| settings.ClipboardContentFormats.get(i).and_then(|v| v.get(k)).and_then(|x| x.as_str()).unwrap_or_default().to_string();
+        let (description, format) = index.map_or((String::new(), String::new()), |i| (g(i, "Description"), g(i, "Format")));
+        self.editor = Some(FormatEditor { index, description, format, focus: true });
+    }
+
+    /// Scrolls page `page` to `y` (clamped when drawn); `f32::MAX` is the end.
+    pub fn set_scroll(&mut self, page: usize, y: f32) {
+        self.scroll[page] = y;
+    }
+
+    /// Uses `backend` for the integration check boxes, and reads them from it.
+    pub fn with_integration(mut self, backend: Box<dyn crate::integration::IntegrationBackend>) -> Self {
+        self.integration = backend;
+        self.refresh_integrations();
+        self
+    }
+
+    /// `RefreshIntegrations`.
+    fn refresh_integrations(&mut self) {
+        let backend = &self.integration;
+        self.integrations = crate::integration::SWITCHES.map(|s| backend.check(s));
+    }
+
+    /// `IsBusy = true` with the status (`ExportingBackup`, `ImportingBackup`).
+    pub fn start_busy(&mut self, status: &str) {
+        self.busy = true;
+        self.busy_since = None;
+        self.status = status.to_owned();
     }
 
     /// `FlushPersonalPath` (on close): the personal folder is written to
@@ -205,7 +363,53 @@ impl ApplicationSettings {
         if self.editor.is_some() {
             self.format_editor(ui, full, settings);
         }
+        self.show_code_menu(ui, full, settings);
         std::mem::take(&mut self.effects)
+    }
+
+    /// Opens `target`'s menu (closing another one), unless it's open.
+    /// `anchor` is the text box (`RightEdgeAlignedTop`); the clipboard
+    /// format's context menu opens at `pointer`.
+    pub fn open_code_menu(&mut self, target: CodeTarget, field: Id, anchor: Rect, pointer: Option<egui::Pos2>) {
+        if self.code_menu.as_ref().is_some_and(|m| m.target == target) {
+            return;
+        }
+        let (entries, placement) = match target {
+            CodeTarget::ClipboardFormat => (clipboard_format_menu(), Placement::Pointer(pointer.unwrap_or(anchor.min))),
+            t => (filename_pattern_menu(t), Placement::RightEdgeAlignedTop),
+        };
+        let mut flyout = Flyout::menu(Id::new(("code-menu", target as u8)), entries, anchor, placement);
+        flyout.style = MenuStyle::Standard;
+        self.code_menu = Some(CodeMenu { target, flyout, field });
+    }
+
+    /// The open variable menu over the window: an item inserts its variable
+    /// into its box; a click elsewhere or Escape closes it.
+    fn show_code_menu(&mut self, ui: &mut Ui, full: Rect, settings: &mut ApplicationConfig) {
+        let Some(menu) = self.code_menu.as_mut() else { return };
+        let layer = egui::LayerId::new(egui::Order::Foreground, Id::new("code-menu-layer"));
+        let child = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
+        let out = menu.flyout.show(&child, full);
+        let pressed_outside = ui.input(|i| i.pointer.any_pressed()) && ui.input(|i| i.pointer.interact_pos()).is_some_and(|pos| !menu.flyout.contains(pos));
+        if let Some(token) = out.command {
+            let (target, field) = (menu.target, menu.field);
+            match target {
+                CodeTarget::SubFolder | CodeTarget::SubFolderWindow => {
+                    let value = if target == CodeTarget::SubFolder { &mut settings.SaveImageSubFolderPattern } else { &mut settings.SaveImageSubFolderPatternWindow };
+                    insert_at_caret(ui.ctx(), field, value, &token, false);
+                    *value = sharex_helpers::file_helpers::sanitize_path(value);
+                }
+                CodeTarget::ClipboardFormat => {
+                    if let Some(ed) = self.editor.as_mut() {
+                        insert_at_caret(ui.ctx(), field, &mut ed.format, &token, true);
+                    }
+                }
+            }
+            self.refocused = Some(field);
+            self.code_menu = None;
+        } else if out.closed || pressed_outside || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.code_menu = None;
+        }
     }
 
     /// The restart (accent border) or status banner at `y`; returns its bottom.
@@ -233,13 +437,27 @@ impl ApplicationSettings {
             }
             r.max.y
         } else {
-            let text_w = w - 26.0 - 26.0;
+            // `ColumnDefinitions="Auto,*" ColumnSpacing="8"`: the busy
+            // `ProgressBar` (`Width="18" Height="18"`, which Fluent's
+            // horizontal `MinWidth="200"` widens) then the wrapped text.
+            let bar_w = if self.busy { PROGRESS_MIN_WIDTH } else { 0.0 };
+            let text_w = w - 26.0 - bar_w - 8.0;
             let th = controls::wrapped(ui, pos2(0.0, 0.0), text_w, &self.status, body.clone(), p.text_secondary, false);
-            let h = 1.0 + 8.0 + th + 8.0 + 1.0;
+            let row = if self.busy { th.max(18.0) } else { th };
+            let h = 1.0 + 8.0 + row + 8.0 + 1.0;
             let r = Rect::from_min_size(pos2(x0, y), vec2(w, h));
             ui.painter().rect_filled(r, CornerRadius::same(5), p.control_background);
             ui.painter().rect_stroke(r, CornerRadius::same(5), Stroke::new(1.0, p.border), StrokeKind::Inside);
-            controls::wrapped(ui, pos2(r.min.x + 13.0 + 8.0, r.min.y + 9.0), text_w, &self.status, body, p.text_secondary, true);
+            if self.busy {
+                let now = ui.input(|i| i.time);
+                let t = self.busy_phase.unwrap_or_else(|| now - *self.busy_since.get_or_insert(now));
+                let bar = Rect::from_min_size(pos2(r.min.x + 13.0, center_y(Rect::from_min_size(pos2(r.min.x, r.min.y + 9.0), vec2(w, row)), 18.0)), vec2(bar_w, 18.0));
+                controls::indeterminate_progress(ui.painter(), bar, t);
+                if self.busy_phase.is_none() {
+                    ui.ctx().request_repaint();
+                }
+            }
+            controls::wrapped(ui, pos2(r.min.x + 13.0 + bar_w + 8.0, r.min.y + 9.0), text_w, &self.status, body, p.text_secondary, true);
             r.max.y
         }
     }
@@ -348,7 +566,8 @@ impl ApplicationSettings {
         let p = palette(ui.ctx());
         let d = density(ui.ctx());
         let Some(ed) = self.editor.as_mut() else { return };
-        let layer = egui::LayerId::new(egui::Order::Foreground, Id::new("format-editor"));
+        // `Middle`, so the Format box's menu (an `Area` on `Foreground`) is on top.
+        let layer = egui::LayerId::new(egui::Order::Middle, Id::new("format-editor"));
         let mut ui = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(full));
         ui.painter().rect_filled(full, 0.0, p.overlay_modal);
         let _ = ui.interact(full, Id::new("format-editor-block"), egui::Sense::click());
@@ -368,7 +587,7 @@ impl ApplicationSettings {
         let body_h = lh + 3.0 + tb_h + 8.0 + lh + 3.0 + 150.0 + 3.0 + hint_lh + 8.0 + vars_h;
         let h = (1.0 + 16.0 + title_h.max(21.0) + 12.0 + body_h + 12.0 + d.settings_control_min_height + 16.0 + 1.0).min(560.0);
         let c = Rect::from_center_size(full.center(), vec2(w, h));
-        let card = Rect::from_min_size(c.min.round(), c.size().round());
+        let card = Rect::from_min_size(pos2(c.min.x.round_ties_even(), c.min.y.round_ties_even()), c.size().round());
         ui.painter().rect_filled(card, CornerRadius::same(8), p.background_panel);
         ui.painter().rect_stroke(card, CornerRadius::same(8), Stroke::new(1.0, p.border), StrokeKind::Inside);
         let inner = card.shrink(17.0);
@@ -391,7 +610,11 @@ impl ApplicationSettings {
         ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_Format(), body, p.text_secondary, f32::INFINITY), p.text_secondary);
         y += lh + 3.0;
         let multi = TextBox { padding: d.settings_control_padding, multiline: true, ..Default::default() };
-        multi.show(&mut ui, Rect::from_min_size(pos2(inner.min.x, y), vec2(inner_w, 150.0)), Id::new("format-text"), &mut ed.format);
+        let format_rect = Rect::from_min_size(pos2(inner.min.x, y), vec2(inner_w, 150.0));
+        let format_id = Id::new("format-text");
+        let format_resp = multi.show(&mut ui, format_rect, format_id, &mut ed.format);
+        // `ClipboardFormatTextBox.ContextMenu`: a right click opens it at the pointer.
+        let context = format_resp.secondary_clicked().then(|| ui.input(|i| i.pointer.interact_pos())).flatten();
         y += 150.0 + 3.0;
         ui.painter().galley(pos2(inner.min.x, y), galley(&ui, s::ApplicationSettingsWindow_RightClickToInsertAVariable(), hint.clone(), p.text_secondary, f32::INFINITY), p.text_secondary);
         y += hint_lh + 8.0;
@@ -405,8 +628,12 @@ impl ApplicationSettings {
         let cancel = Rect::from_min_size(pos2(inner.max.x - cw, by), vec2(cw, bh));
         let save = Rect::from_min_size(pos2(cancel.min.x - 8.0 - sw, by), vec2(sw, bh));
         let saved = button.show(&ui, save, Id::new("format-save"), s::ApplicationSettingsWindow_Save(), true).clicked();
+        let menu_open = self.code_menu.is_some();
         let cancelled = button.show(&ui, cancel, Id::new("format-cancel"), s::ApplicationSettingsWindow_Cancel(), true).clicked()
-            || ui.input(|i| i.key_pressed(egui::Key::Escape));
+            || (!menu_open && ui.input(|i| i.key_pressed(egui::Key::Escape)));
+        if let Some(pos) = context {
+            self.open_code_menu(CodeTarget::ClipboardFormat, format_id, format_rect, Some(pos));
+        }
         if saved {
             let ed = self.editor.take().unwrap();
             let value = serde_json::json!({ "Description": ed.description, "Format": ed.format });
@@ -527,7 +754,8 @@ fn page_general(f: &mut Form) {
         if f.enum_combo(s::ApplicationSettingsWindow_UpdateChannelLabel(), 190.0, &mut v, enabled) {
             f.s.UpdateChannel = v;
         }
-        if f.button(s::ApplicationSettingsWindow_InstallDevBuild(), true) {
+        let idle = !f.w.busy;
+        if f.button(s::ApplicationSettingsWindow_InstallDevBuild(), idle) {
             f.effect(Effect::NotPorted("dev builds"));
         }
     });
@@ -781,7 +1009,7 @@ fn page_integration(f: &mut Form) {
 /// `ShellContextMenu`, `EditWithShareX`, ... setters:
 /// `IntegrationHelpers.Create*(value)`. Send To's error is shown.
 fn set_integration(f: &mut Form, i: usize, on: bool) {
-    if let Err(e) = crate::integration::set(crate::integration::SWITCHES[i], on) {
+    if let Err(e) = f.w.integration.set(crate::integration::SWITCHES[i], on) {
         f.w.status = e;
     }
 }
@@ -851,13 +1079,17 @@ fn page_paths(f: &mut Form) {
             f.s.CustomScreenshotsPath = dir.display().to_string();
         }
         let mut v = f.s.SaveImageSubFolderPattern.clone();
-        if f.text_row(Some((s::ApplicationSettingsWindow_SubFolderPatternLabel(), 210.0)), &mut v, true, false) {
+        let (changed, tb) = f.text_row_with_box(Some((s::ApplicationSettingsWindow_SubFolderPatternLabel(), 210.0)), &mut v, true, false);
+        if changed {
             f.s.SaveImageSubFolderPattern = sharex_helpers::file_helpers::sanitize_path(&v);
         }
+        attach_pattern_menu(f, CodeTarget::SubFolder, tb);
         let mut v = f.s.SaveImageSubFolderPatternWindow.clone();
-        if f.text_row(Some((s::ApplicationSettingsWindow_SubFolderPatternForWindowLabel(), 210.0)), &mut v, true, false) {
+        let (changed, tb) = f.text_row_with_box(Some((s::ApplicationSettingsWindow_SubFolderPatternForWindowLabel(), 210.0)), &mut v, true, false);
+        if changed {
             f.s.SaveImageSubFolderPatternWindow = sharex_helpers::file_helpers::sanitize_path(&v);
         }
+        attach_pattern_menu(f, CodeTarget::SubFolderWindow, tb);
         // The preview and Open (`ColumnDefinitions="*,Auto"`).
         let preview = screenshots_folder_preview(f);
         let open = s::ApplicationSettingsWindow_Open();
@@ -881,6 +1113,19 @@ fn page_paths(f: &mut Form) {
     });
 }
 
+/// `AttachFilenamePatternMenu`: the box's menu opens when it gets the
+/// focus or a pointer is released over it.
+fn attach_pattern_menu(f: &mut Form, target: CodeTarget, tb: Option<(egui::Response, Rect, Id)>) {
+    let Some((resp, rect, id)) = tb else { return };
+    if resp.gained_focus() && f.w.refocused == Some(id) {
+        f.w.refocused = None;
+        return;
+    }
+    if resp.gained_focus() || resp.clicked() || resp.drag_stopped() {
+        f.w.open_code_menu(target, id, rect, None);
+    }
+}
+
 fn page_settings(f: &mut Form) {
     f.card(6.0, &mut |f| {
         f.title(s::ApplicationSettingsWindow_ExportAndImport());
@@ -888,19 +1133,21 @@ fn page_settings(f: &mut Form) {
         let (mut a, mut b) = (f.w.export_settings, f.w.export_history);
         f.checks_row(&mut [(s::ApplicationSettingsWindow_Settings(), &mut a), (s::ApplicationSettingsWindow_History(), &mut b)], 8.0);
         (f.w.export_settings, f.w.export_history) = (a, b);
-        let can_export = a || b;
+        // `CanExport => !IsBusy && (ExportSettings || ExportHistory)`.
+        let idle = !f.w.busy;
+        let can_export = idle && (a || b);
         let clicked = f.buttons(
             &[
                 (s::ApplicationSettingsWindow_Export(), can_export),
-                (s::ApplicationSettingsWindow_Import(), true),
-                (s::ApplicationSettingsWindow_ResetSettings(), true),
+                (s::ApplicationSettingsWindow_Import(), idle),
+                (s::ApplicationSettingsWindow_ResetSettings(), idle),
             ],
             5.0,
         );
         match clicked {
-            Some(0) => f.effect(Effect::NotPorted("settings export")),
-            Some(1) => f.effect(Effect::NotPorted("settings import")),
-            Some(_) => f.effect(Effect::NotPorted("settings reset")),
+            Some(0) => f.effect(Effect::ExportSettings { settings: a, history: b }),
+            Some(1) => f.effect(Effect::ImportSettings),
+            Some(_) => f.effect(Effect::ResetSettings),
             None => {}
         }
     });
@@ -1310,6 +1557,112 @@ mod tests {
         assert_eq!(size_string(1024, true), "1 KiB");
         assert_eq!(size_string(32 * 1024, false), "33 KB");
         assert_eq!(size_string(8192 * 1024, true), "8 MiB");
+    }
+
+    /// The integration check boxes against a mock system.
+    #[derive(Default)]
+    struct Mock {
+        on: std::rc::Rc<std::cell::RefCell<std::collections::BTreeMap<String, bool>>>,
+        send_to_error: Option<String>,
+    }
+
+    impl crate::integration::IntegrationBackend for Mock {
+        fn check(&self, switch: crate::integration::Switch) -> bool {
+            self.on.borrow().get(&format!("{switch:?}")).copied().unwrap_or(false)
+        }
+        fn set(&mut self, switch: crate::integration::Switch, on: bool) -> Result<(), String> {
+            if switch == crate::integration::Switch::SendToMenu
+                && let Some(e) = &self.send_to_error
+            {
+                return Err(e.clone());
+            }
+            self.on.borrow_mut().insert(format!("{switch:?}"), on);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn integration_boxes_read_and_change_the_backend() {
+        use crate::integration::Switch;
+        let state = std::rc::Rc::new(std::cell::RefCell::new(std::collections::BTreeMap::new()));
+        state.borrow_mut().insert("FirefoxAddonSupport".to_string(), true);
+        let mock = Mock { on: state.clone(), send_to_error: Some("Access denied".into()) };
+        let mut settings = ApplicationConfig::default();
+        let mut w = ApplicationSettings::new(&settings, true, PathBuf::from("shots")).with_integration(Box::new(mock));
+        // `RefreshIntegrations` read the backend.
+        assert_eq!(w.integrations, [false, false, false, false, false, true]);
+        w.page = 2;
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        let mut boxes = Vec::new();
+        // Lay the page out, then click each check box by its text.
+        let names = [
+            s::ApplicationSettingsWindow_ShowUploadWithShareXButtonInWindowsExplorerContextMenu(),
+            s::ApplicationSettingsWindow_ShowShareXInSendToMenu(),
+        ];
+        let frame = |events: Vec<egui::Event>, w: &mut ApplicationSettings, settings: &mut ApplicationConfig| {
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(950.0, 720.0))), events, ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                let _ = w.ui(ui, settings);
+            });
+            out.textures_delta.clear();
+            out.shapes
+        };
+        let shapes = frame(Vec::new(), &mut w, &mut settings);
+        for name in names {
+            let pos = shapes
+                .iter()
+                .find_map(|c| match &c.shape {
+                    egui::Shape::Text(t) if t.galley.text() == name => Some(t.pos + vec2(-10.0, 8.0)),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{name} not drawn"));
+            boxes.push(pos);
+        }
+        for pos in boxes {
+            let press = |pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+            frame(vec![egui::Event::PointerMoved(pos)], &mut w, &mut settings);
+            frame(vec![press(true)], &mut w, &mut settings);
+            frame(vec![press(false)], &mut w, &mut settings);
+        }
+        // The context menu box went to the backend; Send To's error is shown.
+        assert_eq!(state.borrow().get(&format!("{:?}", Switch::ShellContextMenu)), Some(&true));
+        assert_eq!(w.status, "Access denied");
+    }
+
+    #[test]
+    fn variable_menus_as_sharex_builds_them() {
+        let headers = |m: Vec<MenuEntry<String>>| m.iter().map(|e| e.header.clone()).collect::<Vec<_>>();
+        assert_eq!(headers(filename_pattern_menu(CodeTarget::SubFolder)), ["Date and time", "Incremental", "Random", "Computer"]);
+        assert_eq!(headers(filename_pattern_menu(CodeTarget::SubFolderWindow)), ["Window", "Date and time", "Incremental", "Random", "Image", "Computer"]);
+        let clip = clipboard_format_menu();
+        assert_eq!(headers(clip.clone()).first().map(String::as_str), Some("Upload result"));
+        assert_eq!(clip.last().unwrap().header, "%n");
+        let date = &filename_pattern_menu(CodeTarget::SubFolder)[0];
+        assert_eq!(date.children.as_ref().unwrap()[0].header, "%y - Year");
+        // `Incremental` without `%i` in the sub folder pattern's menu.
+        let inc = &filename_pattern_menu(CodeTarget::SubFolder)[1];
+        assert_eq!(inc.children.as_ref().unwrap()[0].command.as_deref(), Some("%ia"));
+    }
+
+    #[test]
+    fn variables_go_in_at_the_caret() {
+        let ctx = egui::Context::default();
+        let id = Id::new("t");
+        let mut state = egui::text_edit::TextEditState::default();
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(1), egui::text::CCursor::new(3))));
+        state.clone().store(&ctx, id);
+        // `InsertText` goes in at the selection's start and keeps it.
+        let mut text = "abcd".to_string();
+        insert_at_caret(&ctx, id, &mut text, "%y", false);
+        assert_eq!(text, "a%ybcd");
+        // `InsertClipboardToken` replaces the selection.
+        state.store(&ctx, id);
+        let mut text = "abcd".to_string();
+        insert_at_caret(&ctx, id, &mut text, "$url", true);
+        assert_eq!(text, "a$urld");
+        let caret: usize = egui::text_edit::TextEditState::load(&ctx, id).unwrap().cursor.char_range().unwrap().primary.index.into();
+        assert_eq!(caret, 5);
     }
 
     #[test]
