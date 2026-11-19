@@ -819,6 +819,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 state.ui(ui, &mut ctx);
             })
         }
+        // The tray's icon (`ShareXResources.IconBytes`), `--width` pixels
+        // square; `--state white` the white one (`UseWhiteShareXIcon`).
+        "tray-icon" => {
+            let icon = crate::tray::app_icon(width.unwrap_or(256));
+            if dialog.state.as_deref() == Some("white") { crate::tray::white_icon(&icon) } else { icon }
+        }
         "app-icon" => {
             let side = width.unwrap_or(256);
             let mut screen = Offscreen::new([side, side], 1.0, dark)?;

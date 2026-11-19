@@ -1137,6 +1137,21 @@ impl App {
         self.update_tray_icon(progress);
     }
 
+    /// `MainForm.UpdateTrayIcon`: `ApplyIconSetting` (the white icon or not,
+    /// for the tray and the main window), then the tray's icon.
+    pub(crate) fn apply_tray_icon_setting(&mut self) {
+        tray::set_white_icon(self.settings.settings.UseWhiteShareXIcon);
+        if let Some(tray) = &mut self.tray {
+            tray.set_icon(&tray::current_icon(tray::Tray::icon_size()));
+        }
+        if let Some(w) = &self.main {
+            let icon = tray::current_icon(64);
+            w.window.set_window_icon(winit::window::Icon::from_rgba(icon.into_raw(), 64, 64).ok());
+        }
+        // `TaskManager.UpdateTrayIcon`'s `lastIconStatus` is the app's icon now.
+        self.tray_progress = -1;
+    }
+
     /// `TaskManager.UpdateTrayIcon`: the progress icon at `progress` %, or
     /// the app's icon at -1.
     fn update_tray_icon(&mut self, progress: i32) {
@@ -1146,7 +1161,7 @@ impl App {
         }
         if let Some(tray) = &mut self.tray {
             let size = tray::Tray::icon_size();
-            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::app_icon(size) };
+            let image = if progress >= 0 { tray::progress_icon(size, progress) } else { tray::current_icon(size) };
             tray.set_icon(&image);
         }
         self.tray_progress = progress;
@@ -1183,6 +1198,10 @@ impl App {
         match tray::Tray::new("ShareXrs", self.settings.settings.ShowTray, callback) {
             Ok(t) => self.tray = Some(t),
             Err(e) => eprintln!("couldn't add the tray icon: {e}"),
+        }
+        // `new DesktopTrayIconService(_hotkeyHost, ShareXResources.IconBytes, ...)`.
+        if self.settings.settings.UseWhiteShareXIcon {
+            self.apply_tray_icon_setting();
         }
         self.refresh_menus();
         // `ApplicationSettingsRuntime.InitializeAsync`: the update manager too.

@@ -279,8 +279,6 @@ impl App {
             self.queue_dialog(el, MessageBox::ok(failed.caption, failed.text, MessageBoxIcon::Warning), DialogPurpose::Information);
         }
         self.update_watch_folders();
-        self.tray_progress = -2;
-        self.update_tray_icon(-1);
     }
 }
 

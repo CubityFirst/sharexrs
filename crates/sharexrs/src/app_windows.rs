@@ -188,6 +188,8 @@ impl App {
         if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }
+        // `ApplyCore`: `_hotkeyHost?.UpdateTrayIcon()`.
+        self.apply_tray_icon_setting();
         self.init_task_view_settings();
         self.refresh_menus();
         self.apply_update_settings();
@@ -216,10 +218,8 @@ impl App {
                         tray.set_visible(v);
                     }
                 }
-                Effect::TrayIcon => {
-                    self.tray_progress = -2;
-                    self.update_tray_icon(-1);
-                }
+                // `ApplicationSettingsRuntime.UpdateTrayIcon` (`MainForm.UpdateTrayIcon`).
+                Effect::TrayIcon => self.apply_tray_icon_setting(),
                 Effect::Restart => self.restart(event_loop),
                 Effect::OpenFolder(path) => open_path(&path),
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
