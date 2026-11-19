@@ -15,6 +15,7 @@ mod quick_task;
 mod appearance;
 mod auto_capture;
 mod capture;
+mod capture_devices;
 mod capture_job;
 mod cli;
 mod controls_gallery;

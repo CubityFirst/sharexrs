@@ -742,11 +742,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     t.UseDefaultDestinations = false;
                 }
             }
-            let mut state = if for_hotkey {
+            let state = if for_hotkey {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut hotkeys[0].TaskSettings, Some(&defaults))
             } else {
                 crate::task_settings_window::TaskSettingsWindow::new(&mut settings.DefaultTaskSettings, None)
             };
+            // Renders list no system devices (the reference session had none);
+            // `--state devices`: made-up ones (built from source).
+            let mut fake = crate::capture_devices::FakeDevices::default();
+            if dialog.state.as_deref() == Some("devices") {
+                use crate::capture_devices::CaptureDevice as D;
+                fake.system_audio = vec![D::new("{0.0.0.00000000}.{speakers}", "Speakers (Generated Audio)"), D::new("{0.0.0.00000000}.{hdmi}", "HDMI Output (Generated Audio)")];
+                fake.microphones = vec![D::new("{0.0.1.00000000}.{mic}", "Microphone (Generated Audio)")];
+                fake.cameras = vec![D::new(r"\?\generated#camera", "Generated Camera")];
+            }
+            let mut state = state.with_devices(Box::new(fake));
             state.page = page;
             state.set_scroll(page, scroll);
             // `--text "ftp:A|B;custom:C|D"`: uploader accounts (FTP and custom

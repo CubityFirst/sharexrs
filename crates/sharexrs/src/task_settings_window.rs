@@ -197,6 +197,10 @@ pub struct TaskSettingsWindow {
     color_open: bool,
     /// The Task page's uploader accounts.
     pub accounts: UploaderAccounts,
+    /// Where the Screen recorder page's device lists come from, and the
+    /// lists as last read (system audio, microphones, cameras).
+    devices: Box<dyn crate::capture_devices::CaptureDevices>,
+    device_lists: [Option<Result<Vec<crate::capture_devices::CaptureDevice>, String>>; 3],
     /// The variable menus of the name pattern, pixel info and upload info
     /// boxes (`_activeCodeMenu`).
     pub variables: crate::variable_menu::VariableMenus,
@@ -238,6 +242,8 @@ impl TaskSettingsWindow {
             toolbar_editor: None,
             color_open: false,
             accounts: UploaderAccounts::default(),
+            devices: Box::new(crate::capture_devices::SystemDevices),
+            device_lists: [None, None, None],
             variables: Default::default(),
             effects: Vec::new(),
         }
@@ -252,6 +258,13 @@ impl TaskSettingsWindow {
         t.ToolsSettings.get_or_insert_default();
         t.AdvancedSettings.get_or_insert_default();
         t.ExternalPrograms.get_or_insert_default();
+    }
+
+    /// Lists the native recorder's devices from `devices` (tests and renders).
+    pub fn with_devices(mut self, devices: Box<dyn crate::capture_devices::CaptureDevices>) -> Self {
+        self.devices = devices;
+        self.device_lists = [None, None, None];
+        self
     }
 
     /// The window's title: "ShareX - Task settings" or "... for <task>".
@@ -1384,9 +1397,10 @@ fn page_screen_recorder(f: &mut Form) {
         f.title(s::TaskSettingsWindow_NativeRecorder());
         let native = chk!(f, s::TaskSettingsWindow_NativeRecorderEnabled(), CaptureSettings.ScreenRecordUseNative);
         let sys = chk!(f, s::TaskSettingsWindow_NativeRecorderSystemAudio(), native, CaptureSettings.ScreenRecordSystemAudio);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), native && sys, 0);
+        use crate::capture_devices::DeviceKind;
+        device_row(f, DeviceKind::SystemAudio, s::TaskSettingsWindow_NativeRecorderSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderDefaultSystemAudioDevice(), s::TaskSettingsWindow_NativeRecorderUnavailableSystemAudioDevice(), None, native && sys);
         let mic = chk!(f, s::TaskSettingsWindow_NativeRecorderMicrophone(), native, CaptureSettings.ScreenRecordMicrophone);
-        device_row(f, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), native && mic, 1);
+        device_row(f, DeviceKind::Microphone, s::TaskSettingsWindow_NativeRecorderMicrophoneDevice(), s::TaskSettingsWindow_NativeRecorderDefaultMicrophone(), s::TaskSettingsWindow_NativeRecorderUnavailableMicrophone(), None, native && mic);
         chk!(f, s::TaskSettingsWindow_NativeRecorderHardware(), native, CaptureSettings.ScreenRecordRequireHardwareEncoder);
         let mut v = sec!(f, CaptureSettings).ScreenRecordVideoBitrate as f64;
         if f.number_f64_w(s::TaskSettingsWindow_NativeRecorderBitrate(), LABEL_W, 160.0, 100.0, 200000.0, 100.0, 0, &mut v, native) {
@@ -1400,7 +1414,15 @@ fn page_screen_recorder(f: &mut Form) {
         f.enabled = saved && native;
         f.stack(4.0, &mut |f| {
             let cam = chk!(f, s::TaskSettingsWindow_NativeRecorderCamera_Enabled(), CaptureSettings.ScreenRecordCamera);
-            device_row(f, s::TaskSettingsWindow_NativeRecorderCamera_Device(), s::TaskSettingsWindow_NativeRecorderCamera_NoDevices(), s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(), cam, 2);
+            device_row(
+                f,
+                crate::capture_devices::DeviceKind::Camera,
+                s::TaskSettingsWindow_NativeRecorderCamera_Device(),
+                s::TaskSettingsWindow_NativeRecorderCamera_DefaultDevice(),
+                s::TaskSettingsWindow_NativeRecorderCamera_UnavailableDevice(),
+                Some(s::TaskSettingsWindow_NativeRecorderCamera_NoDevices()),
+                cam,
+            );
             let res = [(Res::Size640x480, "640 × 480"), (Res::Size1280x720, "1280 × 720"), (Res::Size1920x1080, "1920 × 1080")];
             let cur = res.iter().position(|(r, _)| *r == sec!(f, CaptureSettings).ScreenRecordCameraResolution).unwrap_or(1);
             let items: Vec<ComboItem> = res.iter().map(|(_, t)| ComboItem::text(*t)).collect();
@@ -1463,28 +1485,44 @@ fn page_screen_recorder(f: &mut Form) {
     });
 }
 
-/// `CaptureDeviceCombo`: the default device, then the devices; one that's
-/// saved but not connected stays selectable. Device listing isn't ported,
-/// so only the default and a saved device show.
-fn device_row(f: &mut Form, label: &str, default_label: &str, unavailable: &str, enabled: bool, k: usize) {
+/// `CaptureDeviceCombo` (`AudioDeviceCombo` for the audio lists): the
+/// default device, then the devices by name; a saved device that isn't
+/// connected stays selected. The list is read when the page is built and
+/// again each time the dropdown opens (`DropDownOpened`).
+#[allow(clippy::too_many_arguments)]
+fn device_row(f: &mut Form, kind: crate::capture_devices::DeviceKind, label: &str, default_label: &str, unavailable: &str, empty: Option<&str>, enabled: bool) {
+    use crate::capture_devices::{DeviceKind, combo_choices};
+    let k = match kind {
+        DeviceKind::SystemAudio => 0,
+        DeviceKind::Microphone => 1,
+        DeviceKind::Camera => 2,
+    };
+    if f.w.device_lists[k].is_none() {
+        f.w.device_lists[k] = Some(f.w.devices.list(kind));
+    }
     let c = sec!(f, CaptureSettings);
     let saved = match k {
         0 => c.ScreenRecordSystemAudioDeviceId.clone(),
         1 => c.ScreenRecordMicrophoneDeviceId.clone(),
         _ => c.ScreenRecordCameraDeviceId.clone(),
     };
-    let mut items = vec![ComboItem::text(default_label)];
-    if !saved.is_empty() {
-        items.push(ComboItem::text(unavailable));
-    }
-    let cur = if saved.is_empty() { 0 } else { 1 };
-    if f.combo(label, LABEL_W, &items, Some(cur), ComboSize::default(), enabled) == Some(0) {
+    let list = f.w.device_lists[k].as_ref().expect("read above");
+    let (choices, cur) = combo_choices(list, &saved, default_label, unavailable, empty);
+    let items: Vec<ComboItem> = choices.iter().map(|d| ComboItem::text(d.name.clone())).collect();
+    let combo_id = f.id(label);
+    let was_open = controls::ComboBox::is_open(f.ui.ctx(), combo_id);
+    if let Some(i) = f.combo(label, LABEL_W, &items, Some(cur), ComboSize::default(), enabled) {
+        let id = choices[i].id.clone();
         let c = sec!(f, CaptureSettings);
         match k {
-            0 => c.ScreenRecordSystemAudioDeviceId.clear(),
-            1 => c.ScreenRecordMicrophoneDeviceId.clear(),
-            _ => c.ScreenRecordCameraDeviceId.clear(),
+            0 => c.ScreenRecordSystemAudioDeviceId = id,
+            1 => c.ScreenRecordMicrophoneDeviceId = id,
+            _ => c.ScreenRecordCameraDeviceId = id,
         }
+    }
+    if !f.collecting() && !was_open && controls::ComboBox::is_open(f.ui.ctx(), combo_id) {
+        f.w.device_lists[k] = Some(f.w.devices.list(kind));
+        f.ui.ctx().request_repaint();
     }
 }
 
