@@ -70,4 +70,8 @@ for t in "${themes[@]}"; do
     run background-remover-model-menu "$t" 85,117,469,150 background-remover --width 1028 --height 720 --text "$WORK/models" --content CPU --state model-menu
   fi
   run background-remover-model-empty-menu "$t" 85,117,447,14 background-remover --width 1028 --height 720 --text "$WORK/no-models" --state model-empty-menu
+  # The Image beautifier (`-ImageBeautifier photo.png`, maximized: a
+  # 1024x697 client), as it opens and with 16:9 picked.
+  run beautifier-opened "$t" - image-editor --width 1024 --height 697 --image "$SHOWN" --state beautifier
+  run beautifier-preset-selected "$t" - image-editor --width 1024 --height 697 --image "$SHOWN" --state beautifier:16:9
 done

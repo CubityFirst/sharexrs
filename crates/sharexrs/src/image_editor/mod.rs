@@ -1380,7 +1380,9 @@ impl EditorWindow {
         let max_scroll = vec2((content.x - canvas.width()).max(0.0), (content.y - canvas.height()).max(0.0));
         self.scroll = self.scroll.clamp(Vec2::ZERO, max_scroll);
         let min = self.image_origin(self.room, self.scroll);
-        let min = pos2((min.x * ppp).round() / ppp, (min.y * ppp).round() / ppp);
+        // Avalonia's layout rounding: `Math.Round`, ties to even (a centred
+        // frame half a pixel off lands on the even side).
+        let min = pos2((min.x * ppp).round_ties_even() / ppp, (min.y * ppp).round_ties_even() / ppp);
         let z = self.zoom as f32;
         let frame_rect = Rect::from_min_size(min - vec2(ox as f32, oy as f32) * z, size);
         let image = Rect::from_min_size(min, vec2(w as f32, h as f32) * z);
@@ -2665,6 +2667,15 @@ pub fn render_dialog(name: &str, o: &crate::dialogs::render::Options) -> Result<
         Some("status") => w.start_status(ie::EditorView_ClipboardDoesNotContainImage().to_string()),
         Some("none") => w.modal = None,
         Some("canvas-size") => w.canvas_resize_on_open = true,
+        Some(st) if st.starts_with("beautifier") => {
+            // `--state beautifier[:<ratio>]`: the Image beautifier as it opens
+            // (`openBackgroundPanel`: the panel open, the toolbar where it
+            // was), with an output ratio picked (`16:9`).
+            w.bg_panel.open = true;
+            if let Some(r) = st.strip_prefix("beautifier:") {
+                w.bg_panel.ratio = background::ratio_index(r).ok_or_else(|| format!("no ratio {r}"))?;
+            }
+        }
         Some(st) if st.starts_with("background") => {
             // `--state background[-gradient|-color|-image][-scrolled]`:
             // the panel open (the toolbar scrolled to show its button, as
