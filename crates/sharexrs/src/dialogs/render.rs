@@ -276,6 +276,14 @@ fn dialog(name: &str, o: &Options) -> Result<Box<dyn Dialog>, String> {
             w.open_add_menu = o.state.as_deref() == Some("add-menu");
             Box::new(w)
         }
+        // A failed FFmpeg run's output (`--files <log>` for its text).
+        "output-box" => {
+            let text = match o.files.first() {
+                Some(f) => std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?,
+                None => ["ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers", "[gdigrab @ 0000020b] Capturing whole desktop", "Unknown encoder 'libx265x'"].join("\r\n"),
+            };
+            Box::new(super::output_box::OutputBoxWindow::new(&text, sharex_strings::helpers_lib::FFmpegCLIManager_Error_title(), true))
+        }
         "large-file" => Box::new(super::confirm::ConfirmWindow::new(super::confirm::Confirm::LargeFile { reply: None })),
         "before-upload" => {
             // As ShareX shows a text (`--content text`, the default) or an
@@ -452,6 +460,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "quick-task-editor"
             | "actions-toolbar"
             | "actions-toolbar-editor"
+            | "output-box"
             | "before-upload"
             | "after-upload"
             | "qr-code"

@@ -26,6 +26,7 @@ pub mod icon_pack_prompt;
 pub mod image_viewer;
 pub mod layout;
 pub mod notification;
+pub mod output_box;
 pub mod print_window;
 pub mod qr_code;
 pub mod quick_task_editor;

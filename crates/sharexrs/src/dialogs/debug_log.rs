@@ -296,7 +296,7 @@ impl Dialog for DebugLogWindow {
 /// Fluent's collapsed scroll bars over `view` (16px bars, a 2px thumb 4px
 /// in from the outer edge, the line buttons' 16px at each end of the
 /// track), where the content overflows.
-fn overlay_scroll_bars(ui: &egui::Ui, view: Rect, content: Vec2, offset: Vec2) {
+pub(crate) fn overlay_scroll_bars(ui: &egui::Ui, view: Rect, content: Vec2, offset: Vec2) {
     let color = sharex_ui::theme::fluent(ui.ctx()).chrome_disabled_low;
     let (both_x, both_y) = (content.x > view.width(), content.y > view.height());
     if both_y {

@@ -531,14 +531,11 @@ impl App {
                 self.finish_recording(path);
             }
             Event::Error(output) => {
-                // `OutputBoxWindowIntegration.Show(output, "FFmpeg error")`:
-                // the output box isn't ported; a message box shows it.
+                // `OutputBoxWindowIntegration.Show(Output, FFmpegCLIManager_Error_title, true)`.
                 eprintln!("{output}");
                 let title = sharex_strings::helpers_lib::FFmpegCLIManager_Error_title();
-                let message = MessageBox::ok(title, output, MessageBoxIcon::Error);
-                if let Err(e) = self.open_dialog(event_loop, message, DialogPurpose::Information) {
-                    eprintln!("couldn't open the message box: {e}");
-                }
+                let window = crate::dialogs::output_box::OutputBoxWindow::new(&output, title, true);
+                self.open_dialog_window(event_loop, Box::new(window));
             }
             Event::NativeError(message) => {
                 // `MessageBox.Show(e.Message, "ShareX", OK, Error)`.
