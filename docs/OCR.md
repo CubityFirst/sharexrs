@@ -292,10 +292,16 @@ puts the same text on the clipboard as ShareX's, and closing the window writes a
 state (no models found) shows the warning and the engine's message, checked live;
 ShareX's own was not captured (its engine was already loaded).
 
-Not yet: the preview's wheel zoom, drag to pan and double click to fit
-(`ZoomAt`), the splitter between canvas and sheet (`ResultPanelWidth` is read,
-not resized), the window's remembered size and place (`OCROptions.WindowState`),
-the copied badge as a tooltip (egui's).
+The preview zooms with the wheel (`ZoomAt`: x1.25 a step, the point under
+the pointer kept, up to 32 units an image pixel), pans by dragging while
+zoomed (`TryGetLayout`'s clamp keeps a larger image covering the content),
+and fits again on a double click or a new image; the splitter between canvas
+and sheet resizes the result panel (at least 300) and `ResultPanelWidth` is
+saved on close. `--render ocr --state zoom|pan --count <percent>` and
+`--state splitter --count <px>` draw them (built from source, no shot).
+
+Not yet: the window's remembered size and place (`OCROptions.WindowState`),
+the copied badge as a tooltip (egui's), zoom/pan checked live against ShareX.
 
 The plan it followed:
 
