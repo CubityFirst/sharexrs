@@ -101,6 +101,21 @@ pub fn drain_packet(state: &mut DrainState, mixer: &AudioMixer, source: usize, g
     mixer.write(source, packet_time, packet.frames as i32, data, gain, flags & FLAG_DISCONTINUITY != 0);
 }
 
+/// An endpoint that didn't open: system audio is recorded without (ShareX
+/// #9288: with no active output device, nothing plugged in, there's no
+/// system audio to capture; `DebugHelper.WriteException`); a microphone
+/// that doesn't open is still an error.
+pub fn open_or_skip<E>(kind: AudioSourceKind, opened: Result<E, String>) -> Result<Option<E>, String> {
+    match opened {
+        Ok(e) => Ok(Some(e)),
+        Err(e) if kind == AudioSourceKind::SystemAudio => {
+            eprintln!("System audio is not available, recording without it. {e}");
+            Ok(None)
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// The running capture (`WasapiCapture`'s lifetime as the recorder sees it).
 pub trait AudioCapture: Send {
     fn start(&mut self);
@@ -136,7 +151,8 @@ impl EndpointCapture {
     pub fn open(devices: &dyn AudioDevices, options: &RecordingOptions, mixer: Arc<AudioMixer>, time: Arc<dyn TimeSource>, threaded: bool) -> Result<Self, String> {
         let mut endpoints = Vec::new();
         if options.capture_system_audio {
-            endpoints.push(devices.open(AudioSourceKind::SystemAudio, options.system_audio_device_id.as_deref().filter(|s| !s.trim().is_empty()), options.system_audio_gain)?);
+            let opened = devices.open(AudioSourceKind::SystemAudio, options.system_audio_device_id.as_deref().filter(|s| !s.trim().is_empty()), options.system_audio_gain);
+            endpoints.extend(open_or_skip(AudioSourceKind::SystemAudio, opened)?);
         }
         if options.capture_microphone {
             endpoints.push(devices.open(AudioSourceKind::Microphone, options.microphone_device_id.as_deref().filter(|s| !s.trim().is_empty()), options.microphone_gain)?);
@@ -326,6 +342,44 @@ impl AudioDevices for SyntheticAudioDevices {
 mod tests {
     use super::*;
     use crate::clock::{RecordingClock, VirtualTime};
+
+    /// Devices with no output device (system audio doesn't open), and
+    /// maybe no microphone either.
+    struct NoOutput {
+        time: Arc<dyn TimeSource>,
+        microphone: bool,
+    }
+
+    impl AudioDevices for NoOutput {
+        fn open(&self, kind: AudioSourceKind, _device_id: Option<&str>, gain: f32) -> Result<Box<dyn AudioEndpoint>, String> {
+            match kind {
+                AudioSourceKind::Microphone if self.microphone => Ok(Box::new(SyntheticEndpoint::new(kind, gain, self.time.clone()))),
+                _ => Err("Element not found. (0x80070490)".into()),
+            }
+        }
+    }
+
+    #[test]
+    fn no_output_device_records_without_system_audio() {
+        // ShareX #9288: system audio that doesn't open is left out; a
+        // microphone that doesn't is still an error.
+        let t = VirtualTime::new(TICKS_PER_SECOND);
+        let mixer = Arc::new(AudioMixer::new(Arc::new(RecordingClock::new(t.clone()))));
+        let time: Arc<dyn TimeSource> = t;
+        let mut o = RecordingOptions::new("x.mp4");
+        o.capture_system_audio = true;
+        o.capture_microphone = true;
+        let devices = NoOutput { time: time.clone(), microphone: true };
+        let c = EndpointCapture::open(&devices, &o, mixer.clone(), time.clone(), false).expect("records with the microphone");
+        let kinds: Vec<AudioSourceKind> = c.endpoints.lock().unwrap().iter().map(|e| e.inner.kind()).collect();
+        assert_eq!(kinds, vec![AudioSourceKind::Microphone]);
+        o.capture_microphone = false;
+        let c = EndpointCapture::open(&devices, &o, mixer.clone(), time.clone(), false).expect("records without audio sources");
+        assert!(c.endpoints.lock().unwrap().is_empty());
+        o.capture_microphone = true;
+        let devices = NoOutput { time: time.clone(), microphone: false };
+        assert!(EndpointCapture::open(&devices, &o, mixer, time, false).is_err());
+    }
 
     #[test]
     fn packet_flags() {
