@@ -41,6 +41,12 @@ impl UploadersConfigStore {
         store
     }
 
+    /// Replaces the config (`LoadUploadersConfig` again: an import or a
+    /// reset of the settings).
+    pub fn replace(&self, config: UploadersConfig) {
+        self.set(config);
+    }
+
     fn set(&self, config: UploadersConfig) {
         let (lock, loaded) = &*self.0;
         *lock.lock().expect("uploaders config") = Some(config);
@@ -68,5 +74,15 @@ impl UploadersConfigStore {
         let config = guard.as_mut()?;
         config.set_application_version(settings_base::application_version().to_owned());
         Some(settings_base::to_json(config))
+    }
+
+    /// The config as `SaveToMemoryStream(false)` writes it for a settings
+    /// export: secrets in plain text.
+    pub fn to_plain_json(&self) -> Option<String> {
+        let (lock, _) = &*self.0;
+        let mut guard = lock.lock().expect("uploaders config");
+        let config = guard.as_mut()?;
+        config.set_application_version(settings_base::application_version().to_owned());
+        Some(sharex_uploaders::dpapi::without_encryption(|| settings_base::to_json(config)))
     }
 }

@@ -225,6 +225,25 @@ impl App {
                 Effect::OpenUrl(url) => open_path(std::path::Path::new(url)),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
                 Effect::QuickTaskMenuEditor => self.show_quick_task_editor(event_loop),
+                Effect::ExportSettings { settings, history } => {
+                    if let Some(path) = crate::settings_backup::pick_export_path() {
+                        if let Some(w) = &mut self.settings_window {
+                            w.state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
+                            w.window.window.request_redraw();
+                        }
+                        self.export_settings(path, settings, history);
+                    }
+                }
+                Effect::ImportSettings => {
+                    if let Some(path) = crate::settings_backup::pick_import_path() {
+                        if let Some(w) = &mut self.settings_window {
+                            w.state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
+                            w.window.window.request_redraw();
+                        }
+                        self.import_settings(path);
+                    }
+                }
+                Effect::ResetSettings => self.ask_reset_settings(event_loop),
                 Effect::PrintSettings => {
                     // `ShowImagePrintSettings`: the active monitor, preview only.
                     let screens = sharex_capture::screenshot::screens();

@@ -31,6 +31,8 @@ pub const HEIGHT: f32 = 720.0;
 pub const MIN_HEIGHT: f32 = 600.0;
 /// The navigation column (`ColumnDefinitions="220,*"`).
 const NAV_WIDTH: f32 = 220.0;
+/// Fluent's horizontal `ProgressBar` `MinWidth`.
+const PROGRESS_MIN_WIDTH: f32 = 200.0;
 
 /// What the window asks of the app.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +53,13 @@ pub enum Effect {
     PrintSettings,
     /// `QuickTaskMenuEditorIntegration.Show`.
     QuickTaskMenuEditor,
+    /// `OnExportClick`: the picker, then `ExportAsync` with the Settings and
+    /// History check boxes.
+    ExportSettings { settings: bool, history: bool },
+    /// `OnImportClick`: the picker, then `ImportAsync`.
+    ImportSettings,
+    /// `ResetAsync`: the question, then the reset.
+    ResetSettings,
 }
 
 /// The pages, in ShareX's order (`CreateNavigationItems`).
@@ -97,8 +106,8 @@ pub struct ApplicationSettings {
     /// it's portable, for the previews.
     portable: bool,
     screenshots_parent: PathBuf,
-    export_settings: bool,
-    export_history: bool,
+    pub export_settings: bool,
+    pub export_history: bool,
     /// `SelectedSpacingPreview`: 0 sidebar, 1 menus, 2 tool menus.
     spacing_preview: usize,
     clipboard_selected: Option<usize>,
@@ -107,6 +116,12 @@ pub struct ApplicationSettings {
     /// The Explorer and browser integrations' check boxes
     /// (`RefreshIntegration`), in `integration::SWITCHES`' order.
     integrations: [bool; 6],
+    /// `IsBusy`: an export, import or reset is running.
+    pub busy: bool,
+    /// When `busy` started (egui's clock), for the progress bar's animation;
+    /// renders set the phase instead.
+    busy_since: Option<f64>,
+    pub busy_phase: Option<f64>,
     effects: Vec<Effect>,
 }
 
@@ -130,8 +145,36 @@ impl ApplicationSettings {
             editor: None,
             color_open: false,
             integrations: crate::integration::SWITCHES.map(crate::integration::check),
+            busy: false,
+            busy_since: None,
+            busy_phase: None,
             effects: Vec::new(),
         }
+    }
+
+    /// `Reload()` after an import or a reset: the personal folder read
+    /// again, the integrations and startup state refreshed, the clipboard
+    /// formats with the first selected, and the first page.
+    pub fn reload(&mut self, settings: &ApplicationConfig) {
+        self.personal_folder = sharex_settings::paths::read_personal_path_config();
+        self.personal_dirty = false;
+        self.integrations = crate::integration::SWITCHES.map(crate::integration::check);
+        self.startup = None;
+        self.clipboard_selected = (!settings.ClipboardContentFormats.is_empty()).then_some(0);
+        self.editor = None;
+        self.page = 0;
+    }
+
+    /// Scrolls page `page` to `y` (clamped when drawn); `f32::MAX` is the end.
+    pub fn set_scroll(&mut self, page: usize, y: f32) {
+        self.scroll[page] = y;
+    }
+
+    /// `IsBusy = true` with the status (`ExportingBackup`, `ImportingBackup`).
+    pub fn start_busy(&mut self, status: &str) {
+        self.busy = true;
+        self.busy_since = None;
+        self.status = status.to_owned();
     }
 
     /// `FlushPersonalPath` (on close): the personal folder is written to
@@ -233,13 +276,27 @@ impl ApplicationSettings {
             }
             r.max.y
         } else {
-            let text_w = w - 26.0 - 26.0;
+            // `ColumnDefinitions="Auto,*" ColumnSpacing="8"`: the busy
+            // `ProgressBar` (`Width="18" Height="18"`, which Fluent's
+            // horizontal `MinWidth="200"` widens) then the wrapped text.
+            let bar_w = if self.busy { PROGRESS_MIN_WIDTH } else { 0.0 };
+            let text_w = w - 26.0 - bar_w - 8.0;
             let th = controls::wrapped(ui, pos2(0.0, 0.0), text_w, &self.status, body.clone(), p.text_secondary, false);
-            let h = 1.0 + 8.0 + th + 8.0 + 1.0;
+            let row = if self.busy { th.max(18.0) } else { th };
+            let h = 1.0 + 8.0 + row + 8.0 + 1.0;
             let r = Rect::from_min_size(pos2(x0, y), vec2(w, h));
             ui.painter().rect_filled(r, CornerRadius::same(5), p.control_background);
             ui.painter().rect_stroke(r, CornerRadius::same(5), Stroke::new(1.0, p.border), StrokeKind::Inside);
-            controls::wrapped(ui, pos2(r.min.x + 13.0 + 8.0, r.min.y + 9.0), text_w, &self.status, body, p.text_secondary, true);
+            if self.busy {
+                let now = ui.input(|i| i.time);
+                let t = self.busy_phase.unwrap_or_else(|| now - *self.busy_since.get_or_insert(now));
+                let bar = Rect::from_min_size(pos2(r.min.x + 13.0, center_y(Rect::from_min_size(pos2(r.min.x, r.min.y + 9.0), vec2(w, row)), 18.0)), vec2(bar_w, 18.0));
+                controls::indeterminate_progress(ui.painter(), bar, t);
+                if self.busy_phase.is_none() {
+                    ui.ctx().request_repaint();
+                }
+            }
+            controls::wrapped(ui, pos2(r.min.x + 13.0 + bar_w + 8.0, r.min.y + 9.0), text_w, &self.status, body, p.text_secondary, true);
             r.max.y
         }
     }
@@ -527,7 +584,8 @@ fn page_general(f: &mut Form) {
         if f.enum_combo(s::ApplicationSettingsWindow_UpdateChannelLabel(), 190.0, &mut v, enabled) {
             f.s.UpdateChannel = v;
         }
-        if f.button(s::ApplicationSettingsWindow_InstallDevBuild(), true) {
+        let idle = !f.w.busy;
+        if f.button(s::ApplicationSettingsWindow_InstallDevBuild(), idle) {
             f.effect(Effect::NotPorted("dev builds"));
         }
     });
@@ -888,19 +946,21 @@ fn page_settings(f: &mut Form) {
         let (mut a, mut b) = (f.w.export_settings, f.w.export_history);
         f.checks_row(&mut [(s::ApplicationSettingsWindow_Settings(), &mut a), (s::ApplicationSettingsWindow_History(), &mut b)], 8.0);
         (f.w.export_settings, f.w.export_history) = (a, b);
-        let can_export = a || b;
+        // `CanExport => !IsBusy && (ExportSettings || ExportHistory)`.
+        let idle = !f.w.busy;
+        let can_export = idle && (a || b);
         let clicked = f.buttons(
             &[
                 (s::ApplicationSettingsWindow_Export(), can_export),
-                (s::ApplicationSettingsWindow_Import(), true),
-                (s::ApplicationSettingsWindow_ResetSettings(), true),
+                (s::ApplicationSettingsWindow_Import(), idle),
+                (s::ApplicationSettingsWindow_ResetSettings(), idle),
             ],
             5.0,
         );
         match clicked {
-            Some(0) => f.effect(Effect::NotPorted("settings export")),
-            Some(1) => f.effect(Effect::NotPorted("settings import")),
-            Some(_) => f.effect(Effect::NotPorted("settings reset")),
+            Some(0) => f.effect(Effect::ExportSettings { settings: a, history: b }),
+            Some(1) => f.effect(Effect::ImportSettings),
+            Some(_) => f.effect(Effect::ResetSettings),
             None => {}
         }
     });

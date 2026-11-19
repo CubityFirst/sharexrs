@@ -73,8 +73,28 @@ impl std::fmt::Debug for Secret {
     }
 }
 
+thread_local! {
+    static PLAIN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Serializes in `f` as `SaveToMemoryStream(supportDPAPIEncryption: false)`
+/// does (a settings export): every secret as its plain value, `null` for
+/// one that couldn't be decrypted.
+pub fn without_encryption<R>(f: impl FnOnce() -> R) -> R {
+    let old = PLAIN.with(|p| p.replace(true));
+    let out = f();
+    PLAIN.with(|p| p.set(old));
+    out
+}
+
 impl Serialize for Secret {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if PLAIN.with(|p| p.get()) {
+            return match &self.value {
+                None => s.serialize_none(),
+                Some(v) => s.serialize_str(v),
+            };
+        }
         if let Some((raw, value)) = &self.read
             && *value == self.value
         {
@@ -171,6 +191,14 @@ mod tests {
         let s: Secret = serde_json::from_str("\"plain\"").unwrap();
         assert_eq!(s.get(), Some("plain"));
         assert_eq!(serde_json::to_string(&s).unwrap(), "\"plain\"");
+    }
+
+    #[test]
+    fn exports_write_plain_values() {
+        let s: Secret = serde_json::from_str("\"$DPAPIEncrypted$garbage\"").unwrap();
+        assert_eq!(without_encryption(|| serde_json::to_string(&s).unwrap()), "null");
+        let s = Secret::new("key-123");
+        assert_eq!(without_encryption(|| serde_json::to_string(&s).unwrap()), "\"key-123\"");
     }
 
     #[cfg(windows)]

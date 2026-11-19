@@ -523,6 +523,29 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 dialog.ui(ui);
             })
         }
+        "settings-reset-confirm" | "settings-import-error" => {
+            // `ResetAsync`'s question; `SettingManager.Import`'s error box
+            // for a file that isn't a zip (the zip crate's message).
+            let mut dialog = if screen == "settings-reset-confirm" {
+                MessageBox::yes_no(
+                    format!("ShareXrs - {}", sharex_strings::sharex::Confirmation()),
+                    sharex_strings::sharex::ApplicationSettingsForm_btnResetSettings_Click_WouldYouLikeToResetShareXSettings(),
+                    MessageBoxIcon::Warning,
+                )
+            } else {
+                let e = crate::settings_backup::import_archive(std::path::Path::new("not-a-zip.sxb"), &std::env::temp_dir()).err().unwrap_or_default();
+                MessageBox::ok("ShareXrs - Error", sharex_strings::sharex::SettingManager_ImportBackupError().replace("{0}", &e), MessageBoxIcon::Error)
+            };
+            let mut probe = Offscreen::new([1, 1], scale, dark)?;
+            let mut h = 0.0;
+            probe.run(Vec::new(), &mut |ui: &mut egui::Ui| h = dialog.height(ui));
+            let w = width.unwrap_or((message_box::WIDTH * scale) as u32);
+            let h = height.unwrap_or((h * scale).round() as u32);
+            let mut screen = Offscreen::new([w, h], scale, dark)?;
+            screen.render(|ui| {
+                dialog.ui(ui);
+            })
+        }
         "file-delete-confirm" => {
             // `TaskHelpers.ConfirmFileDelete`'s message box.
             let ss = sharex_strings::sharex::MainForm_tsmiDeleteSelectedFile_Click_File_delete_confirmation;
@@ -583,6 +606,29 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let parent = sharex_settings::paths::absolute_path("ShareXrs").join("Screenshots");
             let mut state = crate::app_settings::ApplicationSettings::new(&settings, true, parent);
             state.page = page;
+            state.set_scroll(page, scroll);
+            // `--state` on the Settings page: the export and import states
+            // (built from source where ShareX's shots have none).
+            let path = r"C:\Users\Public\ShareXrs-backup.sxb";
+            match dialog.state.as_deref() {
+                Some("none-selected") => (state.export_settings, state.export_history) = (false, false),
+                Some("busy-export") => {
+                    state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ExportingBackup());
+                    state.busy_phase = Some(1.847);
+                }
+                Some("busy-import") => {
+                    state.start_busy(sharex_strings::sharex::ApplicationSettingsWindow_ImportingBackup());
+                    // Where ShareX's shot caught the indicator.
+                    state.busy_phase = Some(1.847);
+                }
+                Some("exported") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportedTo().replace("{0}", path),
+                Some("export-failed") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupExportFailed().into(),
+                Some("imported") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportedFrom().replace("{0}", path),
+                Some("import-failed") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_BackupImportFailed().into(),
+                Some("reset") => state.status = sharex_strings::sharex::ApplicationSettingsWindow_SettingsReset().into(),
+                Some(other) => return Err(format!("no settings state {other}")),
+                None => {}
+            }
             let w = width.unwrap_or((sharex_ui::theme::density(&egui::Context::default()).settings_window_width * scale) as u32);
             let h = height.unwrap_or((crate::app_settings::HEIGHT * scale) as u32);
             let mut screen = Offscreen::new([w, h], scale, dark)?;

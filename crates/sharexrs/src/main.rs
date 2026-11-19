@@ -40,6 +40,7 @@ mod render;
 mod screen_tools;
 mod video_tools;
 mod scrolling_capture;
+mod settings_backup;
 mod settings_form;
 mod shell;
 #[cfg(windows)]
@@ -116,6 +117,8 @@ pub enum UserEvent {
     Wake,
     /// The auto capture window's tray icon.
     AutoCaptureTray(TrayEvent),
+    /// A settings export or import finished its archive.
+    SettingsBackup(Box<settings_backup::Done>),
 }
 
 fn main() {
@@ -307,6 +310,8 @@ enum DialogPurpose {
     /// A question a command line asked (importing a custom uploader or an
     /// image effect).
     CommandLine(cli::CliQuestion),
+    /// Application settings' "Would you like to reset ShareX settings?".
+    ResetSettings,
     /// A tool window's `MessageBox.Show(this, …)`: the window hears when it
     /// closes ([`dialogs::Dialog::answered`]), as the modal call returns.
     Owned(winit::window::WindowId),
@@ -1291,6 +1296,10 @@ impl App {
                 d.dialog.answered(result == DialogResult::Yes || result == DialogResult::Ok);
                 d.window.window.request_redraw();
             }
+        } else if matches!(dialog.purpose, DialogPurpose::ResetSettings) {
+            if result == DialogResult::Yes {
+                self.reset_settings();
+            }
         } else if let DialogPurpose::CommandLine(question) = dialog.purpose {
             self.cli_answered(question, result);
         } else if matches!(dialog.purpose, DialogPurpose::ClearCustomUploaders)
@@ -1681,6 +1690,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::ExtensionImage(result) => self.extension_image(*result),
             UserEvent::Wake => {}
             UserEvent::AutoCaptureTray(e) => self.auto_capture_tray_event(e),
+            UserEvent::SettingsBackup(done) => self.backup_finished(event_loop, *done),
         }
     }
 
