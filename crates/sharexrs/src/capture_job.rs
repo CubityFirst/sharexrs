@@ -293,11 +293,24 @@ impl ImageTask {
         Self { metadata, task, file_name, folder, image_effects_folder }
     }
 
-    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: add image
-    /// effects, copy the image to the clipboard (owned by `owner`), then save it.
+    /// `WorkerTask.DoAfterCaptureJobs` for the tasks ported so far: beautify,
+    /// add image effects, annotate, copy the image to the clipboard (owned by `owner`), then save it.
     pub fn run(mut self, owner: Option<isize>, ui: Option<&dyn crate::upload::TaskUi>) -> Result<TaskOutcome, String> {
         let mut outcome = TaskOutcome::default();
         let job = self.task.AfterCaptureJob;
+        // `TaskHelpers.BeautifyImage(Image, Info.TaskSettings)`: cancelled,
+        // the task stops.
+        if job.contains(AfterCaptureTasks::BeautifyImage)
+            && let Some(ui) = ui
+        {
+            match ui.beautify_image(&self.metadata.image, &self.task) {
+                Some(image) => self.metadata.image = image,
+                None => {
+                    eprintln!("Beautify image: cancelled, the task stops.");
+                    return Ok(outcome);
+                }
+            }
+        }
         if job.contains(AfterCaptureTasks::AddImageEffects) {
             self.metadata.image =
                 self.apply_image_effects(ui).ok_or("Error: Applying image effects resulted empty image.")?;

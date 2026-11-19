@@ -43,7 +43,7 @@ pub(crate) mod emoji_picker;
 mod insert_image;
 pub(crate) mod modal;
 mod new_image;
-mod notify;
+pub(crate) mod notify;
 mod start_screen;
 
 use sharex_ui::keys::app_icons as icon;
@@ -2760,6 +2760,21 @@ impl crate::App {
         task: TaskSettings,
         reply: Option<mpsc::Sender<Option<RgbaImage>>>,
     ) {
+        self.open_editor_window(event_loop, image, file_path, task, reply, false);
+    }
+
+    /// `ShowEditorDialog(..., openBackgroundPanel)`: with it, the editor
+    /// opens with its Background panel (`IsSettingsPanelOpen`), which is
+    /// the Image beautifier.
+    fn open_editor_window(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        image: Option<RgbaImage>,
+        file_path: Option<PathBuf>,
+        task: TaskSettings,
+        reply: Option<mpsc::Sender<Option<RgbaImage>>>,
+        background_panel: bool,
+    ) {
         let task_mode = reply.is_some();
         let parent = self.settings.paths.screenshots_parent_folder(Some(&self.settings.settings));
         let meta = crate::capture_job::Metadata {
@@ -2770,7 +2785,40 @@ impl crate::App {
         let folder = crate::capture_job::screenshots_folder(&task, &self.settings.settings, &parent, &meta);
         let mut w = EditorWindow::new(image, file_path, task, task_mode, folder);
         w.reply = reply;
+        w.bg_panel.open = background_panel;
         self.open_dialog_window(event_loop, Box::new(w));
+    }
+
+    /// `TaskHelpers.OpenImageBeautifier(filePath, taskSettings)` (the Tools
+    /// menu, its hotkey, `-ImageBeautifier`, the task list's Beautify
+    /// image): an image file picked first when there's none; a file that
+    /// doesn't exist or doesn't load does nothing. The editor (taskMode
+    /// off) opens with the Background panel, and what it gives back when
+    /// it closes (Continue) goes through `RunImageTask`.
+    pub(crate) fn open_image_beautifier(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, file: Option<PathBuf>, task: Option<TaskSettings>) {
+        let path = match file {
+            Some(f) => f,
+            // `SkiaImageHelpers.OpenImageFileDialog()`.
+            None => match crate::image_tools::open_image_file_dialog() {
+                Some(f) => PathBuf::from(f),
+                None => return,
+            },
+        };
+        if !path.is_file() {
+            return;
+        }
+        let task = task.unwrap_or_else(|| TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings));
+        let Some(img) = crate::thumbnail::load(&path) else { return };
+        // Not in task mode: Continue's image runs the task when the window
+        // closes (`worker.Completed`), as the editor's own close does.
+        self.open_editor_window(event_loop, Some(img), Some(path), task, None, true);
+    }
+
+    /// `TaskHelpers.BeautifyImage(bmp, taskSettings)` (the Beautify image
+    /// after capture task): the editor in task mode with the Background
+    /// panel; the task waits for the result (`None`: the task stops).
+    pub(crate) fn beautify_capture(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, image: RgbaImage, task: TaskSettings, reply: mpsc::Sender<Option<RgbaImage>>) {
+        self.open_editor_window(event_loop, Some(image), None, task, Some(reply), true);
     }
 
     /// `TaskHelpers.AnnotateImageFromFile(filePath, taskSettings)`.

@@ -9,6 +9,7 @@
 //! `ImageComparisonSlider`), and previews computed off the UI thread with
 //! stale ones dropped (`_previewVersion`).
 
+pub mod background_remover;
 pub mod combiner;
 pub mod comparer;
 pub mod converter;

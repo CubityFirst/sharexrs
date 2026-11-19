@@ -317,6 +317,8 @@ impl App {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.open_image_effects_tool(event_loop, Some(path.clone()), task);
             }
+            // `TaskHelpers.OpenImageBeautifier(filePath)`: default task settings.
+            TaskCommand::BeautifyImage if sel.is_image_file => self.open_image_beautifier(event_loop, Some(path.clone()), None),
             TaskCommand::OcrImage if sel.is_image_file => {
                 let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
                 self.ocr_file(event_loop, &path, task);

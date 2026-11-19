@@ -27,6 +27,15 @@ struct Toast {
     hovered_until: f64,
 }
 
+/// Where a host puts the toast: its bottom `bottom` px above the view's
+/// (the editor's `Margin="16,0,16,68"` lands at 60), at most `max_width`
+/// wide (`MaxWidth`), the icon in `icon_color`.
+pub struct Placement {
+    pub bottom: f32,
+    pub max_width: Option<f32>,
+    pub icon_color: Color32,
+}
+
 #[derive(Default)]
 pub struct Notifications {
     toast: Option<Toast>,
@@ -67,6 +76,12 @@ impl Notifications {
 
     /// Draws the notification over `view`.
     pub fn paint(&mut self, ui: &Ui, p: &Palette, view: Rect) {
+        self.paint_at(ui, p, view, Placement { bottom: 60.0, max_width: None, icon_color: p.accent_icon });
+    }
+
+    /// Draws it over `view` where `at` places it (another host's toast:
+    /// the background remover's).
+    pub fn paint_at(&mut self, ui: &Ui, p: &Palette, view: Rect, at: Placement) {
         let now = ui.input(|i| i.time);
         if let Some((message, icon)) = self.pending.take() {
             self.toast = Some(Toast { message, icon, shown: now, closed: None, hovered_until: 0.0 });
@@ -78,7 +93,8 @@ impl Notifications {
         let font = widgets::font(13.0, 600);
         let lh = ui.fonts_mut(|f| f.row_height(&font));
         // `MaxWidth` the view's; the grid's margins 16 either side.
-        let max_text = (view.width() - 32.0 - 2.0 - 28.0 - if t.icon.is_some() { 28.0 } else { 0.0 }).max(10.0);
+        let max_box = at.max_width.map_or(view.width() - 32.0, |m| m.min(view.width() - 32.0));
+        let max_text = (max_box - 2.0 - 28.0 - if t.icon.is_some() { 28.0 } else { 0.0 }).max(10.0);
         let lines: Vec<String> = t.message.split('\n').flat_map(|l| sharex_ui::controls::wrap_lines(ui, l, &font, max_text)).collect();
         let text_w = lines.iter().map(|l| widgets::text_width(ui, l, font.clone())).fold(0.0, f32::max);
         let text_h = (lh * lines.len() as f32).ceil();
@@ -86,7 +102,7 @@ impl Notifications {
         let size = vec2(2.0 + 14.0 + icon_w + text_w + 14.0, 2.0 + 10.0 + text_h.max(if t.icon.is_some() { 18.0 } else { 0.0 }) + 10.0);
         // Centred; its bottom 60px above the view's (measured against
         // ShareX: `Margin="16,0,16,68"` lands 8px lower in the window).
-        let base = Rect::from_min_size(pos2(view.min.x + ((view.width() - size.x) / 2.0).round_ties_even(), view.max.y - 60.0 - size.y), size);
+        let base = Rect::from_min_size(pos2(view.min.x + ((view.width() - size.x) / 2.0).round_ties_even(), view.max.y - at.bottom - size.y), size);
         // The fade: in over 0.18 s from `translateY(8px) scale(0.98)`, out
         // the same way once closed.
         let hovered = ui.rect_contains_pointer(base);
@@ -122,7 +138,7 @@ impl Notifications {
         let content = Rect::from_min_max(pos2(rect.min.x + 15.0, rect.min.y + 11.0), pos2(rect.max.x - 15.0, rect.max.y - 11.0));
         let mut x = content.min.x;
         if let Some(icon) = t.icon {
-            icons::paint(&painter, Rect::from_min_size(pos2(x, widgets::center_y(content, 18.0)), vec2(18.0, 18.0)), icon, p.accent_icon);
+            icons::paint(&painter, Rect::from_min_size(pos2(x, widgets::center_y(content, 18.0)), vec2(18.0, 18.0)), icon, at.icon_color);
             x += 28.0;
         }
         let mut y = content.min.y + ((content.height() - text_h) / 2.0).round_ties_even();
