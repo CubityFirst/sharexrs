@@ -439,7 +439,8 @@ enum Act {
     ImgurAlbums,
     /// A remote folder card's buttons (page, the selected folder's member).
     Folder(String, Path, FolderAct),
-    NotPorted(&'static str),
+    /// `_openRemoteStorageBrowser`.
+    RemoteStorageBrowser,
 }
 
 /// A remote folder card's buttons.
@@ -1155,7 +1156,7 @@ impl DestinationSettingsWindow {
                         key: "remote-storage-browser".into(),
                         text: u::DestinationSettings_Remote_storage_browser().into(),
                         enabled: valid,
-                        act: Act::NotPorted("remote storage browser"),
+                        act: Act::RemoteStorageBrowser,
                     }));
                 }
                 _ => {
@@ -2123,8 +2124,8 @@ impl DestinationSettingsWindow {
                 Vec::new()
             }
             Act::Folder(page, member, what) => self.folder_act(config, &page, member, what),
-            Act::NotPorted(what) => {
-                self.effects.push(Effect::NotPorted(what));
+            Act::RemoteStorageBrowser => {
+                self.effects.push(Effect::OpenRemoteStorageBrowser);
                 Vec::new()
             }
             Act::ListAdd(list, item) => {

@@ -162,6 +162,8 @@ pub enum Effect {
     RunImageTask(RgbaImage, Box<TaskSettings>),
     /// What isn't ported yet (logged).
     NotPorted(&'static str),
+    /// `TaskHelpers.OpenRemoteStorageBrowser` (Destination settings' button).
+    OpenRemoteStorageBrowser,
     /// The image editor's colour popups' screen colour picker
     /// (`ScreenColorPickerWindow.PickAsync(owner)`): over the window, its
     /// colour handed back through [`Dialog::screen_color`].
@@ -622,6 +624,7 @@ impl App {
                 Effect::AutoCaptureSelectRegion => self.auto_capture_select_region(event_loop),
                 Effect::AutoCaptureTray(hide) => self.auto_capture_tray(event_loop, id, hide),
                 Effect::NotPorted(what) => eprintln!("{what}: not ported yet"),
+                Effect::OpenRemoteStorageBrowser => self.open_remote_storage_browser(event_loop),
                 Effect::PickScreenColorOverWindow => self.open_screen_color_picker(event_loop, crate::screen_tools::PickPurpose::Dialog(id)),
                 Effect::EditorCapture { fullscreen, task } => self.editor_capture(id, fullscreen, *task),
                 Effect::PickScreenColor => {
@@ -710,6 +713,22 @@ impl App {
     /// the service's page when one is given.
     pub(crate) fn show_destination_settings(&mut self, event_loop: &ActiveEventLoop, service: Option<&str>) {
         self.open_dialog_window(event_loop, Box::new(destination_settings::DestinationSettingsWindow::new(service)));
+    }
+
+    /// `TaskHelpers.OpenRemoteStorageBrowser`: Amazon S3 and each usable
+    /// FTP/SFTP account; without any, the message saying how to set one up.
+    pub(crate) fn open_remote_storage_browser(&mut self, event_loop: &ActiveEventLoop) {
+        let allow_upload = !self.settings.system.disable_upload;
+        let providers = self.uploads.config.with(|c| sharex_uploaders::remote_storage::providers(c, allow_upload));
+        let dialog: Box<dyn Dialog> = if providers.is_empty() {
+            use crate::message_box::{MessageBox, MessageBoxIcon};
+            let title = sharex_strings::sharex::MainMenuBuilder_RemoteStorageBrowser().trim_end_matches(['.', '…']);
+            let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
+            Box::new(message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
+        } else {
+            Box::new(crate::remote_storage_browser::RemoteStorageBrowserWindow::new(providers, std::sync::Arc::new(crate::upload::SystemBrowser)))
+        };
+        self.open_dialog_window(event_loop, dialog);
     }
 
     /// A window of ours to own the clipboard's data.

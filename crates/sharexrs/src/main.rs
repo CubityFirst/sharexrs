@@ -32,6 +32,7 @@ mod image_tools;
 mod image_effects;
 mod recording;
 mod region_render;
+mod remote_storage_browser;
 mod region_session;
 mod render;
 mod screen_tools;
@@ -542,6 +543,10 @@ impl App {
         if command == MenuCommand::Tool("MainMenuBuilder_OCR") {
             let task = TaskSettings::default_task_settings(&self.settings.settings.DefaultTaskSettings);
             self.ocr_capture(task, auto_hide);
+            return;
+        }
+        if command == MenuCommand::Tool("MainMenuBuilder_RemoteStorageBrowser") {
+            self.open_remote_storage_browser(event_loop);
             return;
         }
         if let MenuCommand::Tool(key) = command

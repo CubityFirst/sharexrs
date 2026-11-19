@@ -19,7 +19,8 @@
 //!   two-factor question, `--text` typed in), `email-window` (`--state
 //!   empty|prefilled|edited`), `youtube-options` (`--state
 //!   default|edited`; `--clicks` on the combo box opens it),
-//!   `remote-storage-not-configured` (the message box),
+//!   `remote-storage-not-configured` (the message box), `remote-storage`
+//!   (see [`crate::remote_storage_browser::render_dialog`]),
 //! - `update-message` (`--content installed|portable|prerelease|dev`: the
 //!   setup flow, the portable one, a pre-release, a dev build without the
 //!   changelog link), `update-downloader` (`--content
@@ -313,6 +314,7 @@ It shows the dialog.",
             let text = sharex_strings::sharex::TaskHelpers_RemoteStorageNotConfigured();
             Box::new(super::message_dialog::MessageDialog::new(MessageBox::ok(format!("ShareXrs - {title}"), text, MessageBoxIcon::Information), None))
         }
+        s if crate::remote_storage_browser::is_render_screen(s) => crate::remote_storage_browser::render_dialog(s, o)?,
         page if page.starts_with("destination-") => {
             // `destination-<page id>`: Destination settings on that page.
             let id = page.trim_start_matches("destination-").trim_start_matches("settings-");
@@ -361,6 +363,7 @@ pub fn is_dialog_screen(screen: &str) -> bool {
             | "youtube-options"
             | "remote-storage-not-configured"
     ) || screen.starts_with("destination-")
+        || crate::remote_storage_browser::is_render_screen(screen)
         || crate::history_ui::is_render_screen(screen)
         || crate::ocr_window::is_render_screen(screen)
         || crate::image_editor::is_render_screen(screen)
