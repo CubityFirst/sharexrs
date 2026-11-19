@@ -171,6 +171,10 @@ mod tests {
             std::fs::write(path, &out).unwrap();
         }
         let hash = out.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ b as u64).wrapping_mul(0x0100_0000_01b3));
-        assert_eq!((out.len(), hash), (9_051_597, 18_317_942_704_018_421_494));
+        // ShareX 30d1682 added four keys in every language (the dumps' only
+        // difference): RegionCaptureAction_CaptureSelection,
+        // EditorBuiltInToolbars_MoveToolbar, ApplicationSettingsWindow_
+        // DescriptionCantBeEmpty and _FormatCantBeEmpty.
+        assert_eq!((out.len(), hash), (9_064_035, 9_627_719_075_394_093_518));
     }
 }
