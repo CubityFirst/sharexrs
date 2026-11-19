@@ -543,15 +543,16 @@ clone regions.
 kept on the work area (its height cut to it, as Avalonia's positioner
 does), with light dismiss and Escape; the chevrons turn over while open:
 
-- `ColorPickerDropdown`/`ColorPickerPanel`: Avalonia's `ColorView` on its
-  palette tab, ported from the Fluent template embedded in
-  `Avalonia.Controls.ColorPicker.dll` 12.1.6 (the tab strip and its Fluent
-  UI icons, `FluentColorPalette` 6x8 with ShareX's three replacements, the
-  `ColorPreviewer` with its +-0.1/0.2 value accents and shadow), then the
-  screen colour picker button and five recent colours
-  (`EditorRecentColors`, the colour a popup closes with). The spectrum and
-  components tabs fall back to egui's HSV picker, as the app's other colour
-  popups do.
+- `ColorPickerDropdown`/`ColorPickerPanel`: `sharex_ui::color_view`'s
+  `color_picker_panel`, Avalonia's `ColorView` (`Avalonia.Controls.ColorPicker`
+  12.1.6, all three tabs: the spectrum with its value and alpha sliders,
+  `FluentColorPalette` 6x8 with ShareX's three replacements, the RGB/HSV
+  components with the hex box; the `ColorPreviewer` with its +-0.1/0.2
+  value accents and shadow) on its palette tab, then the screen colour
+  picker button and five recent colours (`EditorRecentColors`, shared with
+  every `ColorPickerPanel`, the colour a popup closes with). The shadow
+  popup's colour dropdown is the same panel, its screen colour picker
+  setting the shadow colour.
 - Width, corner radius (grids), border style, arrow style (previews drawn
   by the renderer), alignment, step type, start number, cursor type (the
   cursors' previews from `render::cursor`), font size (custom size box),
@@ -569,9 +570,9 @@ references in `shots/sharex/editor-popups/`):
 
 | Popup | Dark | Light |
 |---|---|---|
-| Border colour | 0.06% | 0.09% |
-| Fill colour | 0.09% | 0.15% |
-| Text colour | 0.08% | 0.10% |
+| Border colour | 0.05% | 0.09% |
+| Fill colour | 0.05% | 0.09% |
+| Text colour | 0.07% | 0.10% |
 | Thickness | 0.01% | 0.01% |
 | Border style | 0.26% | 0.24% |
 | Corner radius | 0.02% | 0.02% |
