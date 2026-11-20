@@ -410,7 +410,14 @@ mod tests {
                 }
                 let (one, tiled) = (&shots[0], &shots[1]);
                 let what = format!("{:?} at {ppp}x, zoom {zoom}, {at:?}", options.magnification);
-                if aligned {
+                // Magnified linear filtering interpolates in the GPU's own
+                // precision: a hardware GPU gives the same weights to a tile
+                // and to the one texture, but a software rasteriser (WARP, on
+                // CI's Windows runners) may round a texel's weights a level
+                // apart where a tile's UVs differ. Hold it to the same few
+                // levels as unaligned draws there.
+                let exact = aligned && !(options == TextureOptions::LINEAR && zoom > 1.0 && screen.is_software());
+                if exact {
                     assert!(one == tiled, "{what}: not identical");
                 } else if options == TextureOptions::LINEAR {
                     let worst = one.as_raw().iter().zip(tiled.as_raw()).map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0);

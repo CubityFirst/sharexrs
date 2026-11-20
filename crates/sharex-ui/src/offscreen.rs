@@ -66,6 +66,12 @@ impl Offscreen {
         Ok(Self { gpu, ctx, renderer, size, ppp, frame: 0, last: None, transparent: false })
     }
 
+    /// Whether this draws on a software rasteriser (WARP, llvmpipe), whose
+    /// filtering precision can differ from a hardware GPU's.
+    pub fn is_software(&self) -> bool {
+        self.gpu.adapter.get_info().device_type == wgpu::DeviceType::Cpu
+    }
+
     /// Runs one frame with these input events.
     pub fn run(&mut self, events: Vec<egui::Event>, ui: &mut impl FnMut(&mut egui::Ui)) {
         if self.frame == 0 && self.ppp != 1.0 {
