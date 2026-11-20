@@ -505,8 +505,7 @@ impl ImageEffectsWindow {
         let inner = rect.shrink(1.0);
         if let Some(pic) = &mut self.preview {
             let dest = tools::slider::image_bounds(inner, pic.size(), tools::slider::Stretch::DownOnly);
-            let tex = pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32));
-            ui.painter().with_clip_rect(inner.intersect(ui.clip_rect())).image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32)).paint(&ui.painter().with_clip_rect(inner.intersect(ui.clip_rect())), dest, Color32::WHITE);
             let resp = if live { Some(ui.interact(inner, Id::new("effects-preview"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand)) } else { None };
             if resp.is_some_and(|r| r.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed())) {
                 // `OnPreviewPointerPressed`: `ImageViewerWindowIntegration.ShowImage(imageData,

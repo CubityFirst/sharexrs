@@ -189,8 +189,7 @@ impl Dialog for IconConverterWindow {
                 let lh = line_height(ui, &nf);
                 let img_area = Rect::from_min_max(r.min, pos2(r.max.x, r.max.y - lh - 12.0)).shrink(8.0);
                 let dest = crate::dialogs::layout::uniform(img_area, pic.size());
-                let tex = pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32));
-                ui.painter().image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32)).paint(ui.painter(), dest, Color32::WHITE);
                 let dwid = text_width(ui, &self.image_details, nf.clone());
                 super::text_at(ui, pos2(r.min.x + ((r.width() - dwid) / 2.0).round_ties_even(), r.max.y - lh), &self.image_details, nf, p.text_secondary);
             }

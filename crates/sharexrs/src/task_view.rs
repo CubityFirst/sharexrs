@@ -309,7 +309,8 @@ struct Item {
 struct Preview {
     key: Option<(PathBuf, [u32; 2])>,
     version: u64,
-    texture: Option<TextureHandle>,
+    /// Fitted to the pane; tiled past the GPU's largest texture side.
+    texture: Option<sharex_ui::tiled::TiledTexture>,
 }
 
 /// A GIF played over a thumbnail while the pointer is on its picture
@@ -526,11 +527,11 @@ impl TaskView {
 
     /// A decoded picture arrived.
     pub fn image_ready(&mut self, ctx: &egui::Context, id: u64, version: u64, kind: ImageKind, image: Option<image::RgbaImage>) {
-        let texture = image.map(|img| {
-            ctx.load_texture(format!("task-{kind:?}-{id}-{version}"), crate::thumbnail::to_color_image(&img), egui::TextureOptions::NEAREST)
-        });
+        let name = format!("task-{kind:?}-{id}-{version}");
         match kind {
+            // At most `ThumbnailSize` (and twice that hovered).
             ImageKind::Thumbnail => {
+                let texture = image.map(|img| ctx.load_texture(name, crate::thumbnail::to_color_image(&img), egui::TextureOptions::NEAREST));
                 if let Some(item) = self.items.iter_mut().find(|i| i.id == id && i.version == version) {
                     item.thumb = texture;
                 }
@@ -538,7 +539,7 @@ impl TaskView {
             ImageKind::Preview => {
                 let playing = self.preview_animation.as_ref().is_some_and(|a| a.playing);
                 if self.preview.version == version && !playing {
-                    self.preview.texture = texture;
+                    self.preview.texture = image.map(|img| sharex_ui::tiled::TiledTexture::new(ctx, &name, crate::thumbnail::to_color_image(&img), egui::TextureOptions::NEAREST));
                 }
             }
         }
@@ -1052,7 +1053,11 @@ impl TaskView {
                 match a.player.poll(now) {
                     Poll::Frame(img) => {
                         a.playing = true;
-                        set_texture(ctx, &mut self.preview.texture, "task-preview-animation", &img);
+                        let ci = crate::thumbnail::to_color_image(&img);
+                        match &mut self.preview.texture {
+                            Some(t) => t.set(ctx, "task-preview-animation", ci, egui::TextureOptions::NEAREST),
+                            None => self.preview.texture = Some(sharex_ui::tiled::TiledTexture::new(ctx, "task-preview-animation", ci, egui::TextureOptions::NEAREST)),
+                        }
                         next(std::time::Duration::ZERO);
                     }
                     Poll::Wait(d) => next(d),
@@ -1269,7 +1274,7 @@ impl TaskView {
                 painter.rect_stroke(image, CornerRadius::same(4), Stroke::new(1.0, p.border), egui::StrokeKind::Inside);
                 if let Some(tex) = &self.preview.texture {
                     let inner = image.shrink(1.0);
-                    painter.image(tex.id(), inner, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                    tex.paint(painter, inner, Color32::WHITE);
                 }
             }
         }

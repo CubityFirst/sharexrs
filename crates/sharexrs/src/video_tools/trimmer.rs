@@ -501,7 +501,7 @@ impl Dialog for VideoTrimmerWindow {
             let w = preview.width().min(preview.height() * aspect);
             let video = Rect::from_center_size(preview.center(), vec2(w, w / aspect.max(0.001)));
             if let Some((tex, _)) = self.player.texture(ui.ctx()) {
-                ui.painter().image(tex, video, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                tex.paint(ui.painter(), video, Color32::WHITE);
             }
             if ui.interact(video, Id::new("video-trimmer-video"), Sense::click()).clicked() {
                 self.toggle_play();

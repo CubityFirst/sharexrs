@@ -16,7 +16,8 @@
 //! - [`widgets`]: ShareX's shared controls (caption buttons, nav buttons,
 //!   cards, toggles, accent buttons).
 //! - [`gpu`] and [`offscreen`]: one wgpu device for every window, and
-//!   rendering any UI to a PNG for comparing against ShareX.
+//!   rendering any UI to a PNG for comparing against ShareX; [`tiled`]:
+//!   images larger than the GPU's largest texture, as tiles.
 
 pub mod accent;
 pub mod border;
@@ -31,6 +32,7 @@ pub mod icons;
 pub mod offscreen;
 pub mod popup;
 pub mod theme;
+pub mod tiled;
 pub mod tooltip;
 pub mod widgets;
 

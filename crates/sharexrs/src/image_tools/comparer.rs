@@ -170,8 +170,7 @@ impl Dialog for ImageComparerWindow {
                 if let Some(d) = &mut self.diff {
                     // `Image Stretch="Uniform"`.
                     let bounds = super::slider::image_bounds(area.shrink(12.0), d.size(), super::slider::Stretch::Both);
-                    let tex = d.texture(ui.ctx(), (bounds.width() as u32, bounds.height() as u32));
-                    ui.painter().image(tex, bounds, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                    d.texture(ui.ctx(), (bounds.width() as u32, bounds.height() as u32)).paint(ui.painter(), bounds, Color32::WHITE);
                 }
             }
             _ => {

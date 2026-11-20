@@ -304,7 +304,7 @@ impl Dialog for VideoPlayerWindow {
             let h = w / aspect.max(0.001);
             let video = Rect::from_center_size(viewport.center(), vec2(w, h));
             if let Some((tex, _)) = self.player.texture(ui.ctx()) {
-                ui.painter().image(tex, video, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                tex.paint(ui.painter(), video, Color32::WHITE);
             }
             let r = ui.interact(video, Id::new("player-video"), Sense::click());
             if r.clicked() {

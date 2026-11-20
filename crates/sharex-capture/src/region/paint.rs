@@ -7,6 +7,7 @@
 use std::time::Instant;
 
 use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, StrokeKind, TextureHandle, TextureOptions, pos2, vec2};
+use sharex_ui::tiled::TiledTexture;
 use sharex_ui::{Palette, palette, widgets};
 
 use super::{RegionCapture, ResizeNode, options_row, toolbar};
@@ -21,10 +22,11 @@ type MagnifierKey = (i32, i32, i32, i32, u32);
 pub struct OverlayView {
     /// The desktop pixels the window covers.
     pub monitor: RectI,
-    frozen: Option<TextureHandle>,
+    /// One texture, or tiles past the GPU's largest texture side.
+    frozen: Option<TiledTexture>,
     /// A frozen screen texture from an earlier capture, uploaded into
     /// rather than allocating another when it's the size needed.
-    spare: Option<TextureHandle>,
+    spare: Option<TiledTexture>,
     /// The editor's version the frozen texture shows (with annotations).
     frozen_version: Option<u64>,
     magnifier: Option<(TextureHandle, MagnifierKey)>,
@@ -35,7 +37,7 @@ pub struct OverlayView {
     /// Where the open option popup was drawn.
     popup: Option<Rect>,
     /// The picture of the ellipse and freehand chrome.
-    shapes: Option<(TextureHandle, super::chrome::ShapeChrome)>,
+    shapes: Option<(TiledTexture, super::chrome::ShapeChrome)>,
 }
 
 impl OverlayView {
@@ -55,12 +57,12 @@ impl OverlayView {
 
     /// Gives the view a frozen screen texture kept from an earlier capture
     /// (its window's), to upload into.
-    pub fn keep_texture(&mut self, texture: Option<TextureHandle>) {
+    pub fn keep_texture(&mut self, texture: Option<TiledTexture>) {
         self.spare = texture;
     }
 
     /// The frozen screen's texture, to keep for the next capture.
-    pub fn take_frozen_texture(&mut self) -> Option<TextureHandle> {
+    pub fn take_frozen_texture(&mut self) -> Option<TiledTexture> {
         self.frozen.take().or_else(|| self.spare.take())
     }
 
@@ -69,11 +71,11 @@ impl OverlayView {
     fn set_frozen(&mut self, ctx: &egui::Context, image: egui::ColorImage) {
         let texture = self.frozen.take().or_else(|| self.spare.take());
         self.frozen = Some(match texture {
-            Some(mut tex) if tex.size() == image.size => {
-                tex.set_partial([0, 0], image, TextureOptions::NEAREST);
+            Some(mut tex) if tex.size() == image.size && tex.options() == TextureOptions::NEAREST => {
+                tex.write(image);
                 tex
             }
-            _ => ctx.load_texture("frozen screen", image, TextureOptions::NEAREST),
+            _ => TiledTexture::new(ctx, "frozen screen", image, TextureOptions::NEAREST),
         });
     }
 
@@ -414,7 +416,7 @@ impl RegionCapture {
             && let Some(tex) = &view.frozen
         {
             let r = m.rect((part.x - sb.x) as f64, (part.y - sb.y) as f64, part.w as f64, part.h as f64);
-            painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            tex.paint(&painter, r, Color32::WHITE);
         }
 
         // `RegionSelectionOverlay.Render`; with an annotation tool, only a

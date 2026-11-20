@@ -320,8 +320,7 @@ impl AnalyzeImageWindow {
             // `Stretch="Uniform"`: fitted either way.
             let dest = crate::image_tools::slider::image_bounds(area, pic.size(), crate::image_tools::slider::Stretch::Both);
             let size = (dest.width().round().max(1.0) as u32, dest.height().round().max(1.0) as u32);
-            let tex = pic.texture(ui.ctx(), size);
-            ui.painter().with_clip_rect(host.shrink(1.0)).image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+            pic.texture(ui.ctx(), size).paint(&ui.painter().with_clip_rect(host.shrink(1.0)), dest, egui::Color32::WHITE);
             // `OnPreviewPointerPressed`: the image viewer.
             if ui.interact(host, Id::new("ai-preview"), egui::Sense::click()).clicked() {
                 out.push(Effect::ShowImageNamed(pic.image.clone(), self.image_description()));

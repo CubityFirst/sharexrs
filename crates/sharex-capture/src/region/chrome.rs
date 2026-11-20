@@ -6,7 +6,8 @@
 //! (`DrawCursorCrosshair`). Non-rectangular parts are rasterised with
 //! Skia's CPU renderer ([`sharex_skia`]) into a picture over their bounds.
 
-use egui::{Color32, TextureHandle, TextureOptions, pos2};
+use egui::{Color32, TextureOptions};
+use sharex_ui::tiled::TiledTexture;
 use sharex_skia::{Cap, Color, IRect, Join, Matrix, Path, Pixmap, Stroke};
 
 use super::paint::{Mapper, pixel_rect};
@@ -125,7 +126,7 @@ impl ShapeChrome {
     }
 
     /// Draws the picture, uploading it when it changed (`cache`).
-    pub fn paint(&self, painter: &egui::Painter, m: &Mapper, cache: &mut Option<(TextureHandle, ShapeChrome)>) {
+    pub fn paint(&self, painter: &egui::Painter, m: &Mapper, cache: &mut Option<(TiledTexture, ShapeChrome)>) {
         if !self.area.is_valid() {
             return;
         }
@@ -134,16 +135,16 @@ impl ShapeChrome {
             let image = egui::ColorImage::from_rgba_premultiplied([pm.width() as usize, pm.height() as usize], &pm.to_premul_rgba());
             match cache {
                 Some((tex, key)) => {
-                    tex.set(image, TextureOptions::NEAREST);
+                    tex.set(painter.ctx(), "region shapes", image, TextureOptions::NEAREST);
                     *key = self.clone();
                 }
-                None => *cache = Some((painter.ctx().load_texture("region shapes", image, TextureOptions::NEAREST), self.clone())),
+                None => *cache = Some((TiledTexture::new(painter.ctx(), "region shapes", image, TextureOptions::NEAREST), self.clone())),
             }
         }
         if let Some((tex, _)) = cache {
             let a = self.area;
             let r = m.rect(a.x as f64, a.y as f64, a.w as f64, a.h as f64);
-            painter.image(tex.id(), r, egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            tex.paint(painter, r, Color32::WHITE);
         }
     }
 }

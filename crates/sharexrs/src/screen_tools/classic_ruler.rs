@@ -114,7 +114,7 @@ pub struct ClassicRuler {
     shift: bool,
     control: bool,
     alt: bool,
-    textures: Vec<Option<egui::TextureHandle>>,
+    textures: Vec<Option<sharex_ui::tiled::TiledTexture>>,
     magnifier: Option<((i32, i32), RgbaImage)>,
 }
 
@@ -557,7 +557,7 @@ impl ClassicRuler {
         if self.textures[i].is_none() {
             let crop = image::imageops::crop_imm(&self.screenshot, monitor.x as u32, monitor.y as u32, monitor.w as u32, monitor.h as u32).to_image();
             let ci = egui::ColorImage::from_rgba_unmultiplied([crop.width() as usize, crop.height() as usize], crop.as_raw());
-            self.textures[i] = Some(w.window.ctx().load_texture("classic ruler screen", ci, TextureOptions::NEAREST));
+            self.textures[i] = Some(sharex_ui::tiled::TiledTexture::new(w.window.ctx(), "classic ruler screen", ci, TextureOptions::NEAREST));
         }
         // The magnifier picture for the pointer, made once per position.
         let hud_scale = w.scale;
@@ -594,7 +594,7 @@ impl ClassicRuler {
             let halo = hud::halo(accent);
             if let Some(t) = &tex {
                 let r = m.rect(monitor.x as f64, monitor.y as f64, monitor.w as f64, monitor.h as f64);
-                painter.image(t.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                t.paint(&painter, r, Color32::WHITE);
             }
             // `DrawDim`.
             if dim > 0 {

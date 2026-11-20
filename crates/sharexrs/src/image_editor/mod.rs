@@ -232,7 +232,8 @@ pub struct EditorWindow {
     zoom_to_fit_pending: bool,
     /// The scroll offset when the image is larger than the viewport.
     scroll: Vec2,
-    tex: Option<(u64, TextureHandle)>,
+    /// The canvas: one texture, or tiles past the GPU's largest side.
+    tex: Option<(u64, sharex_ui::tiled::TiledTexture)>,
     popups: Popups,
     flyout: Option<Flyout<MenuCmd>>,
     zoom_open: bool,
@@ -1479,10 +1480,10 @@ impl EditorWindow {
             let filter = if self.zoom >= 1.0 { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
             match &mut self.tex {
                 Some((v, t)) => {
-                    t.set(img, filter);
+                    t.set(&ctx, "image-editor", img, filter);
                     *v = version;
                 }
-                None => self.tex = Some((version, ctx.load_texture("image-editor", img, filter))),
+                None => self.tex = Some((version, sharex_ui::tiled::TiledTexture::new(&ctx, "image-editor", img, filter))),
             }
         }
         let painter = ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
@@ -1491,7 +1492,7 @@ impl EditorWindow {
         paint_checkered(&painter, frame_rect, frame_rect.min, self.effective_zoom() as f32, p);
         painter.rect_stroke(frame_rect, 0.0, Stroke::new(self.effective_zoom() as f32, p.border), StrokeKind::Inside);
         if let Some((_, t)) = &self.tex {
-            painter.image(t.id(), frame_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            t.paint(&painter, frame_rect, Color32::WHITE);
         }
         let m = self.mapper_ppp(ppp);
         let hovered = ctx.pointer_hover_pos().is_some_and(|p| self.layout.crop_button.is_some_and(|r| r.contains(p)));

@@ -261,40 +261,30 @@ impl ScrollingCaptureWindow {
     }
 }
 
-/// The result as textures of at most 2048 px a side (a scrolling capture
-/// can be taller than the GPU's largest texture), an image pixel to a
-/// device-independent pixel (Avalonia's 96 DPI `Bitmap`), filtered when the
-/// display scales it.
+/// The result, an image pixel to a device-independent pixel (Avalonia's
+/// 96 DPI `Bitmap`), filtered when the display scales it; uploaded at the
+/// first frame that shows it, as tiles when it's taller (or wider) than
+/// the GPU's largest texture (`sharex_ui::tiled`).
 struct Tiled {
     image: RgbaImage,
-    tiles: Vec<(sharex_capture::Rect, egui::TextureHandle)>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
 }
 
 impl Tiled {
-    const SIDE: u32 = 2048;
-
     fn new(image: RgbaImage) -> Self {
-        Self { image, tiles: Vec::new() }
+        Self { image, texture: None }
     }
 
     fn size(&self) -> (u32, u32) {
         self.image.dimensions()
     }
 
-    fn tiles(&mut self, ctx: &egui::Context) -> Vec<(sharex_capture::Rect, egui::TextureId)> {
-        if self.tiles.is_empty() {
-            let (w, h) = self.image.dimensions();
-            for y in (0..h).step_by(Self::SIDE as usize) {
-                for x in (0..w).step_by(Self::SIDE as usize) {
-                    let (tw, th) = (Self::SIDE.min(w - x), Self::SIDE.min(h - y));
-                    let part = image::imageops::crop_imm(&self.image, x, y, tw, th).to_image();
-                    let ci = egui::ColorImage::from_rgba_unmultiplied([tw as usize, th as usize], part.as_raw());
-                    let tex = ctx.load_texture(format!("scrolling-result-{x}-{y}"), ci, egui::TextureOptions::LINEAR);
-                    self.tiles.push((sharex_capture::Rect::new(x as i32, y as i32, tw as i32, th as i32), tex));
-                }
-            }
-        }
-        self.tiles.iter().map(|(r, t)| (*r, t.id())).collect()
+    fn texture(&mut self, ctx: &egui::Context) -> &sharex_ui::tiled::TiledTexture {
+        let image = &self.image;
+        self.texture.get_or_insert_with(|| {
+            let ci = egui::ColorImage::from_rgba_unmultiplied([image.width() as usize, image.height() as usize], image.as_raw());
+            sharex_ui::tiled::TiledTexture::new(ctx, "scrolling-result", ci, egui::TextureOptions::LINEAR)
+        })
     }
 }
 
@@ -458,12 +448,7 @@ impl Dialog for ScrollingCaptureWindow {
                 // 100% the filtered texture is drawn pixel for pixel.
                 let ppp = ui.ctx().pixels_per_point();
                 let origin = pos2((x0 * ppp).round() / ppp, (y0 * ppp).round() / ppp);
-                for (tile, tex) in pic.tiles(ui.ctx()) {
-                    let r = Rect::from_min_size(origin + vec2(tile.x as f32, tile.y as f32), vec2(tile.w as f32, tile.h as f32));
-                    if r.intersects(view) {
-                        painter.image(tex, r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-                    }
-                }
+                pic.texture(ui.ctx()).paint(&painter, Rect::from_min_size(origin, size), Color32::WHITE);
                 crate::dialogs::layout::scroll_bar(ui, view, size.y, self.offset.y, 0.0);
             }
             None => {

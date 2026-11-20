@@ -73,7 +73,7 @@ struct Preview {
     id: i64,
     image: Option<image::RgbaImage>,
     /// The box the texture was drawn for, and the texture.
-    texture: Option<((u32, u32), egui::TextureHandle)>,
+    texture: Option<((u32, u32), sharex_ui::tiled::TiledTexture)>,
     /// A URL-only image being downloaded (`PreviewHttpClient`), cancelled
     /// when another item is selected (`_previewCancellation`).
     download: Option<(mpsc::Receiver<Option<image::RgbaImage>>, sharex_uploaders::http::CancellationToken)>,
@@ -964,12 +964,12 @@ impl HistoryWindow {
                 let size = (inner.width().max(1.0) as u32, inner.height().max(1.0) as u32);
                 if pv.texture.as_ref().is_none_or(|(s, _)| *s != size) {
                     let fitted = crate::thumbnail::fit(img, size.0, size.1, crate::thumbnail::Stretch::UniformDownOnly, 3.0);
-                    let tex = ui.ctx().load_texture(format!("history-preview-{}", item.id), crate::thumbnail::to_color_image(&fitted), egui::TextureOptions::NEAREST);
+                    let tex = sharex_ui::tiled::TiledTexture::new(ui.ctx(), &format!("history-preview-{}", item.id), crate::thumbnail::to_color_image(&fitted), egui::TextureOptions::NEAREST);
                     pv.texture = Some((size, tex));
                 }
                 if let Some((_, tex)) = &pv.texture {
                     let r = Rect::from_min_size(inner.min, vec2(size.0 as f32, size.1 as f32));
-                    ui.painter().image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+                    tex.paint(ui.painter(), r, egui::Color32::WHITE);
                 }
             }
             None => empty_state(ui, inner, icon::File, 38.0, s::HistoryWindows_No_image_preview(), p.text_secondary),

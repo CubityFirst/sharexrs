@@ -97,7 +97,7 @@ pub struct OcrWindow {
     busy_since: Instant,
     version: u64,
     rx: Option<mpsc::Receiver<Recognition>>,
-    texture: Option<((u32, u32), egui::TextureHandle)>,
+    texture: Option<((u32, u32), sharex_ui::tiled::TiledTexture)>,
     /// `OCRPreview._zoom` (relative to the fitted size) and `_pan` (from
     /// the centre of the content area).
     zoom: f32,
@@ -371,11 +371,11 @@ impl OcrWindow {
                 let img = if scale > 1.0 { self.image.clone() } else { crate::thumbnail::resize(&self.image, size.0, size.1) };
                 let rounded = round_corners(img, if scale > 1.0 { 6.0 / scale } else { 6.0 });
                 let filter = if scale > 1.0 { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
-                let tex = ui.ctx().load_texture("ocr-image", crate::thumbnail::to_color_image(&rounded), filter);
+                let tex = sharex_ui::tiled::TiledTexture::new(ui.ctx(), "ocr-image", crate::thumbnail::to_color_image(&rounded), filter);
                 self.texture = Some((size, tex));
             }
             if let Some((_, tex)) = &self.texture {
-                painter.image(tex.id(), img_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                tex.paint(&painter, img_rect, Color32::WHITE);
             }
             if self.busy {
                 // The scan line sweeping (1.4 s each way, sine eased).

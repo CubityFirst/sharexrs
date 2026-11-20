@@ -24,8 +24,9 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-use egui::{Color32, ColorImage, Context, Id, Painter, Rect, TextureHandle, TextureOptions, pos2, vec2};
+use egui::{Color32, ColorImage, Context, Id, Painter, Rect, TextureOptions, pos2, vec2};
 
+use crate::tiled::TiledTexture;
 use crate::theme::palette;
 
 /// A background brush.
@@ -148,7 +149,7 @@ pub fn polygon(painter: &Painter, points: &[egui::Pos2], color: Color32) {
         ColorImage { size: [w, h], pixels, source_size: vec2(w as f32, h as f32) }
     });
     let rect = Rect::from_min_max(pos2(min.x / ppp, min.y / ppp), pos2(max.x / ppp, max.y / ppp));
-    painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+    tex.paint(painter, rect, color);
 }
 
 /// The distance from `p` to the polygon's outline, negative inside.
@@ -193,7 +194,7 @@ pub fn paint(painter: &Painter, parts: &[Part], opacity: f32) {
     let tex = cached(ctx, key, || rasterize(&local, w, h));
     let rect = Rect::from_min_max(pos2(min.x / ppp, min.y / ppp), pos2(max.x / ppp, max.y / ppp));
     let tint = if opacity >= 1.0 { Color32::WHITE } else { Color32::WHITE.gamma_multiply(opacity) };
-    painter.image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), tint);
+    tex.paint(painter, rect, tint);
 }
 
 /// The colour to draw content (text, a glyph: premultiplied `content`,
@@ -499,12 +500,13 @@ const KEEP_FRAMES: u64 = 600;
 
 #[derive(Default)]
 struct Cache {
-    textures: HashMap<u64, (TextureHandle, u64)>,
+    /// Tiled when a shape is larger than the GPU's largest texture.
+    textures: HashMap<u64, (Arc<TiledTexture>, u64)>,
 }
 
 type SharedCache = Arc<Mutex<Cache>>;
 
-fn cached(ctx: &Context, key: u64, make: impl FnOnce() -> ColorImage) -> TextureHandle {
+fn cached(ctx: &Context, key: u64, make: impl FnOnce() -> ColorImage) -> Arc<TiledTexture> {
     let cache: SharedCache = ctx.data_mut(|d| d.get_temp_mut_or_default::<SharedCache>(Id::new("sharex-borders")).clone());
     let frame = ctx.cumulative_pass_nr();
     let mut cache = cache.lock().unwrap();
@@ -513,7 +515,7 @@ fn cached(ctx: &Context, key: u64, make: impl FnOnce() -> ColorImage) -> Texture
         return tex.clone();
     }
     cache.textures.retain(|_, (_, used)| frame.saturating_sub(*used) < KEEP_FRAMES);
-    let tex = ctx.load_texture(format!("border:{key:016x}"), make(), TextureOptions::NEAREST);
+    let tex = Arc::new(TiledTexture::new(ctx, &format!("border:{key:016x}"), make(), TextureOptions::NEAREST));
     cache.textures.insert(key, (tex.clone(), frame));
     tex
 }

@@ -44,7 +44,7 @@ pub struct BeforeUploadWindow {
     options: Vec<Option_>,
     selected: Option<usize>,
     reply: Option<Sender<Option<TaskSettings>>>,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
 }
 
 /// `GetDestinationLabel`: a custom uploader's name in "Custom [{0}]", else

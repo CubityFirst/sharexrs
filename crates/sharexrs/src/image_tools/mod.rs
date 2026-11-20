@@ -540,7 +540,7 @@ impl<T: Send + 'static> Job<T> {
 /// An image shown as a texture, made again only when its pixels change.
 pub struct Picture {
     pub image: image::RgbaImage,
-    texture: Option<((u32, u32), egui::TextureHandle)>,
+    texture: Option<((u32, u32), sharex_ui::tiled::TiledTexture)>,
     serial: u64,
 }
 
@@ -563,17 +563,18 @@ impl Picture {
     /// goes through `thumbnail::resize` (Skia's linear + mipmaps, as
     /// `ImageComparisonSlider`'s render cache), enlarging keeps the
     /// bilinear filter of the draw.
-    pub fn texture(&mut self, ctx: &egui::Context, size: (u32, u32)) -> egui::TextureId {
+    /// Tiled past the GPU's largest texture side (`sharex_ui::tiled`).
+    pub fn texture(&mut self, ctx: &egui::Context, size: (u32, u32)) -> &sharex_ui::tiled::TiledTexture {
         let (w, h) = self.image.dimensions();
         let shrink = size.0 < w || size.1 < h;
         let want = if shrink { size } else { (w, h) };
         if self.texture.as_ref().is_none_or(|(s, _)| *s != want) {
             let img = if shrink { crate::thumbnail::resize(&self.image, want.0.max(1), want.1.max(1)) } else { self.image.clone() };
             let options = if shrink { egui::TextureOptions::NEAREST } else { egui::TextureOptions::LINEAR };
-            let tex = ctx.load_texture(format!("tool-picture-{}", self.serial), crate::thumbnail::to_color_image(&img), options);
+            let tex = sharex_ui::tiled::TiledTexture::new(ctx, &format!("tool-picture-{}", self.serial), crate::thumbnail::to_color_image(&img), options);
             self.texture = Some((want, tex));
         }
-        self.texture.as_ref().map(|(_, t)| t.id()).unwrap_or_default()
+        &self.texture.as_ref().expect("made above").1
     }
 }
 

@@ -155,7 +155,7 @@ pub struct AfterUploadWindow {
     info: AfterUploadInfo,
     formats: Vec<FormatItem>,
     selected: Option<usize>,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     close_at: Option<Instant>,
     /// The remote image being downloaded (`LoadRemotePreviewAsync`).
     remote: Option<std::sync::mpsc::Receiver<Option<RgbaImage>>>,

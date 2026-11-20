@@ -169,7 +169,8 @@ pub struct ImageViewerWindow {
     /// The active monitor (physical pixels) and its scale.
     screen: sharex_capture::Rect,
     scale: f32,
-    texture: Option<egui::TextureHandle>,
+    /// One texture, or tiles past the GPU's largest side.
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     /// `_previewTransform`: zoom and offset (points).
     zoom: f32,
     offset: Vec2,
@@ -215,8 +216,8 @@ impl ImageViewerWindow {
             crate::animation::Poll::Frame(frame) => {
                 let ci = egui::ColorImage::from_rgba_unmultiplied([frame.width() as usize, frame.height() as usize], frame.as_raw());
                 match &mut self.texture {
-                    Some(t) if t.size() == ci.size => t.set(ci, egui::TextureOptions::LINEAR),
-                    t => *t = Some(ctx.load_texture("image-viewer", ci, egui::TextureOptions::LINEAR)),
+                    Some(t) => t.set(ctx, "image-viewer", ci, egui::TextureOptions::LINEAR),
+                    t => *t = Some(sharex_ui::tiled::TiledTexture::new(ctx, "image-viewer", ci, egui::TextureOptions::LINEAR)),
                 }
                 self.images.image = Some(frame);
                 ctx.request_repaint();
@@ -281,7 +282,7 @@ impl Dialog for ImageViewerWindow {
         if let Some(img) = &self.images.image {
             if self.texture.is_none() {
                 let ci = egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
-                self.texture = Some(ui.ctx().load_texture("image-viewer", ci, egui::TextureOptions::LINEAR));
+                self.texture = Some(sharex_ui::tiled::TiledTexture::new(ui.ctx(), "image-viewer", ci, egui::TextureOptions::LINEAR));
             }
             // An Avalonia `Bitmap` is 96 DPI: its pixels are device-independent
             // pixels, so at 125% a 1200 px image is 1500 screen pixels wide
@@ -292,7 +293,7 @@ impl Dialog for ImageViewerWindow {
             let base = Rect::from_min_size(pos2(full.min.x + ((full.width() - size.x) / 2.0).round(), full.min.y + ((full.height() - size.y) / 2.0).round()), size);
             let shown = Rect::from_min_size(base.min + self.offset, size * self.zoom);
             if let Some(t) = &self.texture {
-                painter.image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                t.paint(&painter, shown, Color32::WHITE);
             }
             image_rect = Some(base);
         }

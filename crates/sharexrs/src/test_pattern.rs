@@ -114,7 +114,8 @@ enum Kind {
 
 struct Pane {
     window: EguiWindow,
-    texture: Option<egui::TextureHandle>,
+    /// One texture, or tiles past the GPU's largest side.
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     origin: (i32, i32),
     kind: Kind,
 }
@@ -272,21 +273,22 @@ impl ApplicationHandler for App {
                             let tex = texture.get_or_insert_with(|| {
                                 let page = page_image(size.width);
                                 let image = egui::ColorImage::from_rgba_unmultiplied([page.width() as usize, page.height() as usize], page.as_raw());
-                                ui.ctx().load_texture("page", image, egui::TextureOptions::NEAREST)
+                                sharex_ui::tiled::TiledTexture::new(ui.ctx(), "page", image, egui::TextureOptions::NEAREST)
                             });
                             let v0 = offset as f32 / PAGE_HEIGHT as f32;
                             let v1 = (offset + size.height as i32) as f32 / PAGE_HEIGHT as f32;
-                            ui.painter().image(tex.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, v0), egui::pos2(1.0, v1)), egui::Color32::WHITE);
+                            tex.paint_uv(ui.painter(), rect, egui::Rect::from_min_max(egui::pos2(0.0, v0), egui::pos2(1.0, v1)), egui::Color32::WHITE);
                         }
                         kind => {
                             let tex = texture.get_or_insert_with(|| {
-                                ui.ctx().load_texture(
+                                sharex_ui::tiled::TiledTexture::new(
+                                    ui.ctx(),
                                     "pattern",
                                     image(origin.0, origin.1, size.width, size.height, matches!(kind, Kind::Window | Kind::Framed)),
                                     egui::TextureOptions::NEAREST,
                                 )
                             });
-                            ui.painter().image(tex.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                            tex.paint(ui.painter(), rect, egui::Color32::WHITE);
                         }
                     }
                 });

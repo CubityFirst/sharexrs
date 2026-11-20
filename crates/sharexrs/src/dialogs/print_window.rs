@@ -156,7 +156,7 @@ impl Dialog for PrintWindow {
 pub struct PrintPreview {
     image: RgbaImage,
     settings: PrintSettings,
-    tex: Option<egui::TextureHandle>,
+    tex: Option<sharex_ui::tiled::TiledTexture>,
 }
 
 impl PrintPreview {
@@ -211,13 +211,13 @@ impl Dialog for PrintPreview {
         let tex = self.tex.get_or_insert_with(|| {
             let page = print::render_image_page(&self.image, print::default_page_size(&self.settings), &self.settings);
             let img = egui::ColorImage::from_rgba_unmultiplied([page.width() as usize, page.height() as usize], page.as_raw());
-            ui.ctx().load_texture("print-preview", img, egui::TextureOptions::LINEAR)
+            sharex_ui::tiled::TiledTexture::new(ui.ctx(), "print-preview", img, egui::TextureOptions::LINEAR)
         });
         // `Stretch.Uniform`, centred.
         let s = tex.size_vec2();
         let k = (inner.width() / s.x).min(inner.height() / s.y);
         let r = Rect::from_center_size(inner.center(), s * k);
-        ui.painter().image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        tex.paint(ui.painter(), r, Color32::WHITE);
         effects
     }
 }
