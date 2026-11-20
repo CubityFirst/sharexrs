@@ -1042,7 +1042,7 @@ impl FrameWindow {
         }
         self.geometry = g;
         self.position = g.position(region);
-        let _ = self.window.window.request_inner_size(PhysicalSize::new(g.width as u32, g.height as u32));
+        let _ = crate::window::request_inner_size(&self.window.window, PhysicalSize::new(g.width as u32, g.height as u32));
         self.window.window.set_outer_position(PhysicalPosition::new(self.position.0, self.position.1));
         self.apply_region();
     }

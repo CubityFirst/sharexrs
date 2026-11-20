@@ -142,6 +142,8 @@ pub enum UserEvent {
 }
 
 fn main() {
+    // SAFETY: first thing, before any thread.
+    unsafe { sharex_ui::gpu::prefer_wsl_gpu() };
     cli::START.get_or_init(Instant::now);
     #[cfg(feature = "memory-profile")]
     memprof::start();
@@ -210,6 +212,12 @@ fn main() {
     {
         use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
         builder.with_activation_policy(ActivationPolicy::Accessory);
+    }
+    #[cfg(target_os = "linux")]
+    if window::x11_on_wslg() {
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        eprintln!("WSLg: windows go through XWayland (X11).");
+        builder.with_x11();
     }
     let event_loop = builder.build().expect("event loop");
     let proxy = event_loop.create_proxy();
@@ -306,7 +314,13 @@ fn main() {
         pending_quick_task: None,
         toolbar_menu: None,
     };
-    event_loop.run_app(&mut app).expect("run");
+    // The display server can go away under the loop (a Wayland compositor
+    // that crashes ends it with `ExitFailure`): an error exit, not a panic.
+    if let Err(e) = event_loop.run_app(&mut app) {
+        eprintln!("The event loop stopped: {e}");
+        drop(instance);
+        std::process::exit(1);
+    }
     drop(instance);
     restart_if_requested();
 }
@@ -550,7 +564,7 @@ impl App {
         let min_height = self.state.min_height(w.ctx());
         w.window.set_min_inner_size(Some(LogicalSize::new(main_window::MIN_WIDTH, min_height)));
         let height = self.state.opening_height(w.ctx());
-        let _ = w.window.request_inner_size(LogicalSize::new(main_window::WIDTH, height));
+        let _ = crate::window::request_inner_size(&w.window, LogicalSize::new(main_window::WIDTH, height));
         center(&w.window, event_loop);
         self.restore_window_bounds(&w.window, min_height);
         set_theme(&w, self.theme());
@@ -1066,9 +1080,13 @@ impl App {
     /// windows, hidden, painted once), and its time logged.
     fn warm_up_region_capture(&mut self, event_loop: &ActiveEventLoop) {
         let start = Instant::now();
-        let screens = sharex_capture::screenshot::screens();
-        let _ = sharex_capture::screenshot::Screenshot { remove_outside_screen_area: false, ..Default::default() }
-            .capture_rectangle(&screens, sharex_capture::Rect::new(0, 0, 1, 1));
+        // Not where the grab may show (a Wayland screenshot portal flashes
+        // the screen or asks).
+        if sharex_capture::screenshot::quiet_grab() {
+            let screens = sharex_capture::screenshot::screens();
+            let _ = sharex_capture::screenshot::Screenshot { remove_outside_screen_area: false, ..Default::default() }
+                .capture_rectangle(&screens, sharex_capture::Rect::new(0, 0, 1, 1));
+        }
         let dark = self.theme() == egui::Theme::Dark;
         let gpu = match &self.gpu {
             Some(g) => Ok(g),
@@ -1448,7 +1466,7 @@ impl App {
         set_theme(&w, theme);
         // `SizeToContent="Height"`: lay the text out once to know it.
         let height = w.paint(|ui| message.height(ui));
-        let _ = w.window.request_inner_size(LogicalSize::new(message_box::WIDTH, height));
+        let _ = crate::window::request_inner_size(&w.window, LogicalSize::new(message_box::WIDTH, height));
         center(&w.window, event_loop);
         w.window.set_visible(true);
         crate::window::activate(&w.window);
@@ -1558,7 +1576,7 @@ impl App {
     fn restore_window_bounds(&self, window: &winit::window::Window, min_height: f32) {
         let s = &self.settings.settings;
         if s.RememberMainFormSize && s.MainFormSize != Size::default() {
-            let _ = window.request_inner_size(LogicalSize::new(
+            let _ = crate::window::request_inner_size(window, LogicalSize::new(
                 (s.MainFormSize.width as f32).max(main_window::MIN_WIDTH),
                 (s.MainFormSize.height as f32).max(min_height),
             ));
@@ -1860,8 +1878,14 @@ fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let _popups = popup_window::enter(event_loop);
+        sharex_capture::screenshot::remember_screens(event_loop);
         if !self.started {
             self.started = true;
+            // The GL backend presents through this display (EGL). Only
+            // Linux uses GL; elsewhere the instance stays as it was.
+            #[cfg(target_os = "linux")]
+            sharex_ui::gpu::set_display(event_loop.owned_display_handle());
+            sharex_capture::screenshot::probe_capture();
             self.start(event_loop);
         }
     }
@@ -2096,6 +2120,7 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let _popups = popup_window::enter(event_loop);
+        sharex_capture::screenshot::remember_screens(event_loop);
         // `-AutoClose`: `ApplicationLifecycle.Exit()` once the last task is done.
         if self.exit_requested {
             self.exit_requested = false;

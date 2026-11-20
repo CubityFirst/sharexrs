@@ -154,7 +154,7 @@ impl PinWindow {
             self.position = (self.position.0 + (previous.window.0 - w) / 2, self.position.1 + (previous.window.1 - h) / 2);
             self.window.window.set_outer_position(PhysicalPosition::new(self.position.0, self.position.1));
         }
-        let _ = self.window.window.request_inner_size(PhysicalSize::new(w as u32, h as u32));
+        let _ = crate::window::request_inner_size(&self.window.window, PhysicalSize::new(w as u32, h as u32));
         self.window.window.request_redraw();
     }
 

@@ -50,6 +50,14 @@ windows-sys = { version = "0.61", features = [
 xcap = "0.9.8"
 arboard = { version = "3.6", default-features = false, features = ["image-data"] }
 
+# Wayland capture without xcap's panicking monitor code (platform/linux.rs);
+# all three are already xcap's dependencies, at the same versions.
+[target."cfg(target_os = \"linux\")".dependencies]
+ashpd = { version = "0.14", default-features = false, features = ["async-io", "screenshot"] }
+libwayshot-xcap = "0.3.3"
+pollster.workspace = true
+wayland-client = "0.31"
+
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"

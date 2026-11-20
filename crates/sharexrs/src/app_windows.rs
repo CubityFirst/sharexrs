@@ -111,7 +111,7 @@ impl App {
             let available = screen.work_area.h as f32 / scale - frame;
             height = height.min(available.floor());
         }
-        let _ = w.window.request_inner_size(LogicalSize::new(crate::start_screen::WIDTH, height));
+        let _ = crate::window::request_inner_size(&w.window, LogicalSize::new(crate::start_screen::WIDTH, height));
         center(&w.window, event_loop);
         w.window.set_visible(true);
         crate::window::activate(&w.window);
@@ -211,7 +211,7 @@ impl App {
                         let w = &sw.window;
                         let height = w.inner_size().to_logical::<f64>(w.scale_factor()).height;
                         w.set_min_inner_size(Some(LogicalSize::new(width, min_height)));
-                        let _ = w.request_inner_size(LogicalSize::new(width as f64, height));
+                        let _ = crate::window::request_inner_size(w, LogicalSize::new(width as f64, height));
                     }
                 }
                 Effect::ShowTray(v) => {
@@ -376,7 +376,7 @@ impl App {
         let min_width = w.paint(|ui| hotkey_settings::fit_min_width(ui));
         if min_width > hotkey_settings::MIN_WIDTH {
             w.window.set_min_inner_size(Some(LogicalSize::new(min_width, hotkey_settings::MIN_HEIGHT)));
-            let _ = w.window.request_inner_size(LogicalSize::new(min_width.max(hotkey_settings::WIDTH), hotkey_settings::HEIGHT));
+            let _ = crate::window::request_inner_size(&w.window, LogicalSize::new(min_width.max(hotkey_settings::WIDTH), hotkey_settings::HEIGHT));
         }
         center(&w.window, event_loop);
         w.window.set_visible(true);

@@ -269,7 +269,7 @@ impl Popups {
             let (origin, size) = physical_rect(w.popup.rect, ppp);
             if size != p.size {
                 p.size = size;
-                let _ = p.window.request_inner_size(winit::dpi::PhysicalSize::new(size.0, size.1));
+                let _ = crate::window::request_inner_size(&p.window, winit::dpi::PhysicalSize::new(size.0, size.1));
                 if let (Some(sw), Some(sh)) = (std::num::NonZeroU32::new(size.0), std::num::NonZeroU32::new(size.1)) {
                     painter.on_window_resized(p.viewport, sw, sh);
                 }
