@@ -198,11 +198,18 @@ impl Layout {
     }
 }
 
-/// `TrySelectToolForToolbarHotkey`: the first visible item whose hotkey
-/// is `key` with the modifiers (`ToolbarHotkeyHelper.Matches`).
+/// `TrySelectToolForToolbarHotkey`: the first item whose hotkey is `key`
+/// with the modifiers (`ToolbarHotkeyHelper.Matches`). Items hidden from the
+/// toolbar keep their shortcuts (ShareX 60a85ea), so pass every item
+/// ([`hotkey_items`]), not just the toolbar's.
 pub fn item_for_hotkey<'a>(items: &'a [Item], key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<&'a Item> {
     let m = crate::toolbar_items::Mods { ctrl, shift, alt, meta: false };
-    items.iter().find(|i| i.visible && i.matches(key, m))
+    items.iter().find(|i| i.matches(key, m))
+}
+
+/// Every item of the capture toolbar, shown or hidden, for its shortcuts.
+pub fn hotkey_items(saved: &[serde_json::Value]) -> Vec<Item> {
+    crate::toolbar_items::region_items(saved)
 }
 
 /// The tool of [`item_for_hotkey`].

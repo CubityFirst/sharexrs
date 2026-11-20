@@ -1164,7 +1164,8 @@ impl RegionCapture {
         // `EditorView.OnKeyDown`: the editor's keys and the tools' hotkeys.
         let Some(k) = editor_key(key) else { return Outcome::Continue };
         let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
-        let bar = self.bar.clone();
+        // Hidden items keep their shortcuts (ShareX 60a85ea).
+        let bar = toolbar::hotkey_items(&self.options.ToolbarItems);
         let r = e.key_down(k, editor_mods(m), &|k, m| tool_hotkey(&bar, k, m));
         if r.tool.is_some() {
             self.activate_annotation_tool();

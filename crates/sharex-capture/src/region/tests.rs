@@ -220,6 +220,19 @@ fn tool_hotkeys_switch_to_the_annotation_tools() {
     assert!(matches!(s.key_up(Key::Escape, none()), Outcome::Cancelled));
 }
 
+/// ShareX 60a85ea: a tool hidden from the toolbar is still picked by its shortcut.
+#[test]
+fn hidden_tools_keep_their_hotkeys() {
+    let mut s = session_with(RegionCaptureOptions {
+        ToolbarItems: vec![serde_json::json!({"Id": "Arrow", "IsVisible": false, "Hotkey": "A"})],
+        ..Default::default()
+    });
+    assert!(!s.bar.iter().any(|i| i.def.id == "Arrow"));
+    s.tick(Instant::now() + Duration::from_secs(1));
+    s.key_down(Key::Letter('A'), none(), &mut |_, _| {});
+    assert_eq!(s.active_annotation_tool(), Some(EditorTool::Arrow));
+}
+
 #[test]
 fn the_emoji_tool_asks_the_host_for_its_picker_and_a_picked_colour_sets_the_option() {
     let mut s = session(Vec::new());
