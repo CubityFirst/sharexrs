@@ -47,8 +47,8 @@ inventory; kept, decision pending, see "Beyond ShareX") · ⬜ gap left.
 | Single instance | the named `Mutex` works (.NET's shared-memory mutex); the pipe server needs `PipeSecurity`/`WindowsIdentity` and throws, so a second launch waits 5 s for the pipe and exits, its arguments lost | same | ➕ a lock file and a Unix socket that deliver the arguments |
 | Run at startup | `ShortcutHelpers` (a `.lnk` in the Startup folder, which is empty on Unix) fails with an error | same | ➕ LaunchAgent `com.sharexrs.app.plist` / XDG autostart entry |
 | File associations, context menu, Send To | registry only | same | ➖ no-ops |
-| Screen capture (region, fullscreen, window) | GDI `BitBlt` and `user32`: nothing captures | same | ➕ xcap (ScreenCaptureKit / X11; Wayland through xcap's own paths) |
-| Window lists, window under the pointer (region capture, Capture › Window) | `EnumWindows` etc.: none | same | ➕ CGWindowList / xcap |
+| Screen capture (region, fullscreen, window) | GDI `BitBlt` and `user32`: nothing captures | same | ➕ xcap (ScreenCaptureKit / X11). Wayland: the whole desktop through wlr-screencopy, else the screenshot portal, else the capture fails (see "Linux: display, capture and GPU"). Every xcap call is guarded: a panic in a capture library is a failed capture and a log line, never a crash |
+| Window lists, window under the pointer (region capture, Capture › Window) | `EnumWindows` etc.: none | same | ➕ CGWindowList / xcap (X11; on Wayland only XWayland's windows) |
 | Window activation (after capture, scrolling capture, active window) | `SetForegroundWindow`: none | same | ➖ none |
 | HDR screenshot correction (`HDRScreenshotColorCorrection`) | `HDRScreenCapture` is DXGI and WIC, called from the Windows capture path only: none | same | ✅ none (Windows only, `sharex_capture::platform::windows_hdr`) |
 | Inspect window, borderless window, top most / opacity | Win32 only | same | ➖ no-ops (the inspect window shows title and bounds from the window list) |
@@ -62,7 +62,7 @@ inventory; kept, decision pending, see "Beyond ShareX") · ⬜ gap left.
 | Video player (video tools) | `WindowsMediaPlayer` (Media Foundation in an HWND): no video | same | ➕ FFmpeg + cpal playback |
 | Screen recording | FFmpeg with `gdigrab`/`ddagrab` and DirectShow: none | same | ➕ FFmpeg `avfoundation` / `x11grab`, PulseAudio/ALSA (docs/SCREEN-RECORDING.md) |
 | Image editor: system cursors, emoji | bundled cursors only; emoji through Skia text (the Windows emoji renderer and cursor-screen lookup are Windows only) | same | ✅ bundled cursors only |
-| Wayland screen capture through the portal | none (Avalonia 11 runs on XWayland; ShareX has no portal code) | none | ➖ none (snapr's portal code isn't ported) |
+| Wayland screen capture through the portal | none (Avalonia 11 runs on XWayland; ShareX has no portal code) | none | ➕ the xdg-desktop-portal Screenshot API (`interactive: false`), after wlr-screencopy (`sharex_capture::platform::linux`) |
 | Update check and install | GitHub check everywhere; the installer flow is Windows only | same | ➕ macOS swap and Linux flows (docs/UPDATE.md) |
 
 ## Beyond ShareX
@@ -73,18 +73,104 @@ there, even though ShareX itself does nothing in those places. They're
 kept, not removed, pending a decision; removing them would leave ShareXrs
 without capture, hotkeys or recording outside Windows, as ShareX is.
 
+## Linux: display, capture and GPU
+
+ShareX on Linux is Avalonia 11, which only speaks X11: under Wayland it
+runs through XWayland and its (Win32) capture does nothing. ShareXrs is a
+native winit app, Wayland or X11, and captures (➕). What it does, found
+by running the CI build in WSLg (Ubuntu 26.04 and Arch, 2026-11-20):
+
+- **Monitors come from winit**, not a capture library: the app keeps
+  winit's list (`sharex_capture::screenshot::remember_screens`, after each
+  batch of events) and `screens()` returns it on Linux. Startup used to
+  ask xcap, and xcap's every `Monitor` coordinate asks libwayshot for the
+  outputs' scale on Wayland, which **panics** (`UnsupportedVersion`)
+  where the compositor lacks `zxdg_output_manager_v1` version 3 (WSLg's
+  Weston has version 2): the app died before its first window.
+- **Every xcap call is guarded** (`platform::guarded`: `catch_unwind`;
+  the release profile unwinds). A panic is a failed capture and a log
+  line.
+- **Capture on Wayland** (`platform/linux.rs`): the whole desktop at
+  once, placed at the monitors' top left, by the first of
+  1. `zwlr_screencopy_manager_v1` through libwayshot (wlroots desktops:
+     Sway, Hyprland, labwc, river, Wayfire; silent), only when the
+     compositor also has xdg-output version 3;
+  2. the xdg-desktop-portal Screenshot API, non-interactive (GNOME, KDE,
+     anything with a portal backend; the desktop may ask once; the file
+     it saves is deleted, as xcap does);
+  3. neither: every capture job fails as a failed capture does
+     (`capture: couldn't capture the screen` in the log, no task), and
+     the log says once "Screen capture is unavailable on this Wayland
+     compositor (no wlr-screencopy, no xdg-desktop-portal Screenshot)".
+  What's available is probed on a thread at startup (a portal's D-Bus
+  activation can take seconds) and logged ("Wayland screen capture:
+  wlr-screencopy no, screenshot portal no."). The idle region-capture
+  warm-up and the colour picker's magnifier never grab through a portal
+  (it may flash the screen or ask). Multi-monitor HiDPI placement of the
+  portal's picture is untested. XWayland capture (X11 through `DISPLAY`)
+  isn't used on Wayland: it sees only X11 windows, on black.
+- **WSLg: windows go through XWayland.** WSLg's Weston (its RDP
+  backend) segfaults when a client grows a `wl_shm_pool` whose buffers
+  are on screen, which winit's client-side decorations (sctk-adwaita) do
+  when a framed window is first activated (the fifth pool resize, past
+  2 MB). The Start screen (first run) and the QR code window took every
+  Wayland client down; the undecorated main window didn't. Bisected:
+  without decorations, or under X11, nothing crashes. So when `DISPLAY`
+  is set and `/mnt/wslg` exists, the event loop is X11, as ShareX's is
+  everywhere on Linux; Windows draws the frames (RDP RAIL). Unset
+  `DISPLAY` to run on Wayland anyway. Capture is still WSLg's Wayland's:
+  unavailable (WSLg shows Linux windows only, never the Windows
+  desktop).
+- **Fixed-size windows on Wayland**: winit keeps a non-resizable
+  window's min/max size at the old size after `request_inner_size` (X11
+  moves them along); `window::request_inner_size` pins them to the new
+  size, and every call site uses it.
+- **GPU** (`sharex_ui::gpu`): a hardware Vulkan adapter, else a hardware
+  GL adapter that passes a clear-and-read-back test, else llvmpipe.
+  `WGPU_BACKEND` overrides it. On WSL (`/dev/dxg`) GL is tried first:
+  Mesa's D3D12 driver draws on the Windows GPU, while Vulkan's only
+  conformant adapter is llvmpipe (wgpu leaves out the non-conformant
+  Dozen, and so does ShareXrs), so asking Vulkan first costs ~300 ms for
+  nothing. Ubuntu's Mesa only uses the D3D12 driver when asked, so on WSL
+  `GALLIUM_DRIVER=d3d12` is set at startup unless `GALLIUM_DRIVER` or
+  `LIBGL_ALWAYS_SOFTWARE` is. GL instances get winit's display handle;
+  without it GL couldn't open a window at all ("no valid format for the
+  surface"). The choice is made once per process.
+
+  Measured in WSLg (RTX 4080 + AMD iGPU; D3D12 GL lands on the AMD iGPU,
+  Mesa's default adapter):
+
+  | | Ubuntu 26.04 | Arch |
+  |---|---|---|
+  | Chosen | D3D12 (AMD Radeon) GL | D3D12 (AMD Radeon) GL |
+  | Before | llvmpipe Vulkan | llvmpipe Vulkan |
+  | Startup to main window (D3D12 / llvmpipe) | ~150 / 70-110 ms | ~150 / ~350 ms |
+  | Image editor 2548x1507 frame, median | 11.6 / 27.1 ms | 15.1 / 26.5 ms |
+  | Main window 900x696 frame, median | 4.0 / 1.9 ms | 3.7 / 1.9 ms |
+
+  `--render main` and `image-editor` with D3D12 GL and with Dozen (forced
+  through `WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER`) match llvmpipe's
+  within 2 levels per channel; Dozen starts no faster than llvmpipe, so
+  it stays out. `WGPU_POWER_PREF=high` changes nothing there (the only
+  conformant Vulkan adapter is llvmpipe).
+
 ## New dependencies and CI
 
 - `sha2` 0.10 in `sharex-image-editor` (the wallpaper cache's file names;
   already in the workspace).
 - `socket2` 0.6 with `all` in `sharex-tools`, Unix only (raw and datagram
   ICMP sockets; already in the lock file through other crates).
+- `ashpd` 0.14 (screenshot portal), `libwayshot-xcap` 0.3.3
+  (wlr-screencopy), `wayland-client` 0.31 (the compositor's globals) and
+  `pollster` in `sharex-capture`, Linux only: all were already xcap's or
+  winit's dependencies, at the same versions.
 - No system packages: `ci.yml` and `package.yml` are unchanged.
 
 ## Live checks
 
-Nobody has run these on a real Mac or Linux desktop yet. Each says what
-ShareX's code does there, so a difference is a ShareXrs bug.
+Nobody has run these on a real Mac or Linux desktop yet (WSLg, below,
+isn't one). Each says what ShareX's code does there, so a difference is a
+ShareXrs bug.
 
 ### macOS
 
@@ -136,3 +222,27 @@ ShareX's code does there, so a difference is a ShareXrs bug.
    process. With `sudo sysctl net.ipv4.ping_group_range="1 0"`: probes
    run `/usr/bin/ping -c 1 -W 1 -s 32 <ip>` (see `ps`) and still succeed;
    restore the range afterwards.
+
+### WSLg (checked 2026-11-20)
+
+A debug build of this branch, portable, in WSL2 Ubuntu 26.04 (root) and
+Arch (user), both with WSLg (Weston 9, XWayland):
+
+- First run: the Start screen opens and stays up (it crashed WSLg's
+  Weston on Wayland, see above). Main window, image editor (`-ImageEditor`),
+  History, Image history, Hash check, Colour picker, QR code, Monitor
+  test, Clipboard viewer, Network monitor, Image combiner, Index folder,
+  Image effects, Image thumbnailer, Video converter, Ruler open from the
+  command line and stay up; window shots of the Start screen, main window
+  and image editor (XWayland, Linux windows only) look as on Windows.
+- Region, last region, fullscreen, active monitor, active window,
+  custom region, scrolling capture and screen recording jobs each fail
+  without a crash ("couldn't capture the screen" in the log; capture is
+  unavailable on WSLg). Transparent region, auto capture and OCR open
+  their windows; the app stays up through all of them.
+- Application settings, opened from the main window with a click
+  (xdotool, Ubuntu), shows and renders as on Windows. No tray: WSLg has
+  no StatusNotifierWatcher ("tray unavailable" in the log).
+- `--render main` and `image-editor` give the same sizes in both distros
+  and match the CI build's.
+- `cargo test --workspace` passes on Ubuntu 26.04.
