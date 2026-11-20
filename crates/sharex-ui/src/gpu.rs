@@ -76,7 +76,24 @@ impl Gpu {
         .map_err(|e| format!("failed to open graphics device: {e}"))?;
         #[cfg(feature = "memory-profile")]
         let _ = PROFILED_DEVICE.set(device.clone());
+        log_adapter(&adapter, &device);
         Ok(Self { instance, adapter, device, queue })
+    }
+
+    /// The largest texture side ShareXrs uploads: the device's, or
+    /// `SHAREXRS_MAX_TEXTURE` when that's smaller. Larger images are drawn
+    /// as tiles (`crate::tiled`).
+    pub fn max_texture_side(&self) -> usize {
+        texture_side_limit(self.device.limits().max_texture_dimension_2d) as usize
+    }
+
+    /// Tells a context made for this device the largest texture side
+    /// before its first frame: egui assumes 2048 until a frame's input says
+    /// otherwise, and `load_texture` asserts against it (the region
+    /// overlay uploads the frozen screen before its first frame).
+    pub fn configure_context(&self, ctx: &egui::Context) {
+        let side = self.max_texture_side();
+        ctx.input_mut(|i| i.max_texture_side = side);
     }
 
     /// Lets egui-wgpu render a window on this same device.
@@ -88,4 +105,31 @@ impl Gpu {
             queue: self.queue.clone(),
         })
     }
+}
+
+/// `device_max`, or `SHAREXRS_MAX_TEXTURE` when that's smaller (at least
+/// 1024: egui's font atlas asserts that much). The cap is for testing what a
+/// weak or virtual GPU (2048 on some VMs, remote sessions and GL drivers)
+/// does with large images; it caps the textures ShareXrs uploads, not the
+/// device, so windows (whose swap chains have the same limit) still open.
+pub fn texture_side_limit(device_max: u32) -> u32 {
+    static CAP: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    match *CAP.get_or_init(|| std::env::var("SHAREXRS_MAX_TEXTURE").ok().and_then(|v| v.trim().parse::<u32>().ok())) {
+        Some(cap) => cap.max(1024).min(device_max),
+        None => device_max,
+    }
+}
+
+/// Logs the adapter wgpu picked and its texture limit, once per process
+/// (each offscreen render makes a device).
+fn log_adapter(adapter: &wgpu::Adapter, device: &wgpu::Device) {
+    static LOGGED: std::sync::Once = std::sync::Once::new();
+    LOGGED.call_once(|| {
+        let info = adapter.get_info();
+        let max = device.limits().max_texture_dimension_2d;
+        let used = texture_side_limit(max);
+        let capped = if used < max { format!(", capped to {used} by SHAREXRS_MAX_TEXTURE") } else { String::new() };
+        let driver = [info.driver.as_str(), info.driver_info.as_str()].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join(" ");
+        eprintln!("Graphics adapter: {} ({:?}, {:?}, driver {driver}), max texture size: {max}{capped}", info.name, info.backend, info.device_type);
+    });
 }

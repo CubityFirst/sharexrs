@@ -113,8 +113,11 @@ impl EguiWindow {
             &window,
             Some(window.scale_factor() as f32),
             window.theme(),
-            painter.max_texture_side(),
+            Some(gpu.max_texture_side()),
         );
+        // Before any texture is uploaded (the overlay's frozen screen is,
+        // before the first frame).
+        gpu.configure_context(state.egui_ctx());
         Ok(Self { window, state, painter, repaint_at: None, resize_border, resize_hover: None, clear_color: None, last_cursor: None, left_down: false, press: None, move_drag: None, popups: Default::default() })
     }
 
@@ -141,7 +144,7 @@ impl EguiWindow {
             &self.window,
             Some(self.window.scale_factor() as f32),
             self.window.theme(),
-            self.painter.max_texture_side(),
+            self.painter.max_texture_side().map(|max| sharex_ui::gpu::texture_side_limit(max as u32) as usize),
         );
         // egui still has the pointer where the last use left it.
         self.state.egui_input_mut().events.push(egui::Event::PointerGone);
