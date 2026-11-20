@@ -920,11 +920,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         let _ = ed.save(&mut Vec::new());
                         state.action_editor = Some(ed);
                     }
-                    "toolbar-editor" => {
-                        state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::ImageEditor, &[]));
-                    }
-                    "region-toolbar-editor" => {
-                        state.toolbar_editor = Some(crate::toolbar_editor::ToolbarEditor::new(crate::toolbar_editor::Target::RegionCapture, &[]));
+                    // `--state`: the dialog's steps (`ToolbarEditor::apply_state`).
+                    "toolbar-editor" | "region-toolbar-editor" => {
+                        use crate::toolbar_editor::{Target, ToolbarEditor};
+                        let target = if content == "toolbar-editor" { Target::ImageEditor } else { Target::RegionCapture };
+                        let mut ed = ToolbarEditor::new(target, &[]);
+                        if let Some(st) = dialog.state.as_deref().filter(|st| !st.starts_with("region:")) {
+                            ed.apply_state(st);
+                        }
+                        state.toolbar_editor = Some(ed);
                     }
                     "watch-folder-editor" => state.watch_editor = Some(WatchFolderEditor::new(None, None)),
                     // The notification buttons editor on the task's buttons;

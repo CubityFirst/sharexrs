@@ -174,7 +174,12 @@ mod tests {
         // ShareX 30d1682 added four keys in every language (the dumps' only
         // difference): RegionCaptureAction_CaptureSelection,
         // EditorBuiltInToolbars_MoveToolbar, ApplicationSettingsWindow_
-        // DescriptionCantBeEmpty and _FormatCantBeEmpty.
-        assert_eq!((out.len(), hash), (9_064_035, 9_627_719_075_394_093_518));
+        // DescriptionCantBeEmpty and _FormatCantBeEmpty. ShareX 93145cc's
+        // toolbar customization (#9278) added ten ToolbarCustomizationDialogView_
+        // keys (AllItemsOnToolbar, AvailableItems, BlankSpacer, DragHint,
+        // MoveLeft, MoveRight, ShowSpacerLine, Spacer, SpacerToolTip,
+        // SpacerWidth) and removed Moveup and Movedown, in every language;
+        // no other string changed.
+        assert_eq!((out.len(), hash), (9_090_861, 4_698_861_248_341_571_995));
     }
 }

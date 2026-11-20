@@ -1213,7 +1213,7 @@ impl EditorWindow {
                 w += SPACING;
             }
             if b.custom.separator() {
-                w += 1.0 + SPACING;
+                w += b.custom.separator_width() + SPACING;
             }
             w += b.item.width();
         }
@@ -1277,8 +1277,13 @@ impl EditorWindow {
                 x += SPACING;
             }
             if b.custom.separator() {
-                clip.rect_filled(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON)), 0.0, p.separator);
-                x += 1.0 + SPACING;
+                // `SpacerMargin` around the line; a blank spacer
+                // (`line-hidden`) keeps the space but not the line.
+                if b.custom.show_spacer_line {
+                    let (left, _) = b.custom.spacer_margin();
+                    clip.rect_filled(Rect::from_min_size(pos2(x + left, top), vec2(1.0, BUTTON)), 0.0, p.separator);
+                }
+                x += b.custom.separator_width() + SPACING;
             }
             let r = Rect::from_min_size(pos2(x, top), vec2(it.width(), BUTTON));
             x += it.width();
