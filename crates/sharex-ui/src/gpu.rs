@@ -105,29 +105,23 @@ fn open_preferred() -> Result<Opened, String> {
     };
     #[cfg(target_os = "linux")]
     if std::env::var_os("WGPU_BACKEND").is_none() {
-        let software = |a: &wgpu::Adapter| a.get_info().device_type == wgpu::DeviceType::Cpu;
-        // A hardware GL adapter, if it draws.
-        let hardware_gl = || {
-            let gl = first_adapter(wgpu::Backends::GL).filter(|(_, a)| !software(a))?;
-            let (instance, adapter, device, queue) = open(gl).ok()?;
-            if draws(&device, &queue) {
-                return Some((instance, adapter, device, queue));
-            }
-            eprintln!("Graphics adapter {} failed its test; not using it.", adapter.get_info().name);
-            None
-        };
-        let wsl = wsl_gpu();
-        if wsl && let Some(opened) = hardware_gl() {
+        // Chosen once per process, one thread at a time: later devices
+        // (offscreen renders, tests) open the chosen backend only, so GL
+        // isn't set up and torn down again and again (Mesa's EGL crashed
+        // under parallel tests that did).
+        static CHOSEN: std::sync::Mutex<Option<wgpu::Backends>> = std::sync::Mutex::new(None);
+        let mut chosen = CHOSEN.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(backends) = *chosen
+            && let Some(Ok(opened)) = first_adapter(backends).map(open)
+        {
             return Ok(opened);
         }
-        let vulkan = first_adapter(wgpu::Backends::VULKAN);
-        if let Some(found) = vulkan.as_ref().filter(|(_, a)| !software(a)) {
-            return open(found.clone());
-        }
-        if !wsl && let Some(opened) = hardware_gl() {
-            return Ok(opened);
-        }
-        return open(vulkan.or_else(|| first_adapter(wgpu::Backends::GL)).ok_or("no usable graphics adapter")?);
+        let opened = choose_linux(open)?;
+        *chosen = Some(match opened.1.get_info().backend {
+            wgpu::Backend::Gl => wgpu::Backends::GL,
+            _ => wgpu::Backends::VULKAN,
+        });
+        return Ok(opened);
     }
     let preferred = if cfg!(windows) {
         [wgpu::Backends::DX12, wgpu::Backends::VULKAN]
@@ -158,6 +152,34 @@ pub unsafe fn prefer_wsl_gpu() {
         // SAFETY: the caller has no other threads yet.
         unsafe { std::env::set_var("GALLIUM_DRIVER", "d3d12") };
     }
+}
+
+/// Linux's choice (see [`open_preferred`]).
+#[cfg(target_os = "linux")]
+fn choose_linux(open: impl Fn((wgpu::Instance, wgpu::Adapter)) -> Result<Opened, String>) -> Result<Opened, String> {
+    let software = |a: &wgpu::Adapter| a.get_info().device_type == wgpu::DeviceType::Cpu;
+    // A hardware GL adapter, if it draws.
+    let hardware_gl = || {
+        let gl = first_adapter(wgpu::Backends::GL).filter(|(_, a)| !software(a))?;
+        let (instance, adapter, device, queue) = open(gl).ok()?;
+        if draws(&device, &queue) {
+            return Some((instance, adapter, device, queue));
+        }
+        eprintln!("Graphics adapter {} failed its test; not using it.", adapter.get_info().name);
+        None
+    };
+    let wsl = wsl_gpu();
+    if wsl && let Some(opened) = hardware_gl() {
+        return Ok(opened);
+    }
+    let vulkan = first_adapter(wgpu::Backends::VULKAN);
+    if let Some(found) = vulkan.as_ref().filter(|(_, a)| !software(a)) {
+        return open(found.clone());
+    }
+    if !wsl && let Some(opened) = hardware_gl() {
+        return Ok(opened);
+    }
+    open(vulkan.or_else(|| first_adapter(wgpu::Backends::GL)).ok_or("no usable graphics adapter")?)
 }
 
 fn open_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue), String> {
