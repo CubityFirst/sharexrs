@@ -55,6 +55,26 @@ fn video_calls(media: &CpuMediaFactory) -> Vec<(i64, i64, i64, bool)> {
         .collect()
 }
 
+/// ShareX #9317: frames are paced at the rate the encoder negotiated, and
+/// what it negotiated is reported.
+#[test]
+fn frames_at_the_negotiated_rate() {
+    let path = temp("n.mp4");
+    let media = Arc::new(CpuMediaFactory { negotiated_fps: Some(15), ..Default::default() });
+    let mut o = options(&path);
+    o.duration = TICKS_PER_SECOND;
+    let t = VirtualTime::new(TICKS_PER_SECOND);
+    let r = ScreenRecorder::new(o, backends(&t, media.clone(), 60, None)).unwrap();
+    let notes = Arc::new(Mutex::new(Vec::new()));
+    let n = notes.clone();
+    r.on_diagnostic(move |m| n.lock().unwrap().push(m));
+    r.start().unwrap();
+    let r = r.completion().unwrap();
+    assert_eq!(r.video_frames, 15);
+    assert_eq!(video_calls(&media)[1], (1, 666_666, 1_333_333, false));
+    assert_eq!(*notes.lock().unwrap(), ["Encoder negotiated H.264 at 15 FPS"]);
+}
+
 #[test]
 fn frames_on_the_grid_with_audio() {
     let path = temp("a.mp4");

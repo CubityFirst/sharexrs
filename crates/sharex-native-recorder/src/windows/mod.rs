@@ -133,7 +133,8 @@ impl GpuMedia {
         let graphics = GraphicsDevice::new(monitor)?;
         let writer = if gif { None } else { Some(MediaFoundationWriter::create(&graphics, options, width, height)?) };
         let (ow, oh) = writer.as_ref().map_or((width, height), |w| (w.width, w.height));
-        let processor = GpuVideoProcessor::new(&graphics, width, height, options.frames_per_second, !gif, ow, oh)?;
+        let fps = writer.as_ref().map_or(options.frames_per_second, |w| w.frames_per_second);
+        let processor = GpuVideoProcessor::new(&graphics, width, height, fps, !gif, ow, oh)?;
         let (gif_writer, staging) = if gif {
             (Some(GifWriter::new(options, width as u32, height as u32)?), Some(graphics.create_staging(width, height, DXGI_FORMAT_B8G8R8A8_UNORM)?))
         } else {
@@ -203,6 +204,12 @@ impl Canvas for GpuMedia {
 impl Media for GpuMedia {
     fn canvas(&mut self) -> &mut dyn Canvas {
         self
+    }
+    fn frames_per_second(&self) -> Option<i32> {
+        self.writer.as_ref().map(|w| w.frames_per_second)
+    }
+    fn adjustment_note(&self) -> Option<String> {
+        self.writer.as_ref().and_then(|w| w.adjustment_note.clone())
     }
     fn encoder(&self) -> VideoEncoderInfo {
         self.encoder.clone()

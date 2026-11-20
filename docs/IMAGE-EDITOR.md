@@ -843,16 +843,33 @@ follow `ImageEditorOptions.ToolbarItems` (the defaults saved when empty,
 `persist`), region capture's follow `RegionCaptureOptions.ToolbarItems`
 (the region shapes show when turned on; using them logs, those regions
 aren't ported). Task settings › Image editor's and › Region capture's
-Customize toolbar... open `ToolbarCustomizationDialogView` over the window
-(move up/down, begin group, show/hide, the two hotkey boxes: click, press
-a shortcut, Backspace/Delete clears; Reset, OK with `RefreshValidation`,
-Cancel, Escape, the backdrop). vs ShareX (`--render
-task-settings-tools-image-editor --content toolbar-editor`,
-`task-settings-capture-region --content region-toolbar-editor`): image
-editor dark 0.52%, light 0.46%, region capture dark 0.49% (the centred
-"NumPad" texts sit a sub-pixel apart). The ellipse region shown and OK in
-both apps saves the same 21 items (a test compares with the JSON ShareX
-wrote). Also ShareX's one-in-ten sunglasses emoji tool icon.
+Customize toolbar... open `ToolbarCustomizationDialogView` over the window,
+as ShareX #9278 redesigned it: a mock of the toolbar, shrunk to fit (its
+`Viewbox`), whose items and spacers are dragged along it, onto it from the
+available items (a spacer, a blank spacer and the hidden items, which a
+double click puts at the end) and off it onto them (hiding the item); a
+spacer's grip resizes it; Delete, Ctrl+Left/Right and Shift+Left/Right
+act on the focused slot. The selected item's panel: its two hotkey boxes
+(click, press a shortcut, Backspace/Delete clears), Spacer width (0-96 by
+4), Move left/right, Begin group, Show spacer line and Show/hide. Reset,
+OK with `RefreshValidation`, Cancel, Escape (a drag or resize first), the
+backdrop. The layout is the view model's `ApplyLayoutTokens`: a spacer
+becomes `BeginGroup`/`SpacerWidth`/`HideSpacerLine` on the item after it,
+neighbouring spacers merge, a trailing one is dropped, hidden items follow
+the visible ones. Both toolbars draw a spacer's width half each side of
+its line (`SpacerMargin`), a blank one without the line. Shortcuts pick
+items hidden from the toolbar too (60a85ea). vs ShareX at 125% (`--render
+task-settings-tools-image-editor --content toolbar-editor --state <steps>`,
+`task-settings-capture-region --content region-toolbar-editor`; the dialog
+only): default 0.96%, a group selected 1.01%, a widened blank spacer 1.07%,
+an item hidden 0.76%, a spacer hovered 0.76%, mid-drag 0.86%, over the
+available items 0.90%, region capture 0.73% (text anti-aliasing and the
+icons rasterised in the shrunk row). The same drags in both apps live
+(move, hide, drop a blank spacer, resize by the grip) give the same dialog
+(0.89-1.02% of the window) and ShareXrs saves the layout ShareX's
+`ToOptions` writes. The ellipse region shown and OK saves ShareX's 21 items
+(a test compares with ShareX's JSON, now with `SpacerWidth` and
+`HideSpacerLine`). Also ShareX's one-in-ten sunglasses emoji tool icon.
 
 ### Print (`print.rs`, `dialogs/print_window.rs`)
 

@@ -1,7 +1,9 @@
 //! `Encoding/MediaFoundationWriter.cs` and `Video/VideoTexturePool.cs`: the
 //! MP4 sink writer (H.264 Main, or HEVC Main above H.264's limits, from NV12
 //! GPU surfaces; AAC-LC from 48 kHz stereo PCM) exactly as ShareX sets it
-//! up, and the eight NV12 textures the encoder hands back when it's done.
+//! up, falling back through the formats of [`crate::encoder_attempts`] when
+//! an encoder rejects one, and the eight NV12 textures the encoder hands
+//! back when it's done.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -14,20 +16,13 @@ use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_NV12;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::CoTaskMemFree;
 use windows::Win32::System::Variant::VARIANT;
-use windows::core::{GUID, HSTRING, IUnknown, Interface, PWSTR, implement};
+use windows::core::{GUID, HRESULT, HSTRING, IUnknown, Interface, PWSTR, implement};
 
 use super::device::GraphicsDevice;
 use super::err;
 use super::processor::GpuVideoProcessor;
+use crate::encoder_attempts::{Codec, EncoderAttempt, build_attempts};
 use crate::options::{RecordingOptions, TICKS_PER_SECOND, VideoEncoderInfo};
-
-/// An empty attribute store (`MFCreateAttributes`).
-pub(crate) fn attributes(size: u32) -> Result<IMFAttributes, String> {
-    let mut a = None;
-    // SAFETY: writes the new store into `a`.
-    unsafe { MFCreateAttributes(&mut a, size) }.map_err(err)?;
-    a.ok_or_else(|| "no attributes".into())
-}
 
 /// `MediaFoundationWriter`.
 pub struct MediaFoundationWriter {
@@ -41,50 +36,88 @@ pub struct MediaFoundationWriter {
     pub encoder_bind_flags: u32,
     pub width: i32,
     pub height: i32,
+    /// `FramesPerSecond`: the negotiated rate (at most 60, or 30, when the
+    /// encoder took no faster one).
+    pub frames_per_second: i32,
+    /// `AdjustmentNote`: what was negotiated, when not what was asked for.
+    pub adjustment_note: Option<String>,
+}
+
+/// How an attempt failed, as `Create`'s catch clauses tell them apart.
+enum AttemptError {
+    /// A Media Foundation call failed (`SharpGenException`).
+    Mf { code: HRESULT, message: String },
+    /// `NotSupportedException`.
+    NotSupported(String),
+    /// Anything else.
+    Other(String),
+}
+
+fn mf(e: windows::core::Error) -> AttemptError {
+    AttemptError::Mf { code: e.code(), message: err(e) }
 }
 
 // SAFETY: Media Foundation objects are free-threaded; the recorder uses the writer from its worker.
 unsafe impl Send for MediaFoundationWriter {}
 
 impl MediaFoundationWriter {
-    /// `Create`: H.264 when the capture fits its limits; otherwise HEVC at
-    /// full size, or H.264 downscaled when Windows has no HEVC encoder that
-    /// takes the size.
+    /// `Create`: the formats of [`build_attempts`] in turn (H.264 when the
+    /// capture fits its limits, else HEVC at full size first), moving on when
+    /// an HEVC attempt fails or an encoder rejects the media type
+    /// (`MF_E_INVALIDMEDIATYPE`); any other failure ends it.
     pub fn create(graphics: &GraphicsDevice, options: &RecordingOptions, width: i32, height: i32) -> Result<Self, String> {
-        // H.264 Level 5.2 and common hardware limits.
-        let (h264_width, h264_height) = fit_size(width, height, 4096, 4096 * 2304);
-        if h264_width != width || h264_height != height {
-            // HEVC Level 6.2 and common hardware limits.
-            let (hevc_width, hevc_height) = fit_size(width, height, 8192, 8192 * 4352);
-            if let Ok(w) = Self::new(graphics, options, hevc_width, hevc_height, MFVideoFormat_HEVC) {
-                return Ok(w);
+        let (fps, bitrate) = (options.frames_per_second, options.video_bitrate);
+        for (i, attempt) in build_attempts(width, height, fps, bitrate, options.require_hardware_encoder).iter().enumerate() {
+            match Self::new(graphics, options, attempt) {
+                Ok(mut w) => {
+                    w.adjustment_note = attempt.adjustment_note(i, width, height, fps, bitrate);
+                    return Ok(w);
+                }
+                // No usable HEVC encoder for this size/rate, or this media type
+                // rejected: the next attempt.
+                Err(AttemptError::Mf { code, .. }) if attempt.codec == Codec::Hevc || code == MF_E_INVALIDMEDIATYPE => {}
+                Err(AttemptError::NotSupported(_)) if attempt.codec == Codec::Hevc => {}
+                Err(AttemptError::Mf { message, .. } | AttemptError::NotSupported(message) | AttemptError::Other(message)) => return Err(message),
             }
         }
-        Self::new(graphics, options, h264_width, h264_height, MFVideoFormat_H264)
+        Err(format!(
+            "Windows Media Foundation rejected the video format ({width}x{height} at {fps} FPS, {} kbps). Update your graphics driver, install the Windows Media Feature Pack if using a Windows N edition, or disable the built-in screen recorder to use FFmpeg.",
+            bitrate / 1000
+        ))
     }
 
-    fn new(graphics: &GraphicsDevice, options: &RecordingOptions, width: i32, height: i32, codec: GUID) -> Result<Self, String> {
+    fn new(graphics: &GraphicsDevice, options: &RecordingOptions, attempt: &EncoderAttempt) -> Result<Self, AttemptError> {
+        let (width, height, fps, full) = (attempt.width, attempt.height, attempt.frames_per_second, attempt.full_media_type);
+        let codec = if attempt.codec == Codec::Hevc { MFVideoFormat_HEVC } else { MFVideoFormat_H264 };
         // SAFETY: Media Foundation calls on objects created here.
         unsafe {
             let (mut token, mut manager) = (0u32, None);
-            MFCreateDXGIDeviceManager(&mut token, &mut manager).map_err(err)?;
-            let manager = manager.ok_or("no DXGI device manager")?;
-            manager.ResetDevice(&graphics.device, token).map_err(err)?;
-            let a = attributes(5)?;
-            a.SetUINT32(&MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, 1).map_err(err)?;
-            a.SetUINT32(&MF_LOW_LATENCY, 1).map_err(err)?;
+            MFCreateDXGIDeviceManager(&mut token, &mut manager).map_err(mf)?;
+            let manager = manager.ok_or_else(|| AttemptError::Other("no DXGI device manager".into()))?;
+            manager.ResetDevice(&graphics.device, token).map_err(mf)?;
+            let mut a = None;
+            MFCreateAttributes(&mut a, 5).map_err(mf)?;
+            let a = a.ok_or_else(|| AttemptError::Other("no attributes".into()))?;
+            if attempt.enable_hardware_transforms {
+                a.SetUINT32(&MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, 1).map_err(mf)?;
+            }
+            if full {
+                a.SetUINT32(&MF_LOW_LATENCY, 1).map_err(mf)?;
+            }
             // The fixed-size GPU pool bounds in-flight samples. Do not make WriteSample wait for presentation time.
-            a.SetUINT32(&MF_SINK_WRITER_DISABLE_THROTTLING, 1).map_err(err)?;
-            a.SetGUID(&MF_TRANSCODE_CONTAINERTYPE, &MFTranscodeContainerType_MPEG4).map_err(err)?;
-            a.SetUnknown(&MF_SINK_WRITER_D3D_MANAGER, &manager).map_err(err)?;
-            let writer = MFCreateSinkWriterFromURL(&HSTRING::from(options.output_path.as_os_str()), None, &a).map_err(err)?;
-            let video_out = create_video_type(&codec, width, height, options.frames_per_second)?;
-            video_out.SetUINT32(&MF_MT_AVG_BITRATE, options.video_bitrate as u32).map_err(err)?;
-            // HEVC Main / H.264 Main.
-            video_out.SetUINT32(&MF_MT_MPEG2_PROFILE, if codec == MFVideoFormat_HEVC { 1 } else { 77 }).map_err(err)?;
-            let video_stream = writer.AddStream(&video_out).map_err(err)?;
-            let video_in = create_video_type(&MFVideoFormat_NV12, width, height, options.frames_per_second)?;
-            writer.SetInputMediaType(video_stream, &video_in, None).map_err(err)?;
+            a.SetUINT32(&MF_SINK_WRITER_DISABLE_THROTTLING, 1).map_err(mf)?;
+            a.SetGUID(&MF_TRANSCODE_CONTAINERTYPE, &MFTranscodeContainerType_MPEG4).map_err(mf)?;
+            a.SetUnknown(&MF_SINK_WRITER_D3D_MANAGER, &manager).map_err(mf)?;
+            let writer = MFCreateSinkWriterFromURL(&HSTRING::from(options.output_path.as_os_str()), None, &a).map_err(mf)?;
+            let video_out = create_video_type(&codec, width, height, fps, full).map_err(mf)?;
+            video_out.SetUINT32(&MF_MT_AVG_BITRATE, attempt.video_bitrate as u32).map_err(mf)?;
+            if full {
+                // HEVC Main / H.264 Main.
+                video_out.SetUINT32(&MF_MT_MPEG2_PROFILE, if attempt.codec == Codec::Hevc { 1 } else { 77 }).map_err(mf)?;
+            }
+            let video_stream = writer.AddStream(&video_out).map_err(mf)?;
+            let video_in = create_video_type(&MFVideoFormat_NV12, width, height, fps, full).map_err(mf)?;
+            writer.SetInputMediaType(video_stream, &video_in, None).map_err(mf)?;
             let mut w = Self {
                 writer,
                 _manager: manager,
@@ -96,51 +129,55 @@ impl MediaFoundationWriter {
                 encoder_bind_flags: 0,
                 width,
                 height,
+                frames_per_second: fps,
+                adjustment_note: None,
             };
             if options.has_audio() {
-                w.add_audio(options.audio_bitrate)?;
+                w.add_audio(options.audio_bitrate, full).map_err(mf)?;
             }
             w.encoder = w.inspect_video_encoder()?;
             if options.require_hardware_encoder && (!w.encoder.is_hardware_accelerated || !w.encoder.is_d3d11_aware) {
-                return Err(format!(
+                return Err(AttemptError::NotSupported(format!(
                     "Windows selected '{}', which does not provide D3D11 hardware video encoding on this GPU. Disable RequireHardwareEncoder to allow Windows software encoding.",
                     w.encoder.name
-                ));
+                )));
             }
-            w.writer.BeginWriting().map_err(err)?;
+            w.writer.BeginWriting().map_err(mf)?;
             w.started = true;
             Ok(w)
         }
     }
 
-    fn add_audio(&mut self, bitrate: i32) -> Result<(), String> {
+    fn add_audio(&mut self, bitrate: i32, include_profile_level: bool) -> windows::core::Result<()> {
         // SAFETY: media types created here, on this writer.
         unsafe {
             let output = create_type(&MFMediaType_Audio, &MFAudioFormat_AAC)?;
-            output.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, 2).map_err(err)?;
-            output.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, 48_000).map_err(err)?;
-            output.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16).map_err(err)?;
-            output.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, (bitrate / 8) as u32).map_err(err)?;
-            output.SetUINT32(&MF_MT_AAC_PAYLOAD_TYPE, 0).map_err(err)?;
-            output.SetUINT32(&MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0x29).map_err(err)?;
-            self.audio_stream = self.writer.AddStream(&output).map_err(err)?;
+            output.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, 2)?;
+            output.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, 48_000)?;
+            output.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16)?;
+            output.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, (bitrate / 8) as u32)?;
+            output.SetUINT32(&MF_MT_AAC_PAYLOAD_TYPE, 0)?;
+            if include_profile_level {
+                output.SetUINT32(&MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0x29)?;
+            }
+            self.audio_stream = self.writer.AddStream(&output)?;
             let input = create_type(&MFMediaType_Audio, &MFAudioFormat_PCM)?;
-            input.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, 2).map_err(err)?;
-            input.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, 48_000).map_err(err)?;
-            input.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16).map_err(err)?;
-            input.SetUINT32(&MF_MT_AUDIO_BLOCK_ALIGNMENT, 4).map_err(err)?;
-            input.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 192_000).map_err(err)?;
-            self.writer.SetInputMediaType(self.audio_stream, &input, None).map_err(err)?;
+            input.SetUINT32(&MF_MT_AUDIO_NUM_CHANNELS, 2)?;
+            input.SetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND, 48_000)?;
+            input.SetUINT32(&MF_MT_AUDIO_BITS_PER_SAMPLE, 16)?;
+            input.SetUINT32(&MF_MT_AUDIO_BLOCK_ALIGNMENT, 4)?;
+            input.SetUINT32(&MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 192_000)?;
+            self.writer.SetInputMediaType(self.audio_stream, &input, None)?;
         }
         Ok(())
     }
 
     /// `InspectVideoEncoder`: the encoder MFT Windows chose, made low latency
     /// without B-frames, and what it is.
-    fn inspect_video_encoder(&mut self) -> Result<VideoEncoderInfo, String> {
+    fn inspect_video_encoder(&mut self) -> Result<VideoEncoderInfo, AttemptError> {
         // SAFETY: COM calls on the writer's own transforms.
         unsafe {
-            let extended: IMFSinkWriterEx = self.writer.cast().map_err(err)?;
+            let extended: IMFSinkWriterEx = self.writer.cast().map_err(mf)?;
             for i in 0..8 {
                 let mut category = GUID::zeroed();
                 let mut transform = None;
@@ -152,7 +189,7 @@ impl MediaFoundationWriter {
                     continue;
                 }
                 configure_low_latency(&transform);
-                let a = transform.GetAttributes().map_err(err)?;
+                let a = transform.GetAttributes().map_err(mf)?;
                 let hardware = get_string(&a, &MFT_ENUM_HARDWARE_URL_Attribute).is_some_and(|s| !s.is_empty());
                 let d3d11 = a.GetUINT32(&MF_SA_D3D11_AWARE).is_ok_and(|v| v != 0);
                 let name = get_string(&a, &MFT_FRIENDLY_NAME_Attribute)
@@ -165,7 +202,7 @@ impl MediaFoundationWriter {
                 return Ok(VideoEncoderInfo { name, is_hardware_accelerated: hardware, is_d3d11_aware: d3d11 });
             }
         }
-        Err("Media Foundation did not expose the selected video encoder.".into())
+        Err(AttemptError::NotSupported("Media Foundation did not expose the selected video encoder.".into()))
     }
 
     /// `WriteVideo`.
@@ -215,38 +252,32 @@ impl MediaFoundationWriter {
     }
 }
 
-/// `FitSize`: downscaled to the encoder's limits, keeping the aspect ratio.
-pub fn fit_size(width: i32, height: i32, max_side: i32, max_pixels: i64) -> (i32, i32) {
-    let scale = 1f64.min((max_side as f64 / width.max(height) as f64).min((max_pixels as f64 / (width as i64 * height as i64) as f64).sqrt()));
-    if scale >= 1.0 {
-        return (width, height);
-    }
-    (2.max((width as f64 * scale) as i32 & !1), 2.max((height as f64 * scale) as i32 & !1))
-}
-
-unsafe fn create_type(major: &GUID, subtype: &GUID) -> Result<IMFMediaType, String> {
+unsafe fn create_type(major: &GUID, subtype: &GUID) -> windows::core::Result<IMFMediaType> {
     // SAFETY: a new media type.
     unsafe {
-        let t = MFCreateMediaType().map_err(err)?;
-        t.SetGUID(&MF_MT_MAJOR_TYPE, major).map_err(err)?;
-        t.SetGUID(&MF_MT_SUBTYPE, subtype).map_err(err)?;
+        let t = MFCreateMediaType()?;
+        t.SetGUID(&MF_MT_MAJOR_TYPE, major)?;
+        t.SetGUID(&MF_MT_SUBTYPE, subtype)?;
         Ok(t)
     }
 }
 
-/// `CreateVideoType`: progressive, square pixels, BT.709 limited range.
-fn create_video_type(subtype: &GUID, width: i32, height: i32, fps: i32) -> Result<IMFMediaType, String> {
+/// `CreateVideoType`: progressive, square pixels, and with
+/// `include_color_info` BT.709 limited range.
+fn create_video_type(subtype: &GUID, width: i32, height: i32, fps: i32, include_color_info: bool) -> windows::core::Result<IMFMediaType> {
     // SAFETY: a new media type.
     unsafe {
         let t = create_type(&MFMediaType_Video, subtype)?;
-        t.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32).map_err(err)?;
-        t.SetUINT64(&MF_MT_FRAME_SIZE, ((width as u64) << 32) | height as u64).map_err(err)?;
-        t.SetUINT64(&MF_MT_FRAME_RATE, ((fps as u64) << 32) | 1).map_err(err)?;
-        t.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1).map_err(err)?;
-        t.SetUINT32(&MF_MT_VIDEO_PRIMARIES, 2).map_err(err)?; // BT.709
-        t.SetUINT32(&MF_MT_TRANSFER_FUNCTION, 5).map_err(err)?; // BT.709
-        t.SetUINT32(&MF_MT_YUV_MATRIX, 1).map_err(err)?; // BT.709
-        t.SetUINT32(&MF_MT_VIDEO_NOMINAL_RANGE, 2).map_err(err)?; // 16-235
+        t.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
+        t.SetUINT64(&MF_MT_FRAME_SIZE, ((width as u64) << 32) | height as u64)?;
+        t.SetUINT64(&MF_MT_FRAME_RATE, ((fps as u64) << 32) | 1)?;
+        t.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, (1u64 << 32) | 1)?;
+        if include_color_info {
+            t.SetUINT32(&MF_MT_VIDEO_PRIMARIES, 2)?; // BT.709
+            t.SetUINT32(&MF_MT_TRANSFER_FUNCTION, 5)?; // BT.709
+            t.SetUINT32(&MF_MT_YUV_MATRIX, 1)?; // BT.709
+            t.SetUINT32(&MF_MT_VIDEO_NOMINAL_RANGE, 2)?; // 16-235
+        }
         Ok(t)
     }
 }
@@ -390,17 +421,4 @@ pub fn reserve_output(path: &Path) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     std::fs::OpenOptions::new().write(true).create_new(true).open(path).map(|_| ()).map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fit_size;
-
-    #[test]
-    fn fit_size_as_sharex() {
-        assert_eq!(fit_size(1920, 1080, 4096, 4096 * 2304), (1920, 1080));
-        assert_eq!(fit_size(7680, 2160, 4096, 4096 * 2304), (4096, 1152));
-        assert_eq!(fit_size(5120, 2880, 4096, 4096 * 2304), (4096, 2304));
-        assert_eq!(fit_size(5120, 2880, 8192, 8192 * 4352), (5120, 2880));
-    }
 }

@@ -43,6 +43,36 @@ fn record(o: RecordingOptions) -> Option<sharex_native_recorder::RecordingResult
     Some(r.completion().unwrap())
 }
 
+/// ShareX #9317 on this machine's encoder: the size asked for when it's
+/// taken, an odd size rounded down to even (and said so), and a 1 s clip
+/// at that size.
+#[test]
+fn negotiated_media_types() {
+    use sharex_native_recorder::media::Media;
+    let path = temp("n.mp4");
+    let mut o = RecordingOptions::new(&path);
+    o.require_hardware_encoder = false;
+    let mut probe = o.clone();
+    probe.output_path = path.with_extension("probe.mp4");
+    if !gpu_available(&probe) {
+        return;
+    }
+    for (i, (w, h, expected)) in [(320, 240, (320, 240)), (1001, 601, (1000, 600))].into_iter().enumerate() {
+        let mut p = o.clone();
+        p.output_path = path.with_extension(format!("{i}.mp4"));
+        let m = GpuMedia::new(&p, w, h, 0).unwrap();
+        // The first attempts are H.264 at the fitted size, with and without the optional attributes.
+        assert_eq!(m.output_size(), expected, "{w}x{h}");
+        assert_eq!(m.frames_per_second(), Some(o.frames_per_second));
+        assert_eq!(m.adjustment_note().is_some(), (w, h) != expected, "{:?}", m.adjustment_note());
+    }
+    o.region = Rect::new(0, 0, 1001, 601);
+    o.duration = TICKS_PER_SECOND;
+    let Some(result) = record(o) else { return };
+    assert!(result.video_frames >= 25, "{result:?}");
+    assert_eq!(&std::fs::read(&path).unwrap()[4..8], b"ftyp");
+}
+
 #[test]
 fn mp4_with_sound_in_real_time() {
     let path = temp("a.mp4");

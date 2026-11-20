@@ -2,6 +2,8 @@
  {
   "Id": "RegionEllipse",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "",
   "SecondaryHotkey": ""
@@ -9,6 +11,8 @@
  {
   "Id": "RegionFreehand",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": false,
   "Hotkey": "",
   "SecondaryHotkey": ""
@@ -16,6 +20,8 @@
  {
   "Id": "Select",
   "BeginGroup": true,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "V",
   "SecondaryHotkey": ""
@@ -23,6 +29,8 @@
  {
   "Id": "Rectangle",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "R",
   "SecondaryHotkey": "NumPad1"
@@ -30,6 +38,8 @@
  {
   "Id": "Ellipse",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "E",
   "SecondaryHotkey": "NumPad2"
@@ -37,6 +47,8 @@
  {
   "Id": "Line",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "L",
   "SecondaryHotkey": "NumPad4"
@@ -44,6 +56,8 @@
  {
   "Id": "Arrow",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "A",
   "SecondaryHotkey": "NumPad5"
@@ -51,6 +65,8 @@
  {
   "Id": "Freehand",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "F",
   "SecondaryHotkey": "NumPad3"
@@ -58,6 +74,8 @@
  {
   "Id": "Text",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "T",
   "SecondaryHotkey": "NumPad6"
@@ -65,6 +83,8 @@
  {
   "Id": "SpeechBalloon",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "O",
   "SecondaryHotkey": ""
@@ -72,6 +92,8 @@
  {
   "Id": "Step",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "N",
   "SecondaryHotkey": "NumPad7"
@@ -79,6 +101,8 @@
  {
   "Id": "Image",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "I",
   "SecondaryHotkey": ""
@@ -86,6 +110,8 @@
  {
   "Id": "Clone",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "D",
   "SecondaryHotkey": ""
@@ -93,6 +119,8 @@
  {
   "Id": "Emoji",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "J",
   "SecondaryHotkey": ""
@@ -100,6 +128,8 @@
  {
   "Id": "Cursor",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "K",
   "SecondaryHotkey": ""
@@ -107,6 +137,8 @@
  {
   "Id": "Highlight",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "H",
   "SecondaryHotkey": ""
@@ -114,6 +146,8 @@
  {
   "Id": "SmartEraser",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "W",
   "SecondaryHotkey": ""
@@ -121,6 +155,8 @@
  {
   "Id": "Blur",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "B",
   "SecondaryHotkey": "NumPad8"
@@ -128,6 +164,8 @@
  {
   "Id": "Pixelate",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "P",
   "SecondaryHotkey": "NumPad9"
@@ -135,6 +173,8 @@
  {
   "Id": "Magnify",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "M",
   "SecondaryHotkey": ""
@@ -142,6 +182,8 @@
  {
   "Id": "Spotlight",
   "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "S",
   "SecondaryHotkey": ""

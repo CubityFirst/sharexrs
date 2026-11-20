@@ -1029,12 +1029,13 @@ impl EditorWindow {
         })
     }
 
-    /// `TrySelectToolForToolbarHotkey`: the first visible item with this
-    /// hotkey.
+    /// `TrySelectToolForToolbarHotkey`: the first item with this hotkey.
+    /// Items hidden from the toolbar keep their shortcuts, so a tool can be
+    /// used from the keyboard without a button (ShareX 60a85ea).
     fn bar_item_for(bar: &[BarItem], key: ed::Key, m: ed::Mods) -> Option<Item> {
         let name = Self::key_name(key)?;
         let mods = toolbar_items::Mods { ctrl: m.ctrl, shift: m.shift, alt: m.alt, meta: false };
-        bar.iter().find(|b| b.custom.visible && b.custom.matches(&name, mods)).map(|b| b.item)
+        bar.iter().find(|b| b.custom.matches(&name, mods)).map(|b| b.item)
     }
 
     /// A toolbar item that isn't a tool whose hotkey this is.
@@ -1213,7 +1214,7 @@ impl EditorWindow {
                 w += SPACING;
             }
             if b.custom.separator() {
-                w += 1.0 + SPACING;
+                w += b.custom.separator_width() + SPACING;
             }
             w += b.item.width();
         }
@@ -1277,8 +1278,13 @@ impl EditorWindow {
                 x += SPACING;
             }
             if b.custom.separator() {
-                clip.rect_filled(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON)), 0.0, p.separator);
-                x += 1.0 + SPACING;
+                // `SpacerMargin` around the line; a blank spacer
+                // (`line-hidden`) keeps the space but not the line.
+                if b.custom.show_spacer_line {
+                    let (left, _) = b.custom.spacer_margin();
+                    clip.rect_filled(Rect::from_min_size(pos2(x + left, top), vec2(1.0, BUTTON)), 0.0, p.separator);
+                }
+                x += b.custom.separator_width() + SPACING;
             }
             let r = Rect::from_min_size(pos2(x, top), vec2(it.width(), BUTTON));
             x += it.width();
@@ -3029,6 +3035,26 @@ impl crate::App {
 #[cfg(test)]
 mod toolbar_drag_tests {
     use super::*;
+
+    /// ShareX 60a85ea: a tool hidden from the toolbar is still picked by its
+    /// shortcut, as is an item that isn't a tool (Canvas size's X).
+    #[test]
+    fn hidden_items_keep_their_hotkeys() {
+        let mut opts = toolbar_items::options_json(&toolbar_items::editor_default_items());
+        for o in &mut opts {
+            if o["Id"] == "Arrow" || o["Id"] == "CanvasSize" {
+                o["IsVisible"] = serde_json::Value::Bool(false);
+            }
+        }
+        let bar: Vec<BarItem> =
+            toolbar_items::editor_items(&opts).into_iter().filter_map(|custom| Item::of(custom.id()).map(|item| BarItem { item, custom })).collect();
+        let arrow = bar.iter().find(|b| b.custom.id() == "Arrow").map(|b| b.item).unwrap();
+        assert!(!bar.iter().any(|b| b.custom.id() == "Arrow" && b.custom.visible));
+        let none = ed::Mods::default();
+        assert_eq!(EditorWindow::bar_item_for(&bar, ed::Key::Letter('A'), none), Some(arrow));
+        assert_eq!(arrow.tool(), Some(sharex_image_editor::model::EditorTool::Arrow));
+        assert_eq!(EditorWindow::bar_item_for(&bar, ed::Key::Letter('X'), none), Some(Item::CanvasSize));
+    }
 
     /// ShareX #9296: the top toolbar moves by its handle, stays inside the
     /// view, keeps its offset on a plain click, remembers where a drag

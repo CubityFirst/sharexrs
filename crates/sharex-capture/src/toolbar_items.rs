@@ -18,6 +18,12 @@ use sharex_ui::keys::{app_icons, image_editor_icons as icon};
 pub struct ItemOptions {
     pub Id: String,
     pub BeginGroup: bool,
+    /// Extra space in pixels around the group separator before this item.
+    /// Only used when the item begins a group.
+    pub SpacerWidth: i32,
+    /// Leaves out the line of the group separator before this item, keeping
+    /// only its space.
+    pub HideSpacerLine: bool,
     pub IsVisible: bool,
     pub Hotkey: String,
     pub SecondaryHotkey: String,
@@ -133,26 +139,54 @@ fn region_host_defs() -> Vec<Def> {
     ]
 }
 
+/// `MaxSpacerWidth`: the most extra space a group separator can have, in pixels.
+pub const MAX_SPACER_WIDTH: i32 = 96;
+
+/// `ClampSpacerWidth`.
+pub fn clamp_spacer_width(width: i32) -> i32 {
+    width.clamp(0, MAX_SPACER_WIDTH)
+}
+
 /// `ToolbarCustomizationItemViewModel`.
 #[derive(Clone, Debug)]
 pub struct Item {
     pub def: Def,
     pub visible: bool,
     pub begin_group: bool,
+    /// `SpacerWidth`: extra space around the group separator before it.
+    pub spacer_width: i32,
+    /// `ShowSpacerLine`: whether that separator draws its line.
+    pub show_spacer_line: bool,
     pub hotkey: String,
     pub secondary_hotkey: String,
 }
 
 impl Item {
     /// `CreateItem`.
-    fn create(def: &Def, visible: Option<bool>, hotkey: Option<&str>, secondary: Option<&str>, begin_group: Option<bool>) -> Item {
+    #[allow(clippy::too_many_arguments)]
+    fn create(
+        def: &Def,
+        visible: Option<bool>,
+        hotkey: Option<&str>,
+        secondary: Option<&str>,
+        begin_group: Option<bool>,
+        spacer_width: i32,
+        show_spacer_line: bool,
+    ) -> Item {
         Item {
             hotkey: if def.hotkey_editable { hotkey.unwrap_or(def.default_hotkey).to_string() } else { String::new() },
             secondary_hotkey: if def.hotkey_editable { secondary.unwrap_or(def.default_secondary).to_string() } else { String::new() },
             visible: if def.visibility_editable { visible.unwrap_or(def.visible_default) } else { true },
             begin_group: begin_group.unwrap_or(def.begin_group),
+            spacer_width: clamp_spacer_width(spacer_width),
+            show_spacer_line,
             def: def.clone(),
         }
+    }
+
+    /// `IsFileMenu`.
+    pub fn is_file_menu(&self) -> bool {
+        self.def.id == FILE
     }
 
     pub fn id(&self) -> &'static str {
@@ -188,11 +222,26 @@ impl Item {
         self.visible && self.begin_group
     }
 
+    /// `SpacerMargin`: the spacer width split to both sides of the
+    /// separator's line (left, right).
+    pub fn spacer_margin(&self) -> (f32, f32) {
+        let w = self.spacer_width;
+        ((w / 2) as f32, (w - w / 2) as f32)
+    }
+
+    /// The separator's width on the toolbar (its 1px line and the margins
+    /// around it), or 0 without one.
+    pub fn separator_width(&self) -> f32 {
+        if self.separator() { 1.0 + self.spacer_width as f32 } else { 0.0 }
+    }
+
     /// `ToOptions`.
     pub fn to_options(&self) -> ItemOptions {
         ItemOptions {
             Id: self.def.id.to_string(),
             BeginGroup: self.begin_group,
+            SpacerWidth: if self.begin_group { self.spacer_width } else { 0 },
+            HideSpacerLine: self.begin_group && !self.show_spacer_line,
             IsVisible: !self.def.visibility_editable || self.visible,
             Hotkey: if self.def.hotkey_editable { self.hotkey.trim().to_string() } else { String::new() },
             SecondaryHotkey: if self.def.hotkey_editable { self.secondary_hotkey.trim().to_string() } else { String::new() },
@@ -227,7 +276,7 @@ pub fn options_json(items: &[Item]) -> Vec<Value> {
 /// `CreateFromOptions`: the saved items in their order (unknown ids
 /// dropped), every definition they miss inserted after its predecessor.
 pub fn from_options(options: &[ItemOptions], defs: &[Def]) -> Vec<Item> {
-    let defaults = || defs.iter().map(|d| Item::create(d, None, None, None, None)).collect::<Vec<_>>();
+    let defaults = || defs.iter().map(|d| Item::create(d, None, None, None, None, 0, true)).collect::<Vec<_>>();
     if options.is_empty() {
         return defaults();
     }
@@ -235,7 +284,7 @@ pub fn from_options(options: &[ItemOptions], defs: &[Def]) -> Vec<Item> {
     let mut used: Vec<&str> = Vec::new();
     for o in options {
         if let Some(d) = defs.iter().find(|d| d.id.eq_ignore_ascii_case(&o.Id)) {
-            items.push(Item::create(d, Some(o.IsVisible), Some(&o.Hotkey), Some(&o.SecondaryHotkey), Some(o.BeginGroup)));
+            items.push(Item::create(d, Some(o.IsVisible), Some(&o.Hotkey), Some(&o.SecondaryHotkey), Some(o.BeginGroup), o.SpacerWidth, !o.HideSpacerLine));
             used.push(d.id);
         }
     }
@@ -244,7 +293,7 @@ pub fn from_options(options: &[ItemOptions], defs: &[Def]) -> Vec<Item> {
             continue;
         }
         let previous = if i > 0 { items.iter().position(|it| it.def.id == defs[i - 1].id).map(|p| p as isize).unwrap_or(-1) } else { -1 };
-        items.insert((previous + 1) as usize, Item::create(d, None, None, None, None));
+        items.insert((previous + 1) as usize, Item::create(d, None, None, None, None, 0, true));
     }
     if items.is_empty() { defaults() } else { items }
 }
@@ -394,7 +443,10 @@ mod tests {
         assert!(items[1].begin_group && items[20].begin_group);
         assert_eq!(items[2].tooltip(), "Rectangle (R, NumPad1)");
         let json = options_json(&items);
-        assert_eq!(json[2], serde_json::json!({"Id": "Rectangle", "BeginGroup": false, "IsVisible": true, "Hotkey": "R", "SecondaryHotkey": "NumPad1"}));
+        assert_eq!(
+            json[2],
+            serde_json::json!({"Id": "Rectangle", "BeginGroup": false, "SpacerWidth": 0, "HideSpacerLine": false, "IsVisible": true, "Hotkey": "R", "SecondaryHotkey": "NumPad1"})
+        );
         let back = editor_items(&json);
         assert_eq!(options_json(&back), json);
         // Region capture: the two hidden region shapes, then the tools.
@@ -402,6 +454,39 @@ mod tests {
         assert_eq!(r.len(), 21);
         assert_eq!(r[0].id(), REGION_ELLIPSE);
         assert!(!r[0].visible);
+    }
+
+    /// ShareX #9278: a spacer's width and line are kept on the item after it,
+    /// only while it begins a group; old configs without them load as a
+    /// plain separator, and widths are clamped.
+    #[test]
+    fn spacers_round_trip() {
+        let saved = vec![
+            serde_json::json!({"Id": "File", "BeginGroup": false, "IsVisible": true, "Hotkey": "", "SecondaryHotkey": ""}),
+            serde_json::json!({"Id": "Select", "BeginGroup": true, "SpacerWidth": 24, "HideSpacerLine": true, "IsVisible": true, "Hotkey": "V", "SecondaryHotkey": ""}),
+            serde_json::json!({"Id": "Rectangle", "BeginGroup": true, "SpacerWidth": 500, "IsVisible": true, "Hotkey": "R", "SecondaryHotkey": ""}),
+            serde_json::json!({"Id": "Ellipse", "BeginGroup": false, "SpacerWidth": 30, "HideSpacerLine": true, "IsVisible": true}),
+        ];
+        let items = editor_items(&saved);
+        assert_eq!((items[1].spacer_width, items[1].show_spacer_line), (24, false));
+        assert_eq!(items[1].spacer_margin(), (12.0, 12.0));
+        assert_eq!(items[1].separator_width(), 25.0);
+        assert_eq!((items[2].spacer_width, items[2].show_spacer_line), (MAX_SPACER_WIDTH, true));
+        let json = options_json(&items);
+        assert_eq!(json[1]["SpacerWidth"], 24);
+        assert_eq!(json[1]["HideSpacerLine"], true);
+        assert_eq!(json[2]["SpacerWidth"], 96);
+        assert_eq!(json[2]["HideSpacerLine"], false);
+        // Not a group: neither is saved.
+        assert_eq!(json[3]["SpacerWidth"], 0);
+        assert_eq!(json[3]["HideSpacerLine"], false);
+        // An odd width splits with the extra pixel on the right.
+        let mut odd = items[1].clone();
+        odd.spacer_width = 5;
+        assert_eq!(odd.spacer_margin(), (2.0, 3.0));
+        // ShareX's property order.
+        let keys: Vec<&str> = json[1].as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys, ["Id", "BeginGroup", "SpacerWidth", "HideSpacerLine", "IsVisible", "Hotkey", "SecondaryHotkey"]);
     }
 
     #[test]

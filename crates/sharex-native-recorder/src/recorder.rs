@@ -365,7 +365,6 @@ fn record(handle: &RecorderHandle, backends: &Backends, owns_output: &mut bool) 
     let options = &shared.options;
     let clock = &shared.clock;
     let signals = &shared.signals;
-    let fps = options.frames_per_second as i64;
     let mut waiter = match &backends.virtual_time {
         Some(t) => Waiter::Virtual(t.clone()),
         None => Waiter::real()?,
@@ -379,8 +378,14 @@ fn record(handle: &RecorderHandle, backends: &Backends, owns_output: &mut bool) 
     std::fs::OpenOptions::new().write(true).create_new(true).open(&options.output_path).map_err(|e| e.to_string())?;
     *owns_output = true;
     let mut media = backends.media.create(options, width, height, capture.monitor())?;
+    if let Some(adjustment) = media.adjustment_note() {
+        report(&shared.diagnostic, adjustment);
+    }
+    // The encoder may have taken a lower rate (ShareX #9317).
+    let fps = media.frames_per_second().unwrap_or(options.frames_per_second);
     *shared.encoder.lock().unwrap_or_else(|e| e.into_inner()) = Some(media.encoder());
-    capture.attach(media.canvas())?;
+    capture.attach(media.canvas(), fps)?;
+    let fps = fps as i64;
     let mut camera: Option<Box<dyn CameraSource>> = if options.capture_camera {
         let devices = backends.camera.as_ref().ok_or("No camera is available. Connect a camera or turn off the camera overlay.")?;
         Some(devices.open(options, media.canvas())?)

@@ -41,6 +41,18 @@ const CARD_MARGIN: f32 = 4.0;
 const CARD_BORDER: f32 = 1.0;
 const CARD_PADDING: f32 = 4.0;
 const CARD_SPACING: f32 = 3.0;
+/// `UpdateThumbnailColumns`: how many cards fit in a row of the thumbnail
+/// view `width` wide (the list inside its `Margin="6"`): the card's width
+/// plus its 4px margin, 1px border and 4px padding on both sides, each
+/// rounded to device pixels as layout rounding does, so the last card of a
+/// row is never cut off. At least one.
+fn thumbnail_columns(ppp: f32, width: f32, thumb_w: f32) -> usize {
+    let round = |v: f32| (v * ppp).round_ties_even() / ppp;
+    let available = width - 2.0 * round(LIST_MARGIN);
+    let card = round(thumb_w) + 2.0 * (round(CARD_MARGIN) + round(CARD_BORDER) + round(CARD_PADDING));
+    (((available + 0.001) / card).floor() as usize).max(1)
+}
+
 /// `MaxAnimatedImagePreviewSize`: animated previews are decoded at most this large.
 const MAX_ANIMATED_PREVIEW_SIZE: u32 = 1024;
 /// Windows' double-click time and size (`GetTapSize`, 4x4).
@@ -775,8 +787,9 @@ impl TaskView {
         } else {
             l.list = area;
             let card = self.card_size(ui);
-            let inner_w = (area.width() - 2.0 * LIST_MARGIN).max(card.x);
-            let per_row = ((inner_w / card.x).floor() as usize).max(1);
+            // `UpdateThumbnailColumns` (ShareX 2523ded): the cards are rows of
+            // `_thumbnailColumns`, so they can be virtualized.
+            let per_row = thumbnail_columns(ui.ctx().pixels_per_point(), area.width(), self.settings.thumb_w());
             let rows = self.items.len().div_ceil(per_row);
             l.content_height = 2.0 * LIST_MARGIN + rows as f32 * card.y;
             let max_scroll = (l.content_height - area.height()).max(0.0);
@@ -1739,8 +1752,12 @@ impl TaskView {
 
     fn scroll_into_view(&mut self, id: u64) {
         let l = &self.layout;
-        let view = if self.settings.is_list() { l.list } else { l.area };
+        let list = self.settings.is_list();
+        let view = if list { l.list } else { l.area };
         if let Some((_, r, _)) = l.hits.iter().find(|(i, ..)| *i == id) {
+            // `ScrollTaskIntoView`: the thumbnail view scrolls to the row that
+            // holds the task, its cards' margins included (ShareX 2523ded).
+            let r = if list { *r } else { r.expand2(vec2(0.0, CARD_MARGIN)) };
             if r.min.y < view.min.y {
                 self.scroll -= view.min.y - r.min.y;
             } else if r.max.y > view.max.y {
@@ -2086,6 +2103,20 @@ fn truncate(text: &str, max_length: usize, endings: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// ShareX 2523ded's `UpdateThumbnailColumns`: at 125% a 200-wide card is
+    /// 217.6 (its 1px border rounds to 0.8) and the list's margins 6.4 each;
+    /// a row exactly four cards wide holds four, despite float error.
+    #[test]
+    fn thumbnail_columns_as_sharex() {
+        use super::thumbnail_columns;
+        assert_eq!(thumbnail_columns(1.0, 884.0, 200.0), 4);
+        assert_eq!(thumbnail_columns(1.0, 883.9, 200.0), 3);
+        assert_eq!(thumbnail_columns(1.25, 12.8 + 4.0 * 217.6, 200.0), 4);
+        assert_eq!(thumbnail_columns(1.25, 12.8 + 4.0 * 217.6 - 0.8, 200.0), 3);
+        // A window narrower than one card still has one column.
+        assert_eq!(thumbnail_columns(1.0, 100.0, 96.0), 1);
+    }
+
     use super::*;
 
     fn view_with(n: usize) -> TaskView {

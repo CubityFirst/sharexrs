@@ -133,7 +133,7 @@ pub fn size(scale: f32, items: &[Item]) -> egui::Vec2 {
 
 fn tools_width(items: &[Item]) -> f32 {
     items.iter().enumerate().map(|(i, t)| {
-        let sep = if t.separator() { 1.0 + SPACING } else { 0.0 };
+        let sep = if t.separator() { t.separator_width() + SPACING } else { 0.0 };
         sep + BUTTON + if i > 0 { SPACING } else { 0.0 }
     }).sum()
 }
@@ -166,8 +166,13 @@ pub fn layout(min: Pos2, scale: f32, items: &[Item]) -> Layout {
             x += SPACING * s;
         }
         if t.separator() {
-            separators.push(Rect::from_min_size(pos2(x, top), vec2(1.0, BUTTON) * s));
-            x += (1.0 + SPACING) * s;
+            // The group's spacer width around the line (`SpacerMargin`); a
+            // blank spacer keeps the space but not the line.
+            let (left, _) = t.spacer_margin();
+            if t.show_spacer_line {
+                separators.push(Rect::from_min_size(pos2(x + left * s, top), vec2(1.0, BUTTON) * s));
+            }
+            x += (t.separator_width() + SPACING) * s;
         }
         tools.push(Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON) * s));
         x += BUTTON * s;
@@ -193,11 +198,18 @@ impl Layout {
     }
 }
 
-/// `TrySelectToolForToolbarHotkey`: the first visible item whose hotkey
-/// is `key` with the modifiers (`ToolbarHotkeyHelper.Matches`).
+/// `TrySelectToolForToolbarHotkey`: the first item whose hotkey is `key`
+/// with the modifiers (`ToolbarHotkeyHelper.Matches`). Items hidden from the
+/// toolbar keep their shortcuts (ShareX 60a85ea), so pass every item
+/// ([`hotkey_items`]), not just the toolbar's.
 pub fn item_for_hotkey<'a>(items: &'a [Item], key: &str, ctrl: bool, shift: bool, alt: bool) -> Option<&'a Item> {
     let m = crate::toolbar_items::Mods { ctrl, shift, alt, meta: false };
-    items.iter().find(|i| i.visible && i.matches(key, m))
+    items.iter().find(|i| i.matches(key, m))
+}
+
+/// Every item of the capture toolbar, shown or hidden, for its shortcuts.
+pub fn hotkey_items(saved: &[serde_json::Value]) -> Vec<Item> {
+    crate::toolbar_items::region_items(saved)
 }
 
 /// The tool of [`item_for_hotkey`].
@@ -324,5 +336,23 @@ mod tests {
         assert_eq!(l.tools[0].min.x, 130.0);
         assert_eq!(l.tools[18].max.x, 962.0);
         assert_eq!(TOOLS[1].tooltip(), "Rectangle (R, NumPad1)");
+    }
+
+    /// ShareX #9278: a spacer's width goes around its line, half each side;
+    /// a blank one draws no line.
+    #[test]
+    fn spacers_widen_the_toolbar() {
+        let saved = vec![serde_json::json!({"Id": "Rectangle", "BeginGroup": true, "SpacerWidth": 21, "IsVisible": true})];
+        let items = items(&saved);
+        let base = layout(pos2(58.0, 0.0), 1.0, &default_items());
+        let l = layout(pos2(58.0, 0.0), 1.0, &items);
+        assert_eq!(size(1.0, &items).x, 909.0 + 1.0 + 21.0 + SPACING);
+        // Rectangle's separator: after Select (130..170) and the spacing.
+        assert_eq!(l.separators[1].min.x, 174.0 + 10.0);
+        assert_eq!(l.tools[1].min.x, base.tools[1].min.x + 1.0 + 21.0 + SPACING);
+        let blank = vec![serde_json::json!({"Id": "Rectangle", "BeginGroup": true, "SpacerWidth": 8, "HideSpacerLine": true, "IsVisible": true})];
+        let l = layout(pos2(58.0, 0.0), 1.0, &super::items(&blank));
+        assert_eq!(l.separators.len(), 1);
+        assert_eq!(l.tools[1].min.x, base.tools[1].min.x + 1.0 + 8.0 + SPACING);
     }
 }

@@ -1,6 +1,6 @@
 //! `Video/GpuVideoProcessor.cs`: the BGRA canvas the capture composes into,
 //! and its conversion to limited-range BT.709 NV12 (scaled to the encoder's
-//! size) by the GPU's video processor, with the camera overlay as a second
+//! size, or padded to it) by the GPU's video processor, with the camera overlay as a second
 //! stream or copied in.
 
 use std::mem::ManuallyDrop;
@@ -11,6 +11,7 @@ use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FO
 use windows::core::Interface;
 
 use super::camera::CameraOverlay;
+use crate::encoder_attempts::compute_dest_rect;
 use super::device::GraphicsDevice;
 use super::err;
 
@@ -94,9 +95,12 @@ struct Video {
 pub struct GpuVideoProcessor {
     pub width: i32,
     pub height: i32,
-    /// NV12 output size; smaller than the canvas when the encoder can't take the capture size.
+    /// NV12 output size. Scaled or padded when the encoder can't take the capture size directly.
     pub output_width: i32,
     pub output_height: i32,
+    /// Where the canvas goes in the output (`destRect`): all of it, or
+    /// centred in padding, or scaled down and letterboxed.
+    dest_rect: RECT,
     pub canvas: ID3D11Texture2D,
     pub(crate) canvas_view: ID3D11RenderTargetView,
     video: Option<Video>,
@@ -122,6 +126,7 @@ impl GpuVideoProcessor {
             height,
             output_width,
             output_height,
+            dest_rect: rect(0, 0, output_width, output_height),
             canvas,
             canvas_view: canvas_view.ok_or("no render target view")?,
             video: None,
@@ -153,10 +158,18 @@ impl GpuVideoProcessor {
             context.VideoProcessorSetOutputColorSpace(&processor, &color_space(0, 1, 1));
             context.VideoProcessorSetStreamFrameFormat(&processor, 0, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
             context.VideoProcessorSetStreamAutoProcessingMode(&processor, 0, false);
-            let output = rect(0, 0, output_width, output_height);
+            let (left, top, right, bottom) = compute_dest_rect(width, height, output_width, output_height);
+            p.dest_rect = rect(left, top, right, bottom);
+            if (left, top, right, bottom) != (0, 0, output_width, output_height) {
+                // Limited-range black around the picture.
+                let black = D3D11_VIDEO_COLOR {
+                    Anonymous: D3D11_VIDEO_COLOR_0 { YCbCr: D3D11_VIDEO_COLOR_YCbCrA { Y: 16.0 / 255.0, Cb: 128.0 / 255.0, Cr: 128.0 / 255.0, A: 1.0 } },
+                };
+                context.VideoProcessorSetOutputBackgroundColor(&processor, true, &black);
+            }
             context.VideoProcessorSetStreamSourceRect(&processor, 0, true, Some(&rect(0, 0, width, height)));
-            context.VideoProcessorSetStreamDestRect(&processor, 0, true, Some(&output));
-            context.VideoProcessorSetOutputTargetRect(&processor, true, Some(&output));
+            context.VideoProcessorSetStreamDestRect(&processor, 0, true, Some(&p.dest_rect));
+            context.VideoProcessorSetOutputTargetRect(&processor, true, Some(&rect(0, 0, output_width, output_height)));
             p.video = Some(Video { device, context, enumerator, processor, input });
         }
         Ok(p)
@@ -209,17 +222,18 @@ impl GpuVideoProcessor {
                             context.VideoProcessorSetStreamAutoProcessingMode(&processor, 1, false);
                             context.VideoProcessorSetStreamColorSpace(&processor, 1, &color_space(0, 0, 2));
                             context.VideoProcessorSetStreamSourceRect(&processor, 1, true, Some(&rect(0, 0, b.width, b.height)));
-                            // Bounds are canvas pixels; scale them with the screen when the output is downscaled.
-                            let (ow, oh, w, h) = (self.output_width as i64, self.output_height as i64, self.width as i64, self.height as i64);
+                            // Bounds are canvas pixels; map them into the same destination rectangle as the screen.
+                            let d = self.dest_rect;
+                            let (dw, dh, w, h) = ((d.right - d.left) as i64, (d.bottom - d.top) as i64, self.width as i64, self.height as i64);
                             context.VideoProcessorSetStreamDestRect(
                                 &processor,
                                 1,
                                 true,
                                 Some(&rect(
-                                    (b.x as i64 * ow / w) as i32,
-                                    (b.y as i64 * oh / h) as i32,
-                                    (b.right() as i64 * ow / w) as i32,
-                                    (b.bottom() as i64 * oh / h) as i32,
+                                    d.left + (b.x as i64 * dw / w) as i32,
+                                    d.top + (b.y as i64 * dh / h) as i32,
+                                    d.left + (b.right() as i64 * dw / w) as i32,
+                                    d.top + (b.bottom() as i64 * dh / h) as i32,
                                 )),
                             );
                         }
@@ -274,5 +288,40 @@ impl GpuVideoProcessor {
             self.composite_input = Some(input_view(device, &texture, enumerator, 0, 0)?);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ShareX #9317: a canvas smaller than the encoder's frame is centred
+    /// unscaled in limited-range black; a larger one is scaled down and
+    /// letterboxed. Skipped without a D3D11 video device.
+    #[test]
+    fn padded_and_letterboxed_output() {
+        let Ok(graphics) = GraphicsDevice::new(0) else { return };
+        for (canvas, output) in [((100, 50), (160, 128)), ((200, 50), (160, 128))] {
+            let Ok(mut p) = GpuVideoProcessor::new(&graphics, canvas.0, canvas.1, 30, true, output.0, output.1) else {
+                eprintln!("skipped: no video processor");
+                return;
+            };
+            // SAFETY: the canvas's own view.
+            unsafe { graphics.context.ClearRenderTargetView(&p.canvas_view, &[1.0, 1.0, 1.0, 1.0]) };
+            let texture = graphics.create_texture(output.0, output.1, DXGI_FORMAT_NV12, D3D11_BIND_RENDER_TARGET.0 as u32).unwrap();
+            let view = p.create_output_view(&texture).unwrap();
+            p.convert(&graphics, &view, 0, None).unwrap();
+            let nv12 = graphics.read_nv12(&texture, output.0, output.1).unwrap();
+            let y = |x: i32, row: i32| nv12[(row * output.0 + x) as usize];
+            let (l, t, r, b) = crate::encoder_attempts::compute_dest_rect(canvas.0, canvas.1, output.0, output.1);
+            // White inside the destination, limited-range black around it.
+            assert!(y((l + r) / 2, (t + b) / 2) >= 230, "{canvas:?} centre {}", y((l + r) / 2, (t + b) / 2));
+            assert!(y(l + 2, t + 2) >= 230);
+            assert!((14..=18).contains(&y(output.0 / 2, 1)), "{canvas:?} top {}", y(output.0 / 2, 1));
+            assert!((14..=18).contains(&y(output.0 / 2, output.1 - 2)));
+            if l > 0 {
+                assert!((14..=18).contains(&y(1, output.1 / 2)));
+            }
+        }
     }
 }
