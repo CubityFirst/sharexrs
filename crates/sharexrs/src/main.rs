@@ -142,6 +142,8 @@ pub enum UserEvent {
 }
 
 fn main() {
+    // SAFETY: first thing, before any thread.
+    unsafe { sharex_ui::gpu::prefer_wsl_gpu() };
     cli::START.get_or_init(Instant::now);
     #[cfg(feature = "memory-profile")]
     memprof::start();
@@ -1879,6 +1881,8 @@ impl ApplicationHandler<UserEvent> for App {
         sharex_capture::screenshot::remember_screens(event_loop);
         if !self.started {
             self.started = true;
+            // The GL backend presents through this display (EGL).
+            sharex_ui::gpu::set_display(event_loop.owned_display_handle());
             sharex_capture::screenshot::probe_capture();
             self.start(event_loop);
         }
