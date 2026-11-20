@@ -59,6 +59,42 @@ pub fn activate(window: &Window) {
     crate::activation::activate_window(window);
 }
 
+/// `Window::request_inner_size`, keeping a fixed-size window's min and max
+/// size at the new size. winit on Wayland leaves them at the old size (on
+/// X11 it moves them along), so a fixed-size window sized to its content
+/// (the Start screen, message boxes) would be larger than its own max size,
+/// which a compositor may undo. Use this, not the method.
+pub fn request_inner_size(window: &Window, size: impl Into<winit::dpi::Size>) -> Option<winit::dpi::PhysicalSize<u32>> {
+    let size = window.request_inner_size(size);
+    #[cfg(target_os = "linux")]
+    if !window.is_resizable() && wayland(window) {
+        // Resizable restores the old hints; fixed again pins them to the
+        // size just set.
+        window.set_resizable(true);
+        window.set_resizable(false);
+    }
+    size
+}
+
+/// Under WSLg, windows go through XWayland, as ShareX's do everywhere on
+/// Linux (Avalonia 11 is X11 only). WSLg's Weston (its RDP backend)
+/// segfaults when a client grows a `wl_shm_pool` whose buffers are on
+/// screen, which winit's client-side decorations do when a framed window
+/// is first activated: the Start screen took every Wayland client down.
+/// Under X11 the frames are Windows' own (RDP RAIL). Unset `DISPLAY` to
+/// run on Wayland anyway.
+#[cfg(target_os = "linux")]
+pub fn x11_on_wslg() -> bool {
+    std::env::var_os("DISPLAY").is_some_and(|d| !d.is_empty()) && std::path::Path::new("/mnt/wslg").is_dir()
+}
+
+/// Whether the window is a Wayland surface (not X11).
+#[cfg(target_os = "linux")]
+pub fn wayland(window: &Window) -> bool {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    window.window_handle().is_ok_and(|h| matches!(h.as_raw(), RawWindowHandle::Wayland(_)))
+}
+
 /// Where a window dragged from `press` (the pointer on the screen) while
 /// at `origin` goes with the pointer at `cursor`: by the pointer's whole
 /// movement since the press, so it ends exactly where the pointer does.

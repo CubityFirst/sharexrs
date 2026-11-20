@@ -552,7 +552,7 @@ impl App {
         }
         if spec.size_to_content {
             let (width, height) = w.paint(|ui| (dialog.content_width(ui), dialog.content_height(ui)));
-            let _ = w.window.request_inner_size(LogicalSize::new(width.unwrap_or(spec.width), height));
+            let _ = crate::window::request_inner_size(&w.window, LogicalSize::new(width.unwrap_or(spec.width), height));
         }
         clamp_to_max_track_size(&w.window, &spec);
         let size = w.window.outer_size();
@@ -743,7 +743,7 @@ impl App {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let win = &d.window.window;
                         win.set_maximized(false);
-                        let _ = win.request_inner_size(LogicalSize::new(w, h));
+                        let _ = crate::window::request_inner_size(win, LogicalSize::new(w, h));
                         center(win, event_loop);
                     }
                 }
@@ -755,7 +755,7 @@ impl App {
                 Effect::SetHeight(h) => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
                         let w = d.window.window.inner_size().to_logical::<f32>(d.window.window.scale_factor()).width;
-                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                        let _ = crate::window::request_inner_size(&d.window.window, LogicalSize::new(w, h));
                     }
                 }
                 Effect::ScanScreen => {
@@ -887,7 +887,7 @@ impl App {
                 Effect::DeleteFile(path) => self.confirm_delete_path(event_loop, path),
                 Effect::SetInnerSize(w, h) => {
                     if let Some(d) = self.dialogs.iter().find(|d| d.window.window.id() == id) {
-                        let _ = d.window.window.request_inner_size(LogicalSize::new(w, h));
+                        let _ = crate::window::request_inner_size(&d.window.window, LogicalSize::new(w, h));
                     }
                 }
                 Effect::ActionsToolbarMenu => self.open_actions_toolbar_menu(event_loop),
@@ -1076,7 +1076,7 @@ fn clamp_to_max_track_size(window: &winit::window::Window, spec: &Spec) {
         let min_w = (spec.min_width as f64 * scale).round() as u32;
         let min_h = (spec.min_height as f64 * scale).round() as u32;
         let size = winit::dpi::PhysicalSize::new(inner.width.saturating_sub(over_w).max(min_w), inner.height.saturating_sub(over_h).max(min_h));
-        let _ = window.request_inner_size(size);
+        let _ = crate::window::request_inner_size(window, size);
     }
 }
 
