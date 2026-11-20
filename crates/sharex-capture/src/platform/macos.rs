@@ -57,14 +57,17 @@ pub fn window_rects() -> Vec<(WindowInfo, Rect)> {
         )
     };
     let Some(windows) = windows else { return Vec::new() };
-    let monitors: Vec<([f64; 4], f32, bool)> = xcap::Monitor::all()
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|m| {
-            let frame = [m.x().ok()? as f64, m.y().ok()? as f64, m.width().ok()? as f64, m.height().ok()? as f64];
-            Some((frame, m.scale_factor().ok()?, m.is_primary().unwrap_or(false)))
-        })
-        .collect();
+    let monitors: Vec<([f64; 4], f32, bool)> = super::guarded("listing the monitors", || {
+        xcap::Monitor::all()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|m| {
+                let frame = [m.x().ok()? as f64, m.y().ok()? as f64, m.width().ok()? as f64, m.height().ok()? as f64];
+                Some((frame, m.scale_factor().ok()?, m.is_primary().unwrap_or(false)))
+            })
+            .collect()
+    })
+    .unwrap_or_default();
     let placed: Vec<(Rect, f64)> = monitors
         .iter()
         .map(|&([x, y, w, h], s, _)| {

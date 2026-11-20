@@ -4809,12 +4809,15 @@ name = "sharex-capture"
 version = "0.1.0-alpha"
 dependencies = [
  "arboard",
+ "ashpd",
  "egui",
  "image",
+ "libwayshot-xcap",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-core-foundation",
  "objc2-foundation 0.3.2",
+ "pollster 1.0.1",
  "serde",
  "serde_json",
  "sharex-helpers",
@@ -4823,6 +4826,7 @@ dependencies = [
  "sharex-skia",
  "sharex-strings",
  "sharex-ui",
+ "wayland-client",
  "windows",
  "windows-core",
  "windows-sys 0.61.2",

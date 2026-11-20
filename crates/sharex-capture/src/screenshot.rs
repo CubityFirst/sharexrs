@@ -11,6 +11,30 @@ pub fn screens() -> Vec<Screen> {
     platform::screens()
 }
 
+/// Keeps the monitors winit reports: on Linux they are what [`screens`]
+/// returns, so no window waits on a capture library. Call it as the event
+/// loop starts and after each batch of events. Nothing elsewhere.
+pub fn remember_screens(_event_loop: &winit::event_loop::ActiveEventLoop) {
+    #[cfg(target_os = "linux")]
+    platform::linux::remember_screens(_event_loop);
+}
+
+/// Finds out on a thread what can capture a Wayland desktop (screencopy,
+/// the screenshot portal), and logs it. Nothing elsewhere.
+pub fn probe_capture() {
+    #[cfg(target_os = "linux")]
+    platform::linux::probe_in_background();
+}
+
+/// Whether a grab is unseen by the user: not through a screenshot portal,
+/// which may flash the screen or ask. What an idle warm-up may do.
+pub fn quiet_grab() -> bool {
+    #[cfg(target_os = "linux")]
+    return platform::linux::quiet_grab();
+    #[cfg(not(target_os = "linux"))]
+    true
+}
+
 /// `CaptureHelpers.GetScreenBounds`: every monitor together.
 pub fn screen_bounds(screens: &[Screen]) -> Rect {
     combine(screens.iter().map(|s| s.bounds))

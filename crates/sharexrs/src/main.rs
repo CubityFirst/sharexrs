@@ -1066,9 +1066,13 @@ impl App {
     /// windows, hidden, painted once), and its time logged.
     fn warm_up_region_capture(&mut self, event_loop: &ActiveEventLoop) {
         let start = Instant::now();
-        let screens = sharex_capture::screenshot::screens();
-        let _ = sharex_capture::screenshot::Screenshot { remove_outside_screen_area: false, ..Default::default() }
-            .capture_rectangle(&screens, sharex_capture::Rect::new(0, 0, 1, 1));
+        // Not where the grab may show (a Wayland screenshot portal flashes
+        // the screen or asks).
+        if sharex_capture::screenshot::quiet_grab() {
+            let screens = sharex_capture::screenshot::screens();
+            let _ = sharex_capture::screenshot::Screenshot { remove_outside_screen_area: false, ..Default::default() }
+                .capture_rectangle(&screens, sharex_capture::Rect::new(0, 0, 1, 1));
+        }
         let dark = self.theme() == egui::Theme::Dark;
         let gpu = match &self.gpu {
             Some(g) => Ok(g),
@@ -1860,8 +1864,10 @@ fn center(window: &winit::window::Window, event_loop: &ActiveEventLoop) {
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let _popups = popup_window::enter(event_loop);
+        sharex_capture::screenshot::remember_screens(event_loop);
         if !self.started {
             self.started = true;
+            sharex_capture::screenshot::probe_capture();
             self.start(event_loop);
         }
     }
@@ -2096,6 +2102,7 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let _popups = popup_window::enter(event_loop);
+        sharex_capture::screenshot::remember_screens(event_loop);
         // `-AutoClose`: `ApplicationLifecycle.Exit()` once the last task is done.
         if self.exit_requested {
             self.exit_requested = false;
