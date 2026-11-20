@@ -13,6 +13,16 @@ pub trait Media: Send {
     fn canvas(&mut self) -> &mut dyn Canvas;
     /// `Encoder`.
     fn encoder(&self) -> VideoEncoderInfo;
+    /// `writer.FramesPerSecond`: the rate the encoder took, when it isn't
+    /// the one asked for (`None`: as asked).
+    fn frames_per_second(&self) -> Option<i32> {
+        None
+    }
+    /// `writer.AdjustmentNote`: what the encoder negotiated, when it isn't
+    /// what was asked for.
+    fn adjustment_note(&self) -> Option<String> {
+        None
+    }
     /// The camera overlay (`new CameraOverlay(...)`).
     fn create_camera_overlay(&mut self, mode: &CameraMode, options: &RecordingOptions) -> Result<(), String>;
     /// `cameraOverlay.Update`.
@@ -88,11 +98,19 @@ pub struct CpuMedia {
     pub mp4_calls: std::sync::Arc<std::sync::Mutex<Vec<Mp4Call>>>,
     /// Slots that run out (an encoder that's behind), by frame number.
     pub no_slot: Vec<i64>,
+    /// A frame rate the "encoder" negotiated, as a Media Foundation fallback does.
+    pub negotiated_fps: Option<i32>,
 }
 
 impl Media for CpuMedia {
     fn canvas(&mut self) -> &mut dyn Canvas {
         &mut self.canvas
+    }
+    fn frames_per_second(&self) -> Option<i32> {
+        self.negotiated_fps
+    }
+    fn adjustment_note(&self) -> Option<String> {
+        self.negotiated_fps.map(|fps| format!("Encoder negotiated H.264 at {fps} FPS"))
     }
     fn encoder(&self) -> VideoEncoderInfo {
         if self.gif.is_some() {
@@ -144,11 +162,12 @@ impl Media for CpuMedia {
 pub struct CpuMediaFactory {
     pub mp4_calls: std::sync::Arc<std::sync::Mutex<Vec<Mp4Call>>>,
     pub no_slot: Vec<i64>,
+    pub negotiated_fps: Option<i32>,
 }
 
 impl MediaFactory for CpuMediaFactory {
     fn create(&self, options: &RecordingOptions, width: i32, height: i32, _monitor: isize) -> Result<Box<dyn Media>, String> {
         let gif = if options.is_gif() { Some(GifWriter::new(options, width as u32, height as u32)?) } else { None };
-        Ok(Box::new(CpuMedia { canvas: CpuCanvas::new(width, height), gif, mp4_calls: self.mp4_calls.clone(), no_slot: self.no_slot.clone() }))
+        Ok(Box::new(CpuMedia { canvas: CpuCanvas::new(width, height), gif, mp4_calls: self.mp4_calls.clone(), no_slot: self.no_slot.clone(), negotiated_fps: self.negotiated_fps }))
     }
 }

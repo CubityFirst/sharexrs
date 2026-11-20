@@ -35,8 +35,9 @@ pub trait FrameSource: Send {
         0
     }
     /// The constructor's part that needs the recording's canvas (WGC's frame
-    /// pools on its device); called once, after the encoders are made.
-    fn attach(&mut self, _canvas: &mut dyn Canvas) -> Result<(), String> {
+    /// pools on its device) and the frame rate the encoder took; called once,
+    /// after the encoders are made.
+    fn attach(&mut self, _canvas: &mut dyn Canvas, _frames_per_second: i32) -> Result<(), String> {
         Ok(())
     }
     fn start(&mut self) -> Result<(), String>;

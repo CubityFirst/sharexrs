@@ -76,10 +76,18 @@ dropped, audio discontinuities and the encoder.
 - **Timing**: `RecordingClock` (QPC). Frames are taken on a fixed grid
   (`FrameTimer`); late slots are dropped, never caught up; 10 s without a
   frame fails.
-- **MP4**: Media Foundation sink writer, H.264 Main (HEVC Main above 4096
-  wide / 4096×2304 pixels, else H.264 downscaled), `ScreenRecordVideoBitrate`
+- **MP4**: Media Foundation sink writer, H.264 Main (HEVC Main above H.264
+  Level 5.2: 4096×2304, or its macroblock rate), `ScreenRecordVideoBitrate`
   kbps (10000), hardware encoder required by default
   (`ScreenRecordRequireHardwareEncoder`). AAC-LC 48 kHz stereo, 192 kb/s.
+  When an encoder rejects the media type (`MF_E_INVALIDMEDIATYPE`), the
+  writer negotiates: the same without the optional attributes (profile,
+  BT.709 colorimetry, low latency, AAC level), padded to 160×128 and
+  16-pixel macroblocks (the picture centred in black), HEVC for large or
+  fast captures, 50 then 20 Mbps, 60 FPS, 4K then 1080p, 1080p at 30 FPS
+  and 10 Mbps, and Windows' software encoder when hardware isn't required
+  (ShareX #9317; `encoder_attempts`). What it took is logged ("Encoder
+  negotiated ...") and the frames follow its rate.
 - **Sound**: WASAPI shared mode, loopback of the system audio device and/or
   the microphone (`…DeviceId`, empty = default; gains 0–4), resampled and
   drift-corrected into one 48 kHz stereo stream (`AudioMixer`). Devices
@@ -484,7 +492,7 @@ Capture, WASAPI and the Media Foundation camera.
 | `camera` | `CameraOverlay.GetBounds`, `CameraSource`/`CameraDevices` (mode, stride, matrix, range; frames as memory or a Media Foundation sample), `ConfigureFormat`'s scoring and order (`mode_score`, `ranked_modes`, the decoded fallbacks), `ReadSelectedFormat`'s defaults, `SyntheticCamera` |
 | `gif` | `GifWriter`: the deflated frame cache beside the output (hidden, delete on close), the two passes (`AdaptiveGifQuantizer` palette, changed rectangles, borrowed transparent index), cumulative centisecond delays, progress; ShareX.HelpersLib's quantizer and LZW are `sharex_tools::gif` |
 | `media` | the encoders a recording drives (`Media`), and a CPU canvas with the GIF writer (tests, and recorded MP4 calls) |
-| `windows` | `GraphicsDevice` (adapter of the recorded monitor), `GpuVideoProcessor` (canvas, BT.709 limited NV12 by the video processor, scaling, camera as a second stream or copied in), `VideoTexturePool` (eight NV12 textures, `IMFTrackedSample` with a release callback), `MediaFoundationWriter` (H.264 Main, HEVC Main past 4096 wide/4096x2304 or H.264 downscaled by `FitSize`; AAC-LC 48 kHz stereo from 16-bit PCM; the sink writer's attributes; `ICodecAPI` low latency, no B-frames; the encoder MFT's name, hardware and D3D11 flags; `RequireHardwareEncoder`), `CameraOverlay` and `CameraCircleShader` (the HLSL compiled by `d3dcompiler_47`) |
+| `windows` | `GraphicsDevice` (adapter of the recorded monitor), `GpuVideoProcessor` (canvas, BT.709 limited NV12 by the video processor, scaling, camera as a second stream or copied in), `VideoTexturePool` (eight NV12 textures, `IMFTrackedSample` with a release callback), `MediaFoundationWriter` (H.264 Main, HEVC Main past H.264 Level 5.2, then the fallbacks of `BuildAttempts` (`encoder_attempts`) while the encoder rejects the media type; AAC-LC 48 kHz stereo from 16-bit PCM; the sink writer's attributes; `ICodecAPI` low latency, no B-frames; the encoder MFT's name, hardware and D3D11 flags; `RequireHardwareEncoder`), `CameraOverlay` and `CameraCircleShader` (the HLSL compiled by `d3dcompiler_47`) |
 | `windows::capture` | `GraphicsCapture`: `GetTargets` (`IsSupported`, `EnumDisplayMonitors`, `CreateForMonitor`/`CreateForWindow`, `MonitorFromWindow`), free-threaded frame pools (2 buffers, BGRA or FP16) on the recording's WinRT device, `MinUpdateInterval` = 1/fps (skipped without `IGraphicsCaptureSession5`), `IsCursorCaptureEnabled`, borderless access asked first, `Closed` and the window-validity end, the two-frame bounded drain, a size change ends, the crop copied into the canvas (cleared first for a single source at the origin), `SystemRelativeTime`, `Retarget` |
 | `windows::hdr` | `MonitorColorInfo` (DXGI output 6, BT.2020 PQ, peak), `DisplayConfigHelper.GetSdrWhiteScale`, `HdrToneMapShader` (the HLSL, constants, draw state) |
 | `windows::wasapi` | `WasapiCapture`: the MTA thread with MMCSS "Audio", default endpoints by ShareX's roles (communications, else multimedia, for microphones) and messages, 48 kHz stereo float with `AUTOCONVERTPCM`/`SRC_DEFAULT_QUALITY`, loopback in a hidden session of its own, the microphone's `IAudioClient3` low-latency period with the fresh-client fallback, event-driven drains (100 ms at most), a last drain on stop; `AudioCaptureDevices` (active endpoints, `PKEY_Device_FriendlyName`, STA-tolerant) |
@@ -643,7 +651,10 @@ the native bar against ShareX's screenshots. Software H.264 (Windows picks the G
 `RequireHardwareEncoder` off only allows it), other GPUs' video processors
 (the NV12 conversion is the driver's, so another GPU may differ from
 ShareX on that GPU only if the port drives it differently), HEVC fallback
-to downscaled H.264 (needs a GPU without HEVC), the camera's
+to downscaled H.264 (needs a GPU without HEVC), the media-type fallbacks
+past the first two attempts (need an encoder that rejects them; the list
+and the padding are unit tested, and a padded and a letterboxed frame are
+checked on this GPU's video processor), the camera's
 video-processor composition fallback (GPU copies), multi-monitor adapters,
 the FFmpeg frame source against the real screen, and every non-Windows
 path (the crate builds there; the recorder isn't used).

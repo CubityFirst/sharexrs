@@ -318,8 +318,10 @@ impl FrameSource for GraphicsCapture {
         self.targets[0].place.monitor
     }
     /// The constructor: borderless access, then the sessions on the canvas's device.
-    fn attach(&mut self, canvas: &mut dyn Canvas) -> Result<(), String> {
+    fn attach(&mut self, canvas: &mut dyn Canvas, frames_per_second: i32) -> Result<(), String> {
         let media = gpu(canvas)?;
+        // The writer's negotiated rate (`new GraphicsCapture(..., fps, ...)`).
+        self.options.frames_per_second = frames_per_second;
         self.borderless = request_borderless_access();
         let r = self.create_sources(media);
         if r.is_err() {
