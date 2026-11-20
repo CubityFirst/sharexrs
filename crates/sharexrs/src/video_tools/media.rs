@@ -333,7 +333,7 @@ pub struct MediaPlayer {
     position: f64,
     volume: f64,
     muted: bool,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     texture_frame: f64,
     /// Decodes on the calling thread (`--render`).
     pub sync: bool,
@@ -605,17 +605,18 @@ impl MediaPlayer {
     }
 
     /// The frame shown, as a texture.
-    pub fn texture(&mut self, ctx: &egui::Context) -> Option<(egui::TextureId, [usize; 2])> {
+    /// Tiled past the GPU's largest texture side (a 4K video on a weak GPU).
+    pub fn texture(&mut self, ctx: &egui::Context) -> Option<(&sharex_ui::tiled::TiledTexture, [usize; 2])> {
         let frame = self.current.as_ref()?;
         if self.texture.is_none() || self.texture_frame.to_bits() != frame.time.to_bits() {
             let image = (*frame.image).clone();
             match &mut self.texture {
-                Some(t) => t.set(image, egui::TextureOptions::LINEAR),
-                None => self.texture = Some(ctx.load_texture("media-player-frame", image, egui::TextureOptions::LINEAR)),
+                Some(t) => t.set(ctx, "media-player-frame", image, egui::TextureOptions::LINEAR),
+                None => self.texture = Some(sharex_ui::tiled::TiledTexture::new(ctx, "media-player-frame", image, egui::TextureOptions::LINEAR)),
             }
             self.texture_frame = frame.time;
         }
-        Some((self.texture.as_ref()?.id(), frame.image.size))
+        Some((self.texture.as_ref()?, frame.image.size))
     }
 
     /// The display aspect (`GetVideoAspectRatio`), 0 without a video.

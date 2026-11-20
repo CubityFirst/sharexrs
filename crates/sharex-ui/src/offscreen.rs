@@ -61,6 +61,7 @@ impl Offscreen {
         crate::install(&ctx);
         ctx.set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
         ctx.set_pixels_per_point(ppp);
+        gpu.configure_context(&ctx);
         let renderer = egui_wgpu::Renderer::new(&gpu.device, FORMAT, Default::default());
         Ok(Self { gpu, ctx, renderer, size, ppp, frame: 0, last: None, transparent: false })
     }
@@ -86,6 +87,7 @@ impl Offscreen {
                 egui::vec2(w as f32 / self.ppp, h as f32 / self.ppp),
             )),
             time: Some(self.frame as f64 / 60.0),
+            max_texture_side: Some(self.gpu.max_texture_side()),
             events,
             ..Default::default()
         };

@@ -38,7 +38,8 @@ pub enum PinAction {
 pub struct PinWindow {
     pub window: EguiWindow,
     image: RgbaImage,
-    texture: Option<egui::TextureHandle>,
+    /// One texture, or tiles past the GPU's largest side.
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     pub options: PinToScreenOptions,
     state: PinState,
     layout: PinLayout,
@@ -217,9 +218,9 @@ impl PinWindow {
             let filter = if options.high_quality_scale { TextureOptions::LINEAR } else { TextureOptions::NEAREST };
             let t = texture.get_or_insert_with(|| {
                 let ci = egui::ColorImage::from_rgba_unmultiplied([image.width() as usize, image.height() as usize], image.as_raw());
-                ui.ctx().load_texture("pinned image", ci, filter)
+                sharex_ui::tiled::TiledTexture::new(ui.ctx(), "pinned image", ci, filter)
             });
-            painter.image(t.id(), img_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            t.paint(&painter, img_rect, Color32::WHITE);
             if show_toolbar {
                 let (r, scale_w) = toolbar_geometry(ui, &scale_text);
                 tools_ui::panel(ui, r);

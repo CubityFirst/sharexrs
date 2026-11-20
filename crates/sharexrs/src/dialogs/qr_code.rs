@@ -70,7 +70,7 @@ pub struct QrCodeWindow {
     pub size: f64,
     available: u32,
     preview: Option<(String, u32, RgbaImage)>,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     pub status: String,
     /// `InitialScanMode`, run when the window opens.
     pub initial_scan: Option<ScanMode>,
@@ -302,9 +302,9 @@ impl Dialog for QrCodeWindow {
             sharex_ui::border::border(ui.painter(), white, 2.0, 0.0, Some(sharex_ui::border::Brush::Solid(egui::Color32::WHITE)), None);
             let tex = self.texture.get_or_insert_with(|| {
                 let color = egui::ColorImage::from_rgba_unmultiplied([image.width() as usize, image.height() as usize], image.as_raw());
-                ui.ctx().load_texture("qr-preview", color, egui::TextureOptions::NEAREST)
+                sharex_ui::tiled::TiledTexture::new(ui.ctx(), "qr-preview", color, egui::TextureOptions::NEAREST)
             });
-            ui.painter().image(tex.id(), fit, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+            tex.paint(ui.painter(), fit, egui::Color32::WHITE);
             preview_clicked = ui.interact(right, ui.id().with("preview"), egui::Sense::click()).clicked();
         } else {
             let f = font(13.0, 400);

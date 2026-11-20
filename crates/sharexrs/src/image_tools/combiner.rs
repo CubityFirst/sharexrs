@@ -272,8 +272,7 @@ impl ImageCombinerWindow {
         if let Some(pic) = &mut self.preview {
             // `Image Stretch="Uniform"`: scaled to fit, centred.
             let dest = crate::dialogs::layout::uniform(area, pic.size());
-            let tex = pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32));
-            ui.painter().with_clip_rect(area.intersect(ui.clip_rect())).image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+            pic.texture(ui.ctx(), (dest.width().round() as u32, dest.height().round() as u32)).paint(&ui.painter().with_clip_rect(area.intersect(ui.clip_rect())), dest, egui::Color32::WHITE);
         } else {
             super::empty_state(ui, area, icon::Images, 46.0, 8.0, &[(s::ImageCombinerWindow_Add_at_least_two_images_to_preview(), super::normal_font(), p.text_secondary)]);
         }

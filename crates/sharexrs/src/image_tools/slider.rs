@@ -66,8 +66,7 @@ fn checkerboard(painter: &egui::Painter, origin: Pos2, rect: Rect) {
 
 fn draw_picture(ui: &Ui, painter: &egui::Painter, pic: &mut Picture, dest: Rect) {
     let size = (dest.width().round().max(1.0) as u32, dest.height().round().max(1.0) as u32);
-    let tex = pic.texture(ui.ctx(), size);
-    painter.image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    pic.texture(ui.ctx(), size).paint(painter, dest, Color32::WHITE);
 }
 
 /// The control's divider and drag state.

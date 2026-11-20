@@ -78,7 +78,7 @@ pub struct MonitorTestWindow {
     pub motion_offset: f64,
     last_frame: Option<Instant>,
     /// The pattern as a texture, made again when the options or size change.
-    texture: Option<(MonitorTest, (u32, u32), i64, egui::TextureHandle)>,
+    texture: Option<(MonitorTest, (u32, u32), i64, sharex_ui::tiled::TiledTexture)>,
     /// The open colour flyout (0 RGB, 1 gradient start, 2 gradient end).
     color_open: Option<usize>,
     /// Motion doesn't advance (`--render`).
@@ -122,11 +122,11 @@ impl MonitorTestWindow {
         if stale {
             let bmp = self.test.render(size.0, size.1, self.motion_offset);
             let image = egui::ColorImage::from_rgba_premultiplied([size.0 as usize, size.1 as usize], bmp.data());
-            let tex = ui.ctx().load_texture("monitor-test-pattern", image, egui::TextureOptions::NEAREST);
+            let tex = sharex_ui::tiled::TiledTexture::new(ui.ctx(), "monitor-test-pattern", image, egui::TextureOptions::NEAREST);
             self.texture = Some((self.test.clone(), size, offset_key, tex));
         }
         if let Some((_, _, _, tex)) = &self.texture {
-            ui.painter().image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            tex.paint(ui.painter(), rect, Color32::WHITE);
         }
     }
 

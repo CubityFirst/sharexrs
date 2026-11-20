@@ -691,7 +691,8 @@ pub fn border_pixels(width: i32, height: i32, accent: Color32) -> Vec<(i32, i32,
 pub fn paint_border(ui: &Ui, g: &Geometry, accent: Color32) {
     let ctx = ui.ctx();
     let key = egui::Id::new(("recording-border", g.frame_width, g.frame_height, accent));
-    let strips: Vec<(egui::TextureHandle, PxRect)> = match ctx.data(|d| d.get_temp::<std::sync::Arc<Vec<(egui::TextureHandle, PxRect)>>>(key)) {
+    // A strip is as long as the region: tiled past the GPU's largest side.
+    let strips: Vec<(sharex_ui::tiled::TiledTexture, PxRect)> = match ctx.data(|d| d.get_temp::<std::sync::Arc<Vec<(sharex_ui::tiled::TiledTexture, PxRect)>>>(key)) {
         Some(t) => t.as_ref().clone(),
         None => {
             let (w, h) = (g.frame_width, g.frame_height);
@@ -708,7 +709,7 @@ pub fn paint_border(ui: &Ui, g: &Geometry, accent: Color32) {
                         img.pixels[((y - r.y) * r.w + (x - r.x)) as usize] = Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3]);
                     }
                 }
-                let tex = ctx.load_texture(format!("recording-border-{i}"), img, egui::TextureOptions::NEAREST);
+                let tex = sharex_ui::tiled::TiledTexture::new(ctx, &format!("recording-border-{i}"), img, egui::TextureOptions::NEAREST);
                 out.push((tex, *r));
             }
             ctx.data_mut(|d| d.insert_temp(key, std::sync::Arc::new(out.clone())));
@@ -719,7 +720,7 @@ pub fn paint_border(ui: &Ui, g: &Geometry, accent: Color32) {
     for (tex, r) in strips {
         let min = Pos2::new((g.frame_left + r.x) as f32 / ppp, (g.frame_top + r.y) as f32 / ppp);
         let rect = Rect::from_min_size(min, vec2(r.w as f32 / ppp, r.h as f32 / ppp));
-        ui.painter().image(tex.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        tex.paint(ui.painter(), rect, Color32::WHITE);
     }
 }
 

@@ -2,6 +2,7 @@
 //! the clipboard content viewer. What the clipboard holds (an image, text
 //! or files) is shown before it's uploaded.
 
+use sharex_ui::tiled::TiledTexture;
 use egui::{Rect, pos2, vec2};
 use image::RgbaImage;
 use sharex_settings::TaskSettings;
@@ -22,7 +23,7 @@ pub struct ClipboardUploadWindow {
     task: TaskSettings,
     show_dont_show_again: bool,
     dont_show_again: bool,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<TiledTexture>,
 }
 
 impl ClipboardUploadWindow {
@@ -64,21 +65,20 @@ pub fn read_clipboard() -> Option<ClipboardContent> {
     None
 }
 
-/// The image's texture, made once.
-pub fn texture(ctx: &egui::Context, slot: &mut Option<egui::TextureHandle>, name: &str, image: &RgbaImage) -> egui::TextureId {
+/// The image's texture (tiles past the GPU's largest side), made once.
+pub fn texture<'a>(ctx: &egui::Context, slot: &'a mut Option<TiledTexture>, name: &str, image: &RgbaImage) -> &'a TiledTexture {
     slot.get_or_insert_with(|| {
         let size = [image.width() as usize, image.height() as usize];
         let color = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-        ctx.load_texture(name, color, egui::TextureOptions::LINEAR)
+        TiledTexture::new(ctx, name, color, egui::TextureOptions::LINEAR)
     })
-    .id()
 }
 
 /// Draws `image` uniformly scaled into `rect` (an `Image` with
 /// `Stretch="Uniform"`).
-pub fn paint_image(ui: &egui::Ui, rect: Rect, tex: egui::TextureId, size: (u32, u32)) {
+pub fn paint_image(ui: &egui::Ui, rect: Rect, tex: &TiledTexture, size: (u32, u32)) {
     let r = layout::uniform(rect, size);
-    ui.painter().image(tex, r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+    tex.paint(ui.painter(), r, egui::Color32::WHITE);
 }
 
 impl Dialog for ClipboardUploadWindow {

@@ -45,7 +45,7 @@ struct Pooled {
     monitor: Rect,
     scale: f64,
     /// The frozen screen's texture, the monitor's size.
-    frozen: Option<egui::TextureHandle>,
+    frozen: Option<sharex_ui::tiled::TiledTexture>,
     /// The swap chain is 1x1 and there's no frozen texture ([`Self::slim`]).
     slim: bool,
 }
@@ -88,7 +88,7 @@ impl Pooled {
         if frozen && self.frozen.is_none() {
             let size = [self.monitor.w.max(1) as usize, self.monitor.h.max(1) as usize];
             let image = egui::ColorImage::filled(size, egui::Color32::BLACK);
-            self.frozen = Some(self.window.ctx().load_texture("frozen screen", image, egui::TextureOptions::NEAREST));
+            self.frozen = Some(sharex_ui::tiled::TiledTexture::new(self.window.ctx(), "frozen screen", image, egui::TextureOptions::NEAREST));
             paint = true;
         }
         if paint {
@@ -213,7 +213,7 @@ pub fn warm_up(event_loop: &ActiveEventLoop, gpu: &Gpu, dark: bool) {
             if o.frozen.is_none() {
                 let size = [o.monitor.w.max(1) as usize, o.monitor.h.max(1) as usize];
                 let image = egui::ColorImage::filled(size, egui::Color32::BLACK);
-                o.frozen = Some(o.window.ctx().load_texture("frozen screen", image, egui::TextureOptions::NEAREST));
+                o.frozen = Some(sharex_ui::tiled::TiledTexture::new(o.window.ctx(), "frozen screen", image, egui::TextureOptions::NEAREST));
             }
             // Uploads the texture (the window stays hidden).
             o.window.paint(|_| ());

@@ -47,8 +47,7 @@ pub fn save_file(title: &str, name: &str, folder: &str, filter: &str, extensions
 pub fn draw_image(ui: &Ui, area: Rect, pic: &mut Picture) -> Rect {
     let dest = crate::image_tools::slider::image_bounds(area, pic.size(), crate::image_tools::slider::Stretch::DownOnly);
     let size = (dest.width().round().max(1.0) as u32, dest.height().round().max(1.0) as u32);
-    let tex = pic.texture(ui.ctx(), size);
-    ui.painter().image(tex, dest, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    pic.texture(ui.ctx(), size).paint(ui.painter(), dest, Color32::WHITE);
     dest
 }
 

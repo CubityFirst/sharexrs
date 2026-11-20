@@ -240,7 +240,7 @@ pub struct AfterCaptureWindow {
     selected_destination: Option<usize>,
     pub file_name: String,
     opened: bool,
-    texture: Option<egui::TextureHandle>,
+    texture: Option<sharex_ui::tiled::TiledTexture>,
     /// Pick a goal when drawn (`--render`).
     pub select_on_open: bool,
 }
@@ -581,7 +581,7 @@ impl Dialog for AfterCaptureWindow {
             Some(img) => {
                 if self.texture.is_none() {
                     let ci = egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
-                    self.texture = Some(ui.ctx().load_texture("after-capture-preview", ci, egui::TextureOptions::LINEAR));
+                    self.texture = Some(sharex_ui::tiled::TiledTexture::new(ui.ctx(), "after-capture-preview", ci, egui::TextureOptions::LINEAR));
                 }
                 let area = inner.shrink(10.0);
                 let (iw, ih) = (img.width() as f32, img.height() as f32);
@@ -589,7 +589,7 @@ impl Dialog for AfterCaptureWindow {
                 let size = vec2((iw * scale).round(), (ih * scale).round());
                 let r = Rect::from_min_size(pos2(area.min.x + ((area.width() - size.x) / 2.0).round_ties_even(), area.min.y + ((area.height() - size.y) / 2.0).round_ties_even()), size);
                 if let Some(t) = &self.texture {
-                    ui.painter().image(t.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                    t.paint(ui.painter(), r, Color32::WHITE);
                 }
                 // The size badge.
                 let text = format!("{} × {}", img.width(), img.height());
