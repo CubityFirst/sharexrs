@@ -716,6 +716,10 @@ mod tests {
         assert_eq!(screen_picker_format("$NAME", &Color::rgb(240, 248, 255), (0, 0)), "Alice blue");
         assert_eq!(screen_picker_format("$name", &Color::rgb(0, 255, 255), (0, 0)), "Aqua");
         assert_eq!(screen_picker_format("$name", &Color::rgb(2, 1, 0), (0, 0)), "Black");
+        // ShareX ca3f01f's picker over the test pattern, `#$HEX $name`.
+        for (c, text) in [((44, 44, 200), "#2C2CC8 Medium blue"), ((232, 88, 70), "#E85846 Tomato"), ((129, 188, 70), "#81BC46 Yellow green")] {
+            assert_eq!(screen_picker_format("#$HEX $name", &Color::rgb(c.0, c.1, c.2), (0, 0)), text);
+        }
     }
 
     #[test]
