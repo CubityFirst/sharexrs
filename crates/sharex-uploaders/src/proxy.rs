@@ -150,11 +150,13 @@ impl Target {
     }
 
     /// The host without an IPv6 address's brackets.
+    #[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
     fn bare_host(&self) -> &str {
         self.host.trim_start_matches('[').trim_end_matches(']')
     }
 
     /// `Uri.IsLoopback`: localhost or a loopback address.
+    #[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
     fn is_loopback(&self) -> bool {
         is_loopback_host(self.bare_host())
     }
@@ -353,6 +355,7 @@ fn env_uri(value: Option<&str>) -> Option<String> {
 
 /// The manual part of `HttpWindowsProxy`: the proxy string (`MultiProxy.Parse`)
 /// and the bypass list.
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct ManualSettings {
     secure: Option<String>,
@@ -361,6 +364,7 @@ pub(crate) struct ManualSettings {
     bypass: Vec<String>,
 }
 
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 impl ManualSettings {
     pub(crate) fn parse(proxy: &str, bypass: &str) -> Self {
         let (bypass_local, bypass) = parse_bypass(bypass);
@@ -390,6 +394,7 @@ impl ManualSettings {
 /// `MultiProxy.TryParseProxyConfigPart`: the first entry for this kind of
 /// request in `[http=|https=][http://|https://]host[:port]` entries
 /// separated by `;` or white space, as an http proxy.
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 fn parse_proxy_part(proxy: &str, secure: bool) -> Option<String> {
     const SECURE: u8 = 1;
     const INSECURE: u8 = 2;
@@ -416,6 +421,7 @@ fn parse_proxy_part(proxy: &str, secure: bool) -> Option<String> {
     None
 }
 
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 fn strip_prefix_ignore_case<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
     (s.len() >= prefix.len() && s.is_char_boundary(prefix.len()) && s[..prefix.len()].eq_ignore_ascii_case(prefix))
         .then(|| &s[prefix.len()..])
@@ -423,6 +429,7 @@ fn strip_prefix_ignore_case<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
 
 /// `Uri.TryCreate("http://" + entry)` as far as proxy entries go: a host
 /// name or address and an optional port.
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 fn valid_authority(s: &str) -> bool {
     let (host, port) = match s.rfind(':') {
         Some(i) if !s.ends_with(']') => (&s[..i], Some(&s[i + 1..])),
@@ -437,6 +444,7 @@ fn valid_authority(s: &str) -> bool {
 /// `HttpWindowsProxy`'s bypass list: entries separated by `;`, each
 /// without a leading http:// or https:// or an IPv6 address's brackets;
 /// `<local>` turns on the local bypass.
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 fn parse_bypass(list: &str) -> (bool, Vec<String>) {
     let chars: Vec<char> = list.chars().collect();
     let mut bypass_local = false;
@@ -486,6 +494,7 @@ fn parse_bypass(list: &str) -> (bool, Vec<String>) {
 
 /// `SimpleRegex.IsMatchWithStarWildcard`: `*` matches any run of
 /// characters, ignoring case.
+#[cfg_attr(not(windows), allow(dead_code))] // only `HttpWindowsProxy` (and the tests) use it
 fn star_match(input: &str, pattern: &str) -> bool {
     let input: Vec<char> = input.to_lowercase().chars().collect();
     let pattern: Vec<char> = pattern.to_lowercase().chars().collect();
@@ -705,7 +714,7 @@ mod macos {
                 return None;
             }
             let mut n: i32 = 0;
-            (CFNumberGetValue(value as CFNumberRef, kCFNumberSInt32Type, &mut n as *mut i32 as _) != 0).then_some(n)
+            CFNumberGetValue(value as CFNumberRef, kCFNumberSInt32Type, &mut n as *mut i32 as _).then_some(n)
         }
     }
 

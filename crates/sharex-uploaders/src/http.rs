@@ -91,8 +91,11 @@ pub fn set_url_rewriter(rewriter: Option<UrlRewriter>) {
     SETTINGS.write().expect("http settings").rewriter = rewriter;
 }
 
+/// An agent, keyed by its redirect setting and proxy URI.
+type AgentEntry = (bool, Option<String>, ureq::Agent);
+
 /// The agents made so far, by redirect setting and proxy.
-static AGENTS: LazyLock<Mutex<Vec<(bool, Option<String>, ureq::Agent)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static AGENTS: LazyLock<Mutex<Vec<AgentEntry>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 fn reset_agents() {
     AGENTS.lock().expect("agents").clear();
