@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = ["crates/sharexrs"]
 
 [workspace.package]
-version = "0.1.0-alpha"
+version = "0.2.0-alpha"
 edition = "2024"
 # A port of ShareX (GPL-3.0-or-later, see LICENSE), so the same licence.
 license = "GPL-3.0-or-later"
