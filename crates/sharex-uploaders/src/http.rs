@@ -21,6 +21,7 @@ use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use crate::enums::HttpMethod;
+pub use crate::proxy::{ProxyInfo, ProxyPlan};
 
 /// `CRLF`, as `Environment.NewLine` on Windows and in HTTP.
 const CRLF: &str = "\r\n";
@@ -35,13 +36,6 @@ pub const CONTENT_TYPE_OCTET_STREAM: &str = "application/octet-stream";
 // ---------------------------------------------------------------------------
 // Settings shared by every request (`HttpClientFactory`, `ShareXResources`).
 
-/// `HelpersOptions.CurrentProxy` as far as requests need it.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ProxySettings {
-    /// `http://user:pass@host:port`, `socks5://host:port`, ...
-    pub url: Option<String>,
-}
-
 /// Rewrites a request's absolute URL just before it's sent, and a
 /// response's URL back. Only for tests and the validation harness, which
 /// point every destination at a local mock server; `None` in the app.
@@ -53,12 +47,12 @@ pub struct UrlRewriter {
 
 struct HttpSettings {
     user_agent: String,
-    proxy: ProxySettings,
+    proxy: ProxyPlan,
     rewriter: Option<UrlRewriter>,
 }
 
 static SETTINGS: LazyLock<RwLock<HttpSettings>> = LazyLock::new(|| {
-    RwLock::new(HttpSettings { user_agent: default_user_agent(), proxy: ProxySettings::default(), rewriter: None })
+    RwLock::new(HttpSettings { user_agent: default_user_agent(), proxy: ProxyPlan::Direct, rewriter: None })
 });
 
 /// `ShareXResources.UserAgent` is `ShareX/<version>`; ShareXrs identifies
@@ -79,10 +73,17 @@ pub fn set_user_agent(user_agent: impl Into<String>) {
     reset_agents();
 }
 
-/// `HelpersOptions.CurrentProxy`: the proxy every request goes through.
-pub fn set_proxy(proxy: ProxySettings) {
-    SETTINGS.write().expect("http settings").proxy = proxy;
-    reset_agents();
+/// `HelpersOptions.CurrentProxy = settings.ProxySettings`: where every
+/// request goes ([`ProxyInfo::plan`]). Until it's set (tests, harnesses)
+/// requests connect directly.
+pub fn set_proxy(proxy: &ProxyInfo) {
+    let plan = proxy.plan();
+    let mut settings = SETTINGS.write().expect("http settings");
+    if settings.proxy != plan {
+        settings.proxy = plan;
+        drop(settings);
+        reset_agents();
+    }
 }
 
 /// See [`UrlRewriter`].
@@ -90,21 +91,25 @@ pub fn set_url_rewriter(rewriter: Option<UrlRewriter>) {
     SETTINGS.write().expect("http settings").rewriter = rewriter;
 }
 
-static AGENTS: LazyLock<Mutex<Vec<(bool, ureq::Agent)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+/// The agents made so far, by redirect setting and proxy.
+static AGENTS: LazyLock<Mutex<Vec<(bool, Option<String>, ureq::Agent)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 fn reset_agents() {
     AGENTS.lock().expect("agents").clear();
 }
 
 /// `HttpClientFactory.Create(allowAutoRedirect, infiniteTimeout: true)`:
-/// one shared client per redirect setting.
-fn agent(allow_auto_redirect: bool) -> ureq::Agent {
+/// one shared client per redirect setting, and (ureq takes one proxy per
+/// agent) per proxy the system picks for the URL.
+fn agent(allow_auto_redirect: bool, proxy_uri: Option<String>) -> ureq::Agent {
     let mut agents = AGENTS.lock().expect("agents");
-    if let Some((_, a)) = agents.iter().find(|(r, _)| *r == allow_auto_redirect) {
+    if let Some((_, _, a)) = agents.iter().find(|(r, p, _)| *r == allow_auto_redirect && *p == proxy_uri) {
         return a.clone();
     }
-    let settings = SETTINGS.read().expect("http settings");
-    let proxy = settings.proxy.url.as_deref().and_then(|u| ureq::Proxy::new(u).ok());
+    if agents.len() >= 16 {
+        agents.clear();
+    }
+    let proxy = proxy_uri.as_deref().and_then(|u| ureq::Proxy::new(u).ok());
     let config = ureq::Agent::config_builder()
         .http_status_as_error(false)
         .max_redirects(if allow_auto_redirect { 50 } else { 0 })
@@ -124,7 +129,7 @@ fn agent(allow_auto_redirect: bool) -> ureq::Agent {
         )
         .build();
     let a: ureq::Agent = config.into();
-    agents.push((allow_auto_redirect, a.clone()));
+    agents.push((allow_auto_redirect, proxy_uri, a.clone()));
     a
 }
 
@@ -946,7 +951,10 @@ fn start(
     options: &RequestOptions,
 ) -> Result<(ResponseInfo, ureq::http::Response<ureq::Body>), HttpError> {
     let absolute = dotnet_absolute_uri(&request.url).map_err(HttpError::Failed)?;
-    let rewriter = SETTINGS.read().expect("http settings").rewriter.clone();
+    let (rewriter, proxy) = {
+        let settings = SETTINGS.read().expect("http settings");
+        (settings.rewriter.clone(), settings.proxy.clone())
+    };
     let target = match &rewriter {
         Some(r) => (r.forward)(&absolute),
         None => absolute.clone(),
@@ -958,7 +966,7 @@ fn start(
             .map_err(|_| HttpError::Failed(format!("The format of value for header '{name}' is invalid.")))?;
         builder = builder.header(name.as_str(), value);
     }
-    let agent = agent(options.allow_auto_redirect);
+    let agent = agent(options.allow_auto_redirect, proxy.route(&target));
     let started = Instant::now();
     let send_result = match &request.content {
         Some(content) => {

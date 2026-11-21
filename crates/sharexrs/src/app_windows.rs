@@ -186,6 +186,9 @@ impl App {
         let s = &self.settings.settings;
         self.hotkeys.repeat_limit = std::time::Duration::from_millis(s.hotkey_repeat_limit() as u64);
         crate::shell::set_browser_path(&s.BrowserPath);
+        // `HelpersOptions.CurrentProxy = settings.ProxySettings` (ShareX #9319:
+        // the system proxy unless None; nothing resolved is written back).
+        sharex_uploaders::http::set_proxy(&sharex_uploaders::proxy::ProxyInfo::from_json(&s.ProxySettings));
         if let Some(tray) = &mut self.tray {
             tray.set_visible(s.ShowTray);
         }

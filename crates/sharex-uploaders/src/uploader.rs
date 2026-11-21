@@ -644,8 +644,13 @@ impl Uploader {
             line(r.response_text.as_deref().unwrap_or(""));
         }
         line("");
-        sb.push_str(strings::Uploader_Stack_trace());
-        sb.push_str(nl);
+        line(strings::Uploader_Stack_trace());
+        // `sb.Append(exception)` (ShareX #9319, 7d17d32 and 47f5ef5): the
+        // exception's `ToString()`, its inner exceptions included, where it
+        // was only `StackTrace` before. ShareXrs's errors have no .NET type
+        // names or stack frames and carry their cause in their text (ureq's
+        // `io: ...`, `native-tls: ...`), so that text is what follows.
+        sb.push_str(message);
         log::write(&format!("Error:\r\n{sb}"));
         self.errors.add(sb);
     }
@@ -887,5 +892,26 @@ mod log {
         if std::env::var_os("SHAREXRS_UPLOAD_DEBUG").is_some() {
             eprintln!("{text}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ShareX #9319: the error after the Stack trace label (ShareX's
+    /// `exception.ToString()`), not an empty stack trace.
+    #[test]
+    fn process_error_ends_with_the_error() {
+        let mut u = Uploader::new();
+        u.process_error("io: Connection refused (os error 10061)", "https://example.com/upload", None);
+        let nl = crate::NEW_LINE;
+        let expected = format!(
+            "{}{nl}io: Connection refused (os error 10061){nl}{nl}{}{nl}https://example.com/upload{nl}{nl}{}{nl}io: Connection refused (os error 10061)",
+            strings::Uploader_Error_message(),
+            strings::Uploader_Request_URL(),
+            strings::Uploader_Stack_trace()
+        );
+        assert_eq!(u.errors.errors[0].text, expected);
     }
 }

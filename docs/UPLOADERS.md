@@ -34,7 +34,7 @@ Uploader.SendRequest*/GetResponseAsync ─ HttpClientFactory (HelpersLib) ─ Ht
 | `BaseServices/*UploaderService` + `UploaderFactory` | `factory::{check_*, create_*}` per kind, `factory::Ported`, `factory::service_name` |
 | `UploadResult`, `UploaderErrorManager`/`UploaderErrorInfo` | `result::{UploadResult, UploaderErrorManager, UploaderErrorInfo}` |
 | `Helpers/ResponseInfo`, `ProgressManager`, `ProgressStreamContent`, `SharedStreamSegment`, `RequestHelpers` | `http::{ResponseInfo, ProgressManager, StreamPart (+on_read), Content, CONTENT_TYPE_*, create_boundary}`, `uploader::create_authentication_header` |
-| `HelpersLib/HttpClientFactory`, `ShareXResources.UserAgent`, `HelpersOptions.CurrentProxy` | `http::{send, set_proxy, set_user_agent}` |
+| `HelpersLib/HttpClientFactory`, `ShareXResources.UserAgent`, `HelpersOptions.CurrentProxy`, `ProxyInfo` | `http::{send, set_proxy, set_user_agent}`, `proxy` |
 | `HelpersLib/URLHelpers`, `HttpUtility` | `url_helpers` |
 | `HelpersLib/MimeTypes` | `sharex_helpers::mime_types` |
 | `UploadersConfig.cs` | `config::UploadersConfig` |
@@ -61,7 +61,14 @@ How ShareX's requests are built, all reproduced in `http` and `uploader`
 - **Client**: one shared `HttpClient` per redirect setting
   (`HttpClientFactory.Create(allowAutoRedirect, infiniteTimeout: true)`),
   `SocketsHttpHandler` with a 30 s connect timeout, no cookie container,
-  the proxy from settings; redirects followed (.NET: up to 50; a redirect
+  the proxy from settings (since ShareX #9319: a valid manual proxy as
+  given, bypassed for local hosts; None directly; anything else, the
+  default included, the system proxy, with the user name and password as
+  `DefaultProxyCredentials` for Automatic. ShareXrs's `proxy` module ports
+  .NET's system proxy: the proxy environment variables on every platform,
+  then WinHTTP's Internet settings with PAC/WPAD on Windows and CFNetwork's
+  proxies on macOS (no PAC there); one proxy per request, credentials as
+  Basic); redirects followed (.NET: up to 50; a redirect
   turns POST into GET). ShareXrs: ureq 3 on rustls with the OS certificate
   verifier, same limits, one agent per redirect setting.
 - **Timeouts**: none overall (`Uploader.RequestTimeout` infinite) unless a
