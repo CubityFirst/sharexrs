@@ -1190,16 +1190,20 @@ mod tests {
         let v = ed.save();
         assert_eq!(v[2]["Hotkey"], "Ctrl+Shift+R");
         let r = ToolbarEditor::new(Target::RegionCapture, &[]);
-        assert_eq!(r.items.len(), 21);
+        assert_eq!(r.items.len(), 22);
     }
 
     #[test]
     fn region_save_is_sharexs() {
-        // ShareX's Task settings › Region capture › Customize toolbar...,
-        // the Ellipse region shown, OK: its RegionCaptureOptions.ToolbarItems.
+        // ShareX ca3f01f's Task settings › Region capture › Customize
+        // toolbar..., the Rectangle region (ShareX #9326) dragged off the
+        // toolbar, OK: its RegionCaptureOptions.ToolbarItems (the hidden
+        // region items last, Tab and NumPad0 kept).
         let expected: Vec<Value> = serde_json::from_str(include_str!("toolbar_editor_region_sharex.json")).unwrap();
         let mut ed = ToolbarEditor::new(Target::RegionCapture, &[]);
-        ed.items[0].visible = true;
+        assert_eq!(ed.items[0].id(), ti::REGION_RECTANGLE);
+        let k = ed.index_of_slot(ti::REGION_RECTANGLE).unwrap();
+        ed.remove_slot(k);
         assert_eq!(ed.save(), expected);
     }
 

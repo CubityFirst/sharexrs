@@ -82,6 +82,7 @@ pub const FILE: &str = "File";
 pub const CANVAS_SIZE: &str = "CanvasSize";
 pub const BACKGROUND: &str = "Background";
 pub const IMAGE_EFFECTS: &str = "ImageEffects";
+pub const REGION_RECTANGLE: &str = "RegionRectangle";
 pub const REGION_ELLIPSE: &str = "RegionEllipse";
 pub const REGION_FREEHAND: &str = "RegionFreehand";
 
@@ -117,25 +118,29 @@ pub fn editor_defs() -> Vec<Def> {
     ]
 }
 
-/// `RegionCaptureToolbar.CreateRegionItems`: the ShareX 21 ellipse and
-/// freehand regions, hidden until shown in the toolbar customisation.
+/// `RegionCaptureToolbar.CreateRegionItems`: the rectangle region with Tab
+/// and ShareX 21's NumPad0, which keep working while it's hidden (ShareX
+/// #9326, d4e7a10 and 70cc23b: it was a fixed button), then the ShareX 21
+/// ellipse and freehand regions, hidden until shown in the toolbar
+/// customisation.
 fn region_host_defs() -> Vec<Def> {
-    let host = |id, name, icon| Def {
+    let host = |id, name, icon, hotkey, secondary, visible| Def {
         id,
         tool: None,
         name,
         icon,
-        default_hotkey: "",
+        default_hotkey: hotkey,
         hotkey_editable: true,
         visibility_editable: true,
         begin_group: false,
-        default_secondary: "",
-        visible_default: false,
+        default_secondary: secondary,
+        visible_default: visible,
         host: true,
     };
     vec![
-        host(REGION_ELLIPSE, sc::RegionCaptureWindow_EllipseRegion as fn() -> &'static str, icon::RegionEllipse),
-        host(REGION_FREEHAND, sc::RegionCaptureWindow_FreehandRegion, icon::RegionFreehand),
+        host(REGION_RECTANGLE, sc::RegionCaptureWindow_RectangleRegion as fn() -> &'static str, icon::Region, "Tab", "NumPad0", true),
+        host(REGION_ELLIPSE, sc::RegionCaptureWindow_EllipseRegion, icon::RegionEllipse, "", "", false),
+        host(REGION_FREEHAND, sc::RegionCaptureWindow_FreehandRegion, icon::RegionFreehand, "", "", false),
     ]
 }
 
@@ -449,11 +454,15 @@ mod tests {
         );
         let back = editor_items(&json);
         assert_eq!(options_json(&back), json);
-        // Region capture: the two hidden region shapes, then the tools.
+        // Region capture: the rectangle region (Tab, NumPad0; ShareX #9326),
+        // the two hidden region shapes, then the tools.
         let r = region_items(&[]);
-        assert_eq!(r.len(), 21);
-        assert_eq!(r[0].id(), REGION_ELLIPSE);
-        assert!(!r[0].visible);
+        assert_eq!(r.len(), 22);
+        assert_eq!(r[0].id(), REGION_RECTANGLE);
+        assert!(r[0].visible && r[0].def.visibility_editable);
+        assert_eq!((r[0].hotkey.as_str(), r[0].secondary_hotkey.as_str()), ("Tab", "NumPad0"));
+        assert_eq!(r[1].id(), REGION_ELLIPSE);
+        assert!(!r[1].visible);
     }
 
     /// ShareX #9278: a spacer's width and line are kept on the item after it,

@@ -144,7 +144,7 @@ mod tests {
     fn tooltips_open_after_the_delay_and_at_once_after_another() {
         let t0 = Instant::now();
         let mut s = TipState::default();
-        s.hover(Some(Part::RegionButton), t0);
+        s.hover(Some(Part::DragHandle), t0);
         assert_eq!(s.tick(t0, (1.0, 2.0)), Some(t0 + SHOW_DELAY));
         assert!(s.open.is_none());
         s.tick(t0 + SHOW_DELAY, (1.0, 2.0));

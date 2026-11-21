@@ -257,9 +257,55 @@ fn hidden_and_reordered_items_change_the_capture_toolbar() {
         serde_json::json!({"Id": "Rectangle", "IsVisible": false}),
     ];
     let items = toolbar::items(&saved);
-    assert_eq!(items[0].def.id, "RegionEllipse");
+    // A layout saved before ShareX #9326 gets the rectangle region first
+    // (`CreateFromOptions` puts a missing item after its predecessor).
+    assert_eq!(items[0].def.id, "RegionRectangle");
+    assert_eq!(items[1].def.id, "RegionEllipse");
     assert!(!items.iter().any(|i| i.def.id == "Rectangle"));
     assert!(!items.iter().any(|i| i.def.id == "RegionFreehand"));
+}
+
+/// ShareX #9326: the rectangle region is a toolbar item; hidden, it's off
+/// the toolbar but Tab and NumPad0 still pick it, and its keys can change.
+#[test]
+fn the_rectangle_region_item_keeps_its_keys_when_hidden() {
+    let hidden = RegionCaptureOptions { ToolbarItems: vec![serde_json::json!({"Id": "RegionRectangle", "IsVisible": false, "Hotkey": "Tab", "SecondaryHotkey": "NumPad0"})], ..Default::default() };
+    let mut s = session_with(hidden);
+    s.tick(Instant::now() + Duration::from_secs(1));
+    assert!(s.toolbar_index("RegionRectangle").is_none());
+    assert_eq!(s.bar[0].def.id, "Select");
+    for key in [Key::Tab, Key::NumPad0] {
+        click_tool(&mut s, "Rectangle");
+        assert!(!s.region_tool_active);
+        s.key_down(key, none(), &mut |_, _| {});
+        assert!(s.region_tool_active, "{key:?}");
+        assert_eq!(s.region_shape, RegionShape::Rectangle);
+    }
+    // Shift+Tab isn't its hotkey.
+    click_tool(&mut s, "Rectangle");
+    s.key_down(Key::Tab, Modifiers { shift: true, ..none() }, &mut |_, _| {});
+    assert!(!s.region_tool_active);
+
+    // Shown with other keys: Tab no longer picks it, Q does, and a click.
+    let rebound = RegionCaptureOptions {
+        ToolbarItems: vec![
+            serde_json::json!({"Id": "RegionRectangle", "IsVisible": true, "Hotkey": "Q", "SecondaryHotkey": ""}),
+            serde_json::json!({"Id": "RegionEllipse", "IsVisible": true}),
+        ],
+        ..Default::default()
+    };
+    let mut s = session_with(rebound);
+    s.tick(Instant::now() + Duration::from_secs(1));
+    click_tool(&mut s, "RegionEllipse");
+    click_tool(&mut s, "Rectangle");
+    s.key_down(Key::Tab, none(), &mut |_, _| {});
+    assert!(!s.region_tool_active);
+    s.key_down(Key::Letter('Q'), none(), &mut |_, _| {});
+    assert!(s.region_tool_active);
+    assert_eq!(s.region_shape, RegionShape::Rectangle);
+    click_tool(&mut s, "RegionEllipse");
+    click_tool(&mut s, "RegionRectangle");
+    assert_eq!(s.region_shape, RegionShape::Rectangle);
 }
 
 fn session_with(options: RegionCaptureOptions) -> RegionCapture {
