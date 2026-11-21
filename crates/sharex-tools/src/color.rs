@@ -342,10 +342,6 @@ fn web_colors() -> impl Iterator<Item = (&'static str, u32)> {
         .copied()
 }
 
-fn argb_of(c: &Color) -> u32 {
-    (c.a as u32) << 24 | (c.r as u32) << 16 | (c.g as u32) << 8 | c.b as u32
-}
-
 fn color_of(argb: u32) -> Color {
     Color::argb((argb >> 24) as u8, (argb >> 16) as u8, (argb >> 8) as u8, argb as u8)
 }
@@ -550,8 +546,7 @@ fn parse_precision(s: &str) -> Option<i32> {
 }
 
 /// `ScreenColorPickerTextFormatter.Format`: the screen colour picker's
-/// info text (`InfoText`). `system_color` gives a system colour's value by
-/// its `KnownColor` name (Windows reads the current ones).
+/// info text (`InfoText`).
 pub fn screen_picker_format(format: &str, c: &Color, (x, y): (i32, i32)) -> String {
     if format.is_empty() {
         return String::new();
@@ -575,7 +570,11 @@ pub fn screen_picker_format(format: &str, c: &Color, (x, y): (i32, i32)) -> Stri
     s = replace_ignore_case(&s, "$m100", &pct(m));
     s = replace_ignore_case(&s, "$y100", &pct(ye));
     s = replace_ignore_case(&s, "$k100", &pct(k));
-    s = replace_ignore_case(&s, "$name", &known_color_name(c));
+    // `GetColorName` (ShareX #9322, 8a46e17, fixing #9318): the closest web
+    // colour's name, as `ColorHelpers.GetColorName` gives it ("Alice blue"),
+    // where it was the name of a `KnownColor` with exactly this value
+    // (usually none).
+    s = replace_ignore_case(&s, "$name", &get_color_name(c));
     s = replace_ignore_case(&s, "$x", &x.to_string());
     s = replace_ignore_case(&s, "$y", &y.to_string());
     s = replace_ignore_case(&s, "$n", NEW_LINE);
@@ -629,107 +628,6 @@ fn to_cmyk(c: &Color) -> (f64, f64, f64, f64) {
     }
     let d = 1.0 - key;
     ((1.0 - r - key) / d, (1.0 - g - key) / d, (1.0 - b - key) / d, key)
-}
-
-/// `KnownColor` in enum order: the system colours, Transparent, the web
-/// colours, the later system colours and RebeccaPurple.
-const SYSTEM_FIRST: [&str; 26] = [
-    "ActiveBorder",
-    "ActiveCaption",
-    "ActiveCaptionText",
-    "AppWorkspace",
-    "Control",
-    "ControlDark",
-    "ControlDarkDark",
-    "ControlLight",
-    "ControlLightLight",
-    "ControlText",
-    "Desktop",
-    "GrayText",
-    "Highlight",
-    "HighlightText",
-    "HotTrack",
-    "InactiveBorder",
-    "InactiveCaption",
-    "InactiveCaptionText",
-    "Info",
-    "InfoText",
-    "Menu",
-    "MenuText",
-    "ScrollBar",
-    "Window",
-    "WindowFrame",
-    "WindowText",
-];
-const SYSTEM_LAST: [&str; 7] =
-    ["ButtonFace", "ButtonHighlight", "ButtonShadow", "GradientActiveCaption", "GradientInactiveCaption", "MenuBar", "MenuHighlight"];
-
-/// A system colour's value now (`Color.FromKnownColor`: `GetSysColor` on
-/// Windows, .NET's fixed table elsewhere).
-fn system_color(name: &str) -> u32 {
-    #[cfg(windows)]
-    {
-        let index = match name {
-            "ActiveBorder" => 10,
-            "ActiveCaption" => 2,
-            "ActiveCaptionText" => 9,
-            "AppWorkspace" => 12,
-            "Control" | "ButtonFace" => 15,
-            "ControlDark" | "ButtonShadow" => 16,
-            "ControlDarkDark" => 21,
-            "ControlLight" => 22,
-            "ControlLightLight" | "ButtonHighlight" => 20,
-            "ControlText" => 18,
-            "Desktop" => 1,
-            "GrayText" => 17,
-            "Highlight" => 13,
-            "HighlightText" => 14,
-            "HotTrack" => 26,
-            "InactiveBorder" => 11,
-            "InactiveCaption" => 3,
-            "InactiveCaptionText" => 19,
-            "Info" => 24,
-            "InfoText" => 23,
-            "Menu" => 4,
-            "MenuText" => 7,
-            "ScrollBar" => 0,
-            "Window" => 5,
-            "WindowFrame" => 6,
-            "WindowText" => 8,
-            "GradientActiveCaption" => 27,
-            "GradientInactiveCaption" => 28,
-            "MenuBar" => 30,
-            "MenuHighlight" => 29,
-            _ => -1,
-        };
-        if index >= 0 {
-            // SAFETY: a plain query.
-            let bgr = unsafe { windows_sys::Win32::Graphics::Gdi::GetSysColor(index as _) };
-            let (r, g, b) = (bgr & 0xFF, (bgr >> 8) & 0xFF, (bgr >> 16) & 0xFF);
-            return 0xFF00_0000 | r << 16 | g << 8 | b;
-        }
-    }
-    KNOWN_COLORS.iter().find(|(n, _)| *n == name).map_or(0, |(_, v)| *v)
-}
-
-/// `ScreenColorPickerTextFormatter.GetColorName`: the first `KnownColor`
-/// with exactly this colour (system colours first), or nothing.
-pub fn known_color_name(c: &Color) -> String {
-    let want = argb_of(c);
-    let named = |name: &'static str| KNOWN_COLORS.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
-    let order = SYSTEM_FIRST
-        .iter()
-        .map(|&n| (n, system_color(n)))
-        .chain(std::iter::once(("Transparent", 0x00FF_FFFF)))
-        .chain(web_colors())
-        .chain(SYSTEM_LAST.iter().map(|&n| (n, system_color(n))))
-        .chain(named("RebeccaPurple").map(|v| ("RebeccaPurple", v)));
-    for (name, v) in order {
-        if v == want {
-            return name.to_string();
-        }
-    }
-    String::new()
 }
 
 /// `HelpersOptions.RecentColors` (`AddRecentColor`): the colour first,
@@ -813,6 +711,11 @@ mod tests {
         assert_eq!(pixel_info_parse("$hex $x,$y $r1 $g1{2} $c100", &c, (10, 20)), "36a9e1 10,20 0.212 0.66 76");
         assert_eq!(screen_picker_format("#$HEX", &c, (1, 2)), "#36A9E1");
         assert_eq!(screen_picker_format("$R1{1} $b $y", &c, (3, 4)), "0.2 225 4");
+        // ShareX #9322: the closest named colour, also for colours without a name.
+        assert_eq!(screen_picker_format("$name", &c, (0, 0)), "Royal blue");
+        assert_eq!(screen_picker_format("$NAME", &Color::rgb(240, 248, 255), (0, 0)), "Alice blue");
+        assert_eq!(screen_picker_format("$name", &Color::rgb(0, 255, 255), (0, 0)), "Aqua");
+        assert_eq!(screen_picker_format("$name", &Color::rgb(2, 1, 0), (0, 0)), "Black");
     }
 
     #[test]
