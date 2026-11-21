@@ -103,7 +103,7 @@ settings! {
         /// `ShareX.HelpersLib.PrintSettings` (not ported yet).
         PrintSettings: Value = defaults::json("PrintSettings"),
 
-        // Proxy: `ShareX.HelpersLib.ProxyInfo` (not ported yet).
+        // Proxy: `ShareX.HelpersLib.ProxyInfo`, read by `sharex_uploaders::proxy::ProxyInfo`.
         ProxySettings: Value = defaults::json("ProxyInfo"),
 
         // AutoCapture

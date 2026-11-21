@@ -39,7 +39,8 @@ param(
     # Turns the mouse wheel by this many notches where the cursor is (negative scrolls down).
     [int] $Wheel,
     # A key with modifiers held: Ctrl+C, Shift+Right, Alt+Left, H, Delete,
-    # Add, Subtract, OemPlus, OemMinus, F1..F12, A..Z, 0..9 and -Key's names.
+    # Add, Subtract, OemPlus, OemMinus, F1..F12, NumPad0..NumPad9, A..Z, 0..9
+    # and -Key's names.
     [string] $Chord,
     # Presses (there) or releases the right or middle button.
     [int[]] $RightDown,
@@ -159,7 +160,7 @@ if ($Chord) {
     $held = @()
     foreach ($m in $parts[0..($parts.Count - 2)]) { if ($parts.Count -gt 1) { $held += $mods[$m] } }
     $k = $parts[-1]
-    $vk = if ($names.ContainsKey($k)) { $names[$k] } elseif ($k -match '^F([0-9]+)$') { 0x6F + [int]$Matches[1] } else { [int][char]$k.ToUpperInvariant() }
+    $vk = if ($names.ContainsKey($k)) { $names[$k] } elseif ($k -match '^F([0-9]+)$') { 0x6F + [int]$Matches[1] } elseif ($k -match '^NumPad([0-9])$') { 0x60 + [int]$Matches[1] } else { [int][char]$k.ToUpperInvariant() }
     foreach ($m in $held) { [Input]::keybd_event([byte]$m, 0, 0, [IntPtr]::Zero) }
     # Arrows, Delete, Home and End are extended keys.
     $ext = if (@(0x25, 0x26, 0x27, 0x28, 0x2E, 0x24, 0x23) -contains $vk) { 1 } else { 0 }

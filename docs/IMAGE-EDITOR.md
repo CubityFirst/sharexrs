@@ -436,7 +436,8 @@ export.
 
 Region capture (`crates/sharex-capture/src/region`) hosts it as
 `RegionCaptureWindow` hosts `EditorView`: the toolbar's tools and hotkeys
-switch to the annotation tools, Tab, NumPad0 and the region button back, the
+switch to the annotation tools, the region items (Rectangle region, Tab and
+NumPad0 by default, ShareX #9326; Ellipse and Freehand region) back, the
 tool options row (`ToolOptionsBorder`, `options_row.rs`) hangs under the
 toolbar, right and middle clicks run the capture actions on the active tool's
 annotations, Escape drops the selection first, and the capture is
@@ -850,8 +851,10 @@ available items (a spacer, a blank spacer and the hidden items, which a
 double click puts at the end) and off it onto them (hiding the item); a
 spacer's grip resizes it; Delete, Ctrl+Left/Right and Shift+Left/Right
 act on the focused slot. The selected item's panel: its two hotkey boxes
-(click, press a shortcut, Backspace/Delete clears), Spacer width (0-96 by
-4), Move left/right, Begin group, Show spacer line and Show/hide. Reset,
+(click, press a shortcut, Backspace/Delete clears); since ShareX #9324
+(85fc349) nothing else (its Spacer width, Move left/right, Begin group,
+Show spacer line and Show/hide repeated what the toolbar preview and its
+keys do). Reset,
 OK with `RefreshValidation`, Cancel, Escape (a drag or resize first), the
 backdrop. The layout is the view model's `ApplyLayoutTokens`: a spacer
 becomes `BeginGroup`/`SpacerWidth`/`HideSpacerLine` on the item after it,
@@ -864,7 +867,13 @@ task-settings-tools-image-editor --content toolbar-editor --state <steps>`,
 only): default 0.96%, a group selected 1.01%, a widened blank spacer 1.07%,
 an item hidden 0.76%, a spacer hovered 0.76%, mid-drag 0.86%, over the
 available items 0.90%, region capture 0.73% (text anti-aliasing and the
-icons rasterised in the shrunk row). The same drags in both apps live
+icons rasterised in the shrunk row). After ShareX ca3f01f (only the hotkeys in
+the item panel, the rectangle region an item) against its shots
+(`upstream-ca3f01f/`, the dialog only): the editor's default 1.63%,
+Rectangle selected 1.79%, region capture 1.57%, the rectangle region
+dragged off 1.79% (text anti-aliasing, the palette tiles' labels drawn
+SemiBold where ShareX's are Regular, and a pixel of 125% rounding at the
+selected slot). The same drags in both apps live
 (move, hide, drop a blank spacer, resize by the grip) give the same dialog
 (0.89-1.02% of the window) and ShareXrs saves the layout ShareX's
 `ToOptions` writes. The ellipse region shown and OK saves ShareX's 21 items

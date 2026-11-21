@@ -65,4 +65,9 @@ pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 num-bigint = "0.4"
 
 [target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+# WinHTTP: the user's Internet proxy settings and PAC/WPAD (`HttpWindowsProxy`).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinHttp", "Win32_Security_Cryptography"] }
+
+[target."cfg(target_os = \"macos\")".dependencies]
+# CFNetwork's system proxies (`MacProxy`).
+core-foundation-sys = "0.8.7"

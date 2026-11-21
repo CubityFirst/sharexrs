@@ -1,23 +1,5 @@
 [
  {
-  "Id": "RegionEllipse",
-  "BeginGroup": false,
-  "SpacerWidth": 0,
-  "HideSpacerLine": false,
-  "IsVisible": true,
-  "Hotkey": "",
-  "SecondaryHotkey": ""
- },
- {
-  "Id": "RegionFreehand",
-  "BeginGroup": false,
-  "SpacerWidth": 0,
-  "HideSpacerLine": false,
-  "IsVisible": false,
-  "Hotkey": "",
-  "SecondaryHotkey": ""
- },
- {
   "Id": "Select",
   "BeginGroup": true,
   "SpacerWidth": 0,
@@ -186,6 +168,33 @@
   "HideSpacerLine": false,
   "IsVisible": true,
   "Hotkey": "S",
+  "SecondaryHotkey": ""
+ },
+ {
+  "Id": "RegionRectangle",
+  "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
+  "IsVisible": false,
+  "Hotkey": "Tab",
+  "SecondaryHotkey": "NumPad0"
+ },
+ {
+  "Id": "RegionEllipse",
+  "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
+  "IsVisible": false,
+  "Hotkey": "",
+  "SecondaryHotkey": ""
+ },
+ {
+  "Id": "RegionFreehand",
+  "BeginGroup": false,
+  "SpacerWidth": 0,
+  "HideSpacerLine": false,
+  "IsVisible": false,
+  "Hotkey": "",
   "SecondaryHotkey": ""
  }
 ]

@@ -179,7 +179,13 @@ mod tests {
         // keys (AllItemsOnToolbar, AvailableItems, BlankSpacer, DragHint,
         // MoveLeft, MoveRight, ShowSpacerLine, Spacer, SpacerToolTip,
         // SpacerWidth) and removed Moveup and Movedown, in every language;
-        // no other string changed.
-        assert_eq!((out.len(), hash), (9_090_861, 4_698_861_248_341_571_995));
+        // no other string changed. ShareX ca3f01f's slimmer item panel
+        // (#9324) removed Begingroup, MoveLeft, MoveRight, ShowHide,
+        // ShowSpacerLine and SpacerWidth from ToolbarCustomizationDialogView_
+        // in every language (174 records); nothing else changed. Its region
+        // capture toolbar item (#9326) renamed ScreenCaptureLib's
+        // RegionCaptureWindow_RectangleRegionTab to _RectangleRegion, the
+        // same text without " (Tab)", in every language (29 records).
+        assert_eq!((out.len(), hash), (9_076_371, 13_195_215_783_030_460_702));
     }
 }

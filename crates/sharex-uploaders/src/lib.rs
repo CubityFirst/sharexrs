@@ -4,6 +4,7 @@
 //!   stopping) and the uploader kinds (`FileUploader`, `TextUploader`,
 //!   `URLShortener`, `URLSharer`),
 //! - [`http`] — the HTTP layer (requests as .NET's `HttpClient` sends them),
+//! - [`proxy`] — `ProxyInfo` and the system proxy requests go through,
 //! - [`custom`] — custom uploaders (`.sxcu`), ShareX's most used destination,
 //! - [`destinations`] — the built-in services ported so far,
 //! - [`factory`] — `UploaderFactory`, which destination enum value makes
@@ -25,6 +26,7 @@ pub mod json;
 pub mod oauth;
 pub mod oauth1;
 pub mod oauth2;
+pub mod proxy;
 pub mod remote_storage;
 pub mod result;
 pub mod sftp;

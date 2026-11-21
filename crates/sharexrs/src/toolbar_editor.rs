@@ -7,16 +7,16 @@
 //! items) and off it onto them (hiding the item); a spacer's right edge is
 //! dragged to change its width. Under them, the selected item: its two
 //! hotkeys (click a box and press a shortcut; Backspace or Delete clears
-//! it), its spacer's width, Move left/right, Begin group, Show spacer line
-//! and Show/hide. Reset toolbar to default, OK (unless a hotkey is invalid
-//! or used twice: `RefreshValidation`) and Cancel.
+//! it), only those since ShareX #9324 (85fc349). Reset toolbar to default,
+//! OK (unless a hotkey is invalid or used twice: `RefreshValidation`) and
+//! Cancel.
 
 use egui::{Color32, CornerRadius, Id, Key, Pos2, Rect, Sense, Ui, Vec2, pos2, vec2};
 use serde_json::Value;
 use sharex_capture::toolbar_items::{self as ti, Item, Mods, hotkey};
 use sharex_strings::image_editor as ie;
 use sharex_ui::border::{self, Brush};
-use sharex_ui::controls::{Button, DecimalUpDown, ToggleSwitch, content_font};
+use sharex_ui::controls::{Button, content_font};
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{Palette, Thickness, fluent, palette};
 use sharex_ui::{icons, widgets};
@@ -132,7 +132,6 @@ const TOOLBAR_DROP_MARGIN: f32 = 12.0;
 const SPACER_WIDTH_KEY_STEP: i32 = 4;
 /// The hotkey boxes and the spacer width box.
 const BOX: f32 = 100.0;
-const SPACER_BOX: f32 = 116.0;
 
 /// Avalonia's `Key` name of an egui key (`Key.ToString()`).
 fn key_name(k: Key) -> Option<String> {
@@ -210,7 +209,7 @@ impl ToolbarEditor {
 
     /// `--render ... --state`: `;`-separated steps as the dialog's controls
     /// would make them: `select:ID`, `spacer:ID:WIDTH[:blank]` (the item's
-    /// spacer), `hide:ID` (its Show/hide switch off) and `drag:ID` (its
+    /// spacer), `hide:ID` (dragged off the toolbar) and `drag:ID` (its
     /// toolbar slot picked up, dragged to the pointer).
     pub fn apply_state(&mut self, spec: &str) {
         for step in spec.split(';').map(str::trim).filter(|s| !s.is_empty()) {
@@ -1096,22 +1095,18 @@ impl ToolbarEditor {
         }
     }
 
-    /// `SelectedItemPanel`: the icon and name; Primary, Secondary and
-    /// Spacer width; Move left/right, Begin group, Show spacer line and
-    /// Show/hide.
+    /// `SelectedItemPanel`: the icon and name, then Primary and Secondary
+    /// (ShareX #9324, 85fc349: only the hotkeys; moving, grouping, spacers
+    /// and showing or hiding are done on the toolbar preview or with its
+    /// keys).
     fn selected_panel(&mut self, ui: &mut Ui, content: Rect) {
         let p = palette(ui.ctx());
-        let f = fluent(ui.ctx());
         let Some(it) = self.selected_item().cloned() else { return };
-        let id = it.id();
         let caption = widgets::font(12.0, 600);
         let caption_h = up(ui.ctx().pixels_per_point(), widgets::line_height(ui, &caption));
-        // Column 2 (bottom-aligned): four 32px buttons and the 44px switch, 6 apart.
-        let col2_w = 4.0 * 32.0 + 44.0 + 4.0 * 6.0;
-        let col2_x = content.max.x - col2_w;
-        // Column 1: the boxes, 8 apart, 16 before column 2.
-        let col1_w = BOX + 8.0 + BOX + 8.0 + SPACER_BOX;
-        let col1_x = col2_x - 16.0 - col1_w;
+        // Column 1 (`ColumnDefinitions="*,Auto"`, 16 apart): the boxes, 8 apart.
+        let col1_w = BOX + 8.0 + BOX;
+        let col1_x = content.max.x - col1_w;
         let col1_h = caption_h + 2.0 + 40.0;
         let col1_y = content.min.y + ((content.height() - col1_h) / 2.0).round_ties_even();
         // Column 0: the icon and name, centred.
@@ -1155,97 +1150,6 @@ impl ToolbarEditor {
         if clicked_somewhere && !box_clicked && self.focus.is_some() {
             self.focus = None;
         }
-        // Spacer width: enabled while the item starts a group.
-        let g = widgets::galley(ui, ie::ToolbarCustomizationDialogView_SpacerWidth(), caption.clone(), p.text_secondary, f32::INFINITY);
-        ui.painter().galley(pos2(x, col1_y), g, p.text_secondary);
-        let r = Rect::from_min_size(pos2(x, col1_y + caption_h + 2.0), vec2(SPACER_BOX, 40.0));
-        let mut v = it.spacer_width as f64;
-        let spinner = DecimalUpDown { minimum: 0.0, maximum: ti::MAX_SPACER_WIDTH as f64, increment: 4.0, decimals: 0, enabled: it.separator() };
-        if spinner.show(ui, r, Id::new("tb-spacer-width"), &mut v)
-            && let Some(item) = self.item_mut(id)
-        {
-            item.spacer_width = ti::clamp_spacer_width(v.round() as i32);
-        }
-
-        // Column 2.
-        let by = content.max.y - 32.0;
-        let mut x = col2_x;
-        let index = self.index_of_slot(id);
-        let count = self.toolbar_slots().len();
-        let can_left = index.is_some_and(|i| i > 0);
-        let can_right = index.is_some_and(|i| i + 1 < count);
-        for (key, enabled, tip, left) in [
-            (icon::ChevronLeft, can_left, ie::ToolbarCustomizationDialogView_MoveLeft(), true),
-            (icon::ChevronRight, can_right, ie::ToolbarCustomizationDialogView_MoveRight(), false),
-        ] {
-            let b = Rect::from_min_size(pos2(x, by), Vec2::splat(32.0));
-            let button = Button { padding: Thickness::all(0.0), ..Button::default() };
-            let r = button.show(ui, b, Id::new(("tb-move", left)), "", enabled);
-            let fg = button.foreground(ui, &r, enabled, p.background_panel);
-            icons::paint(ui.painter(), Rect::from_center_size(b.center(), Vec2::splat(16.0)), key, fg);
-            if r.on_hover_text(tip).clicked() {
-                if left {
-                    self.move_left(id);
-                } else {
-                    self.move_right(id);
-                }
-            }
-            x += 32.0 + 6.0;
-        }
-        // Begin group (enabled while shown) and Show spacer line (enabled
-        // while the item starts a group): ShareX's checked toggles are the accent.
-        let toggles = [
-            (it.begin_group, it.visible, ie::ToolbarCustomizationDialogView_Begingroup(), false),
-            (it.show_spacer_line, it.separator(), ie::ToolbarCustomizationDialogView_ShowSpacerLine(), true),
-        ];
-        for (k, (checked, enabled, tip, line)) in toggles.into_iter().enumerate() {
-            let tb = Rect::from_min_size(pos2(x, by), Vec2::splat(32.0));
-            let r = ui.interact(tb, Id::new(("tb-toggle", k)), if enabled { Sense::click() } else { Sense::hover() });
-            let fg = if checked {
-                border::border(ui.painter(), tb, 4.0, 1.0, Some(Brush::accent(ui.ctx())), Some(Color32::TRANSPARENT));
-                p.accent_foreground
-            } else {
-                let fill = if enabled && r.hovered() { f.base_medium_low } else { f.base_low };
-                border::border(ui.painter(), tb, 4.0, 1.0, Some(Brush::Solid(fill)), Some(Color32::TRANSPARENT));
-                if enabled { p.text } else { f.base_medium_low }
-            };
-            if line {
-                // `Border.line-glyph`: 2x16, `Opacity="0.4"` disabled.
-                let glyph = if enabled { fg } else { fg.gamma_multiply(0.4) };
-                border::border(ui.painter(), Rect::from_center_size(tb.center(), vec2(2.0, 16.0)), 1.0, 0.0, Some(Brush::Solid(glyph)), None);
-            } else {
-                icons::paint(ui.painter(), Rect::from_center_size(tb.center(), Vec2::splat(16.0)), icon::ArrowRightFromLine, fg);
-            }
-            if r.on_hover_text(tip).clicked()
-                && enabled
-                && let Some(item) = self.item_mut(id)
-            {
-                if line {
-                    item.show_spacer_line = !item.show_spacer_line;
-                } else {
-                    item.begin_group = !item.begin_group;
-                }
-            }
-            x += 32.0 + 6.0;
-        }
-        // Show/hide.
-        let sw_pos = pos2(x, by);
-        if it.def.visibility_editable {
-            let mut on = it.visible;
-            let r = ToggleSwitch { enabled: true }.show(ui, sw_pos, Id::new("tb-show"), &mut on);
-            if r.on_hover_text(ie::ToolbarCustomizationDialogView_ShowHide()).changed()
-                && let Some(item) = self.item_mut(id)
-            {
-                item.visible = on;
-            }
-        } else {
-            // A disabled switch that's on: the base-low track, the knob at
-            // 36% of the base colour (as ShareX draws it).
-            let track = Rect::from_min_size(pos2(sw_pos.x, sw_pos.y + 6.0), vec2(40.0, 20.0));
-            border::border(ui.painter(), track, 10.0, 0.0, Some(Brush::Solid(f.base_low)), None);
-            let knob = f.base_high.gamma_multiply(0.36);
-            border::ellipse(ui.painter(), Rect::from_center_size(pos2(track.max.x - 10.0, track.center().y), Vec2::splat(10.0)), knob);
-        }
     }
 }
 
@@ -1286,16 +1190,20 @@ mod tests {
         let v = ed.save();
         assert_eq!(v[2]["Hotkey"], "Ctrl+Shift+R");
         let r = ToolbarEditor::new(Target::RegionCapture, &[]);
-        assert_eq!(r.items.len(), 21);
+        assert_eq!(r.items.len(), 22);
     }
 
     #[test]
     fn region_save_is_sharexs() {
-        // ShareX's Task settings › Region capture › Customize toolbar...,
-        // the Ellipse region shown, OK: its RegionCaptureOptions.ToolbarItems.
+        // ShareX ca3f01f's Task settings › Region capture › Customize
+        // toolbar..., the Rectangle region (ShareX #9326) dragged off the
+        // toolbar, OK: its RegionCaptureOptions.ToolbarItems (the hidden
+        // region items last, Tab and NumPad0 kept).
         let expected: Vec<Value> = serde_json::from_str(include_str!("toolbar_editor_region_sharex.json")).unwrap();
         let mut ed = ToolbarEditor::new(Target::RegionCapture, &[]);
-        ed.items[0].visible = true;
+        assert_eq!(ed.items[0].id(), ti::REGION_RECTANGLE);
+        let k = ed.index_of_slot(ti::REGION_RECTANGLE).unwrap();
+        ed.remove_slot(k);
         assert_eq!(ed.save(), expected);
     }
 

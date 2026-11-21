@@ -1095,9 +1095,16 @@ impl RegionCapture {
             }
             return Outcome::Continue;
         }
-        let none = m == Modifiers::default();
-        if self.keyboard_enabled && none && matches!(key, Key::Tab | Key::NumPad0) {
-            self.activate_region_tool(None);
+        // Focus navigation takes Tab before the editor's toolbar hotkeys see
+        // it, so a toolbar hotkey on Tab (the rectangle region's by default)
+        // is used here (ShareX #9326; Tab and NumPad0 were fixed keys of the
+        // region tool before it). Without annotations there are no items.
+        if self.keyboard_enabled
+            && key == Key::Tab
+            && self.editor.is_some()
+            && let Some(item) = toolbar::item_for_hotkey(&toolbar::hotkey_items(&self.options.ToolbarItems), "Tab", m.ctrl, m.shift, m.alt).cloned()
+        {
+            self.use_toolbar_item(&item);
             return Outcome::Continue;
         }
         if self.keyboard_enabled && key == Key::H && m.ctrl && !m.shift && !m.alt {
@@ -1163,9 +1170,23 @@ impl RegionCapture {
         }
         // `EditorView.OnKeyDown`: the editor's keys and the tools' hotkeys.
         let Some(k) = editor_key(key) else { return Outcome::Continue };
-        let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
+        if self.editor.is_none() {
+            return Outcome::Continue;
+        }
         // Hidden items keep their shortcuts (ShareX 60a85ea).
         let bar = toolbar::hotkey_items(&self.options.ToolbarItems);
+        // `TrySelectToolForToolbarHotkey` for the region items
+        // (`HostToolbarItemRequested`): NumPad0 picks the rectangle region.
+        let mods = editor_mods(m);
+        if let Some(name) = hotkey_name(k)
+            && let Some(item) = toolbar::item_for_hotkey(&bar, &name, mods.ctrl, mods.shift, mods.alt)
+            && item.def.tool.is_none()
+        {
+            let item = item.clone();
+            self.use_toolbar_item(&item);
+            return Outcome::Continue;
+        }
+        let Some(e) = self.editor.as_mut() else { return Outcome::Continue };
         let r = e.key_down(k, editor_mods(m), &|k, m| tool_hotkey(&bar, k, m));
         if r.tool.is_some() {
             self.activate_annotation_tool();
@@ -1600,30 +1621,34 @@ impl RegionCapture {
                     self.toolbar.drag = Some((px - ax, py - ay));
                 }
             }
-            toolbar::Part::RegionButton => self.activate_region_tool(Some(RegionShape::Rectangle)),
             toolbar::Part::Tool(i) => {
-                // `SelectToolCommand`, then `ActivateAnnotationTool`.
-                match self.bar.get(i).map(|t| (t.def.tool.clone(), t.def.id)) {
-                    Some((Some(tool), _)) => {
-                        if let Some(e) = self.editor.as_mut() {
-                            e.select_tool(tool);
-                            self.activate_annotation_tool();
-                        }
-                    }
-                    // `HostToolbarItemRequested`: the ellipse and freehand
-                    // regions (`RegionCaptureToolbar.GetRegionShape`).
-                    Some((None, id)) => {
-                        if let Some(shape) = toolbar::region_shape(id) {
-                            self.activate_region_tool(Some(shape));
-                        }
-                    }
-                    None => {}
+                if let Some(item) = self.bar.get(i).cloned() {
+                    self.use_toolbar_item(&item);
                 }
             }
             toolbar::Part::Option(item) => self.option_pressed(item),
             toolbar::Part::Background | toolbar::Part::Popup => {}
         }
         Outcome::Continue
+    }
+
+    /// A toolbar item clicked or picked by its hotkey: a tool
+    /// (`SelectToolCommand`, then `ActivateAnnotationTool`), or a region
+    /// (`HostToolbarItemRequested`: `RegionCaptureToolbar.GetRegionShape`).
+    fn use_toolbar_item(&mut self, item: &toolbar::Item) {
+        match &item.def.tool {
+            Some(tool) => {
+                if let Some(e) = self.editor.as_mut() {
+                    e.select_tool(tool.clone());
+                    self.activate_annotation_tool();
+                }
+            }
+            None => {
+                if let Some(shape) = toolbar::region_shape(item.def.id) {
+                    self.activate_region_tool(Some(shape));
+                }
+            }
+        }
     }
 
     /// The toolbar's top centre in desktop pixels.
@@ -1772,13 +1797,17 @@ fn editor_key(k: Key) -> Option<ed::Key> {
 /// `TrySelectToolForToolbarHotkey` over the capture toolbar's items
 /// (Avalonia's key names: `R`, `D1`, `NumPad1`).
 fn tool_hotkey(bar: &[toolbar::Item], k: ed::Key, m: ed::Mods) -> Option<EditorTool> {
-    let name = match k {
+    toolbar::tool_for_hotkey(bar, &hotkey_name(k)?, m.ctrl, m.shift, m.alt)
+}
+
+/// Avalonia's `Key` name of a key a toolbar hotkey can be.
+fn hotkey_name(k: ed::Key) -> Option<String> {
+    Some(match k {
         ed::Key::Letter(c) => c.to_string(),
         ed::Key::Digit(d) => format!("D{d}"),
         ed::Key::NumPad(n) => format!("NumPad{n}"),
         _ => return None,
-    };
-    toolbar::tool_for_hotkey(bar, &name, m.ctrl, m.shift, m.alt)
+    })
 }
 
 impl RegionCapture {

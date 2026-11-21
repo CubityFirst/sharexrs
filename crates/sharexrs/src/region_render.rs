@@ -151,6 +151,7 @@ fn run_steps(
     let key = |name: &str| -> Key {
         match name {
             "Tab" => Key::Tab,
+            "NumPad0" => Key::NumPad0,
             "Escape" => Key::Escape,
             "Enter" => Key::Enter,
             "Delete" => Key::Delete,
@@ -168,12 +169,11 @@ fn run_steps(
         match verb {
             "tool" | "option" => {
                 let part = if verb == "tool" {
-                    if arg == "region" {
-                        toolbar::Part::RegionButton
-                    } else {
-                        let i = session.toolbar_index(arg).ok_or(format!("no tool {arg}"))?;
-                        toolbar::Part::Tool(i)
-                    }
+                    // `region`: the rectangle region's item (it was a fixed
+                    // button before ShareX #9326).
+                    let id = if arg == "region" { sharex_capture::toolbar_items::REGION_RECTANGLE } else { arg };
+                    let i = session.toolbar_index(id).ok_or(format!("no tool {arg}"))?;
+                    toolbar::Part::Tool(i)
                 } else {
                     let item = sharex_capture::region::options_row::OptionItem::from_name(arg).ok_or(format!("no option {arg}"))?;
                     toolbar::Part::Option(item)

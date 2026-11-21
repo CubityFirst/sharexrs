@@ -1,8 +1,10 @@
 //! The capture toolbar: `RegionCaptureWindow.axaml`'s `CaptureToolbar`
-//! (drag handle and rectangle region button) leading the image editor's
-//! `AnnotationToolbar` (`AnnotationToolbar.axaml`) with the default tool
+//! (the drag handle) leading the image editor's `AnnotationToolbar`
+//! (`AnnotationToolbar.axaml`) with the region items and the default tool
 //! items (`ToolbarCustomizationItemViewModel`, without Crop and Cut out,
-//! `RegionCaptureToolbar.CreateItems`); the active tool shows as active
+//! `RegionCaptureToolbar.CreateItems`). The rectangle region is one of the
+//! items since ShareX #9326 (it was a fixed button before them); the
+//! active tool or region shows as active
 //! (`ToolbarCustomizationItemViewModel.IsActive`) and its options row
 //! ([`super::options_row`]) hangs under it.
 
@@ -91,7 +93,9 @@ const ICON: f32 = 20.0;
 
 /// `RegionCaptureToolbar.GetRegionShape`: the region an item selects.
 pub fn region_shape(id: &str) -> Option<super::RegionShape> {
-    if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_ELLIPSE) {
+    if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_RECTANGLE) {
+        Some(super::RegionShape::Rectangle)
+    } else if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_ELLIPSE) {
         Some(super::RegionShape::Ellipse)
     } else if id.eq_ignore_ascii_case(crate::toolbar_items::REGION_FREEHAND) {
         Some(super::RegionShape::Freehand)
@@ -104,7 +108,6 @@ pub fn region_shape(id: &str) -> Option<super::RegionShape> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
     DragHandle,
-    RegionButton,
     Tool(usize),
     /// A control of the tool options row.
     Option(super::options_row::OptionItem),
@@ -119,7 +122,6 @@ pub enum Part {
 pub struct Layout {
     pub rect: Rect,
     pub handle: Rect,
-    pub region_button: Rect,
     pub tools: Vec<Rect>,
     pub separators: Vec<Rect>,
 }
@@ -127,7 +129,7 @@ pub struct Layout {
 /// The toolbar's size at `scale` (the custom button size's scale) with
 /// `items` (the visible ones, `VisibleToolbarItems`).
 pub fn size(scale: f32, items: &[Item]) -> egui::Vec2 {
-    let row = HANDLE + SPACING + BUTTON + SPACING + tools_width(items);
+    let row = HANDLE + SPACING + tools_width(items);
     vec2(row + 2.0 * (PADDING + 1.0), BUTTON + 2.0 * (PADDING + 1.0)) * scale
 }
 
@@ -157,8 +159,6 @@ pub fn layout(min: Pos2, scale: f32, items: &[Item]) -> Layout {
     let mut x = min.x + (1.0 + PADDING) * s;
     let handle = Rect::from_min_size(pos2(x, top), vec2(HANDLE, BUTTON) * s);
     x += (HANDLE + SPACING) * s;
-    let region_button = Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON) * s);
-    x += (BUTTON + SPACING) * s;
     let mut tools = Vec::new();
     let mut separators = Vec::new();
     for (i, t) in items.iter().enumerate() {
@@ -177,7 +177,7 @@ pub fn layout(min: Pos2, scale: f32, items: &[Item]) -> Layout {
         tools.push(Rect::from_min_size(pos2(x, top), vec2(BUTTON, BUTTON) * s));
         x += BUTTON * s;
     }
-    Layout { rect, handle, region_button, tools, separators }
+    Layout { rect, handle, tools, separators }
 }
 
 impl Layout {
@@ -187,9 +187,6 @@ impl Layout {
         }
         if self.handle.contains(p) {
             return Some(Part::DragHandle);
-        }
-        if self.region_button.contains(p) {
-            return Some(Part::RegionButton);
         }
         if let Some(i) = self.tools.iter().position(|r| r.contains(p)) {
             return Some(Part::Tool(i));
@@ -263,8 +260,8 @@ pub fn button(painter: &Painter, p: &Palette, rect: Rect, key: &str, active: boo
 
 /// Draws the toolbar laid out as `layout`, `opacity` for its hide
 /// animation, with `hovered` under the pointer. `active_region`: the
-/// region tool's shape while it's active (the region button shows the
-/// rectangle, `SetActiveHostToolbarItem` the ellipse and freehand items);
+/// region tool's shape while it's active (`SetActiveHostToolbarItem`: its
+/// item shows as active);
 /// `active_tool`: the tool shown active (none while the region tool is).
 #[allow(clippy::too_many_arguments)]
 pub fn paint(
@@ -295,8 +292,6 @@ pub fn paint(
             painter.rect_filled(Rect::from_min_size(min, egui::Vec2::splat(2.0 * scale)), 0.0, fill);
         }
     }
-    let region_active = active_region == Some(super::RegionShape::Rectangle);
-    button(&painter, p, layout.region_button, icon::Region, region_active, hovered == Some(Part::RegionButton), scale);
     for sep in &layout.separators {
         painter.rect_filled(*sep, 0.0, p.separator);
     }
@@ -313,7 +308,6 @@ pub fn paint(
 pub fn tooltip(part: Part, items: &[Item]) -> Option<String> {
     match part {
         Part::DragHandle => Some(sc::RegionCaptureWindow_MoveToolbar().to_string()),
-        Part::RegionButton => Some(sc::RegionCaptureWindow_RectangleRegionTab().to_string()),
         Part::Tool(i) => items.get(i).map(Item::tooltip),
         Part::Option(_) | Part::Background | Part::Popup => None,
     }
@@ -326,16 +320,21 @@ mod tests {
     #[test]
     fn toolbar_is_the_size_of_sharexs() {
         // Measured on ShareX at 100%: 909 x 50.
+        // The rectangle region is the first item since ShareX #9326, where
+        // its fixed button was: the same size.
         let items = default_items();
-        assert_eq!(items.len(), 19);
+        assert_eq!(items.len(), 20);
+        assert_eq!(items[0].id(), crate::toolbar_items::REGION_RECTANGLE);
         assert_eq!(size(1.0, &items), vec2(909.0, 50.0));
         let l = layout(pos2(58.0, 0.0), 1.0, &items);
         assert_eq!(l.handle.min, pos2(63.0, 5.0));
-        assert_eq!(l.region_button.min, pos2(81.0, 5.0));
+        assert_eq!(l.tools[0].min, pos2(81.0, 5.0));
         assert_eq!(l.separators[0].min.x, 125.0);
-        assert_eq!(l.tools[0].min.x, 130.0);
-        assert_eq!(l.tools[18].max.x, 962.0);
+        assert_eq!(l.tools[1].min.x, 130.0);
+        assert_eq!(l.tools[19].max.x, 962.0);
         assert_eq!(TOOLS[1].tooltip(), "Rectangle (R, NumPad1)");
+        assert_eq!(items[0].tooltip(), "Rectangle region (Tab, NumPad0)");
+        assert_eq!(region_shape("regionrectangle"), Some(super::super::RegionShape::Rectangle));
     }
 
     /// ShareX #9278: a spacer's width goes around its line, half each side;
@@ -349,10 +348,10 @@ mod tests {
         assert_eq!(size(1.0, &items).x, 909.0 + 1.0 + 21.0 + SPACING);
         // Rectangle's separator: after Select (130..170) and the spacing.
         assert_eq!(l.separators[1].min.x, 174.0 + 10.0);
-        assert_eq!(l.tools[1].min.x, base.tools[1].min.x + 1.0 + 21.0 + SPACING);
+        assert_eq!(l.tools[2].min.x, base.tools[2].min.x + 1.0 + 21.0 + SPACING);
         let blank = vec![serde_json::json!({"Id": "Rectangle", "BeginGroup": true, "SpacerWidth": 8, "HideSpacerLine": true, "IsVisible": true})];
         let l = layout(pos2(58.0, 0.0), 1.0, &super::items(&blank));
         assert_eq!(l.separators.len(), 1);
-        assert_eq!(l.tools[1].min.x, base.tools[1].min.x + 1.0 + 8.0 + SPACING);
+        assert_eq!(l.tools[2].min.x, base.tools[2].min.x + 1.0 + 8.0 + SPACING);
     }
 }
