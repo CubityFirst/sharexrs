@@ -179,7 +179,10 @@ mod tests {
         // keys (AllItemsOnToolbar, AvailableItems, BlankSpacer, DragHint,
         // MoveLeft, MoveRight, ShowSpacerLine, Spacer, SpacerToolTip,
         // SpacerWidth) and removed Moveup and Movedown, in every language;
-        // no other string changed.
-        assert_eq!((out.len(), hash), (9_090_861, 4_698_861_248_341_571_995));
+        // no other string changed. ShareX ca3f01f's slimmer item panel
+        // (#9324) removed Begingroup, MoveLeft, MoveRight, ShowHide,
+        // ShowSpacerLine and SpacerWidth from ToolbarCustomizationDialogView_
+        // in every language (174 records); nothing else changed.
+        assert_eq!((out.len(), hash), (9_076_632, 1_657_134_802_277_065_635));
     }
 }

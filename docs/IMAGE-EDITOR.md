@@ -850,8 +850,10 @@ available items (a spacer, a blank spacer and the hidden items, which a
 double click puts at the end) and off it onto them (hiding the item); a
 spacer's grip resizes it; Delete, Ctrl+Left/Right and Shift+Left/Right
 act on the focused slot. The selected item's panel: its two hotkey boxes
-(click, press a shortcut, Backspace/Delete clears), Spacer width (0-96 by
-4), Move left/right, Begin group, Show spacer line and Show/hide. Reset,
+(click, press a shortcut, Backspace/Delete clears); since ShareX #9324
+(85fc349) nothing else (its Spacer width, Move left/right, Begin group,
+Show spacer line and Show/hide repeated what the toolbar preview and its
+keys do). Reset,
 OK with `RefreshValidation`, Cancel, Escape (a drag or resize first), the
 backdrop. The layout is the view model's `ApplyLayoutTokens`: a spacer
 becomes `BeginGroup`/`SpacerWidth`/`HideSpacerLine` on the item after it,
