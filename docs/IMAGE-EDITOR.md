@@ -854,7 +854,12 @@ act on the focused slot. The selected item's panel: its two hotkey boxes
 (click, press a shortcut, Backspace/Delete clears); since ShareX #9324
 (85fc349) nothing else (its Spacer width, Move left/right, Begin group,
 Show spacer line and Show/hide repeated what the toolbar preview and its
-keys do). Reset,
+keys do). Since ShareX #9327 (6a2ce6a4) a spacer can be selected
+instead: clicking it on the toolbar, starting to resize it or dropping one
+selects it (`SelectedSpacerItem`, the item after it, which keeps its
+width), and the panel shows its line or dashes, Spacer or Blank spacer and
+a Spacer width box (0-96, step 4); an item selected unselects it, and it's
+unselected once moved, merged or taken off (`RefreshSelection`). Reset,
 OK with `RefreshValidation`, Cancel, Escape (a drag or resize first), the
 backdrop. The layout is the view model's `ApplyLayoutTokens`: a spacer
 becomes `BeginGroup`/`SpacerWidth`/`HideSpacerLine` on the item after it,
@@ -878,7 +883,19 @@ selected slot). The same drags in both apps live
 (0.89-1.02% of the window) and ShareXrs saves the layout ShareX's
 `ToOptions` writes. The ellipse region shown and OK saves ShareX's 21 items
 (a test compares with ShareX's JSON, now with `SpacerWidth` and
-`HideSpacerLine`). Also ShareX's one-in-ten sunglasses emoji tool icon.
+`HideSpacerLine`). After ShareX 099bcb6 (the spacer width box) against
+its shots (`upstream-099bcb6/`, the dialog only; `--state` adds
+`select-spacer:ID`, and `spacer:ID:...` puts a spacer before the item):
+a spacer clicked 0.92%, its width raised to 8 by the spinner 0.86%, a
+blank spacer dropped before Arrow 0.76%, the Crop group's spacer resized
+by its grip to 25 0.65% (text anti-aliasing; the spinner's dividers a
+pixel apart at 125%, the shared `NumericUpDown`'s, and the shrunk row's
+dashes). The same clicks and drags live in both apps give the same
+percentages, and OK saves the same 25 `ToolbarItems` as ShareX. Typing in
+the box: ShareX's `NumericUpDown` applies each keystroke
+(`TextBoxOnTextChanged`), ShareXrs's spinner on Enter or focus loss (the
+same width after Tab, 0.91%); that's every `NumericUpDown` in ShareXrs.
+Also ShareX's one-in-ten sunglasses emoji tool icon.
 
 ### Print (`print.rs`, `dialogs/print_window.rs`)
 

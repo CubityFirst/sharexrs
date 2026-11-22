@@ -7,16 +7,18 @@
 //! items) and off it onto them (hiding the item); a spacer's right edge is
 //! dragged to change its width. Under them, the selected item: its two
 //! hotkeys (click a box and press a shortcut; Backspace or Delete clears
-//! it), only those since ShareX #9324 (85fc349). Reset toolbar to default,
-//! OK (unless a hotkey is invalid or used twice: `RefreshValidation`) and
-//! Cancel.
+//! it), only those since ShareX #9324 (85fc349); or, since ShareX #9327
+//! (6a2ce6a4), the selected spacer: its line and name and a Spacer width box
+//! (a spacer is selected by a click, by starting to resize it and when it's
+//! dropped). Reset toolbar to default, OK (unless a hotkey is invalid or used
+//! twice: `RefreshValidation`) and Cancel.
 
 use egui::{Color32, CornerRadius, Id, Key, Pos2, Rect, Sense, Ui, Vec2, pos2, vec2};
 use serde_json::Value;
 use sharex_capture::toolbar_items::{self as ti, Item, Mods, hotkey};
 use sharex_strings::image_editor as ie;
 use sharex_ui::border::{self, Brush};
-use sharex_ui::controls::{Button, content_font};
+use sharex_ui::controls::{Button, DecimalUpDown, content_font};
 use sharex_ui::keys::app_icons as icon;
 use sharex_ui::theme::{Palette, Thickness, fluent, palette};
 use sharex_ui::{icons, widgets};
@@ -92,7 +94,11 @@ pub struct ToolbarEditor {
     items: Vec<Item>,
     /// The default items' ids, in order (`_defaultOrder`).
     default_order: Vec<&'static str>,
+    /// `SelectedItem`.
     selected: Option<&'static str>,
+    /// `SelectedSpacerItem`: the item after the selected spacer, which keeps
+    /// its width. Only one of this and `selected` is set at a time.
+    selected_spacer: Option<&'static str>,
     scroll: f32,
     /// The selected item's hotkey box being typed into: whether it's the
     /// secondary one.
@@ -130,8 +136,11 @@ const PALETTE_MIN: f32 = 82.0;
 const DRAG_THRESHOLD: f32 = 4.0;
 const TOOLBAR_DROP_MARGIN: f32 = 12.0;
 const SPACER_WIDTH_KEY_STEP: i32 = 4;
-/// The hotkey boxes and the spacer width box.
+/// The hotkey boxes.
 const BOX: f32 = 100.0;
+/// The spacer width box (ShareX #9327) and its `Increment`.
+const SPACER_BOX: f32 = 116.0;
+const SPACER_WIDTH_STEP: f64 = 4.0;
 
 /// Avalonia's `Key` name of an egui key (`Key.ToString()`).
 fn key_name(k: Key) -> Option<String> {
@@ -196,6 +205,7 @@ impl ToolbarEditor {
             items,
             default_order,
             selected: None,
+            selected_spacer: None,
             scroll: 0.0,
             focus: None,
             slot_focus: None,
@@ -203,24 +213,31 @@ impl ToolbarEditor {
             dragging: None,
             resize: None,
         };
-        ed.selected = ed.first_visible();
+        ed.select_item(ed.first_visible());
         ed
     }
 
     /// `--render ... --state`: `;`-separated steps as the dialog's controls
-    /// would make them: `select:ID`, `spacer:ID:WIDTH[:blank]` (the item's
-    /// spacer), `hide:ID` (dragged off the toolbar) and `drag:ID` (its
-    /// toolbar slot picked up, dragged to the pointer).
+    /// would make them: `select:ID`, `spacer:ID:WIDTH[:blank]` (a spacer
+    /// before the item, or its spacer changed), `hide:ID` (dragged off the
+    /// toolbar), `drag:ID` (its toolbar slot picked up, dragged to the
+    /// pointer) and `select-spacer:ID` (the spacer before the item clicked).
     pub fn apply_state(&mut self, spec: &str) {
         for step in spec.split(';').map(str::trim).filter(|s| !s.is_empty()) {
             let parts: Vec<&str> = step.split(':').collect();
             let Some(id) = parts.get(1).and_then(|id| self.items.iter().map(Item::id).find(|i| i.eq_ignore_ascii_case(id))) else { continue };
             match parts[0] {
-                "select" => self.selected = Some(id),
+                "select" => self.select_item(Some(id)),
+                "select-spacer" => {
+                    if let Some(k) = self.index_of_slot(id).and_then(|k| k.checked_sub(1)) {
+                        self.select_spacer(k);
+                    }
+                }
                 "spacer" => {
                     let width = parts.get(2).and_then(|w| w.parse().ok()).unwrap_or(0);
                     let blank = parts.get(3) == Some(&"blank");
                     if let Some(item) = self.item_mut(id) {
+                        item.begin_group = true;
                         item.spacer_width = ti::clamp_spacer_width(width);
                         item.show_spacer_line = !blank;
                     }
@@ -234,7 +251,7 @@ impl ToolbarEditor {
                     if let Some(k) = self.index_of_slot(id) {
                         self.press = Some(Press { slot: Slot::item(id), toolbar_index: Some(k), pos: Pos2::ZERO });
                         self.dragging = Some(Drop::None);
-                        self.selected = Some(id);
+                        self.select_item(Some(id));
                     }
                 }
                 _ => {}
@@ -263,6 +280,47 @@ impl ToolbarEditor {
 
     fn selected_item(&self) -> Option<&Item> {
         self.selected.and_then(|id| self.item(id))
+    }
+
+    /// `SelectedItem`'s setter: an item selected unselects the spacer.
+    fn select_item(&mut self, id: Option<&'static str>) {
+        self.selected = id;
+        if id.is_some() {
+            self.selected_spacer = None;
+        }
+    }
+
+    /// `SelectSpacer`: the spacer at `slot_index` on the toolbar, so its
+    /// width can be typed in (it unselects the item).
+    fn select_spacer(&mut self, slot_index: usize) {
+        let slots = self.toolbar_slots();
+        if slot_index + 1 < slots.len()
+            && slots[slot_index].is_spacer()
+            && let Some(id) = slots[slot_index + 1].item
+        {
+            self.selected_spacer = Some(id);
+            self.selected = None;
+            self.focus = None;
+        }
+    }
+
+    /// `RefreshSelection`: a selected spacer that was moved, merged or
+    /// removed is no longer selected.
+    fn refresh_selection(&mut self) {
+        if let Some(id) = self.selected_spacer
+            && !self.item(id).is_some_and(|i| i.visible && i.begin_group)
+        {
+            self.selected_spacer = None;
+        }
+    }
+
+    /// Whether the toolbar slot at `k` of `slots` is selected: the item, or
+    /// the spacer before the selected spacer's item.
+    fn slot_selected(&self, slots: &[Slot], k: usize) -> bool {
+        match slots[k].item {
+            Some(id) => self.selected == Some(id),
+            None => self.selected_spacer.is_some() && slots.get(k + 1).and_then(|s| s.item) == self.selected_spacer,
+        }
     }
 
     /// `GetDefaultOrder`.
@@ -347,6 +405,8 @@ impl ToolbarEditor {
         order.extend(hidden);
         let mut items = std::mem::take(&mut self.items);
         self.items = order.iter().filter_map(|id| items.iter().position(|i| i.id() == *id).map(|k| items.swap_remove(k))).collect();
+        // `RebuildLayout`.
+        self.refresh_selection();
     }
 
     /// `PlaceItem`: `id` on the toolbar before the slot at `slot_index` (at
@@ -362,12 +422,12 @@ impl ToolbarEditor {
         }
         tokens.insert(slot_index.min(tokens.len()), Slot::item(id));
         self.apply_layout(&tokens);
-        self.selected = Some(id);
+        self.select_item(Some(id));
     }
 
-    /// `PlaceSpacer`: a spacer before the slot at `slot_index`; when `from`
-    /// is a spacer on the toolbar, it moves (keeping its width and line)
-    /// instead of a new one being added with `show_line`.
+    /// `PlaceSpacer`: a spacer before the slot at `slot_index`, selected;
+    /// when `from` is a spacer on the toolbar, it moves (keeping its width
+    /// and line) instead of a new one being added with `show_line`.
     fn place_spacer(&mut self, slot_index: usize, from: Option<usize>, show_line: bool) {
         let mut tokens = self.toolbar_slots();
         let mut slot_index = slot_index;
@@ -380,8 +440,17 @@ impl ToolbarEditor {
                 slot_index -= 1;
             }
         }
-        tokens.insert(slot_index.min(tokens.len()), spacer);
+        let slot_index = slot_index.min(tokens.len());
+        tokens.insert(slot_index, spacer);
+        // It's kept by the next item, merged with any spacers in between; at
+        // the end it's dropped.
+        let next = tokens[slot_index + 1..].iter().find_map(|t| t.item);
         self.apply_layout(&tokens);
+        if let Some(id) = next {
+            self.selected_spacer = Some(id);
+            self.selected = None;
+            self.focus = None;
+        }
     }
 
     /// `SetSpacerWidth`: the extra space of the spacer at `slot_index`,
@@ -435,7 +504,7 @@ impl ToolbarEditor {
     /// `ResetCommand`: the defaults, the first visible item selected.
     fn reset(&mut self) {
         self.items = Self::default_items(self.target);
-        self.selected = self.first_visible();
+        self.select_item(self.first_visible());
         self.focus = None;
         self.slot_focus = None;
     }
@@ -557,9 +626,11 @@ impl ToolbarEditor {
         let body_natural = 2.0 * margin + up(ppp, hint_h + SPACING + toolbar_h + SPACING + caption_top + caption_h + SPACING + palette_h);
         // The header: `Padding="14,8"` round a 32px button, and its bottom border.
         let header_h = 2.0 * th(8.0) + up(ppp, 32.0) + th(1.0);
-        // The selected item: its top border, `Padding="14,10"`, a caption over a 40px box.
+        // The selected item or spacer: its top border, `Padding="14,10"`, a
+        // caption over a 40px box.
         let selected_inner = up(ppp, caption_h + 2.0 + 40.0);
-        let selected_h = if self.selected.is_some() { th(1.0) + 2.0 * th(10.0) + selected_inner } else { 0.0 };
+        let has_selection = self.selected.is_some() || self.selected_spacer.is_some();
+        let selected_h = if has_selection { th(1.0) + 2.0 * th(10.0) + selected_inner } else { 0.0 };
         // The footer: its top border, `Padding="10"` and the 40px buttons.
         let footer_h = th(1.0) + 2.0 * th(10.0) + up(ppp, 40.0);
         let chrome = 2.0 * th(1.0) + header_h + selected_h + footer_h;
@@ -657,7 +728,8 @@ impl ToolbarEditor {
             let dragging = self.dragging.is_some() && self.press.is_some_and(|pr| pr.toolbar_index == Some(k));
             let resizing = self.resize.is_some_and(|rs| rs.index == k);
             let hovered = hover.is_some_and(|q| r.contains(q)) && self.resize.is_none();
-            self.paint_slot(&ui, &row_clip, &p, slot, *r, scale, hovered, dragging, resizing, hover);
+            let selected = self.slot_selected(&slots, k);
+            self.paint_slot(&ui, &row_clip, &p, slot, *r, scale, selected, hovered, dragging, resizing, hover);
             if let Some(q) = hover
                 && r.contains(q)
                 && self.press.is_none()
@@ -696,11 +768,15 @@ impl ToolbarEditor {
             ui.painter().rect_filled(Rect::from_min_size(pos2(view.max.x - 4.0, ty), vec2(2.0, th)), CornerRadius::same(1), f.base_medium);
         }
 
-        // The selected item's settings.
-        if self.selected.is_some() {
+        // The selected item's or spacer's settings.
+        if has_selection {
             ui.painter().rect_filled(Rect::from_min_size(sel_rect.min, vec2(sel_rect.width(), th(1.0))), 0.0, p.border);
             let content = Rect::from_min_max(pos2(sel_rect.min.x + th(14.0), sel_rect.min.y + th(1.0) + th(10.0)), pos2(sel_rect.max.x - th(14.0), sel_rect.max.y - th(10.0)));
-            self.selected_panel(&mut ui, content);
+            if self.selected.is_some() {
+                self.selected_panel(&mut ui, content);
+            } else {
+                self.spacer_panel(&mut ui, content);
+            }
         }
 
         // The footer: the validation message, OK and Cancel.
@@ -832,6 +908,7 @@ impl ToolbarEditor {
                 let start_width = slots[index].spacer_width;
                 self.resize = Some(Resize { index, start_width, start_x: pos.x, scale, width: start_width });
                 self.slot_focus = Some(index);
+                self.select_spacer(index);
                 return;
             }
             if in_view {
@@ -861,7 +938,7 @@ impl ToolbarEditor {
             if !released && (d.x.abs() >= DRAG_THRESHOLD || d.y.abs() >= DRAG_THRESHOLD) && ui.input(|i| i.pointer.primary_down()) {
                 // `StartDrag`: the item is selected as it's picked up.
                 if let Some(id) = press.slot.item {
-                    self.selected = Some(id);
+                    self.select_item(Some(id));
                     self.focus = None;
                 }
                 self.dragging = Some(Drop::None);
@@ -877,7 +954,10 @@ impl ToolbarEditor {
                         if self.selected != Some(id) {
                             self.focus = None;
                         }
-                        self.selected = Some(id);
+                        self.select_item(Some(id));
+                    } else if let Some(k) = press.toolbar_index {
+                        // A spacer on the toolbar (not an available one).
+                        self.select_spacer(k);
                     }
                     self.slot_focus = press.toolbar_index;
                     // `OnPaletteTileDoubleTapped`: onto the end of the toolbar.
@@ -951,8 +1031,7 @@ impl ToolbarEditor {
 
     /// One `Button.slot.toolbar-slot`, scaled with the row.
     #[allow(clippy::too_many_arguments)]
-    fn paint_slot(&self, ui: &Ui, painter: &egui::Painter, p: &Palette, slot: &Slot, r: Rect, s: f32, hovered: bool, dragging: bool, resizing: bool, pointer: Option<Pos2>) {
-        let selected = slot.item.is_some() && slot.item == self.selected;
+    fn paint_slot(&self, ui: &Ui, painter: &egui::Painter, p: &Palette, slot: &Slot, r: Rect, s: f32, selected: bool, hovered: bool, dragging: bool, resizing: bool, pointer: Option<Pos2>) {
         let mut painter = painter.clone();
         if dragging {
             // `.dragging`: `Opacity="0.35"`.
@@ -1151,6 +1230,49 @@ impl ToolbarEditor {
             self.focus = None;
         }
     }
+
+    /// The selected spacer's settings (ShareX #9327, 6a2ce6a4), kept by the
+    /// item after it: in a 20x20 panel its line (`Height="20"`) or, blank,
+    /// its dashes, then `SelectedSpacerName`; on the right Spacer width over
+    /// a 116px `NumericUpDown` (0 to 96, `Increment="4"`, `FormatString="0"`).
+    fn spacer_panel(&mut self, ui: &mut Ui, content: Rect) {
+        let p = palette(ui.ctx());
+        let Some(id) = self.selected_spacer else { return };
+        let Some(it) = self.item(id).cloned() else { return };
+        let caption = widgets::font(12.0, 600);
+        let caption_h = up(ui.ctx().pixels_per_point(), widgets::line_height(ui, &caption));
+        // Column 1 (`ColumnDefinitions="*,Auto"`, 16 apart): the caption, 2
+        // above the box.
+        let col1_x = content.max.x - SPACER_BOX;
+        let col1_h = caption_h + 2.0 + 40.0;
+        let col1_y = content.min.y + ((content.height() - col1_h) / 2.0).round_ties_even();
+        // Column 0: the line and the name, 10 apart, centred.
+        let line = Rect::from_center_size(pos2(content.min.x + 10.0, content.center().y), vec2(1.0, 20.0));
+        if it.show_spacer_line {
+            ui.painter().rect_filled(line, 0.0, p.separator);
+        } else {
+            dashes(ui.painter(), line, 1.0, p.text_secondary);
+        }
+        let name = if it.show_spacer_line { ie::ToolbarCustomizationDialogView_Spacer() } else { ie::ToolbarCustomizationDialogView_BlankSpacer() };
+        let name_font = widgets::font(13.0, 600);
+        let name_w = (col1_x - 16.0 - (content.min.x + 30.0)).max(0.0);
+        // `TextTrimming="CharacterEllipsis"`.
+        let g = widgets::galley(ui, name, name_font.clone(), p.text, name_w);
+        ui.painter().galley(pos2(content.min.x + 30.0, widgets::center_y(content, widgets::line_height(ui, &name_font))), g, p.text);
+
+        let label = ie::ToolbarCustomizationDialogView_SpacerWidth();
+        let g = widgets::galley(ui, label, caption.clone(), p.text_secondary, f32::INFINITY);
+        ui.painter().galley(pos2(col1_x, col1_y), g, p.text_secondary);
+        let r = Rect::from_min_size(pos2(col1_x, col1_y + caption_h + 2.0), vec2(SPACER_BOX, 40.0));
+        let spinner = DecimalUpDown { minimum: 0.0, maximum: ti::MAX_SPACER_WIDTH as f64, increment: SPACER_WIDTH_STEP, decimals: 0, enabled: true };
+        let mut value = it.spacer_width as f64;
+        if spinner.show(ui, r, Id::new("toolbar-spacer-width"), &mut value)
+            && let Some(item) = self.item_mut(id)
+        {
+            item.spacer_width = ti::clamp_spacer_width(value.round() as i32);
+        }
+        sharex_ui::tooltip::show(ui, r, Id::new("toolbar-spacer-width-tip"), label);
+    }
 }
 
 /// A `Border`'s 1px `ShareX.Brush.Accent` border (scaled by `s` in the
@@ -1269,6 +1391,53 @@ mod tests {
         ed.reset();
         assert_eq!(ids(&ed).len(), 27);
         assert_eq!(ed.selected, Some("File"));
+    }
+
+    #[test]
+    fn spacer_selection_as_sharex() {
+        // ShareX #9327: a spacer is selected by the item after it, and only
+        // one of an item and a spacer is selected.
+        let mut ed = ToolbarEditor::new(Target::ImageEditor, &[]);
+        let slots = ed.toolbar_slots();
+        assert!(slots[1].is_spacer());
+        ed.select_spacer(1);
+        assert_eq!((ed.selected, ed.selected_spacer), (None, Some("Select")));
+        let slots = ed.toolbar_slots();
+        assert!(ed.slot_selected(&slots, 1) && !ed.slot_selected(&slots, 2));
+        // Not an item, nor out of range.
+        ed.select_spacer(0);
+        ed.select_spacer(slots.len());
+        assert_eq!(ed.selected_spacer, Some("Select"));
+        // An item selected unselects it.
+        ed.place_item("Rectangle", 2);
+        assert_eq!((ed.selected, ed.selected_spacer), (Some("Rectangle"), None));
+        // A dropped spacer is selected (by the next item)...
+        let k = ed.index_of_slot("Line").unwrap();
+        ed.place_spacer(k, None, false);
+        assert_eq!((ed.selected, ed.selected_spacer), (None, Some("Line")));
+        // ...and its width is the item's.
+        ed.item_mut("Line").unwrap().spacer_width = 24;
+        assert_eq!(ids(&ed)[k], "|24b");
+        // Moved: still selected where it lands.
+        ed.place_spacer(ed.index_of_slot("Ellipse").unwrap(), Some(k), true);
+        assert_eq!(ed.selected_spacer, Some("Ellipse"));
+        assert!(!ed.item("Line").unwrap().begin_group);
+        // One dropped at the end is dropped, and the selection stays.
+        let n = ed.toolbar_slots().len();
+        ed.place_spacer(n, None, true);
+        assert_eq!(ed.selected_spacer, Some("Ellipse"));
+        // Taken off the toolbar: nothing is selected.
+        let k = ed.index_of_slot("Ellipse").unwrap() - 1;
+        ed.remove_slot(k);
+        assert_eq!((ed.selected, ed.selected_spacer), (None, None));
+        // Its item hidden: the spacer goes too.
+        ed.select_spacer(1);
+        let id = ed.selected_spacer.unwrap();
+        ed.remove_slot(ed.index_of_slot(id).unwrap());
+        assert_eq!(ed.selected_spacer, None);
+        ed.select_spacer(1);
+        ed.reset();
+        assert_eq!((ed.selected, ed.selected_spacer), (Some("File"), None));
     }
 
     #[test]
