@@ -186,6 +186,9 @@ mod tests {
         // capture toolbar item (#9326) renamed ScreenCaptureLib's
         // RegionCaptureWindow_RectangleRegionTab to _RectangleRegion, the
         // same text without " (Tab)", in every language (29 records).
-        assert_eq!((out.len(), hash), (9_076_371, 13_195_215_783_030_460_702));
+        // ShareX 099bcb6's spacer width box (#9327) added
+        // ToolbarCustomizationDialogView_SpacerWidth back in every language
+        // (29 records); nothing else changed.
+        assert_eq!((out.len(), hash), (9_078_817, 1_643_134_991_618_301_900));
     }
 }
