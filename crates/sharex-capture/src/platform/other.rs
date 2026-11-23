@@ -217,9 +217,13 @@ pub fn light_taskbar() -> bool {
     false
 }
 
-/// A window region (Windows only; elsewhere the window's transparent
-/// pixels are clicked through by the window manager or not at all).
-pub fn set_window_region(_window: &winit::window::Window, _rects: &[Rect]) {}
+/// A window region: on X11 the window's shape (`linux::set_window_shape`);
+/// elsewhere nothing (the window's transparent pixels are clicked through
+/// by the window manager or not at all).
+pub fn set_window_region(_window: &winit::window::Window, _rects: &[Rect]) {
+    #[cfg(target_os = "linux")]
+    super::linux::set_window_shape(_window, _rects);
+}
 
 /// Called once an overlay's first frame is on screen: macOS fades it in
 /// (`docs/MACOS-LEARNINGS.md` 3.7).

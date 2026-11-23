@@ -75,6 +75,49 @@ fn remembered_named_screens() -> Vec<(Option<String>, Screen)> {
     SCREENS.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
+// ---- window shapes on X11 --------------------------------------------------
+
+/// `SetWindowRgn` on X11: the window's bounding and input shapes become
+/// `rects` (window pixels; the X Shape extension), so what's outside them
+/// is neither drawn nor clicked. Without it the recording frame's inside
+/// covers what's recorded: black where no compositor blends it, and
+/// x11grab records that. Nothing for a Wayland window.
+pub fn set_window_shape(window: &winit::window::Window, rects: &[Rect]) {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use x11rb::connection::Connection;
+    use x11rb::protocol::shape::{ConnectionExt as _, SK, SO};
+    use x11rb::protocol::xproto::{ClipOrdering, Rectangle};
+
+    let id = match window.window_handle().map(|h| h.as_raw()) {
+        Ok(RawWindowHandle::Xlib(h)) => h.window as u32,
+        Ok(RawWindowHandle::Xcb(h)) => h.window.get(),
+        _ => return,
+    };
+    // One connection of its own, for every shape: the request applies to
+    // the window whoever sends it.
+    static CONNECTION: OnceLock<Option<x11rb::rust_connection::RustConnection>> = OnceLock::new();
+    let connected = CONNECTION.get_or_init(|| match x11rb::connect(None) {
+        Ok((c, _)) => Some(c),
+        Err(e) => {
+            eprintln!("couldn't set window shapes: {e}");
+            None
+        }
+    });
+    let Some(conn) = connected else { return };
+    let clamp = |v: i32| v.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+    let rectangles: Vec<Rectangle> = rects
+        .iter()
+        .filter(|r| r.w > 0 && r.h > 0)
+        .map(|r| Rectangle { x: clamp(r.x), y: clamp(r.y), width: r.w.min(u16::MAX as i32) as u16, height: r.h.min(u16::MAX as i32) as u16 })
+        .collect();
+    let shaped = [SK::BOUNDING, SK::INPUT]
+        .into_iter()
+        .all(|kind| conn.shape_rectangles(SO::SET, kind, ClipOrdering::UNSORTED, id, 0, 0, &rectangles).is_ok());
+    if !shaped || conn.flush().is_err() {
+        eprintln!("couldn't set the window's shape (X Shape extension)");
+    }
+}
+
 // ---- what the Wayland compositor offers ------------------------------------
 
 /// The compositor's globals that decide what can capture.
