@@ -175,31 +175,47 @@ fn probe_compositor() -> Option<Compositor> {
     }))
 }
 
+/// How long the portal may take to say whether it has Screenshot: D-Bus
+/// activation of a portal can take 25 s when a backend hangs.
+const PORTAL_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Whether the xdg-desktop-portal offers Screenshot (its version), asked
-/// once. D-Bus activation of a portal can take long (25 s when a backend
-/// hangs), so the app asks on a thread at startup ([`probe_in_background`]).
+/// once, so the app asks on a thread at startup ([`probe_in_background`]).
+/// D-Bus calls don't time out, and a portal busy with another request
+/// (GNOME's permission question, unanswered) answers nothing: after
+/// [`PORTAL_PROBE_TIMEOUT`] there's no portal for this run.
 fn portal_screenshot_version() -> Option<u32> {
     static V: OnceLock<Option<u32>> = OnceLock::new();
     *V.get_or_init(|| {
         if !wayland() {
             return None;
         }
-        guarded("asking the screenshot portal", || {
-            pollster::block_on(async {
-                use ashpd::zbus;
-                let conn = zbus::Connection::session().await.ok()?;
-                let proxy = zbus::Proxy::new(
-                    &conn,
-                    "org.freedesktop.portal.Desktop",
-                    "/org/freedesktop/portal/desktop",
-                    "org.freedesktop.portal.Screenshot",
-                )
-                .await
-                .ok()?;
-                proxy.get_property::<u32>("version").await.ok()
-            })
+        let (send, receive) = std::sync::mpsc::channel();
+        let asked = std::thread::Builder::new().name("portal-probe".into()).spawn(move || {
+            let version = guarded("asking the screenshot portal", || {
+                pollster::block_on(async {
+                    use ashpd::zbus;
+                    let conn = zbus::Connection::session().await.ok()?;
+                    let proxy = zbus::Proxy::new(
+                        &conn,
+                        "org.freedesktop.portal.Desktop",
+                        "/org/freedesktop/portal/desktop",
+                        "org.freedesktop.portal.Screenshot",
+                    )
+                    .await
+                    .ok()?;
+                    proxy.get_property::<u32>("version").await.ok()
+                })
+            });
+            let _ = send.send(version.flatten());
+        });
+        if asked.is_err() {
+            return None;
+        }
+        receive.recv_timeout(PORTAL_PROBE_TIMEOUT).unwrap_or_else(|_| {
+            eprintln!("The xdg-desktop-portal didn't answer in {} s.", PORTAL_PROBE_TIMEOUT.as_secs());
+            None
         })
-        .flatten()
     })
 }
 
