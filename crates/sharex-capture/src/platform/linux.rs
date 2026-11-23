@@ -75,7 +75,37 @@ fn remembered_named_screens() -> Vec<(Option<String>, Screen)> {
     SCREENS.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-// ---- window shapes on X11 --------------------------------------------------
+// ---- X11 -------------------------------------------------------------------
+
+/// ShareXrs's own connection to the X server (`$DISPLAY`) and its screen,
+/// opened once; `None` without one (it says why once).
+fn x11() -> Option<&'static (x11rb::rust_connection::RustConnection, usize)> {
+    static CONNECTION: OnceLock<Option<(x11rb::rust_connection::RustConnection, usize)>> = OnceLock::new();
+    CONNECTION
+        .get_or_init(|| match x11rb::connect(None) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                eprintln!("X11: couldn't connect to the display: {e}");
+                None
+            }
+        })
+        .as_ref()
+}
+
+/// Where the pointer is on X11 (`XQueryPointer` on the root window), in
+/// desktop pixels, as winit places X11 monitors. `None` on Wayland, where a
+/// client can't ask.
+pub fn x11_cursor_position() -> Option<(i32, i32)> {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::ConnectionExt as _;
+    if wayland() || std::env::var_os("DISPLAY").is_none_or(|d| d.is_empty()) {
+        return None;
+    }
+    let (conn, screen) = x11()?;
+    let root = conn.setup().roots.get(*screen)?.root;
+    let reply = conn.query_pointer(root).ok()?.reply().ok()?;
+    Some((i32::from(reply.root_x), i32::from(reply.root_y)))
+}
 
 /// `SetWindowRgn` on X11: the window's bounding and input shapes become
 /// `rects` (window pixels; the X Shape extension), so what's outside them
@@ -93,17 +123,9 @@ pub fn set_window_shape(window: &winit::window::Window, rects: &[Rect]) {
         Ok(RawWindowHandle::Xcb(h)) => h.window.get(),
         _ => return,
     };
-    // One connection of its own, for every shape: the request applies to
-    // the window whoever sends it.
-    static CONNECTION: OnceLock<Option<x11rb::rust_connection::RustConnection>> = OnceLock::new();
-    let connected = CONNECTION.get_or_init(|| match x11rb::connect(None) {
-        Ok((c, _)) => Some(c),
-        Err(e) => {
-            eprintln!("couldn't set window shapes: {e}");
-            None
-        }
-    });
-    let Some(conn) = connected else { return };
+    // ShareXrs's own connection: the request applies to the window
+    // whoever sends it.
+    let Some((conn, _)) = x11() else { return };
     let clamp = |v: i32| v.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
     let rectangles: Vec<Rectangle> = rects
         .iter()

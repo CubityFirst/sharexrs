@@ -84,9 +84,13 @@ pub fn screens() -> Vec<Screen> {
         .collect()
 }
 
-/// Where the pointer is isn't cheap to ask outside Windows: the overlay
-/// learns it from the first move.
+/// Where the pointer is: on X11 the X server says; elsewhere outside
+/// Windows it isn't cheap to ask (Wayland can't), and the overlay learns it
+/// from the first move.
 pub fn cursor_position() -> Option<(i32, i32)> {
+    #[cfg(target_os = "linux")]
+    return super::linux::x11_cursor_position();
+    #[cfg(not(target_os = "linux"))]
     None
 }
 
