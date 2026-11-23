@@ -102,6 +102,24 @@ pub fn move_drag_target(press: (i32, i32), origin: (i32, i32), cursor: (i32, i32
     (origin.0 + cursor.0 - press.0, origin.1 + cursor.1 - press.1)
 }
 
+/// egui's memory and animations as a new context's, its options (styles)
+/// kept. egui holds fonts set before a context's first pass in its memory
+/// until that pass loads them, so a context that hasn't run yet (an overlay
+/// readied during the grab, before the warm-up painted it) gets ShareX's
+/// fonts again: without them its first pass loads egui's defaults, which
+/// have no `semibold` family.
+fn reset_memory(ctx: &egui::Context) {
+    ctx.clear_animations();
+    ctx.memory_mut(|m| {
+        let options = std::mem::take(&mut m.options);
+        *m = Default::default();
+        m.options = options;
+    });
+    if ctx.cumulative_pass_nr() == 0 {
+        sharex_ui::fonts::install(ctx);
+    }
+}
+
 impl EguiWindow {
     pub fn new(window: Window, gpu: &Gpu, resize_border: Option<f32>) -> Result<Self, String> {
         Self::with_alpha(window, gpu, resize_border, false, true)
@@ -168,12 +186,7 @@ impl EguiWindow {
     pub fn reset_for_reuse(&mut self) {
         self.popups.clear(self.window.id());
         let ctx = self.ctx().clone();
-        ctx.clear_animations();
-        ctx.memory_mut(|m| {
-            let options = std::mem::take(&mut m.options);
-            *m = Default::default();
-            m.options = options;
-        });
+        reset_memory(&ctx);
         self.state = egui_winit::State::new(
             ctx,
             egui::ViewportId::ROOT,
@@ -427,5 +440,35 @@ mod tests {
         assert_eq!(super::move_drag_target(press, origin, step(1)), (758, 674));
         let cursor = step(12);
         assert_eq!(super::move_drag_target(press, origin, cursor), (611, 600));
+    }
+
+    fn pass(ctx: &egui::Context, ui: impl FnMut(&mut egui::Ui)) {
+        ctx.run_ui(egui::RawInput::default(), ui).textures_delta.clear();
+    }
+
+    /// The first region capture before the warm-up: an overlay made during
+    /// the grab is reset for its use before it has ever painted, then its
+    /// toolbar lays out SemiBold text (v0.2.1 panicked: "FontFamily::Name(
+    /// \"semibold\") is not bound to any fonts").
+    #[test]
+    fn a_context_reset_before_its_first_pass_keeps_sharex_fonts() {
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        super::reset_memory(&ctx);
+        pass(&ctx, |ui| {
+            ui.label(egui::RichText::new("Region").family(sharex_ui::fonts::semibold()));
+        });
+    }
+
+    /// A context that has painted keeps its loaded fonts through a reset.
+    #[test]
+    fn a_context_reset_after_a_pass_keeps_sharex_fonts() {
+        let ctx = egui::Context::default();
+        sharex_ui::install(&ctx);
+        pass(&ctx, |_| {});
+        super::reset_memory(&ctx);
+        pass(&ctx, |ui| {
+            ui.label(egui::RichText::new("Region").family(sharex_ui::fonts::semibold()));
+        });
     }
 }
