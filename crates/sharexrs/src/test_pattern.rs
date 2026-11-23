@@ -167,10 +167,24 @@ pub fn run(args: &[String]) -> Result<(), String> {
 }
 
 impl App {
-    fn open(&mut self, event_loop: &ActiveEventLoop, rect: (i32, i32, u32, u32), kind: Kind) -> Result<(), String> {
+    /// Opens a pane at `rect` (desktop pixels); a pattern pane is also given
+    /// its `monitor`, which it covers full screen on Linux (Wayland places
+    /// windows itself, so a position alone can't cover a monitor).
+    fn open(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        rect: (i32, i32, u32, u32),
+        kind: Kind,
+        monitor: Option<winit::monitor::MonitorHandle>,
+    ) -> Result<(), String> {
         let gpu = match &self.gpu {
             Some(g) => g,
-            None => self.gpu.insert(Gpu::new()?),
+            None => {
+                // GL (EGL) presents only through the app's display connection.
+                #[cfg(target_os = "linux")]
+                sharex_ui::gpu::set_display(event_loop.owned_display_handle());
+                self.gpu.insert(Gpu::new()?)
+            }
         };
         let (x, y, w, h) = rect;
         let title = match kind {
@@ -179,7 +193,8 @@ impl App {
             Kind::Framed => "ShareXrs framed test window",
             Kind::Scroll(_) => "ShareXrs scroll test",
         };
-        let attrs = WindowAttributes::default()
+        #[allow(unused_mut)]
+        let mut attrs = WindowAttributes::default()
             .with_title(title)
             .with_decorations(kind == Kind::Framed)
             .with_resizable(false)
@@ -187,6 +202,12 @@ impl App {
             .with_window_level(WindowLevel::AlwaysOnTop)
             .with_position(PhysicalPosition::new(x, y))
             .with_inner_size(PhysicalSize::new(w, h));
+        #[cfg(target_os = "linux")]
+        if monitor.is_some() {
+            attrs = attrs.with_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor)));
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = monitor;
         let window = event_loop.create_window(attrs).map_err(|e| e.to_string())?;
         // Without dithering: the pattern and the page show pixel for pixel, so
         // two grabs of the same place are the same.
@@ -206,22 +227,22 @@ impl ApplicationHandler for App {
         let monitors: Vec<_> = event_loop.available_monitors().collect();
         for m in monitors {
             let (p, s) = (m.position(), m.size());
-            if let Err(e) = self.open(event_loop, (p.x, p.y, s.width, s.height), Kind::Pattern) {
+            if let Err(e) = self.open(event_loop, (p.x, p.y, s.width, s.height), Kind::Pattern, Some(m)) {
                 eprintln!("test pattern: {e}");
             }
         }
         if let Some(r) = self.extra
-            && let Err(e) = self.open(event_loop, r, Kind::Window)
+            && let Err(e) = self.open(event_loop, r, Kind::Window, None)
         {
             eprintln!("test window: {e}");
         }
         if let Some(r) = self.framed
-            && let Err(e) = self.open(event_loop, r, Kind::Framed)
+            && let Err(e) = self.open(event_loop, r, Kind::Framed, None)
         {
             eprintln!("framed test window: {e}");
         }
         if let Some(r) = self.scroll
-            && let Err(e) = self.open(event_loop, r, Kind::Scroll(0))
+            && let Err(e) = self.open(event_loop, r, Kind::Scroll(0), None)
         {
             eprintln!("scroll window: {e}");
         }
@@ -230,6 +251,13 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         let Some(pane) = self.panes.iter_mut().find(|p| p.window.window.id() == id) else { return };
         let scrolls = matches!(pane.kind, Kind::Scroll(_));
+        // The pattern is drawn pixel for pixel at the window's size, which
+        // changes after the window opens (a Wayland window learns its
+        // monitor's scale only once shown): drawn again at the new size.
+        if matches!(event, WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }) {
+            pane.texture = None;
+            pane.window.window.request_redraw();
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event: ref k, .. }

@@ -365,7 +365,16 @@ Linux with NVIDIA's driver; AMF/QSV are Windows-oriented (VAAPI and
 VideoToolbox aren't ShareX codecs, so they aren't offered: a ShareX profile
 must stay readable by ShareX).
 
-**Untested**: every macOS and Linux path (inputs, device listing, `pactl`,
+What the app uses (`recording::recorder_input`): on Linux under X11 the
+X11 input (and a named sound source as PulseAudio); elsewhere ShareX's own
+inputs, so macOS still runs `gdigrab` (⬜). On Wayland no recording starts
+(the raw-frame input has no frame source yet): the job says so in the log.
+The X11 path was checked live (Xvfb and openbox, 2026-11-23, see
+docs/PLATFORMS.md): `x11grab` records the region; the frame's inside is cut
+out of its window with the X Shape extension, or it's recorded black
+where no compositor blends it.
+
+**Untested**: every other macOS and Linux path (inputs, device listing, `pactl`,
 fallback locations, .NET-style argv splitting in a real spawn; the argument
 strings are unit-tested only), ddagrab and gdigrab against a real screen
 (not allowed here: the desktop belongs to another agent), the HKCU writes

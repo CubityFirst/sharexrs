@@ -102,6 +102,12 @@ impl Tray {
         32
     }
 
+    /// Whether the item is registered, so on screen: not without a
+    /// StatusNotifierWatcher (stock GNOME, a sway bar without a tray).
+    pub fn is_shown(&self) -> bool {
+        self.handle.is_some()
+    }
+
     pub fn set_icon(&mut self, image: &image::RgbaImage) {
         self.icon = icon(image);
         let i = self.icon.clone();

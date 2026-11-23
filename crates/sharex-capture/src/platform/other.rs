@@ -84,9 +84,13 @@ pub fn screens() -> Vec<Screen> {
         .collect()
 }
 
-/// Where the pointer is isn't cheap to ask outside Windows: the overlay
-/// learns it from the first move.
+/// Where the pointer is: on X11 the X server says; elsewhere outside
+/// Windows it isn't cheap to ask (Wayland can't), and the overlay learns it
+/// from the first move.
 pub fn cursor_position() -> Option<(i32, i32)> {
+    #[cfg(target_os = "linux")]
+    return super::linux::x11_cursor_position();
+    #[cfg(not(target_os = "linux"))]
     None
 }
 
@@ -103,19 +107,16 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
     if !super::macos::screen_recording_allowed() {
         return None;
     }
-    // Wayland: the whole desktop at once, its top left at the monitors'.
+    // Wayland: each output where the app's monitor list has it.
     #[cfg(target_os = "linux")]
     if super::linux::wayland() {
-        let desktop = match super::linux::capture_desktop() {
-            Ok(image) => image,
+        return match super::linux::capture_screens(r) {
+            Ok(shots) => crop_placed(&shots, r),
             Err(e) => {
                 eprintln!("Screen capture: {e}");
-                return None;
+                None
             }
         };
-        let origin = crate::geometry::combine(screens().iter().map(|s| s.bounds));
-        let placed = Rect::new(origin.x, origin.y, desktop.width() as i32, desktop.height() as i32);
-        return crop_placed(&[(desktop, placed)], r);
     }
     let shots: Vec<(RgbaImage, Rect)> = monitors()
         .into_iter()
@@ -220,9 +221,13 @@ pub fn light_taskbar() -> bool {
     false
 }
 
-/// A window region (Windows only; elsewhere the window's transparent
-/// pixels are clicked through by the window manager or not at all).
-pub fn set_window_region(_window: &winit::window::Window, _rects: &[Rect]) {}
+/// A window region: on X11 the window's shape (`linux::set_window_shape`);
+/// elsewhere nothing (the window's transparent pixels are clicked through
+/// by the window manager or not at all).
+pub fn set_window_region(_window: &winit::window::Window, _rects: &[Rect]) {
+    #[cfg(target_os = "linux")]
+    super::linux::set_window_shape(_window, _rects);
+}
 
 /// Called once an overlay's first frame is on screen: macOS fades it in
 /// (`docs/MACOS-LEARNINGS.md` 3.7).
