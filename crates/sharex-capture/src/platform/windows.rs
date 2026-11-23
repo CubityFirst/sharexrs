@@ -831,19 +831,32 @@ pub fn window_handle(window: &winit::window::Window) -> Option<isize> {
 pub fn prepare_overlay(window: &winit::window::Window) {
     use windows_sys::Win32::Foundation::{LRESULT, WPARAM};
     use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SC_KEYMENU, STYLESTRUCT, WM_STYLECHANGING, WM_SYSCOMMAND, WS_EX_LAYERED};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        MA_NOACTIVATE, SC_KEYMENU, STYLESTRUCT, WM_MOUSEACTIVATE, WM_STYLECHANGING, WM_SYSCOMMAND, WS_EX_LAYERED,
+    };
 
     unsafe extern "system" fn proc(h: HWND, msg: u32, w: WPARAM, l: LPARAM, _: usize, _: usize) -> LRESULT {
         if msg == WM_SYSCOMMAND && (w & 0xfff0) == SC_KEYMENU as usize {
             return 0;
         }
+        // A window that never activates (a menu level in its own popup
+        // window): a click on it mustn't either. `WS_EX_NOACTIVATE` alone
+        // doesn't stop it: winit leaves `WM_MOUSEACTIVATE` to
+        // `DefWindowProc`, which activates the popup and takes the focus
+        // from its owner, and the owner closes its menus as it loses the
+        // focus, before the click reaches the entry.
+        // SAFETY: our own window.
+        if msg == WM_MOUSEACTIVATE && unsafe { GetWindowLongPtrW(h, GWL_EXSTYLE) } as u32 & WS_EX_NOACTIVATE != 0 {
+            return MA_NOACTIVATE as LRESULT;
+        }
         if msg == WM_STYLECHANGING && w as i32 == GWL_EXSTYLE && l != 0 {
             // SAFETY: WM_STYLECHANGING's lParam is the STYLESTRUCT being applied.
-            // A layered overlay (the transparent region) stays layered too:
-            // winit doesn't know it made it one.
+            // A layered overlay (the transparent region) stays layered too,
+            // and a popup window stays one that never activates: winit
+            // doesn't know it made them so.
             unsafe {
                 let ss = &mut *(l as *mut STYLESTRUCT);
-                ss.styleNew |= WS_EX_TOOLWINDOW | (ss.styleOld & WS_EX_LAYERED);
+                ss.styleNew |= WS_EX_TOOLWINDOW | (ss.styleOld & (WS_EX_LAYERED | WS_EX_NOACTIVATE));
             }
         }
         // SAFETY: forwards to the next window procedure.
