@@ -43,11 +43,11 @@ inventory; kept, decision pending, see "Beyond ShareX") · ⬜ gap left.
 | File and folder pickers | Avalonia `StorageProvider`: NSOpenPanel | the portal / GTK dialog | ✅ rfd everywhere; ✅ the folder picker (was a stub) |
 | Screen colour picker | `ScreenColorPickerWindow.OnLoaded` completes with no colour (no `GetCursorPos`) | same | ✅ completes with no colour (the overlay used to open) |
 | Network monitor pings | .NET `Ping`: ICMP over a raw socket or an unprivileged ICMP datagram socket (always allowed on macOS); else `/sbin/ping -c 1 -W <ms> -s 32`, `LC_ALL=C`, `time=` rounded half to even | same, datagram sockets within `net.ipv4.ping_group_range`; else `ping -c 1 -W <s, rounded up> -s 32`; exit 1/2 is a time-out | ✅ `sharex_tools::system::unix_ping` (was always the system `ping` with other arguments) |
-| Global hotkeys | `WindowsHotkeyHost` throws `PlatformNotSupportedException`: none | same | ➕ livesplit-hotkey |
+| Global hotkeys | `WindowsHotkeyHost` throws `PlatformNotSupportedException`: none | same | ➕ livesplit-hotkey: X11 grabs; on Wayland the input devices only (evdev, the input group), else every hotkey fails and says so |
 | Single instance | the named `Mutex` works (.NET's shared-memory mutex); the pipe server needs `PipeSecurity`/`WindowsIdentity` and throws, so a second launch waits 5 s for the pipe and exits, its arguments lost | same | ➕ a lock file and a Unix socket that deliver the arguments |
 | Run at startup | `ShortcutHelpers` (a `.lnk` in the Startup folder, which is empty on Unix) fails with an error | same | ➕ LaunchAgent `com.sharexrs.app.plist` / XDG autostart entry |
 | File associations, context menu, Send To | registry only | same | ➖ no-ops |
-| Screen capture (region, fullscreen, window) | GDI `BitBlt` and `user32`: nothing captures | same | ➕ xcap (ScreenCaptureKit / X11). Wayland: the whole desktop through wlr-screencopy, else the screenshot portal, else the capture fails (see "Linux: display, capture and GPU"). Every xcap call is guarded: a panic in a capture library is a failed capture and a log line, never a crash |
+| Screen capture (region, fullscreen, window) | GDI `BitBlt` and `user32`: nothing captures | same | ➕ xcap (ScreenCaptureKit / X11). Wayland: each output through wlr-screencopy, else the screenshot portal's picture cut into the outputs, else the capture fails (see "Linux: display, capture and GPU"). Every xcap call is guarded: a panic in a capture library is a failed capture and a log line, never a crash. Live-checked on sway, GNOME and X11 (see "Nested desktops in WSL") |
 | Window lists, window under the pointer (region capture, Capture › Window) | `EnumWindows` etc.: none | same | ➕ CGWindowList / xcap (X11; on Wayland only XWayland's windows) |
 | Window activation (after capture, scrolling capture, active window) | `SetForegroundWindow`: none | same | ➖ none |
 | HDR screenshot correction (`HDRScreenshotColorCorrection`) | `HDRScreenCapture` is DXGI and WIC, called from the Windows capture path only: none | same | ✅ none (Windows only, `sharex_capture::platform::windows_hdr`) |
@@ -60,7 +60,7 @@ inventory; kept, decision pending, see "Beyond ShareX") · ⬜ gap left.
 | Printing | throws "A printing backend is required for this platform." | same | ✅ the same error |
 | Sounds | `SoundPlayer` (Windows only): silent | same | ✅ silent |
 | Video player (video tools) | `WindowsMediaPlayer` (Media Foundation in an HWND): no video | same | ➕ FFmpeg + cpal playback |
-| Screen recording | FFmpeg with `gdigrab`/`ddagrab` and DirectShow: none | same | ➕ FFmpeg `avfoundation` / `x11grab`, PulseAudio/ALSA (docs/SCREEN-RECORDING.md) |
+| Screen recording | FFmpeg with `gdigrab`/`ddagrab` and DirectShow: none | same | ➕ FFmpeg `x11grab` on X11, PulseAudio/ALSA (docs/SCREEN-RECORDING.md); the frame's inside is cut out with the X Shape extension. ⬜ macOS still gets ShareX's `gdigrab` (the AVFoundation input isn't wired in); Wayland has none: the job says so in the log |
 | Image editor: system cursors, emoji | bundled cursors only; emoji through Skia text (the Windows emoji renderer and cursor-screen lookup are Windows only) | same | ✅ bundled cursors only |
 | Wayland screen capture through the portal | none (Avalonia 11 runs on XWayland; ShareX has no portal code) | none | ➕ the xdg-desktop-portal Screenshot API (`interactive: false`), after wlr-screencopy (`sharex_capture::platform::linux`) |
 | Update check and install | GitHub check everywhere; the installer flow is Windows only | same | ➕ macOS swap and Linux flows (docs/UPDATE.md) |
@@ -90,25 +90,53 @@ by running the CI build in WSLg (Ubuntu 26.04 and Arch, 2026-11-20):
 - **Every xcap call is guarded** (`platform::guarded`: `catch_unwind`;
   the release profile unwinds). A panic is a failed capture and a log
   line.
-- **Capture on Wayland** (`platform/linux.rs`): the whole desktop at
-  once, placed at the monitors' top left, by the first of
+- **Capture on Wayland** (`platform/linux.rs`), by the first of
   1. `zwlr_screencopy_manager_v1` through libwayshot (wlroots desktops:
      Sway, Hyprland, labwc, river, Wayfire; silent), only when the
-     compositor also has xdg-output version 3;
+     compositor also has xdg-output version 3. Each output that meets the
+     asked rectangle is captured on its own, at its own pixels
+     (libwayshot's `screenshot_all` scales every output to the largest
+     scale and gets the height wrong);
   2. the xdg-desktop-portal Screenshot API, non-interactive (GNOME, KDE,
-     anything with a portal backend; the desktop may ask once; the file
-     it saves is deleted, as xcap does);
+     anything with a portal backend; the desktop asks once, see the live
+     checks; the file it saves is deleted, as xcap does). Its one picture
+     is the outputs' logical layout at one scale (GNOME: the largest);
+     it's cut into the outputs by their xdg-output layout;
   3. neither: every capture job fails as a failed capture does
      (`capture: couldn't capture the screen` in the log, no task), and
      the log says once "Screen capture is unavailable on this Wayland
      compositor (no wlr-screencopy, no xdg-desktop-portal Screenshot)".
+
+  Each output's picture goes where winit has the monitor of the same
+  name: winit puts a Wayland monitor at its logical position times its
+  integer scale, sized as its mode, and the overlays and regions use
+  those coordinates. Pictures are made opaque (libwayshot keeps an XRGB
+  frame's unused byte as alpha: XWayland windows came out transparent).
   What's available is probed on a thread at startup (a portal's D-Bus
   activation can take seconds) and logged ("Wayland screen capture:
-  wlr-screencopy no, screenshot portal no."). The idle region-capture
-  warm-up and the colour picker's magnifier never grab through a portal
-  (it may flash the screen or ask). Multi-monitor HiDPI placement of the
-  portal's picture is untested. XWayland capture (X11 through `DISPLAY`)
-  isn't used on Wayland: it sees only X11 windows, on black.
+  wlr-screencopy no, screenshot portal version 2."); the probe gives up
+  after 30 s and a screenshot request after 60 s (a portal busy with an
+  unanswered question answers nothing, and D-Bus calls don't time out).
+  Captures run on the event loop's thread, so the app's windows wait
+  while a portal does. The idle region-capture warm-up and the colour
+  picker's magnifier never grab through a portal (it may flash the screen
+  or ask). XWayland capture (X11 through `DISPLAY`) isn't used on
+  Wayland: it sees only X11 windows, on black. Where the pointer is
+  can't be asked on Wayland, so "Capture active monitor" takes the first
+  monitor there; on X11 it's the X server's pointer.
+- **Windows can't be placed on Wayland.** Overlays are full screen on
+  their monitor, so they're fine; the after-capture toast is centred by
+  the compositor, the recording frame and bar couldn't be put around a
+  region (recording isn't offered there anyway), and a region dragged
+  from one monitor onto another stays in the first one's overlay.
+- **Clipboard**: arboard speaks X11 only, which every desktop with
+  XWayland bridges to Wayland (checked on sway). A Wayland session
+  without XWayland can't copy images ("Clipboard copy image failed" in
+  the log); arboard's `wayland-data-control` feature would fix it at the
+  cost of new dependencies (wl-clipboard-rs).
+- **Tray**: without a StatusNotifierWatcher (stock GNOME, a sway bar
+  without a tray) there's no icon, so a silent start shows the main
+  window and closing it exits, as ShareX does without a tray.
 - **WSLg: windows go through XWayland.** WSLg's Weston (its RDP
   backend) segfaults when a client grows a `wl_shm_pool` whose buffers
   are on screen, which winit's client-side decorations (sctk-adwaita) do
@@ -164,6 +192,9 @@ by running the CI build in WSLg (Ubuntu 26.04 and Arch, 2026-11-20):
   (wlr-screencopy), `wayland-client` 0.31 (the compositor's globals) and
   `pollster` in `sharex-capture`, Linux only: all were already xcap's or
   winit's dependencies, at the same versions.
+- `x11rb` 0.13 with its `shape` feature in `sharex-capture`, Linux only
+  (window regions and the pointer on X11; already in the lock file
+  through winit and the app).
 - No system packages: `ci.yml` and `package.yml` are unchanged.
 
 ## Live checks
@@ -246,3 +277,78 @@ Arch (user), both with WSLg (Weston 9, XWayland):
 - `--render main` and `image-editor` give the same sizes in both distros
   and match the CI build's.
 - `cargo test --workspace` passes on Ubuntu 26.04.
+
+### Nested desktops in WSL (checked 2026-11-23)
+
+A debug build of this branch, portable, in WSL2 Ubuntu 26.04 (root), each
+desktop headless and isolated from WSLg's own session (its own
+`XDG_RUNTIME_DIR`, D-Bus session daemon, `/tmp/.X11-unix` in a private
+mount namespace; `/mnt` hidden from the app so the WSLg switch to X11
+doesn't apply):
+
+- **sway** 1.11: `WLR_BACKENDS=headless WLR_RENDERER=pixman sway`,
+  `swaymsg create_output` and `output HEADLESS-2 resolution 2560x1440
+  position 1920 200 scale 2` for a second, HiDPI monitor; XWayland on.
+  Input through a wlroots virtual pointer (`zwlr_virtual_pointer_v1`,
+  a small test client) and `wtype`.
+- **GNOME Shell** 50: `gnome-shell --headless --wayland --no-x11
+  --virtual-monitor 1920x1080 [--virtual-monitor 2560x1440]`, mixed scale
+  with `gdctl set ... --scale 2 --x 1920 --y 200` (logical layout, as
+  Ubuntu configures it), xdg-desktop-portal-gnome. Input through Mutter's
+  RemoteDesktop D-Bus API.
+- **KDE** KWin 6.6: `kwin_wayland --virtual --xwayland`,
+  xdg-desktop-portal-kde.
+- **X11**: Xvfb with openbox; Xorg's dummy driver (0.4, several RandR
+  outputs) with openbox for two monitors (1920x1080 and 1280x720 at
+  1920,200). Input through xdotool.
+
+Each captured picture was compared with the screen: pixel for pixel with
+`grim` (sway) or `import -window root` (X11), and on GNOME against the
+test pattern's formula (`--test-pattern`, now full screen per monitor on
+Linux), as GNOME has no other way to look at its screen.
+
+| | sway | GNOME | KDE | X11 |
+|---|---|---|---|---|
+| Probe (log) | wlr-screencopy yes | screencopy no, portal version 2 | screencopy no, portal version 2 | (X11) |
+| Fullscreen | works: exact, repeated, ~0.2 s (1.3 s for two outputs) | works once screenshots are allowed: exact, ~1.2 s | fails gracefully (below) | works: exact |
+| Region overlay | works: one full screen overlay per output, the frozen screen | works | fails gracefully (no picture, no overlay) | works |
+| Region result | works: exact | works: exact | fails gracefully | works: exact |
+| Multi-monitor, HiDPI | works: scale 1 + 2, every output exact (fixed) | works: placement right; the scale-1 monitor is resampled by GNOME (soft 1-pixel lines), the scale-2 one exact | not reached | works: two monitors exact, a region across both exact; no per-monitor scale on X11 |
+| Active monitor | first monitor always (Wayland can't say where the pointer is) | same | not reached | works: the monitor under the pointer (fixed) |
+| Window capture | works for XWayland windows: active window and the overlay's window snapping, exact (fixed: were transparent); Wayland windows aren't listed, an active one fails gracefully | fails gracefully (no XWayland in a `--no-x11` shell; with it, as sway) | not reached | works: active window (Alt+Print) and snapping, exact |
+| Recording | fails gracefully: "Screen recording is unavailable on Wayland" (fixed: opened the overlay and a bar for a `gdigrab` that can't run) | same | same | works: `x11grab`, the region, 30 fps (fixed: was `gdigrab`; the frame's inside recorded black without a compositor) |
+| Hotkeys | fail gracefully: the registration failed message (evdev needs the input group; untestable here, no `/dev/input` in WSL) (fixed: X11 grabs on XWayland claimed success and didn't fire) | same | same | work (XGrabKey), except keys the window manager grabs: openbox's default `rc.xml` binds Print and Alt+Print to scrot, and those two silently never fire though "registered" (X reports a grab conflict asynchronously; livesplit-hotkey doesn't see it) |
+
+Notes:
+
+- **GNOME asks once.** A non-interactive screenshot from an app without
+  the `screenshot` permission opens GNOME's "Allow screenshots?" question
+  (KDE: "Allow Apps to Take Screenshots?"). Allowed (here: granted in the
+  permission store, `SetPermission screenshot true screenshot ''
+  ['yes']`), later captures don't ask. Unanswered, the capture fails after
+  60 s ("screenshot portal: no answer in 60 s"), the next one at once; the
+  app's windows wait meanwhile, as captures run on the event loop. Before
+  the fix the portal probe waited for good and every capture with it.
+- **KDE** couldn't produce a picture here: xdg-desktop-portal-kde takes a
+  non-interactive screenshot through KWin's `org.kde.KWin.ScreenShot2`,
+  which KWin only offers with OpenGL compositing, and the virtual backend
+  without a DRM render node (WSL has none) composites with QPainter. The
+  request reaches KWin and fails ("Portal request didn't succeed"); every
+  capture job fails in under a second and the app stays up. The portal
+  also needed Qt's Wayland plugins and its QML modules (Kirigami, QtQuick
+  Controls/Layouts, Qt5Compat.GraphicalEffects), which a Plasma desktop
+  has.
+- **sway's portal** (xdg-desktop-portal-wlr) isn't used: screencopy comes
+  first.
+- **Clipboard**: copying works with `DISPLAY` set (XWayland; sway bridges
+  it); without XWayland it fails, see above. The tray: none without a
+  StatusNotifierWatcher, so `-silent` shows the main window (fixed: it
+  started with no window and no icon).
+- The after-capture toast is centred on Wayland (sway, GNOME): windows
+  can't be placed there. On X11 without a compositor the recording bar's
+  transparent window shows black around the bar.
+- A region dragged across two outputs on sway stays in the first
+  overlay's coordinates; on X11 it's exact.
+- Not covered: labwc, Hyprland, Xfce/Cinnamon, KDE on X11, a Plasma
+  session (KDE above is KWin alone), fractional scales, rotated outputs,
+  evdev hotkeys, sound in recordings, Linux on real hardware.
