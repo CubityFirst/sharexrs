@@ -103,19 +103,16 @@ pub fn capture_rectangle(r: Rect) -> Option<RgbaImage> {
     if !super::macos::screen_recording_allowed() {
         return None;
     }
-    // Wayland: the whole desktop at once, its top left at the monitors'.
+    // Wayland: each output where the app's monitor list has it.
     #[cfg(target_os = "linux")]
     if super::linux::wayland() {
-        let desktop = match super::linux::capture_desktop() {
-            Ok(image) => image,
+        return match super::linux::capture_screens(r) {
+            Ok(shots) => crop_placed(&shots, r),
             Err(e) => {
                 eprintln!("Screen capture: {e}");
-                return None;
+                None
             }
         };
-        let origin = crate::geometry::combine(screens().iter().map(|s| s.bounds));
-        let placed = Rect::new(origin.x, origin.y, desktop.width() as i32, desktop.height() as i32);
-        return crop_placed(&[(desktop, placed)], r);
     }
     let shots: Vec<(RgbaImage, Rect)> = monitors()
         .into_iter()
