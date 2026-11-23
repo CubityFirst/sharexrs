@@ -144,6 +144,27 @@ fn uses_native(capture: &TaskSettingsCapture) -> bool {
     cfg!(windows) && capture.ScreenRecordUseNative
 }
 
+/// Where FFmpeg records from. ShareX's own inputs (`gdigrab`, `ddagrab`,
+/// DirectShow) on Windows; on Linux under X11, its desktop source is
+/// `x11grab` of `$DISPLAY` and a named sound source a PulseAudio/PipeWire
+/// one (docs/SCREEN-RECORDING.md, "Outside Windows").
+fn recorder_input(capture: &TaskSettingsCapture) -> RecorderInput {
+    #[cfg(target_os = "linux")]
+    {
+        use sharex_screen_recording::platform::{AudioInput, Input, is_desktop_source};
+        let f = &capture.FFmpegOptions;
+        if is_desktop_source(&f.VideoSource)
+            && !sharex_capture::platform::linux::wayland()
+            && let Some(display) = std::env::var("DISPLAY").ok().filter(|d| !d.is_empty())
+        {
+            let audio = f.is_audio_source_selected().then(|| AudioInput::Pulse(f.AudioSource.clone()));
+            return RecorderInput::Platform(Input::X11 { display }, audio);
+        }
+    }
+    let _ = capture;
+    RecorderInput::default()
+}
+
 /// `StartRecording`'s checks for the recorder the settings choose.
 fn prepare(output: ScreenRecordOutput, capture: &TaskSettingsCapture, area: Rectangle, bounds: Rectangle) -> Result<PreparedRecording, StartError> {
     let ffmpeg = discovery::resolve_ffmpeg(&capture.FFmpegOptions);
@@ -250,6 +271,14 @@ impl App {
         task: TaskSettings,
         origin: Option<usize>,
     ) {
+        // Wayland: FFmpeg has no screen input there and ShareXrs doesn't
+        // feed it frames yet, so nothing is chosen or started (as a capture
+        // that can't happen: a line in the log).
+        #[cfg(target_os = "linux")]
+        if sharex_capture::platform::linux::wayland() {
+            eprintln!("Screen recording is unavailable on Wayland (FFmpeg has no Wayland screen input).");
+            return;
+        }
         let capture = task.CaptureSettings.clone().unwrap_or_default();
         let screens = sharex_capture::screenshot::screens();
         let bounds = to_rectangle(sharex_capture::screenshot::screen_bounds(&screens));
@@ -535,10 +564,11 @@ impl App {
                 (hooks.send)(Event::Done { path, counter: hooks.counter });
             })
         } else {
+            let input = recorder_input(&prepared.capture);
             let session = FFmpegSession {
                 prepared,
                 screens: screens.iter().map(|s| DesktopScreen { bounds: to_rectangle(s.bounds), primary: s.primary }).collect(),
-                input: RecorderInput::default(),
+                input,
             };
             std::thread::Builder::new().name("screen-recording".into()).spawn(move || {
                 let mut hooks = hooks;
