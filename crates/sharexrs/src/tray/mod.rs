@@ -52,6 +52,16 @@ pub enum TrayEvent {
 
 pub type Callback = Arc<dyn Fn(TrayEvent) + Send + Sync>;
 
+/// Whether there's a tray icon on screen to start silently into or hide
+/// the main window to. A Linux desktop without a StatusNotifierItem host
+/// has none, though the tray was made.
+pub fn shown(tray: Option<&Tray>) -> bool {
+    #[cfg(target_os = "linux")]
+    return tray.is_some_and(Tray::is_shown);
+    #[cfg(not(target_os = "linux"))]
+    tray.is_some()
+}
+
 /// A native menu's entry, flattened from `MainMenuEntry`s
 /// (`BuildNativeMenu`): headers only, checks, submenus.
 #[derive(Clone, Debug, PartialEq)]

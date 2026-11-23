@@ -1150,7 +1150,7 @@ impl App {
     /// to the tray and saves the settings (the first time, ShareX says so
     /// in a notification); without it, ShareX exits.
     fn close_main_window(&mut self, event_loop: &ActiveEventLoop) {
-        if !self.settings.settings.ShowTray || self.tray.is_none() {
+        if !self.settings.settings.ShowTray || !tray::shown(self.tray.as_ref()) {
             // `OnClosing` posts `ForceClose`.
             self.force_close(event_loop);
             return;
@@ -1417,7 +1417,7 @@ impl App {
         }
         // `showMainWindow`: not when starting silently to the tray.
         let s = &self.settings.settings;
-        let show = !(self.silent || s.SilentRun) || !s.ShowTray || self.tray.is_none();
+        let show = !(self.silent || s.SilentRun) || !s.ShowTray || !tray::shown(self.tray.as_ref());
         if show && let Err(e) = self.open_main_window(event_loop) {
             eprintln!("couldn't open the main window: {e}");
             event_loop.exit();
