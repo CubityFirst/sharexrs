@@ -5,9 +5,12 @@
 //! macOS: the hook needs the Accessibility permission; livesplit-hotkey
 //! asks macOS to prompt for it when the hook can't be made, and every
 //! hotkey shows as failed until ShareXrs is restarted with it granted.
-//! Linux: X11 grabs; on Wayland livesplit-hotkey reads the input devices
-//! (evdev), which needs the input group. snapr also uses the desktop's
-//! global shortcuts portal on Wayland; not ported here.
+//! Linux: X11 grabs. On Wayland only the input devices (evdev, which needs
+//! the input group; the keys aren't consumed): X11 grabs there go to
+//! XWayland, which sees keys only while an X11 window has the focus, so
+//! they'd register and never fire. Without evdev every hotkey fails, as
+//! the user is told. snapr also uses the desktop's global shortcuts portal
+//! on Wayland; not ported here.
 //!
 //! ShareX's hotkeys are Windows virtual-key codes (`InputKey`); they map to
 //! livesplit's (W3C) key codes below.
@@ -29,8 +32,17 @@ pub struct HookHotkeyHost {
 
 impl HookHotkeyHost {
     pub fn new(on_press: OnPress) -> Self {
-        let hook = match Hook::with_consume_preference(ConsumePreference::PreferConsume) {
+        #[cfg(target_os = "linux")]
+        let wayland = sharex_capture::platform::linux::wayland();
+        #[cfg(not(target_os = "linux"))]
+        let wayland = false;
+        let preference = if wayland { ConsumePreference::MustNotConsume } else { ConsumePreference::PreferConsume };
+        let hook = match Hook::with_consume_preference(preference) {
             Ok(h) => Some(h),
+            Err(e) if wayland => {
+                eprintln!("global hotkeys unavailable: on Wayland they read the input devices, which needs the input group ({e})");
+                None
+            }
             Err(e) => {
                 eprintln!("global hotkeys unavailable: {e}");
                 None
